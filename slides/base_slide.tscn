@@ -1,10 +1,10 @@
-[gd_scene load_steps=9 format=3 uid="uid://ckafp2hi83jri"]
+[gd_scene load_steps=10 format=3 uid="uid://ckafp2hi83jri"]
 
 [ext_resource type="Script" uid="uid://b6ivjr1y66vcc" path="res://addons/mpf-gmc/classes/mpf_slide.gd" id="1_a4vdr"]
 [ext_resource type="Texture2D" uid="uid://dngvtsi0ogmc2" path="res://addons/artwork/images/scoreboard_background_no_video.jpg" id="2_bu5wf"]
 [ext_resource type="FontFile" uid="uid://bmeoubu4ga0gt" path="res://fonts/ITCMachine-Medium Medium.ttf" id="3_bf8jl"]
+[ext_resource type="Texture2D" uid="uid://blwtf62oda21i" path="res://addons/artwork/images/scoreboard_background_with_video.png" id="3_ojbsg"]
 [ext_resource type="Script" uid="uid://dfhaepcubofxp" path="res://addons/mpf-gmc/classes/mpf_variable.gd" id="4_ojbsg"]
-[ext_resource type="Script" uid="uid://dw5f4r1ivutui" path="res://slides/player_turn_highlighter.gd" id="5_ojbsg"]
 
 [sub_resource type="FontVariation" id="FontVariation_ojbsg"]
 base_font = ExtResource("3_bf8jl")
@@ -13,7 +13,11 @@ spacing_space = -2
 
 [sub_resource type="FontVariation" id="FontVariation_bu5wf"]
 base_font = ExtResource("3_bf8jl")
-spacing_glyph = 6
+spacing_glyph = 5
+
+[sub_resource type="FontVariation" id="FontVariation_pnqsj"]
+base_font = ExtResource("3_bf8jl")
+spacing_glyph = 5
 
 [sub_resource type="FontVariation" id="FontVariation_bf8jl"]
 base_font = ExtResource("3_bf8jl")
@@ -29,9 +33,14 @@ grow_vertical = 2
 script = ExtResource("1_a4vdr")
 metadata/_custom_type_script = "uid://b6ivjr1y66vcc"
 
-[node name="base_background_image" type="Sprite2D" parent="."]
-scale = Vector2(0.667708, 0.668518)
+[node name="background_no_video" type="Sprite2D" parent="."]
+scale = Vector2(0.669271, 0.666667)
 texture = ExtResource("2_bu5wf")
+centered = false
+
+[node name="background_video_opening" type="Sprite2D" parent="."]
+scale = Vector2(1.004, 1)
+texture = ExtResource("3_ojbsg")
 centered = false
 
 [node name="player_ball" type="Label" parent="."]
@@ -53,27 +62,189 @@ variable_name = "ball"
 template_string = "Ball %s"
 metadata/_custom_type_script = "uid://dfhaepcubofxp"
 
-[node name="Player1Pane" type="Control" parent="."]
+[node name="credits_display" type="Label" parent="."]
+layout_mode = 0
+offset_left = 887.0
+offset_top = 9.0
+offset_right = 1056.0
+offset_bottom = 66.0
+theme_override_colors/font_color = Color(0.898039, 0.894118, 0.823529, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
+theme_override_constants/shadow_offset_y = 4
+theme_override_constants/outline_size = 10
+theme_override_constants/shadow_outline_size = 6
+theme_override_fonts/font = SubResource("FontVariation_ojbsg")
+theme_override_font_sizes/font_size = 30
+text = "Free Play"
+script = ExtResource("4_ojbsg")
+variable_type = 2
+variable_name = "credits_string"
+initialize_empty = false
+metadata/_custom_type_script = "uid://dfhaepcubofxp"
+
+[node name="Scorepanel Labels" type="Control" parent="."]
 anchors_preset = 0
 offset_right = 40.0
 offset_bottom = 40.0
 
-[node name="Player1Label" type="Label" parent="Player1Pane"]
+[node name="Player2Label" type="Label" parent="Scorepanel Labels"]
 layout_mode = 0
-offset_left = 35.0
+offset_left = 331.0
 offset_top = 592.0
-offset_right = 269.0
+offset_right = 565.0
 offset_bottom = 635.0
 theme_override_colors/font_color = Color(0.39115, 0.424104, 0.0415914, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 5
 theme_override_fonts/font = SubResource("FontVariation_bu5wf")
-theme_override_font_sizes/font_size = 25
+theme_override_font_sizes/font_size = 26
+text = "Player 2"
+horizontal_alignment = 1
+
+[node name="Player1Label" type="Label" parent="Scorepanel Labels"]
+layout_mode = 0
+offset_left = 33.0
+offset_top = 592.0
+offset_right = 267.0
+offset_bottom = 635.0
+theme_override_colors/font_color = Color(0.39115, 0.424104, 0.0415914, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 5
+theme_override_fonts/font = SubResource("FontVariation_bu5wf")
+theme_override_font_sizes/font_size = 26
 text = "Player 1"
 horizontal_alignment = 1
 
-[node name="P1Score" type="Label" parent="Player1Pane"]
+[node name="Player4Label" type="Label" parent="Scorepanel Labels"]
+layout_mode = 0
+offset_left = 940.0
+offset_top = 593.0
+offset_right = 1174.0
+offset_bottom = 636.0
+theme_override_colors/font_color = Color(0.39115, 0.424104, 0.0415914, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 5
+theme_override_fonts/font = SubResource("FontVariation_bu5wf")
+theme_override_font_sizes/font_size = 26
+text = "Player 4"
+horizontal_alignment = 1
+
+[node name="Player3Label" type="Label" parent="Scorepanel Labels"]
+layout_mode = 0
+offset_left = 627.0
+offset_top = 592.0
+offset_right = 861.0
+offset_bottom = 635.0
+theme_override_colors/font_color = Color(0.39115, 0.424104, 0.0415914, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 5
+theme_override_fonts/font = SubResource("FontVariation_bu5wf")
+theme_override_font_sizes/font_size = 26
+text = "Player 3"
+horizontal_alignment = 1
+
+[node name="Scores" type="Control" parent="."]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="P1ScoreLabel" type="Label" parent="Scores"]
+layout_mode = 0
+offset_left = -43.0
+offset_top = 592.0
+offset_right = 343.0
+offset_bottom = 687.0
+theme_override_colors/font_color = Color(1, 1, 0, 1)
+theme_override_constants/shadow_offset_y = 5
+theme_override_constants/outline_size = 5
+theme_override_constants/shadow_outline_size = 5
+theme_override_fonts/font = SubResource("FontVariation_pnqsj")
+theme_override_font_sizes/font_size = 26
+text = "Player 1"
+horizontal_alignment = 1
+script = ExtResource("4_ojbsg")
+variable_type = 4
+variable_name = "score"
+comma_separate = true
+min_digits = 2
+format_string = "Player 1"
+min_players = 1
+metadata/_custom_type_script = "uid://dfhaepcubofxp"
+
+[node name="P2ScoreLabel" type="Label" parent="Scores"]
+layout_mode = 0
+offset_left = 255.0
+offset_top = 592.0
+offset_right = 641.0
+offset_bottom = 687.0
+theme_override_colors/font_color = Color(1, 1, 0, 1)
+theme_override_constants/shadow_offset_y = 5
+theme_override_constants/outline_size = 5
+theme_override_constants/shadow_outline_size = 5
+theme_override_fonts/font = SubResource("FontVariation_pnqsj")
+theme_override_font_sizes/font_size = 26
+text = "Player 2"
+horizontal_alignment = 1
+script = ExtResource("4_ojbsg")
+variable_type = 5
+variable_name = "score"
+comma_separate = true
+min_digits = 2
+format_string = "Player 2"
+min_players = 1
+metadata/_custom_type_script = "uid://dfhaepcubofxp"
+
+[node name="P3ScoreLabel" type="Label" parent="Scores"]
+layout_mode = 0
+offset_left = 551.0
+offset_top = 592.0
+offset_right = 937.0
+offset_bottom = 687.0
+theme_override_colors/font_color = Color(1, 1, 0, 1)
+theme_override_constants/shadow_offset_y = 5
+theme_override_constants/outline_size = 5
+theme_override_constants/shadow_outline_size = 5
+theme_override_fonts/font = SubResource("FontVariation_pnqsj")
+theme_override_font_sizes/font_size = 26
+text = "Player 3"
+horizontal_alignment = 1
+script = ExtResource("4_ojbsg")
+variable_type = 6
+variable_name = "score"
+comma_separate = true
+min_digits = 2
+format_string = "Player 3"
+min_players = 1
+metadata/_custom_type_script = "uid://dfhaepcubofxp"
+
+[node name="P4ScoreLabel" type="Label" parent="Scores"]
+layout_mode = 0
+offset_left = 864.0
+offset_top = 593.0
+offset_right = 1250.0
+offset_bottom = 688.0
+theme_override_colors/font_color = Color(1, 1, 0, 1)
+theme_override_constants/shadow_offset_y = 5
+theme_override_constants/outline_size = 5
+theme_override_constants/shadow_outline_size = 5
+theme_override_fonts/font = SubResource("FontVariation_pnqsj")
+theme_override_font_sizes/font_size = 26
+text = "Player 4"
+horizontal_alignment = 1
+script = ExtResource("4_ojbsg")
+variable_type = 7
+variable_name = "score"
+comma_separate = true
+min_digits = 2
+format_string = "Player 4"
+min_players = 1
+metadata/_custom_type_script = "uid://dfhaepcubofxp"
+
+[node name="P1Score" type="Label" parent="Scores"]
 layout_mode = 0
 offset_left = -20.0
 offset_top = 634.0
@@ -97,27 +268,7 @@ min_digits = 2
 min_players = 1
 metadata/_custom_type_script = "uid://dfhaepcubofxp"
 
-[node name="Player2Pane" type="Control" parent="."]
-anchors_preset = 0
-offset_right = 40.0
-offset_bottom = 40.0
-
-[node name="Player2Label" type="Label" parent="Player2Pane"]
-layout_mode = 0
-offset_left = 331.0
-offset_top = 592.0
-offset_right = 565.0
-offset_bottom = 635.0
-theme_override_colors/font_color = Color(0.39115, 0.424104, 0.0415914, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 5
-theme_override_fonts/font = SubResource("FontVariation_bu5wf")
-theme_override_font_sizes/font_size = 25
-text = "Player 2"
-horizontal_alignment = 1
-
-[node name="P2Score" type="Label" parent="Player2Pane"]
+[node name="P2Score" type="Label" parent="Scores"]
 layout_mode = 0
 offset_left = 281.0
 offset_top = 634.0
@@ -141,34 +292,7 @@ min_digits = 2
 min_players = 2
 metadata/_custom_type_script = "uid://dfhaepcubofxp"
 
-[node name="P2PressStart" type="Label" parent="Player2Pane"]
-visible = false
-layout_mode = 0
-offset_left = 359.0
-offset_top = 634.0
-offset_right = 715.0
-offset_bottom = 764.0
-theme_override_colors/font_color = Color(0.431373, 1, 0.0431373, 1)
-theme_override_colors/font_shadow_color = Color(0.137255, 0.67451, 0.207843, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/shadow_offset_y = 4
-theme_override_constants/outline_size = 10
-theme_override_constants/shadow_outline_size = 5
-theme_override_fonts/font = SubResource("FontVariation_bf8jl")
-theme_override_font_sizes/font_size = 44
-text = "Press Start"
-script = ExtResource("4_ojbsg")
-format_string = "Press Start"
-initialize_empty = false
-max_players = 1
-metadata/_custom_type_script = "uid://dfhaepcubofxp"
-
-[node name="Player3Pane" type="Control" parent="."]
-anchors_preset = 0
-offset_right = 40.0
-offset_bottom = 40.0
-
-[node name="P3Score" type="Label" parent="Player3Pane"]
+[node name="P3Score" type="Label" parent="Scores"]
 layout_mode = 0
 offset_left = 582.0
 offset_top = 633.0
@@ -192,64 +316,7 @@ min_digits = 2
 min_players = 3
 metadata/_custom_type_script = "uid://dfhaepcubofxp"
 
-[node name="P3PressStart" type="Label" parent="Player3Pane"]
-visible = false
-layout_mode = 0
-offset_left = 661.0
-offset_top = 633.0
-offset_right = 1017.0
-offset_bottom = 763.0
-theme_override_colors/font_color = Color(0.431373, 1, 0.0431373, 1)
-theme_override_colors/font_shadow_color = Color(0.137255, 0.67451, 0.207843, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/shadow_offset_y = 4
-theme_override_constants/outline_size = 10
-theme_override_constants/shadow_outline_size = 5
-theme_override_fonts/font = SubResource("FontVariation_bf8jl")
-theme_override_font_sizes/font_size = 44
-text = "Press Start"
-script = ExtResource("4_ojbsg")
-format_string = "Press Start"
-initialize_empty = false
-max_players = 2
-metadata/_custom_type_script = "uid://dfhaepcubofxp"
-
-[node name="Player3Label" type="Label" parent="Player3Pane"]
-layout_mode = 0
-offset_left = 630.0
-offset_top = 592.0
-offset_right = 864.0
-offset_bottom = 635.0
-theme_override_colors/font_color = Color(0.39115, 0.424104, 0.0415914, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 5
-theme_override_fonts/font = SubResource("FontVariation_bu5wf")
-theme_override_font_sizes/font_size = 25
-text = "Player 3"
-horizontal_alignment = 1
-
-[node name="Player4Pane" type="Control" parent="."]
-anchors_preset = 0
-offset_right = 40.0
-offset_bottom = 40.0
-
-[node name="Player4Label" type="Label" parent="Player4Pane"]
-layout_mode = 0
-offset_left = 941.0
-offset_top = 592.0
-offset_right = 1175.0
-offset_bottom = 635.0
-theme_override_colors/font_color = Color(0.39115, 0.424104, 0.0415914, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 5
-theme_override_fonts/font = SubResource("FontVariation_bu5wf")
-theme_override_font_sizes/font_size = 25
-text = "Player 4"
-horizontal_alignment = 1
-
-[node name="P4Score" type="Label" parent="Player4Pane"]
+[node name="P4Score" type="Label" parent="Scores"]
 layout_mode = 0
 offset_left = 892.0
 offset_top = 634.0
@@ -274,8 +341,49 @@ initialize_empty = false
 min_players = 3
 metadata/_custom_type_script = "uid://dfhaepcubofxp"
 
-[node name="P4PressStart" type="Label" parent="Player4Pane"]
-visible = false
+[node name="P2PressStart" type="Label" parent="Scores"]
+layout_mode = 0
+offset_left = 359.0
+offset_top = 634.0
+offset_right = 715.0
+offset_bottom = 764.0
+theme_override_colors/font_color = Color(0.431373, 1, 0.0431373, 1)
+theme_override_colors/font_shadow_color = Color(0.137255, 0.67451, 0.207843, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/shadow_offset_y = 4
+theme_override_constants/outline_size = 10
+theme_override_constants/shadow_outline_size = 5
+theme_override_fonts/font = SubResource("FontVariation_bf8jl")
+theme_override_font_sizes/font_size = 44
+text = "Press Start"
+script = ExtResource("4_ojbsg")
+format_string = "Press Start"
+initialize_empty = false
+max_players = 1
+metadata/_custom_type_script = "uid://dfhaepcubofxp"
+
+[node name="P3PressStart" type="Label" parent="Scores"]
+layout_mode = 0
+offset_left = 661.0
+offset_top = 633.0
+offset_right = 1017.0
+offset_bottom = 763.0
+theme_override_colors/font_color = Color(0.431373, 1, 0.0431373, 1)
+theme_override_colors/font_shadow_color = Color(0.137255, 0.67451, 0.207843, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/shadow_offset_y = 4
+theme_override_constants/outline_size = 10
+theme_override_constants/shadow_outline_size = 5
+theme_override_fonts/font = SubResource("FontVariation_bf8jl")
+theme_override_font_sizes/font_size = 44
+text = "Press Start"
+script = ExtResource("4_ojbsg")
+format_string = "Press Start"
+initialize_empty = false
+max_players = 2
+metadata/_custom_type_script = "uid://dfhaepcubofxp"
+
+[node name="P4PressStart" type="Label" parent="Scores"]
 layout_mode = 0
 offset_left = 970.0
 offset_top = 634.0
@@ -295,69 +403,3 @@ format_string = "Press Start"
 initialize_empty = false
 max_players = 3
 metadata/_custom_type_script = "uid://dfhaepcubofxp"
-
-[node name="PlayerTurnHighlighter" type="Control" parent="."]
-anchors_preset = 0
-offset_right = 40.0
-offset_bottom = 40.0
-script = ExtResource("5_ojbsg")
-
-[node name="P1Label" type="Label" parent="PlayerTurnHighlighter"]
-layout_mode = 0
-offset_left = 35.0
-offset_top = 592.0
-offset_right = 269.0
-offset_bottom = 635.0
-theme_override_colors/font_color = Color(0.843015, 0.893459, 0.123785, 0.960784)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 5
-theme_override_fonts/font = SubResource("FontVariation_bu5wf")
-theme_override_font_sizes/font_size = 25
-text = "Player 1"
-horizontal_alignment = 1
-
-[node name="P2Label" type="Label" parent="PlayerTurnHighlighter"]
-layout_mode = 0
-offset_left = 331.0
-offset_top = 592.0
-offset_right = 565.0
-offset_bottom = 635.0
-theme_override_colors/font_color = Color(0.807843, 0.858824, 0.117647, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 5
-theme_override_fonts/font = SubResource("FontVariation_bu5wf")
-theme_override_font_sizes/font_size = 25
-text = "Player 2"
-horizontal_alignment = 1
-
-[node name="P3Label" type="Label" parent="PlayerTurnHighlighter"]
-layout_mode = 0
-offset_left = 630.0
-offset_top = 592.0
-offset_right = 864.0
-offset_bottom = 635.0
-theme_override_colors/font_color = Color(0.807843, 0.858824, 0.117647, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 5
-theme_override_fonts/font = SubResource("FontVariation_bu5wf")
-theme_override_font_sizes/font_size = 25
-text = "Player 3"
-horizontal_alignment = 1
-
-[node name="P4Label" type="Label" parent="PlayerTurnHighlighter"]
-layout_mode = 0
-offset_left = 941.0
-offset_top = 592.0
-offset_right = 1175.0
-offset_bottom = 635.0
-theme_override_colors/font_color = Color(0.807843, 0.858824, 0.117647, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 5
-theme_override_fonts/font = SubResource("FontVariation_bu5wf")
-theme_override_font_sizes/font_size = 25
-text = "Player 4"
-horizontal_alignment = 1
