@@ -24,28 +24,34 @@ const numbered_players = [VariableType.PLAYER_1, VariableType.PLAYER_2, Variable
 @export var update_event: String = ""
 ## If set, this node will only render if the number of players is greater than or equal to this value.
 @export var min_players: int
-## If set, this nod will only render if the number of players is less than or equal to this value.
+## If set, this node will only render if the number of players is less than or equal to this value.
 @export var max_players: int
 
+# --- NEW: highlight controls ---
+@export var highlight_when_active: bool = true
+@export var active_font_color: Color = Color(1, 1, 0, 1)        # yellow
+@export var inactive_font_color: Color = Color(0.6, 0.6, 0.6, 1) # gray
+@export var turn_poll_interval: float = 0.20                    # seconds
+
+# --- NEW: where to paint the color (e.g., P1ScoreLabel) ---
+@export var target_label_path: NodePath
+@onready var target_label: Label = get_node_or_null(target_label_path) as Label
+
 var var_template: String = "%s"
-## Track the player number this variable applies to
 var player_number: int = -1
-## Track the initial text to know whether it needs to be initialized empty
 var _initial_text: String = ""
+var _poll_accum: float = 0.0
 
 func _init():
   _initial_text = self.text
 
 func _enter_tree():
-  # Wait until entering the tree for the parent slide update methods to
-  # possible propagate values. If the parent did not change the value and
-  # initialize empty is true, clear the text (except in editor)
   if initialize_empty and self.text == _initial_text and not Engine.is_editor_hint():
     self.text = ""
 
 func _ready() -> void:
   if min_digits > 0:
-    var_template = ("%0"+str(min_digits)+"d")
+    var_template = ("%0" + str(min_digits) + "d")
   if variable_type == VariableType.MACHINE_VAR:
     self.update_text(MPF.game.machine_vars.get(self.variable_name))
     MPF.game.connect("machine_update", self._on_machine_update)
@@ -62,8 +68,10 @@ func _ready() -> void:
 
   if min_players or max_players or variable_type in numbered_players:
     MPF.game.connect("player_added", self._on_player_added)
-    # Set the initial state as well
     self._on_player_added(MPF.game.num_players)
+
+  set_process(true)
+  _apply_active_style()
 
 func _exit_tree() -> void:
   if self.update_event:
@@ -75,23 +83,17 @@ func _exit_tree() -> void:
 func update(settings: Dictionary, kwargs: Dictionary = {}) -> void:
   if variable_type != VariableType.EVENT_ARG:
     return
-  # With format substitutions, we don't know what will be needed so do it all
   if self.format_string:
     if not kwargs.is_empty() or not settings.get("tokens", {}).is_empty():
-      # Create a copy because other handlers may be referencing the dict
       settings = settings.duplicate()
       settings.merge(settings.get("tokens", {}))
       settings.merge(kwargs)
-    # Pass the entire dictionary as the update value
     self.update_text(settings)
     return
-  # If there is an explicit variable name, kwargs have highest priority
   if variable_name in kwargs:
     self.update_text(kwargs[variable_name])
-  # Tokens have second priority
   elif variable_name in settings.get("tokens", {}):
     self.update_text(settings.tokens[variable_name])
-  # Base slide_player settings are last priority
   elif variable_name in settings:
     self.update_text(settings[variable_name])
 
@@ -108,21 +110,26 @@ func update_text(value) -> void:
         if variable_type in numbered_players:
           value = MPF.game.players[numbered_players.find(variable_type)]
     self.text = format_string.format(value)
+    _apply_active_style()
     return
+
   if value == null:
     self.text = ""
+    _apply_active_style()
     return
+
   if value is int or value is float:
-    # Comma-sep generates a string
     if comma_separate and value >= 1000:
       value = MPF.util.comma_sep(value)
-    # If it's a number and there's no template string, use the default string template
     elif not template_string:
       value = var_template % value
+
   if template_string:
     self.text = template_string % value
   else:
     self.text = value
+
+  _apply_active_style()
 
 func _on_machine_update(var_name: String, value: Variant) -> void:
   if var_name == variable_name:
@@ -137,14 +144,12 @@ func _on_player_added(total_players: int) -> void:
     self.hide()
   elif max_players > 0 and total_players > max_players:
     self.hide()
-  # If this player number exceeds the number of players, don't show
   elif self.player_number > total_players:
     self.hide()
   else:
-    # TODO: There is a gap here where a min/max var that applies to the current
-    # player won't connect to an update signal if the range is met during play.
     self._calculate_player_value()
     self.show()
+    _apply_active_style()
 
 func _calculate_player_value() -> bool:
   var mpf_player_num = MPF.game.player.get("number")
@@ -155,10 +160,44 @@ func _calculate_player_value() -> bool:
     self.player_number = mpf_player_num
   elif variable_type in numbered_players:
     self.player_number = numbered_players.find(variable_type) + 1
-  var is_current_player = self.player_number == MPF.game.player.get('number')
+  var is_current_player = self.player_number == MPF.game.player.get("number")
   if is_current_player:
     self.update_text(MPF.game.player.get(self.variable_name))
     return true
   elif MPF.game.players.size() >= self.player_number:
     self.update_text(MPF.game.players[self.player_number - 1].get(self.variable_name))
   return false
+
+func _process(delta: float) -> void:
+  if not highlight_when_active:
+    return
+  _poll_accum += delta
+  if _poll_accum >= turn_poll_interval:
+    _poll_accum = 0.0
+    _apply_active_style()
+
+func _apply_active_style() -> void:
+  if not highlight_when_active:
+    return
+  if MPF == null or MPF.game == null or MPF.game.player == null:
+    return
+
+  var current_num = MPF.game.player.get("number")
+  if current_num == null:
+    return
+
+  var this_num = self.player_number
+  if variable_type == VariableType.CURRENT_PLAYER:
+    this_num = int(current_num)
+
+  var is_active = int(this_num) == int(current_num)
+
+  # Paint the target label if provided; otherwise paint self.
+  var lbl: Label = target_label
+  if lbl == null:
+    lbl = self
+
+  if is_active:
+    lbl.add_theme_color_override("font_color", active_font_color)
+  else:
+    lbl.add_theme_color_override("font_color", inactive_font_color)
