@@ -1,0 +1,78 @@
+#config_version=6
+
+hardware:
+  platform: fast
+
+fast:
+  net:
+    controller: neuron
+    io_loop:
+      cabinet_board:                   #The name I want to call this board
+        model: FP-I/O-0024             #Put Board Number after the dash
+        order: 1
+      playfield_board_lower:           #The name I want to call this board
+        model: FP-I/O-3208             #Put Board Number after the dash
+        order: 2
+      playfield_board_upper:           #The name I want to call this board
+        model: FP-I/O-3208             #Put Board Number after the dash
+        order: 3
+      playfield_board_lock_mechs:      #The name I want to call this board
+        model: FP-I/O-0804             #Put Board Number after the dash
+        order: 4
+    port: auto
+    baud: 921600
+    debug: false
+    watchdog: 1s
+    default_quick_debounce_open: 2ms
+    default_quick_debounce_close: 2ms
+    default_normal_debounce_open: 4ms
+    default_normal_debounce_close: 4ms
+  exp:
+    boards:
+      servo_expansion_board:
+        model: FP-EXP-0071
+        led_fade_time: 0              #will handle fade via MPF
+    port: auto
+    baud: 921600
+    debug: false
+  aud:
+    port: auto
+    debug: false
+
+    main_amp_enabled: true           #enable for cabinet speakers
+    sub_amp_enabled: true            #enable for sub woofer
+    headphones_amp_enabled: false    #enable for headphones
+
+    main_steps: 50                   #steps of volume incruments (max is 63); this is not the volume
+    sub_steps: 50
+    headphones_steps: 50
+
+    default_main_volume: 20         #speaker volume(s)
+    default_sub_volume: 20
+    default_headphones_volume: 20
+
+    persist_volume_settings: true   #saves speaker volumes after shutdown
+
+    max_hw_volume_main: 55          #max volume MPF will alow game to go (63 is max); I set lower to safegaurd speakers
+    max_hw_volume_sub: 55
+    max_hw_volume_headphones: 55
+
+    main_levels_list: none          #can fine tune adjustments of volume "none" lets MPF calculate
+    sub_levels_list: none
+    headphones_levels_list: none
+
+    link_sub_to_main: true          #linking allows the volume change to effect multiple amps
+    link_headphones_to_main: false
+
+    headphones_level: headphones    #"headphones" for headphones or "line" for line out function
+    mute_speakers_with_headphones: true
+
+    # settings for the PC and LCD control pins
+    pin1_pulse_time: 100
+    pin2_pulse_time: 100
+    pin3_pulse_time: 100
+    pin4_pulse_time: 100
+    pin5_pulse_time: 100
+    pin6_pulse_time: 100
+    reset_pulse_time: 100
+    power_pulse_time: 100
