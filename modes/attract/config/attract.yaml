@@ -1,8 +1,5 @@
 #config_version=6
 
-# Attract mode that starts when the machine boots up, stops
-# whenever a game is started, and re-starts after the game ends.
-
 mode_settings:
   selectable_items:
     - title
@@ -24,6 +21,41 @@ sound_player:
   mode_attract_started:
     top_gun_pinball_attract_scene_music:
       bus: music
+
+# Kick off the chained cycle
+event_player:
+  mode_attract_started: attract_cycle_step1
+
+show_player:
+  # Step 1: rainbow_breathe three times, then go to step 2
+  attract_cycle_step1:
+    rainbow_breathe:
+      loops: 3
+      speed: 1
+      priority: 200
+      events_when_completed: attract_cycle_step2
+
+  # Step 2: spinner (your "blink_shoot_again") three times, then step 3
+  attract_cycle_step2:
+    blink_shoot_again:
+      loops: 3
+      speed: 5
+      priority: 200
+      events_when_completed: attract_cycle_step3
+
+  # Step 3: wave (your "output1") three times, then back to step 1
+  attract_cycle_step3:
+    output1:
+      loops: 3
+      speed: 5
+      priority: 200
+      events_when_completed: attract_cycle_step1
+
+  # Stop anything still running when attract stops
+  mode_attract_stopping:
+    rainbow_breathe: stop
+    blink_shoot_again: stop
+    output1: stop
 
 timers:
   attract_carousel_timer:
