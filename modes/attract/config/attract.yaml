@@ -27,35 +27,53 @@ event_player:
   mode_attract_started: attract_cycle_step1
 
 show_player:
-  # Step 1: rainbow_breathe three times, then go to step 2
+  # Step 1: play both halves at the same time; advance only after both complete
   attract_cycle_step1:
-    rainbow_breathe:
-      loops: 3
-      speed: 1
+    attract_corners_sweep:
+      loops: 1
+      speed: 40
       priority: 200
-      events_when_completed: attract_cycle_step2
+      events_when_completed: attract_cycle_step2 
 
-  # Step 2: spinner (your "blink_shoot_again") three times, then step 3
+  # Step 3: spinner (your "blink_shoot_again") three times, then step 3
   attract_cycle_step2:
-    blink_shoot_again:
-      loops: 3
-      speed: 5
+    attract_insert_fade_in_out:
+      loops: 1
+      speed: 2
       priority: 200
       events_when_completed: attract_cycle_step3
 
-  # Step 3: wave (your "output1") three times, then back to step 1
+  # Step 4: spinner (your "blink_shoot_again") three times, then step 4
   attract_cycle_step3:
-    output1:
-      loops: 3
-      speed: 5
+    attract_smooth_motion:
+      loops: 1
+      speed: 40
+      priority: 200
+      events_when_completed: attract_cycle_step4
+
+  # Step 5: wave (your "output1") three times, then back to step 5
+  attract_cycle_step4:
+    attract_chase_all_inserts:
+      loops: 10
+      speed: 1
+      priority: 200
+      events_when_completed: attract_cycle_step5
+
+  # Step 6: wave (your "output1") three times, then back to step 1
+  attract_cycle_step5:
+    attract_color_wheel:
+      loops: 5
+      speed: 50
       priority: 200
       events_when_completed: attract_cycle_step1
 
-  # Stop anything still running when attract stops
+  # Clean stop on mode end
   mode_attract_stopping:
-    rainbow_breathe: stop
-    blink_shoot_again: stop
-    output1: stop
+    attract_corners_sweep: stop
+    attract_insert_fade_in_out: stop
+    attract_smooth_motion: stop
+    attract_chase_all_inserts: stop
+    attract_color_wheel: stop
 
 timers:
   attract_carousel_timer:
