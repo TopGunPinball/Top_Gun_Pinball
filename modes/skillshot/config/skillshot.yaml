@@ -1,0 +1,312 @@
+#config_version=6
+mode:
+  start_events: s_shooter_lane_active
+  stop_events:
+    timer_skillshot_complete: 0s
+    skillshot_made: 0s
+    # Stop on specific non-skillshot switches
+    s_i_iceman_target_active: 0s
+    s_c_iceman_target_active: 0s  
+    s_e_iceman_target_active: 0s
+    s_m_iceman_target_active: 0s
+    s_a_iceman_target_active: 0s
+    s_n_iceman_target_active: 0s
+    s_l_lock_target_active: 0s
+    s_o_lock_target_active: 0s
+    s_c_lock_target_active: 0s
+    s_k_lock_target_active: 0s
+    s_barrier_target_active: 0s
+    s_flight_gear_target_active: 0s
+    s_bumper_left_active: 0s
+    s_bumper_center_active: 0s
+    s_bumper_right_active: 0s
+    s_slingshot_left_active: 0s
+    s_slingshot_right_active: 0s
+    s_inlane_left_active: 0s
+    s_inner_inlane_right_active: 0s
+    s_outer_inlane_right_active: 0s
+    s_outlane_left_active: 0s
+    s_outlane_right_active: 0s
+    s_lane_left_active: 0s
+    s_ramp_left_exit_active: 0s
+    s_ramp_right_exit_active: 0s
+    s_ramp_tower_exit_active: 0s
+
+shots:
+  mig_lane_left:
+    switch: s_mig_lane_left
+    profile: skill
+    show_tokens:
+      leds: l_mig_m
+    advance_events: mode_skillshot_started
+
+  mig_lane_right:
+    switch: s_mig_lane_right
+    profile: skill
+    show_tokens:
+      leds: l_mig_g
+    advance_events: mode_skillshot_started
+
+  spinner:
+    switch: s_spinner
+    profile: skill
+    show_tokens:
+      leds: l_shot_spinner
+    advance_events: mode_skillshot_started
+
+  orbit_upper:
+    switch: s_orbit_upper
+    profile: skill
+    show_tokens:
+      leds: l_shot_upper_orbit
+    advance_events: mode_skillshot_started
+
+  ramp_inner:
+    switch: s_ramp_inner_exit
+    profile: skill
+    show_tokens:
+      leds: l_shot_middle_ramp
+    advance_events: mode_skillshot_started
+
+shot_profiles:
+  skill:
+    advance_on_hit: false
+    states:
+      - name: off
+        show: off
+      - name: lit
+        show: skillshot_cyan_flash
+
+shot_groups:
+  skillshot_group:
+    shots: mig_lane_left, mig_lane_right, spinner, orbit_upper, ramp_inner
+    enable_events: mode_skillshot_started
+
+timers:
+  skillshot:
+    start_value: 10
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    control_events:
+      - action: start
+        event: s_shooter_lane_inactive
+      - action: stop
+        event: skillshot_made
+
+  skillshot_sound_loop:
+    start_value: 0
+    end_value: 999
+    direction: up
+    tick_interval: 3s  # Adjust based on your sound length
+    start_running: false
+    control_events:
+      - action: start
+        event: mode_skillshot_started
+      - action: start
+        event: s_shooter_lane_active{mode.skillshot.active}  # Restart if ball returns during skillshot
+      - action: stop
+        event: s_shooter_lane_inactive
+      - action: stop
+        event: skillshot_made
+
+variable_player:
+  # Conditional scoring based on skillshot count - use priorities to control execution order
+  mig_lane_left_skill_lit_hit{current_player.skillshot_count>=4}:
+    score: 125000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 1000
+  mig_lane_left_skill_lit_hit{current_player.skillshot_count==3}:
+    score: 100000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 900
+  mig_lane_left_skill_lit_hit{current_player.skillshot_count==2}:
+    score: 75000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 800
+  mig_lane_left_skill_lit_hit{current_player.skillshot_count==1}:
+    score: 50000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 700
+  mig_lane_left_skill_lit_hit{current_player.skillshot_count==0}:
+    score: 25000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 600
+
+  mig_lane_right_skill_lit_hit{current_player.skillshot_count>=4}:
+    score: 125000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 1000
+  mig_lane_right_skill_lit_hit{current_player.skillshot_count==3}:
+    score: 100000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 900
+  mig_lane_right_skill_lit_hit{current_player.skillshot_count==2}:
+    score: 75000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 800
+  mig_lane_right_skill_lit_hit{current_player.skillshot_count==1}:
+    score: 50000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 700
+  mig_lane_right_skill_lit_hit{current_player.skillshot_count==0}:
+    score: 25000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 600
+
+  spinner_skill_lit_hit{current_player.skillshot_count>=4}:
+    score: 250000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 1000
+  spinner_skill_lit_hit{current_player.skillshot_count==3}:
+    score: 200000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 900
+  spinner_skill_lit_hit{current_player.skillshot_count==2}:
+    score: 150000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 800
+  spinner_skill_lit_hit{current_player.skillshot_count==1}:
+    score: 100000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 700
+  spinner_skill_lit_hit{current_player.skillshot_count==0}:
+    score: 50000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 600
+
+  orbit_upper_skill_lit_hit{current_player.skillshot_count>=4}:
+    score: 1000000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 1000
+  orbit_upper_skill_lit_hit{current_player.skillshot_count==3}:
+    score: 800000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 900
+  orbit_upper_skill_lit_hit{current_player.skillshot_count==2}:
+    score: 600000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 800
+  orbit_upper_skill_lit_hit{current_player.skillshot_count==1}:
+    score: 400000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 700
+  orbit_upper_skill_lit_hit{current_player.skillshot_count==0}:
+    score: 200000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 600
+
+  ramp_inner_skill_lit_hit{current_player.skillshot_count>=4}:
+    score: 500000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 1000
+  ramp_inner_skill_lit_hit{current_player.skillshot_count==3}:
+    score: 400000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 900
+  ramp_inner_skill_lit_hit{current_player.skillshot_count==2}:
+    score: 300000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 800
+  ramp_inner_skill_lit_hit{current_player.skillshot_count==1}:
+    score: 200000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 700
+  ramp_inner_skill_lit_hit{current_player.skillshot_count==0}:
+    score: 100000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 600
+
+event_player:
+  mig_lane_left_skill_lit_hit: skillshot_made
+  mig_lane_right_skill_lit_hit: skillshot_made
+  spinner_skill_lit_hit: skillshot_made
+  orbit_upper_skill_lit_hit: skillshot_made
+  ramp_inner_skill_lit_hit: skillshot_made
+
+sound_player:
+  timer_skillshot_sound_loop_tick:  # Play sound every time timer ticks
+    soundfx_skillshot_idle:
+      bus: effects
+  s_shooter_lane_inactive:
+    soundfx_skillshot_idle:
+      action: stop
+  s_shooter_lane_inactive{mode.skillshot.active}:  # Only play launch sound if skillshot mode is active
+    soundfx_skillshot_launch:
+      bus: effects
+      delay: 100ms  # Small delay to ensure idle sound stops first
