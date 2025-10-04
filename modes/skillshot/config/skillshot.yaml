@@ -3,8 +3,12 @@ mode:
   start_events: s_shooter_lane_active
   stop_events:
     timer_skillshot_complete: 0s
-    skillshot_made: 0s
-    # Stop on specific non-skillshot switches
+    mig_lane_left_skill_lit_hit: 0s  # Stop immediately when hit
+    mig_lane_right_skill_lit_hit: 0s  # Stop immediately when hit
+    spinner_skill_lit_hit: 0s
+    orbit_upper_skill_lit_hit: 0s
+    ramp_inner_skill_lit_hit: 0s
+    # Stop immediately on any non-skillshot switch
     s_i_iceman_target_active: 0s
     s_c_iceman_target_active: 0s  
     s_e_iceman_target_active: 0s
@@ -84,7 +88,7 @@ shot_groups:
 
 timers:
   skillshot:
-    start_value: 10
+    start_value: 9
     end_value: 0
     direction: down
     tick_interval: 1s
@@ -92,23 +96,23 @@ timers:
       - action: start
         event: s_shooter_lane_inactive
       - action: stop
-        event: skillshot_made
+        event: mode_skillshot_will_stop
 
   skillshot_sound_loop:
     start_value: 0
     end_value: 999
     direction: up
-    tick_interval: 3s  # Adjust based on your sound length
+    tick_interval: 3s
     start_running: false
     control_events:
       - action: start
         event: mode_skillshot_started
       - action: start
-        event: s_shooter_lane_active{mode.skillshot.active}  # Restart if ball returns during skillshot
+        event: s_shooter_lane_active{mode.skillshot.active}
       - action: stop
         event: s_shooter_lane_inactive
       - action: stop
-        event: skillshot_made
+        event: mode_skillshot_will_stop
 
 variable_player:
   # Conditional scoring based on skillshot count - use priorities to control execution order
@@ -293,30 +297,36 @@ variable_player:
     priority: 600
 
 event_player:
-  mig_lane_left_skill_lit_hit: skillshot_made
-  mig_lane_right_skill_lit_hit: skillshot_made
-  spinner_skill_lit_hit: skillshot_made
-  orbit_upper_skill_lit_hit: skillshot_made
-  ramp_inner_skill_lit_hit: skillshot_made
-
+  # When skillshot is hit, trigger video in base mode instead of skillshot mode
+  mig_lane_left_skill_lit_hit:
+    show_skillshot_mig_video  # Post event for base mode to handle
+  mig_lane_right_skill_lit_hit:
+    show_skillshot_mig_video
+  spinner_skill_lit_hit:
+    show_skillshot_top_gun_video
+  orbit_upper_skill_lit_hit:
+    show_skillshot_tower_video
+  ramp_inner_skill_lit_hit:
+    show_skillshot_inverted_video
+      
 sound_player:
-  timer_skillshot_sound_loop_tick:  # Play sound every time timer ticks
+  timer_skillshot_sound_loop_tick:
     soundfx_skillshot_idle:
       bus: effects
   s_shooter_lane_inactive:
     soundfx_skillshot_idle:
       action: stop
-  s_shooter_lane_inactive{mode.skillshot.active}:  # Only play launch sound if skillshot mode is active
+  s_shooter_lane_inactive{mode.skillshot.active}:
     soundfx_skillshot_launch:
       bus: effects
-      delay: 100ms  # Small delay to ensure idle sound stops first
-
+      delay: 100ms
 
 slide_player:
-  timer_skillshot_sound_loop_tick:  # Play sound every time timer ticks
+  timer_skillshot_sound_loop_tick:
     skillshot_ball_in_shooter_lane:
       action: play
-  s_shooter_lane_inactive{mode.skillshot.active}:  # Only play launch sound if skillshot mode is active
+      
+  s_shooter_lane_inactive{mode.skillshot.active}:
     skillshot_ball_in_shooter_lane:
       action: remove
     skillshot_ball_launched:
