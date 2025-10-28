@@ -1,0 +1,451 @@
+#config_version=6
+# Mach Scoring Mode - Global scoring multiplier system
+# Requires 2 ramp hits within 10s to activate, then 20s countdown timer
+
+mode:
+  start_events: mode_base_started
+  stop_events: mode_base_stopped
+  priority: 500
+
+shots:
+  mach_ramp:
+    switch: s_ramp_inner_exit
+
+timers:
+  # Qualification timer - 10 seconds to hit ramp again
+  mach_qualify_timer:
+    start_value: 10
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - action: start
+        event: mach_first_hit
+      - action: stop
+        event: mach_qualified
+
+  # Main countdown timer - 20 seconds at active mach level
+  mach_timer:
+    start_value: 20
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - action: restart
+        event: mach_qualified
+      - action: restart
+        event: mach_level_up
+      - action: restart
+        event: mach_max_hit
+      - action: stop
+        event: timer_mach_timer_complete
+
+event_player:
+  # First hit - no mach scoring yet
+  mach_ramp_hit{current_player.mach_step==0}:
+    mach_first_hit:
+      
+  # Second hit within 10s - activate mach scoring
+  mach_ramp_hit{current_player.mach_step==1}:
+    mach_qualified:
+    
+  # Hits at active levels - check if we can level up or if at max
+  mach_ramp_hit{current_player.mach_step>=2 and current_player.mach_step<9}:
+    mach_level_up:
+    
+  # Hit at max level - just restart timer
+  mach_ramp_hit{current_player.mach_step==9}:
+    mach_max_hit:
+    
+  # Qualification timeout - reset
+  timer_mach_qualify_timer_complete:
+    mach_reset:
+    
+  # Main timer timeout - reset
+  timer_mach_timer_complete:
+    mach_reset:
+    remove_timer_slides:
+  
+  # Debug: confirm reset happened
+  mach_reset:
+    loginfo_mach_reset:
+  
+  # Debug: confirm first hit detected
+  mach_first_hit:
+    loginfo_mach_first_hit:
+  
+  # Clean up timer slides when restarting timer
+  mach_level_up:
+    remove_timer_slides:
+  
+  mach_max_hit:
+    remove_timer_slides:
+
+variable_player:
+  # First hit - start qualification
+  mach_first_hit:
+    mach_step:
+      int: 1
+      action: set
+    
+  # Second hit - activate at 1.25x (step 2)
+  mach_qualified:
+    mach_step:
+      int: 2
+      action: set
+    mach_level:
+      float: 1.25
+      action: set
+    
+  # Level up - increment step and set corresponding level
+  mach_level_up:
+    mach_step:
+      int: 1
+      action: add
+    mach_level:
+      float: 0.25
+      action: add
+  
+  # Reset to default
+  mach_reset:
+    mach_step:
+      int: 0
+      action: set
+    mach_level:
+      float: 1.0
+      action: set
+
+slide_player:
+  # Show default mach_1 image when mode starts
+  mode_mach_scoring_started:
+    mach_1:
+      action: play
+      priority: 200
+  
+  # Update slides as mach level changes
+  player_mach_level{value==1.25}:
+    mach_1:
+      action: remove
+    mach_1_25:
+      action: play
+      priority: 200
+      
+  player_mach_level{value==1.50}:
+    mach_1_25:
+      action: remove
+    mach_1_5:
+      action: play
+      priority: 200
+      
+  player_mach_level{value==1.75}:
+    mach_1_5:
+      action: remove
+    mach_1_75:
+      action: play
+      priority: 200
+      
+  player_mach_level{value==2.0}:
+    mach_1_75:
+      action: remove
+    mach_2:
+      action: play
+      priority: 200
+      
+  player_mach_level{value==2.25}:
+    mach_2:
+      action: remove
+    mach_2_25:
+      action: play
+      priority: 200
+      
+  player_mach_level{value==2.50}:
+    mach_2_25:
+      action: remove
+    mach_2_5:
+      action: play
+      priority: 200
+      
+  player_mach_level{value==2.75}:
+    mach_2_5:
+      action: remove
+    mach_2_75:
+      action: play
+      priority: 200
+      
+  player_mach_level{value==3.0}:
+    mach_2_75:
+      action: remove
+    mach_3:
+      action: play
+      priority: 200
+  
+  # Reset to mach_1 when timer expires
+  player_mach_level{value==1.0}:
+    mach_1_25:
+      action: remove
+    mach_1_5:
+      action: remove
+    mach_1_75:
+      action: remove
+    mach_2:
+      action: remove
+    mach_2_25:
+      action: remove
+    mach_2_5:
+      action: remove
+    mach_2_75:
+      action: remove
+    mach_3:
+      action: remove
+    mach_1:
+      action: play
+      priority: 200
+  
+  # Remove all timer slides when timer restarts
+  remove_timer_slides:
+    timer1:
+      action: remove
+    timer2:
+      action: remove
+    timer3:
+      action: remove
+    timer4:
+      action: remove
+    timer5:
+      action: remove
+    timer6:
+      action: remove
+    timer7:
+      action: remove
+    timer8:
+      action: remove
+    timer9:
+      action: remove
+    timer10:
+      action: remove
+    timer11:
+      action: remove
+    timer12:
+      action: remove
+    timer13:
+      action: remove
+    timer14:
+      action: remove
+    timer15:
+      action: remove
+    timer16:
+      action: remove
+    timer17:
+      action: remove
+    timer18:
+      action: remove
+    timer19:
+      action: remove
+    timer20:
+      action: remove
+  
+  # Timer slides
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==20}:
+    timer20:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==19}:
+    timer20:
+      action: remove
+    timer19:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==18}:
+    timer19:
+      action: remove
+    timer18:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==17}:
+    timer18:
+      action: remove
+    timer17:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==16}:
+    timer17:
+      action: remove
+    timer16:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==15}:
+    timer16:
+      action: remove
+    timer15:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==14}:
+    timer15:
+      action: remove
+    timer14:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==13}:
+    timer14:
+      action: remove
+    timer13:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==12}:
+    timer13:
+      action: remove
+    timer12:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==11}:
+    timer12:
+      action: remove
+    timer11:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==10}:
+    timer11:
+      action: remove
+    timer10:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==9}:
+    timer10:
+      action: remove
+    timer9:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==8}:
+    timer9:
+      action: remove
+    timer8:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==7}:
+    timer8:
+      action: remove
+    timer7:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==6}:
+    timer7:
+      action: remove
+    timer6:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==5}:
+    timer6:
+      action: remove
+    timer5:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==4}:
+    timer5:
+      action: remove
+    timer4:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==3}:
+    timer4:
+      action: remove
+    timer3:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==2}:
+    timer3:
+      action: remove
+    timer2:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==1}:
+    timer2:
+      action: remove
+    timer1:
+      action: play
+      priority: 200
+      
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==0}:
+    timer1:
+      action: remove
+  
+  # Clean up slides when mode stops
+  mode_mach_scoring_stopped:
+    mach_1:
+      action: remove
+    mach_1_25:
+      action: remove
+    mach_1_5:
+      action: remove
+    mach_1_75:
+      action: remove
+    mach_2:
+      action: remove
+    mach_2_25:
+      action: remove
+    mach_2_5:
+      action: remove
+    mach_2_75:
+      action: remove
+    mach_3:
+      action: remove
+    timer1:
+      action: remove
+    timer2:
+      action: remove
+    timer3:
+      action: remove
+    timer4:
+      action: remove
+    timer5:
+      action: remove
+    timer6:
+      action: remove
+    timer7:
+      action: remove
+    timer8:
+      action: remove
+    timer9:
+      action: remove
+    timer10:
+      action: remove
+    timer11:
+      action: remove
+    timer12:
+      action: remove
+    timer13:
+      action: remove
+    timer14:
+      action: remove
+    timer15:
+      action: remove
+    timer16:
+      action: remove
+    timer17:
+      action: remove
+    timer18:
+      action: remove
+    timer19:
+      action: remove
+    timer20:
+      action: remove

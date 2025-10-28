@@ -1,12 +1,5 @@
 #config_version=6
 
-## MPF Main Machine Config File
-#
-# This file defines your system-wide properties like switches,
-# drivers, ball devices, hardware platforms, and more. You can
-# include everything here, or create sub-config files to be
-# imported and merged with this one.
-
 config:
   - config_autofire_coils.yaml
   - config_ball_devices.yaml
@@ -22,10 +15,17 @@ modes:
   - attract
   - base
   - bumpers
- # - service
+  - mach_scoring
   - skillshot
   - pilot_mission_qualifier
 
+player_vars:
+  mach_level:
+    initial_value: 1.0
+    value_type: float
+  mach_step:
+    initial_value: 0
+    value_type: int
 
 playfields:
   playfield:
@@ -54,7 +54,7 @@ bcp:
   connections:
     local_display:
       type: mpf.core.bcp.bcp_socket_client.BCPClientSocket
-      host: localhost        # change if your Godot BCP server runs elsewhere
+      host: localhost
       port: 5050
       required: true
       exit_on_close: true
@@ -65,4 +65,4 @@ logging:
     mpf.core.config_player: debug
     mpf.core.assets: debug
     mpf.core.asset_manager: debug
-    mpf.plugins.sound: debug         # if your build exposes this
+    mpf.plugins.sound: debug

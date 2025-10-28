@@ -1,0 +1,82 @@
+[gd_scene load_steps=3 format=3 uid="uid://daquxtdtmcipf"]
+
+[ext_resource type="Texture2D" uid="uid://shjdnot7pgbt" path="res://addons/artwork/images/pilot_mission_qualifier/spell_topgun_none.jpg" id="2_5ess1"]
+
+[sub_resource type="GDScript" id="GDScript_2fi2c"]
+script/source = "extends MPFSlide
+
+# Reference to the image display
+@onready var topgun_image = $TopgunImage
+
+# Load all 7 images
+var images = {
+  0: preload(\"res://addons/artwork/images/pilot_mission_qualifier/spell_topgun_none.jpg\"),
+  1: preload(\"res://addons/artwork/images/pilot_mission_qualifier/spell_topgun_t.jpg\"),
+  2: preload(\"res://addons/artwork/images/pilot_mission_qualifier/spell_topgun_o.jpg\"),
+  3: preload(\"res://addons/artwork/images/pilot_mission_qualifier/spell_topgun_p.jpg\"),
+  4: preload(\"res://addons/artwork/images/pilot_mission_qualifier/spell_topgun_g.jpg\"),
+  5: preload(\"res://addons/artwork/images/pilot_mission_qualifier/spell_topgun_u.jpg\"),
+  6: preload(\"res://addons/artwork/images/pilot_mission_qualifier/spell_topgun_n.jpg\")
+}
+
+# Track current letter count
+var letters_lit = 0
+
+func _ready():
+  print(\"TOPGUN slide ready, setting up event handlers\")
+  
+  # Set initial display
+  topgun_image.texture = images[0]
+
+# These functions are called BY MPF via BCP when events fire
+func event_topgun_letter_t_lit(_kwargs):
+  letters_lit = 1
+  update_display()
+
+func event_topgun_letter_o_lit(_kwargs):
+  letters_lit = 2
+  update_display()
+
+func event_topgun_letter_p_lit(_kwargs):
+  letters_lit = 3
+  update_display()
+
+func event_topgun_letter_g_lit(_kwargs):
+  letters_lit = 4
+  update_display()
+
+func event_topgun_letter_u_lit(_kwargs):
+  letters_lit = 5
+  update_display()
+
+func event_topgun_letter_n_lit(_kwargs):
+  letters_lit = 6
+  update_display()
+
+func event_topgun_letters_reset(_kwargs):
+  letters_lit = 0
+  update_display()
+
+func update_display():
+  if letters_lit in images:
+    topgun_image.texture = images[letters_lit]
+    print(\"TOPGUN: Updated to show \", letters_lit, \" letters lit\")
+"
+
+[node name="topgun_letters" type="Control"]
+process_priority = 200
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = SubResource("GDScript_2fi2c")
+metadata/_custom_type_script = "uid://b6ivjr1y66vcc"
+
+[node name="TopgunImage" type="TextureRect" parent="."]
+layout_mode = 0
+offset_left = 169.0
+offset_top = 217.0
+offset_right = 865.0
+offset_bottom = 483.0
+texture = ExtResource("2_5ess1")
+expand_mode = 1
