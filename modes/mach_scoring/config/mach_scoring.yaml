@@ -1,11 +1,30 @@
 #config_version=6
 # Mach Scoring Mode - Global scoring multiplier system
 # Requires 2 ramp hits within 10s to activate, then 20s countdown timer
+# Slides at Layer 49(Timer and Mach Level) & 48 (Videos)
 
 mode:
   start_events: mode_base_started
   stop_events: mode_base_stopped
   priority: 500
+
+sounds:
+  mach_scoring_soundfx_super_slow_speed:
+    file: effects/mach_scoring/mach_scoring_soundfx_super_slow_speed.mp3
+  mach_scoring_soundfx_slow_speed:
+    file: effects/mach_scoring/mach_scoring_soundfx_slow_speed.mp3
+  mach_scoring_soundfx_medium_speed:
+    file: effects/mach_scoring/mach_scoring_soundfx_medium_speed.mp3
+  mach_scoring_soundfx_super_fast:
+    file: effects/mach_scoring/mach_scoring_soundfx_super_fast.mp3
+  mach_scoring_soundfx_come_on:
+    file: effects/mach_scoring/mach_scoring_soundfx_come_on.mp3
+  mach_scoring_soundfx_explosion:
+    file: effects/mach_scoring/mach_scoring_soundfx_explosion.mp3
+  mach_scoring_soundfx_sound_barrier:
+    file: effects/mach_scoring/mach_scoring_soundfx_sound_barrier.mp3
+  mach_scoring_soundfx_maxed:
+    file: effects/mach_scoring/mach_scoring_soundfx_maxed.mp3
 
 shots:
   mach_ramp:
@@ -67,14 +86,7 @@ event_player:
   timer_mach_timer_complete:
     mach_reset:
     remove_timer_slides:
-  
-  # Debug: confirm reset happened
-  mach_reset:
-    loginfo_mach_reset:
-  
-  # Debug: confirm first hit detected
-  mach_first_hit:
-    loginfo_mach_first_hit:
+    show_explosion_video:
   
   # Clean up timer slides when restarting timer
   mach_level_up:
@@ -82,6 +94,24 @@ event_player:
   
   mach_max_hit:
     remove_timer_slides:
+  
+  # When mach 1.25 is reached, trigger video
+  player_mach_level{value==1.25}:
+    show_mach_1_25_video:
+  player_mach_level{value==1.5}:
+    show_mach_1_5_video:
+  player_mach_level{value==1.75}:
+    show_mach_1_75_video:
+  player_mach_level{value==2.0}:
+    show_mach_2_video:
+  player_mach_level{value==2.25}:
+    show_mach_2_25_video:
+  player_mach_level{value==2.5}:
+    show_mach_2_5_video:
+  player_mach_level{value==2.75}:
+    show_mach_2_75_video:
+  player_mach_level{value==3.0}:
+    show_mach_3_video:
 
 variable_player:
   # First hit - start qualification
@@ -117,6 +147,76 @@ variable_player:
       float: 1.0
       action: set
 
+show_player:
+  # Play fire effect show when timer expires
+  timer_mach_timer_complete:
+    mach_scoring_ended:
+      loops: 1
+      speed: 65
+      sync_ms: true
+  
+  # Play light show when mach scoring increases
+  mach_level_up:
+    mach_scoring_increased:
+      loops: 0
+      speed: 15
+      sync_ms: true
+
+  # Play light show when mach scoring starts
+  mach_qualified:
+    mach_scoring_increased:
+      loops: 0
+      speed: 15
+      sync_ms: true
+
+sound_player:
+  # Play sound effect when reaching mach 1.25
+  player_mach_level{value==1.25}:
+    mach_scoring_soundfx_super_slow_speed:
+      action: play
+      loops: 0
+      bus: effects
+  player_mach_level{value==1.50}:
+    mach_scoring_soundfx_slow_speed:
+      action: play
+      loops: 0
+      bus: effects
+  player_mach_level{value==1.75}:
+    mach_scoring_soundfx_sound_barrier:
+      action: play
+      loops: 0
+      bus: effects
+  player_mach_level{value==2.0}:
+    mach_scoring_soundfx_medium_speed:
+      action: play
+      loops: 0
+      bus: effects
+  player_mach_level{value==2.25}:
+    mach_scoring_soundfx_medium_speed:
+      action: play
+      loops: 0
+      bus: effects
+  player_mach_level{value==2.50}:
+    mach_scoring_soundfx_super_fast:
+      action: play
+      loops: 0
+      bus: effects
+  player_mach_level{value==2.75}:
+    mach_scoring_soundfx_come_on:
+      action: play
+      loops: 0
+      bus: effects
+  player_mach_level{value==3.0}:
+    mach_scoring_soundfx_maxed:
+      action: play
+      loops: 0
+      bus: effects
+  timer_mach_timer_complete:
+    mach_scoring_soundfx_explosion:
+      action: play
+      loops: 0
+      bus: effects
+
 slide_player:
   # Show default mach_1 image when mode starts
   mode_mach_scoring_started:
@@ -131,73 +231,136 @@ slide_player:
     mach_1_25:
       action: play
       priority: 200
+  
+  # Show video when reaching mach 1.25
+  show_mach_1_25_video:
+    mach_1_25_video:
+      action: play
+      priority: 300
       
   player_mach_level{value==1.50}:
     mach_1_25:
       action: remove
+    mach_1_25_video:
+      action: remove
     mach_1_5:
+      action: play
+      priority: 200
+    mach_1_5_video:
       action: play
       priority: 200
       
   player_mach_level{value==1.75}:
     mach_1_5:
       action: remove
+    mach_1_5_video:
+      action: remove
     mach_1_75:
+      action: play
+      priority: 200
+    mach_1_75_video:
       action: play
       priority: 200
       
   player_mach_level{value==2.0}:
     mach_1_75:
       action: remove
+    mach_1_75_video:
+      action: remove
     mach_2:
+      action: play
+      priority: 200
+    mach_2_video:
       action: play
       priority: 200
       
   player_mach_level{value==2.25}:
     mach_2:
       action: remove
+    mach_2_video:
+      action: remove
     mach_2_25:
+      action: play
+      priority: 200
+    mach_2_25_video:
       action: play
       priority: 200
       
   player_mach_level{value==2.50}:
     mach_2_25:
       action: remove
+    mach_2_25_video:
+      action: remove
     mach_2_5:
+      action: play
+      priority: 200
+    mach_2_5_video:
       action: play
       priority: 200
       
   player_mach_level{value==2.75}:
     mach_2_5:
       action: remove
+    mach_2_5_video:
+      action: remove
     mach_2_75:
+      action: play
+      priority: 200
+    mach_2_75_video:
       action: play
       priority: 200
       
   player_mach_level{value==3.0}:
     mach_2_75:
       action: remove
+    mach_2_75_video:
+      action: remove
     mach_3:
       action: play
       priority: 200
+    mach_3_video:
+      action: play
+      priority: 200
+
+  show_explosion_video:
+    mach_scoring_expired_video:
+      action: play
+      priority: 300
+      expire: 2s
   
   # Reset to mach_1 when timer expires
   player_mach_level{value==1.0}:
     mach_1_25:
       action: remove
+    mach_1_25_video:
+      action: remove
     mach_1_5:
+      action: remove
+    mach_1_5_video:
       action: remove
     mach_1_75:
       action: remove
+    mach_1_75_video:
+      action: remove
     mach_2:
+      action: remove
+    mach_2_video:
       action: remove
     mach_2_25:
       action: remove
+    mach_2_25_video:
+      action: remove
     mach_2_5:
+      action: remove
+    mach_2_5_video:
       action: remove
     mach_2_75:
       action: remove
+    mach_2_75_video:
+      action: remove
     mach_3:
+      action: remove
+    mach_3_video:
       action: remove
     mach_1:
       action: play
@@ -391,23 +554,37 @@ slide_player:
   
   # Clean up slides when mode stops
   mode_mach_scoring_stopped:
-    mach_1:
-      action: remove
     mach_1_25:
+      action: remove
+    mach_1_25_video:
       action: remove
     mach_1_5:
       action: remove
+    mach_1_5_video:
+      action: remove
     mach_1_75:
+      action: remove
+    mach_1_75_video:
       action: remove
     mach_2:
       action: remove
+    mach_2_video:
+      action: remove
     mach_2_25:
+      action: remove
+    mach_2_25_video:
       action: remove
     mach_2_5:
       action: remove
+    mach_2_5_video:
+      action: remove
     mach_2_75:
       action: remove
+    mach_2_75_video:
+      action: remove
     mach_3:
+      action: remove
+    mach_3_video:
       action: remove
     timer1:
       action: remove
