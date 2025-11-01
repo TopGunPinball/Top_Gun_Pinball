@@ -1,0 +1,235 @@
+#config_version=6
+
+##
+## MIG Letters Mode - Pure YAML
+## Lights letters via top lane switches, rotates via flipper buttons
+## Awards bonus multiplier on completion
+##
+
+mode:
+  start_events: mode_base_started
+  stop_events: mode_base_stopped
+  priority: 200
+  game_mode: true
+
+##############################################
+## Player Variables - Track Progress
+##############################################
+
+variable_player:
+  player_added:
+    mig_letter_m:
+      action: set
+      int: 0
+    mig_letter_i:
+      action: set
+      int: 0
+    mig_letter_g:
+      action: set
+      int: 0
+    bonus_multiplier:
+      action: set
+      int: 1
+    mig_completing:
+      action: set
+      int: 0
+
+  s_mig_lane_left_active{current_player.mig_letter_m==0 and current_player.mig_completing==0}:
+    mig_letter_m:
+      action: set
+      int: 1
+
+  s_mig_lane_right_active{current_player.mig_letter_g==0 and current_player.mig_completing==0}:
+    mig_letter_g:
+      action: set
+      int: 1
+
+  mig_complete:
+    mig_completing:
+      action: set
+      int: 1
+    bonus_multiplier:
+      action: add
+      int: 1
+    score:
+      action: add
+      int: 50000
+
+  mig_reset_letters:
+    mig_letter_m:
+      action: set
+      int: 0
+    mig_letter_i:
+      action: set
+      int: 0
+    mig_letter_g:
+      action: set
+      int: 0
+    mig_completing:
+      action: set
+      int: 0
+
+  ball_will_end:
+    mig_letter_m:
+      action: set
+      int: 0
+    mig_letter_i:
+      action: set
+      int: 0
+    mig_letter_g:
+      action: set
+      int: 0
+    mig_completing:
+      action: set
+      int: 0
+
+  s_flipper_left_active:
+    mig_temp_m:
+      action: set
+      int: current_player.mig_letter_m
+    mig_temp_i:
+      action: set
+      int: current_player.mig_letter_i
+    mig_temp_g:
+      action: set
+      int: current_player.mig_letter_g
+
+  s_flipper_right_active:
+    mig_temp_m:
+      action: set
+      int: current_player.mig_letter_m
+    mig_temp_i:
+      action: set
+      int: current_player.mig_letter_i
+    mig_temp_g:
+      action: set
+      int: current_player.mig_letter_g
+
+  mig_rotate_left_execute:
+    mig_letter_m:
+      action: set
+      int: current_player.mig_temp_i
+    mig_letter_i:
+      action: set
+      int: current_player.mig_temp_g
+    mig_letter_g:
+      action: set
+      int: current_player.mig_temp_m
+
+  mig_rotate_right_execute:
+    mig_letter_m:
+      action: set
+      int: current_player.mig_temp_g
+    mig_letter_g:
+      action: set
+      int: current_player.mig_temp_i
+    mig_letter_i:
+      action: set
+      int: current_player.mig_temp_m
+
+##############################################
+## Timers
+##############################################
+
+timers:
+  mig_reset:
+    start_value: 0
+    end_value: 1
+    tick_interval: 500ms
+    direction: up
+    control_events:
+      - event: mig_complete
+        action: restart
+
+##############################################
+## Event Player - Check for Completion & Handle Rotations
+##############################################
+
+event_player:
+  timer_mig_reset_complete:
+    mig_reset_letters
+
+  s_flipper_left_active{current_player.mig_completing==0}:
+    mig_rotate_left_execute
+  
+  s_flipper_right_active{current_player.mig_completing==0}:
+    mig_rotate_right_execute
+
+  s_mig_lane_left_active{current_player.mig_letter_m==0 and current_player.mig_completing==0}: check_mig_complete
+  s_mig_lane_right_active{current_player.mig_letter_g==0 and current_player.mig_completing==0}: check_mig_complete
+
+  check_mig_complete{current_player.mig_letter_m==1 and current_player.mig_letter_i==1 and current_player.mig_letter_g==1}:
+    mig_complete:
+      priority: 100
+
+  # Trigger video events based on letter count - ONLY if skillshot is NOT active
+  check_mig_complete{current_player.mig_letter_m + current_player.mig_letter_i + current_player.mig_letter_g == 1 and not mode.skillshot.active}:
+    mig_letter_one
+
+  check_mig_complete{current_player.mig_letter_m + current_player.mig_letter_i + current_player.mig_letter_g == 2 and not mode.skillshot.active}:
+    mig_letter_two
+
+##############################################
+## Slide Player - Handle Video Slides
+##############################################
+
+slide_player:
+  mig_letter_one:
+    mig_letter_one:
+      action: play
+      priority: 300
+  mig_letter_two:
+    mig_letter_two:
+      action: play
+      priority: 300
+  mig_complete:
+    mig_destroyed:
+      action: play
+      priority: 300
+
+##############################################
+## Light Player - MIG Letter Indicators
+##############################################
+
+light_player:
+  mode_mig_letters_started:
+    l_mig_m:
+      color: off
+    l_mig_i:
+      color: off
+    l_mig_g:
+      color: off
+
+  s_mig_lane_left_active{current_player.mig_letter_m==0 and current_player.mig_completing==0}:
+    l_mig_m:
+      color: white
+      fade: 100ms
+
+  s_mig_lane_right_active{current_player.mig_letter_g==0 and current_player.mig_completing==0}:
+    l_mig_g:
+      color: white
+      fade: 100ms
+
+  player_mig_letter_m{value==1}:
+    l_mig_m:
+      color: white
+
+  player_mig_letter_m{value==0}:
+    l_mig_m:
+      color: off
+
+  player_mig_letter_i{value==1}:
+    l_mig_i:
+      color: white
+
+  player_mig_letter_i{value==0}:
+    l_mig_i:
+      color: off
+
+  player_mig_letter_g{value==1}:
+    l_mig_g:
+      color: white
+
+  player_mig_letter_g{value==0}:
+    l_mig_g:
+      color: off

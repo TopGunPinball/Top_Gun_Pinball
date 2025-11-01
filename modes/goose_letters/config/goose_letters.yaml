@@ -1,0 +1,710 @@
+#config_version=6
+
+##
+## GOOSE Letters Mode - Pure YAML
+## Lights letters via lane switches, rotates via flipper buttons
+## Progressive completion tracking with mystery awards and eject mode qualification
+##
+## GODOT SLIDE SETUP:
+## - ejection_shots_completed: Variable Type = player_var, Variable Name = ejection_shots_completed
+## - ejection_shots_needed: Variable Type = player_var, Variable Name = ejection_shots_needed
+## - ejection_seat_active: No variable needed (static slide)
+##
+
+mode:
+  start_events: mode_base_started
+  stop_events: mode_base_stopped
+  priority: 210
+  game_mode: true
+
+##############################################
+## Player Variables - Track Progress
+##############################################
+
+variable_player:
+  # Initialize persistent tracking variables when mode starts
+  # These will be set to their starting values when the mode first starts
+  mode_goose_letters_started:
+    # Only initialize on first mode start - check if completions is 0
+    ejection_shots_completed{current_player.goose_completions==0}:
+      action: set
+      int: 0
+    ejection_shots_needed{current_player.goose_completions==0}:
+      action: set
+      int: 3
+    goose_milestone{current_player.goose_completions==0}:
+      action: set
+      int: 3
+
+  player_added:
+    # Individual letter states (0=off, 1=lit) - reset each ball
+    goose_letter_g:
+      action: set
+      int: 0
+    goose_letter_o_left:
+      action: set
+      int: 0
+    goose_letter_e:
+      action: set
+      int: 0
+    goose_letter_o_right:
+      action: set
+      int: 0
+    goose_letter_s:
+      action: set
+      int: 0
+    # Total GOOSE completions - persists across balls
+    goose_completions:
+      action: set
+      int: 0
+    # Eject mode qualified flag - persists across balls
+    eject_mode_qualified:
+      action: set
+      int: 0
+    # Flag to block lane hits during completion
+    goose_completing:
+      action: set
+      int: 0
+
+  ##############################################
+  ## Light Letters When Lane Switches Hit
+  ##############################################
+
+  # G - Left outlane
+  s_outlane_left_active{current_player.goose_letter_g==0 and current_player.goose_completing==0}:
+    goose_letter_g:
+      action: set
+      int: 1
+
+  # Left O - Left inlane
+  s_inlane_left_active{current_player.goose_letter_o_left==0 and current_player.goose_completing==0}:
+    goose_letter_o_left:
+      action: set
+      int: 1
+
+  # E - Right outlane
+  s_outlane_right_active{current_player.goose_letter_e==0 and current_player.goose_completing==0}:
+    goose_letter_e:
+      action: set
+      int: 1
+
+  # Right O - Inner right inlane
+  s_inner_inlane_right_active{current_player.goose_letter_o_right==0 and current_player.goose_completing==0}:
+    goose_letter_o_right:
+      action: set
+      int: 1
+
+  # S - Outer right inlane
+  s_outer_inlane_right_active{current_player.goose_letter_s==0 and current_player.goose_completing==0}:
+    goose_letter_s:
+      action: set
+      int: 1
+
+  ##############################################
+  ## Completion Tracking - Increment completed counter
+  ##############################################
+
+  goose_complete:
+    goose_completing:
+      action: set
+      int: 1
+    goose_completions:
+      action: add
+      int: 1
+    ejection_shots_completed:
+      action: add
+      int: 1
+
+  # Reset letters after short delay
+  goose_reset_letters:
+    goose_letter_g:
+      action: set
+      int: 0
+    goose_letter_o_left:
+      action: set
+      int: 0
+    goose_letter_e:
+      action: set
+      int: 0
+    goose_letter_o_right:
+      action: set
+      int: 0
+    goose_letter_s:
+      action: set
+      int: 0
+    goose_completing:
+      action: set
+      int: 0
+
+  ##############################################
+  ## Save current letter states before rotation
+  ##############################################
+  
+  s_flipper_left_active:
+    goose_temp_g:
+      action: set
+      int: current_player.goose_letter_g
+    goose_temp_o_left:
+      action: set
+      int: current_player.goose_letter_o_left
+    goose_temp_e:
+      action: set
+      int: current_player.goose_letter_e
+    goose_temp_o_right:
+      action: set
+      int: current_player.goose_letter_o_right
+    goose_temp_s:
+      action: set
+      int: current_player.goose_letter_s
+
+  s_flipper_right_active:
+    goose_temp_g:
+      action: set
+      int: current_player.goose_letter_g
+    goose_temp_o_left:
+      action: set
+      int: current_player.goose_letter_o_left
+    goose_temp_e:
+      action: set
+      int: current_player.goose_letter_e
+    goose_temp_o_right:
+      action: set
+      int: current_player.goose_letter_o_right
+    goose_temp_s:
+      action: set
+      int: current_player.goose_letter_s
+
+  ##############################################
+  ## LEFT FLIPPER ROTATIONS - Clockwise
+  ##############################################
+
+  goose_rotate_left_execute:
+    goose_letter_g:
+      action: set
+      int: current_player.goose_temp_o_left
+    goose_letter_o_left:
+      action: set
+      int: current_player.goose_temp_o_right
+    goose_letter_o_right:
+      action: set
+      int: current_player.goose_temp_s
+    goose_letter_s:
+      action: set
+      int: current_player.goose_temp_e
+    goose_letter_e:
+      action: set
+      int: current_player.goose_temp_g
+
+  ##############################################
+  ## RIGHT FLIPPER ROTATIONS - Counterclockwise
+  ##############################################
+
+  goose_rotate_right_execute:
+    goose_letter_g:
+      action: set
+      int: current_player.goose_temp_e
+    goose_letter_e:
+      action: set
+      int: current_player.goose_temp_s
+    goose_letter_s:
+      action: set
+      int: current_player.goose_temp_o_right
+    goose_letter_o_right:
+      action: set
+      int: current_player.goose_temp_o_left
+    goose_letter_o_left:
+      action: set
+      int: current_player.goose_temp_g
+
+  ##############################################
+  ## Progressive Milestones
+  ##############################################
+
+  # 3 completions - Qualify eject mode
+  goose_milestone_3:
+    eject_mode_qualified:
+      action: set
+      int: 1
+    goose_milestone:
+      action: set
+      int: 5
+    ejection_shots_needed:
+      action: set
+      int: 5
+    ejection_shots_completed:
+      action: set
+      int: 0
+
+  # 5 completions - Light mystery
+  goose_milestone_5:
+    goose_milestone:
+      action: set
+      int: 10
+    ejection_shots_needed:
+      action: set
+      int: 10
+    ejection_shots_completed:
+      action: set
+      int: 0
+
+  # 10 completions - Qualify eject or mystery
+  goose_milestone_10_eject:
+    eject_mode_qualified:
+      action: set
+      int: 1
+    goose_milestone:
+      action: set
+      int: 15
+    ejection_shots_needed:
+      action: set
+      int: 15
+    ejection_shots_completed:
+      action: set
+      int: 0
+
+  goose_milestone_10_mystery:
+    goose_milestone:
+      action: set
+      int: 15
+    ejection_shots_needed:
+      action: set
+      int: 15
+    ejection_shots_completed:
+      action: set
+      int: 0
+
+  # 15 completions - Light mystery
+  goose_milestone_15:
+    goose_milestone:
+      action: set
+      int: 20
+    ejection_shots_needed:
+      action: set
+      int: 20
+    ejection_shots_completed:
+      action: set
+      int: 0
+
+  # 20 completions - Light extra ball and qualify eject (or mystery if already qualified)
+  goose_milestone_20_eject:
+    eject_mode_qualified:
+      action: set
+      int: 1
+    goose_milestone:
+      action: set
+      int: 30
+    ejection_shots_needed:
+      action: set
+      int: 30
+    ejection_shots_completed:
+      action: set
+      int: 0
+
+  goose_milestone_20_mystery:
+    goose_milestone:
+      action: set
+      int: 30
+    ejection_shots_needed:
+      action: set
+      int: 30
+    ejection_shots_completed:
+      action: set
+      int: 0
+
+  # 30 completions - Light goose mode
+  goose_milestone_30:
+    goose_milestone:
+      action: set
+      int: 50
+    ejection_shots_needed:
+      action: set
+      int: 50
+    ejection_shots_completed:
+      action: set
+      int: 0
+
+  # 50 completions - Qualify eject or mystery
+  goose_milestone_50_eject:
+    eject_mode_qualified:
+      action: set
+      int: 1
+    goose_milestone:
+      action: set
+      int: 100
+    ejection_shots_needed:
+      action: set
+      int: 100
+    ejection_shots_completed:
+      action: set
+      int: 0
+
+  goose_milestone_50_mystery:
+    goose_milestone:
+      action: set
+      int: 100
+    ejection_shots_needed:
+      action: set
+      int: 100
+    ejection_shots_completed:
+      action: set
+      int: 0
+
+  # 100 completions - Qualify eject or mystery
+  goose_milestone_100_eject:
+    eject_mode_qualified:
+      action: set
+      int: 1
+
+  ##############################################
+  ## Clear eject qualification when mode starts
+  ##############################################
+
+  mode_ejection_seat_started:
+    eject_mode_qualified:
+      action: set
+      int: 0
+
+  ##############################################
+  ## Reset Letter Progress on Ball End
+  ##############################################
+
+  ball_ending:
+    goose_letter_g:
+      action: set
+      int: 0
+    goose_letter_o_left:
+      action: set
+      int: 0
+    goose_letter_e:
+      action: set
+      int: 0
+    goose_letter_o_right:
+      action: set
+      int: 0
+    goose_letter_s:
+      action: set
+      int: 0
+    goose_completing:
+      action: set
+      int: 0
+
+##############################################
+## Timers
+##############################################
+
+timers:
+  goose_reset:
+    start_value: 0
+    end_value: 1
+    tick_interval: 500ms
+    direction: up
+    control_events:
+      - event: goose_complete
+        action: restart
+
+##############################################
+## Event Player - Check Completion
+##############################################
+
+event_player:
+  # Timer completion triggers the reset
+  timer_goose_reset_complete:
+    goose_reset_letters
+
+  # Flipper rotations
+  s_flipper_left_active{current_player.goose_completing==0}:
+    goose_rotate_left_execute
+  
+  s_flipper_right_active{current_player.goose_completing==0}:
+    goose_rotate_right_execute
+
+  # Check if GOOSE is complete after each lane hit
+  s_outlane_left_active{current_player.goose_letter_g==0 and current_player.goose_completing==0}: check_goose_complete
+  s_inlane_left_active{current_player.goose_letter_o_left==0 and current_player.goose_completing==0}: check_goose_complete
+  s_outlane_right_active{current_player.goose_letter_e==0 and current_player.goose_completing==0}: check_goose_complete
+  s_inner_inlane_right_active{current_player.goose_letter_o_right==0 and current_player.goose_completing==0}: check_goose_complete
+  s_outer_inlane_right_active{current_player.goose_letter_s==0 and current_player.goose_completing==0}: check_goose_complete
+
+  # Post completion event if all letters are lit
+  check_goose_complete{current_player.goose_letter_g==1 and current_player.goose_letter_o_left==1 and current_player.goose_letter_e==1 and current_player.goose_letter_o_right==1 and current_player.goose_letter_s==1}:
+    goose_complete:
+      priority: 100
+
+  ##############################################
+  ## Milestone Events - Check completion count reaching milestone
+  ##############################################
+
+  # When completions reach milestone, trigger award
+  player_goose_completions{value==3}:
+    - eject_mode_qualified_event
+    - goose_milestone_3
+
+  player_goose_completions{value==5}:
+    - light_mystery_award
+    - goose_milestone_5
+
+  player_goose_completions{value==10 and current_player.eject_mode_qualified==0}:
+    - eject_mode_qualified_event
+    - goose_milestone_10_eject
+
+  player_goose_completions{value==10 and current_player.eject_mode_qualified==1}:
+    - light_mystery_award
+    - goose_milestone_10_mystery
+
+  player_goose_completions{value==15}:
+    - light_mystery_award
+    - goose_milestone_15
+
+  player_goose_completions{value==20 and current_player.eject_mode_qualified==0}:
+    - eject_mode_qualified_event
+    - light_extra_ball
+    - goose_milestone_20_eject
+
+  player_goose_completions{value==20 and current_player.eject_mode_qualified==1}:
+    - light_mystery_award
+    - light_extra_ball
+    - goose_milestone_20_mystery
+
+  player_goose_completions{value==30}:
+    - light_goose_mode
+    - goose_milestone_30
+
+  player_goose_completions{value==50 and current_player.eject_mode_qualified==0}:
+    - eject_mode_qualified_event
+    - goose_milestone_50_eject
+
+  player_goose_completions{value==50 and current_player.eject_mode_qualified==1}:
+    - light_mystery_award
+    - goose_milestone_50_mystery
+
+  player_goose_completions{value==100 and current_player.eject_mode_qualified==0}:
+    - eject_mode_qualified_event
+    - goose_milestone_100_eject
+
+  player_goose_completions{value==100 and current_player.eject_mode_qualified==1}:
+    - light_mystery_award
+
+##############################################
+## Slide Player - Progress Tracking & Videos
+##############################################
+
+slide_player:
+  # Show progress slides when mode starts (if not qualified)
+  mode_goose_letters_started{current_player.eject_mode_qualified==0}:
+    ejection_shots_completed:
+      action: play
+      priority: 210
+    ejection_shots_needed:
+      action: play
+      priority: 210
+
+  # Show qualified slide when mode starts (if qualified)
+  mode_goose_letters_started{current_player.eject_mode_qualified==1}:
+    ejection_seat_active:
+      action: play
+      priority: 210
+
+  # When eject mode qualifies, remove progress slides and show active slide
+  eject_mode_qualified_event:
+    ejection_shots_completed:
+      action: remove
+    ejection_shots_needed:
+      action: remove
+    ejection_seat_active:
+      action: play
+      priority: 210
+    ejection_seat_qualified:
+      action: play
+      priority: 220
+
+  # When eject mode starts, remove active slide and restore progress tracking
+  mode_ejection_seat_started:
+    ejection_seat_active:
+      action: remove
+    ejection_shots_completed:
+      action: play
+      priority: 210
+    ejection_shots_needed:
+      action: play
+      priority: 210
+
+  # Clean up on mode stop
+  mode_goose_letters_stopped:
+    ejection_shots_completed:
+      action: remove
+    ejection_shots_needed:
+      action: remove
+    ejection_seat_active:
+      action: remove
+
+##############################################
+## Light Player - GOOSE Letters & Awards
+##############################################
+
+light_player:
+  # Turn off all lights when mode starts
+  mode_goose_letters_started:
+    l_goose_g:
+      color: off
+    l_goose_o_left:
+      color: off
+    l_goose_e:
+      color: off
+    l_goose_o_right:
+      color: off
+    l_goose_s:
+      color: off
+
+  ##############################################
+  ## Light Letters on Lane Hit
+  ##############################################
+
+  s_outlane_left_active{current_player.goose_letter_g==0 and current_player.goose_completing==0}:
+    l_goose_g:
+      color: white
+      fade: 100ms
+
+  s_inlane_left_active{current_player.goose_letter_o_left==0 and current_player.goose_completing==0}:
+    l_goose_o_left:
+      color: white
+      fade: 100ms
+
+  s_outlane_right_active{current_player.goose_letter_e==0 and current_player.goose_completing==0}:
+    l_goose_e:
+      color: white
+      fade: 100ms
+
+  s_inner_inlane_right_active{current_player.goose_letter_o_right==0 and current_player.goose_completing==0}:
+    l_goose_o_right:
+      color: white
+      fade: 100ms
+
+  s_outer_inlane_right_active{current_player.goose_letter_s==0 and current_player.goose_completing==0}:
+    l_goose_s:
+      color: white
+      fade: 100ms
+
+  ##############################################
+  ## Update Lights Based on Player Variables
+  ##############################################
+
+  player_goose_letter_g{value==1}:
+    l_goose_g:
+      color: white
+
+  player_goose_letter_g{value==0}:
+    l_goose_g:
+      color: off
+
+  player_goose_letter_o_left{value==1}:
+    l_goose_o_left:
+      color: white
+
+  player_goose_letter_o_left{value==0}:
+    l_goose_o_left:
+      color: off
+
+  player_goose_letter_e{value==1}:
+    l_goose_e:
+      color: white
+
+  player_goose_letter_e{value==0}:
+    l_goose_e:
+      color: off
+
+  player_goose_letter_o_right{value==1}:
+    l_goose_o_right:
+      color: white
+
+  player_goose_letter_o_right{value==0}:
+    l_goose_o_right:
+      color: off
+
+  player_goose_letter_s{value==1}:
+    l_goose_s:
+      color: white
+
+  player_goose_letter_s{value==0}:
+    l_goose_s:
+      color: off
+
+  ##############################################
+  ## Eject Light Control
+  ##############################################
+
+  # Light eject when qualified (solid white)
+  eject_mode_qualified_event:
+    l_eject:
+      color: white
+      fade: 100ms
+
+  # Turn off eject light when mode starts
+  mode_ejection_seat_started:
+    l_eject:
+      color: off
+
+  # Restore eject light on ball start if already qualified
+  mode_goose_letters_started{current_player.eject_mode_qualified==1}:
+    l_eject:
+      color: white
+      fade: 0ms
+
+  ##############################################
+  ## Mystery Award Light - Purple Pulse
+  ##############################################
+
+  light_mystery_award:
+    l_shot_pilot_gear:
+      color: purple
+      fade: 0ms
+
+##############################################
+## Show Player - Purple Pulse for Mystery
+##############################################
+
+show_player:
+  light_mystery_award:
+    pulse_purple:
+      loops: -1
+      speed: 1
+      show_tokens:
+        led: l_shot_pilot_gear
+        color: purple
+
+shows:
+  pulse_purple:
+    - duration: 0.5s
+      lights:
+        (led): (color)
+    - duration: 0.5s
+      lights:
+        (led): off
+
+##############################################
+## Sound Player (Optional)
+##############################################
+
+# sound_player:
+#   s_outlane_left_active{current_player.goose_letter_g==0}:
+#     sfx_goose_letter:
+#       action: play
+#   s_inlane_left_active{current_player.goose_letter_o_left==0}:
+#     sfx_goose_letter:
+#       action: play
+#   s_outlane_right_active{current_player.goose_letter_e==0}:
+#     sfx_goose_letter:
+#       action: play
+#   s_inner_inlane_right_active{current_player.goose_letter_o_right==0}:
+#     sfx_goose_letter:
+#       action: play
+#   s_outer_inlane_right_active{current_player.goose_letter_s==0}:
+#     sfx_goose_letter:
+#       action: play
+#   
+#   goose_complete:
+#     sfx_goose_complete:
+#       action: play
+#   
+#   eject_mode_qualified_event:
+#     sfx_eject_qualified:
+#       action: play

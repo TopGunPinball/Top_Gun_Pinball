@@ -1,0 +1,1150 @@
+#config_version=6
+
+##
+## ICEMAN Letters Mode - Pure YAML
+## Lights letters via standup targets to qualify pilot training missions
+## Cycles qualified missions with pop bumpers
+## Persists progress across balls
+##
+
+mode:
+  start_events: mode_base_started
+  stop_events: mode_base_stopped
+  priority: 200
+  game_mode: true
+
+##############################################
+## Player Variables - Track Progress
+##############################################
+
+variable_player:
+  player_added:
+    # Individual ICEMAN letter states (0=off, 1=lit)
+    iceman_letter_i:
+      action: set
+      int: 0
+    iceman_letter_c:
+      action: set
+      int: 0
+    iceman_letter_e:
+      action: set
+      int: 0
+    iceman_letter_m:
+      action: set
+      int: 0
+    iceman_letter_a:
+      action: set
+      int: 0
+    iceman_letter_n:
+      action: set
+      int: 0
+    # Flag to block target hits during completion
+    iceman_completing:
+      action: set
+      int: 0
+    # Which training mission is qualified (0=none, 1-5=mission number)
+    training_mission_qualified:
+      action: set
+      int: 0
+    # Track which training missions are complete (0 or 1)
+    training_inverted_complete:
+      action: set
+      int: 0
+    training_missles_complete:
+      action: set
+      int: 0
+    training_afterburner_complete:
+      action: set
+      int: 0
+    training_wingman_complete:
+      action: set
+      int: 0
+    training_dogfight_complete:
+      action: set
+      int: 0
+
+  ##############################################
+  ## Light Letters When Standup Targets Hit
+  ##############################################
+
+  # I target
+  s_i_iceman_target_active{current_player.iceman_letter_i==0 and current_player.iceman_completing==0}:
+    iceman_letter_i:
+      action: set
+      int: 1
+
+  # C target
+  s_c_iceman_target_active{current_player.iceman_letter_c==0 and current_player.iceman_completing==0}:
+    iceman_letter_c:
+      action: set
+      int: 1
+
+  # E target
+  s_e_iceman_target_active{current_player.iceman_letter_e==0 and current_player.iceman_completing==0}:
+    iceman_letter_e:
+      action: set
+      int: 1
+
+  # M target
+  s_m_iceman_target_active{current_player.iceman_letter_m==0 and current_player.iceman_completing==0}:
+    iceman_letter_m:
+      action: set
+      int: 1
+
+  # A target
+  s_a_iceman_target_active{current_player.iceman_letter_a==0 and current_player.iceman_completing==0}:
+    iceman_letter_a:
+      action: set
+      int: 1
+
+  # N target
+  s_n_iceman_target_active{current_player.iceman_letter_n==0 and current_player.iceman_completing==0}:
+    iceman_letter_n:
+      action: set
+      int: 1
+
+  ##############################################
+  ## Qualify Training Missions on ICEMAN Complete
+  ## Only qualify if no mission is currently qualified
+  ##############################################
+
+  # Default: qualify mission 1 (Inverted) if nothing qualified yet
+  qualify_training_mission:
+    training_mission_qualified:
+      action: set
+      int: 1
+
+  # Override based on what's been completed
+  # Mission 2 if mission 1 is complete
+  qualify_training_mission{current_player.training_inverted_complete==1 and current_player.training_missles_complete==0}:
+    training_mission_qualified:
+      action: set
+      int: 2
+
+  # Mission 3 if missions 1-2 are complete
+  qualify_training_mission{current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==0}:
+    training_mission_qualified:
+      action: set
+      int: 3
+
+  # Mission 4 if missions 1-3 are complete
+  qualify_training_mission{current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==0}:
+    training_mission_qualified:
+      action: set
+      int: 4
+
+  # Mission 5 (Dogfight) if missions 1-4 are all complete
+  qualify_training_mission{current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1 and current_player.training_dogfight_complete==0}:
+    training_mission_qualified:
+      action: set
+      int: 5
+
+  ##############################################
+  ## Handle ICEMAN Completion
+  ##############################################
+
+  iceman_complete:
+    iceman_completing:
+      action: set
+      int: 1
+    score:
+      action: add
+      int: 25000
+
+  ##############################################
+  ## Reset Letters After Completion
+  ##############################################
+
+  iceman_reset_letters:
+    iceman_letter_i:
+      action: set
+      int: 0
+    iceman_letter_c:
+      action: set
+      int: 0
+    iceman_letter_e:
+      action: set
+      int: 0
+    iceman_letter_m:
+      action: set
+      int: 0
+    iceman_letter_a:
+      action: set
+      int: 0
+    iceman_letter_n:
+      action: set
+      int: 0
+    iceman_completing:
+      action: set
+      int: 0
+
+  ##############################################
+  ## Clear Qualified Mission When Started
+  ##############################################
+
+  mode_training_inverted_started:
+    training_mission_qualified:
+      action: set
+      int: 0
+
+  mode_training_missles_started:
+    training_mission_qualified:
+      action: set
+      int: 0
+
+  mode_training_afterburner_started:
+    training_mission_qualified:
+      action: set
+      int: 0
+
+  mode_training_wingman_started:
+    training_mission_qualified:
+      action: set
+      int: 0
+
+  mode_training_dogfight_started:
+    training_mission_qualified:
+      action: set
+      int: 0
+
+  ##############################################
+  ## Rotate Qualified Mission on Pop Bumper Hits
+  ##############################################
+
+  # Rotate mission forward (1->2->3->4->1), skip mission 5 (dogfight)
+  # Only rotate if mission is 1, 2, 3, or 4
+  s_bumper_left_active{current_player.training_mission_qualified>0 and current_player.training_mission_qualified<5}:
+    training_mission_qualified:
+      action: add
+      int: 1
+
+  s_bumper_center_active{current_player.training_mission_qualified>0 and current_player.training_mission_qualified<5}:
+    training_mission_qualified:
+      action: add
+      int: 1
+
+  s_bumper_right_active{current_player.training_mission_qualified>0 and current_player.training_mission_qualified<5}:
+    training_mission_qualified:
+      action: add
+      int: 1
+
+  # Wrap from 5 back to 1 (in case it somehow gets to 5 during rotation)
+  s_bumper_left_active{current_player.training_mission_qualified==5}:
+    training_mission_qualified:
+      action: set
+      int: 1
+
+  s_bumper_center_active{current_player.training_mission_qualified==5}:
+    training_mission_qualified:
+      action: set
+      int: 1
+
+  s_bumper_right_active{current_player.training_mission_qualified==5}:
+    training_mission_qualified:
+      action: set
+      int: 1
+
+  # Wrap mission value back to 1 if missions 1-4 aren't complete
+  wrap_mission_to_one:
+    training_mission_qualified:
+      action: set
+      int: 1
+
+##############################################
+## Timers
+##############################################
+
+timers:
+  iceman_reset:
+    start_value: 0
+    end_value: 1
+    tick_interval: 500ms
+    direction: up
+    control_events:
+      - event: iceman_complete
+        action: restart
+
+##############################################
+## Event Player - Check for Completion & Handle Logic
+##############################################
+
+event_player:
+  # Timer completion triggers the reset
+  timer_iceman_reset_complete:
+    iceman_reset_letters
+
+  # Check if ICE or MAN is complete after any letter lights
+  s_i_iceman_target_active{current_player.iceman_letter_i==0 and current_player.iceman_completing==0}: check_ice_man_complete
+  s_c_iceman_target_active{current_player.iceman_letter_c==0 and current_player.iceman_completing==0}: check_ice_man_complete
+  s_e_iceman_target_active{current_player.iceman_letter_e==0 and current_player.iceman_completing==0}: check_ice_man_complete
+  s_m_iceman_target_active{current_player.iceman_letter_m==0 and current_player.iceman_completing==0}: check_ice_man_complete
+  s_a_iceman_target_active{current_player.iceman_letter_a==0 and current_player.iceman_completing==0}: check_ice_man_complete
+  s_n_iceman_target_active{current_player.iceman_letter_n==0 and current_player.iceman_completing==0}: check_ice_man_complete
+
+  # Post ICE complete if I-C-E are lit
+  check_ice_man_complete{current_player.iceman_letter_i==1 and current_player.iceman_letter_c==1 and current_player.iceman_letter_e==1}:
+    ice_complete:
+      priority: 100
+
+  # Post MAN complete if M-A-N are lit
+  check_ice_man_complete{current_player.iceman_letter_m==1 and current_player.iceman_letter_a==1 and current_player.iceman_letter_n==1}:
+    man_complete:
+      priority: 100
+
+  # Post ICEMAN complete if all 6 letters are lit
+  check_ice_man_complete{current_player.iceman_letter_i==1 and current_player.iceman_letter_c==1 and current_player.iceman_letter_e==1 and current_player.iceman_letter_m==1 and current_player.iceman_letter_a==1 and current_player.iceman_letter_n==1}:
+    iceman_complete:
+      priority: 110
+
+  # Qualify training mission ONLY if not already qualified (prevents double qualification)
+  iceman_complete{current_player.training_mission_qualified==0}:
+    qualify_training_mission
+
+  # Restore qualified mission state on ball start
+  mode_iceman_letters_started:
+    - restore_training_mission_light
+
+  # Wrap mission back to 1 if it somehow reaches 5 during rotation
+  player_training_mission_qualified{value==5 and current_player.training_inverted_complete==0}:
+    wrap_mission_to_one
+  player_training_mission_qualified{value==5 and current_player.training_missles_complete==0}:
+    wrap_mission_to_one
+  player_training_mission_qualified{value==5 and current_player.training_afterburner_complete==0}:
+    wrap_mission_to_one
+  player_training_mission_qualified{value==5 and current_player.training_wingman_complete==0}:
+    wrap_mission_to_one
+
+  # Stop all pulse shows when any training mission starts
+  mode_training_inverted_started:
+    stop_all_training_pulse_shows
+  mode_training_missles_started:
+    stop_all_training_pulse_shows
+  mode_training_afterburner_started:
+    stop_all_training_pulse_shows
+  mode_training_wingman_started:
+    stop_all_training_pulse_shows
+  mode_training_dogfight_started:
+    stop_all_training_pulse_shows
+
+##############################################
+## Coil Player - Control Barrier Target
+##############################################
+
+coil_player:
+  # Drop barrier when training mission is qualified
+  qualify_training_mission:
+    c_mode_barrier:
+      action: pulse
+      hold_power: 0.5
+
+  # Release barrier when training mission starts
+  mode_training_inverted_started:
+    c_mode_barrier:
+      action: off
+  mode_training_missles_started:
+    c_mode_barrier:
+      action: off
+  mode_training_afterburner_started:
+    c_mode_barrier:
+      action: off
+  mode_training_wingman_started:
+    c_mode_barrier:
+      action: off
+  mode_training_dogfight_started:
+    c_mode_barrier:
+      action: off
+
+  # Restore barrier hold on ball start if qualified
+  mode_iceman_letters_started{current_player.training_mission_qualified>0}:
+    c_mode_barrier:
+      action: pulse
+      hold_power: 0.5
+
+##############################################
+## Show Player - Pulse Qualified Missions & Pop Bumpers
+##############################################
+
+show_player:
+  # Stop all shows when mode stops
+  mode_iceman_letters_stopped:
+    inverted_pulse:
+      action: stop
+    missles_pulse:
+      action: stop
+    afterburner_pulse:
+      action: stop
+    wingman_pulse:
+      action: stop
+    dogfight_pulse:
+      action: stop
+    pop_bumpers_fade:
+      action: stop
+    pilot_training_lit_fade:
+      action: stop
+
+  # Stop all pulse shows before starting a new one
+  stop_all_training_pulse_shows:
+    inverted_pulse:
+      action: stop
+    missles_pulse:
+      action: stop
+    afterburner_pulse:
+      action: stop
+    wingman_pulse:
+      action: stop
+    dogfight_pulse:
+      action: stop
+
+  # Start pulsing and pop bumper fade when mission is qualified
+  # Use the player variable change event to trigger shows AFTER variable is set
+  # Stop all other pulse shows first, then start the correct one
+  player_training_mission_qualified{value==1}:
+    missles_pulse:
+      action: stop
+    afterburner_pulse:
+      action: stop
+    wingman_pulse:
+      action: stop
+    dogfight_pulse:
+      action: stop
+    inverted_pulse:
+      loops: -1
+      speed: 1
+      show_tokens:
+        led: l_mode_inverted
+        color: white
+      key: inverted_pulse
+    pop_bumpers_fade:
+      loops: -1
+      speed: 1
+      key: pop_fade
+    pilot_training_lit_fade:
+      loops: -1
+      speed: 1
+      key: pilot_lit_fade
+
+  player_training_mission_qualified{value==2}:
+    inverted_pulse:
+      action: stop
+    afterburner_pulse:
+      action: stop
+    wingman_pulse:
+      action: stop
+    dogfight_pulse:
+      action: stop
+    missles_pulse:
+      loops: -1
+      speed: 1
+      show_tokens:
+        led: l_mode_missles
+        color: white
+      key: missles_pulse
+    pop_bumpers_fade:
+      loops: -1
+      speed: 1
+      key: pop_fade
+    pilot_training_lit_fade:
+      loops: -1
+      speed: 1
+      key: pilot_lit_fade
+
+  player_training_mission_qualified{value==3}:
+    inverted_pulse:
+      action: stop
+    missles_pulse:
+      action: stop
+    wingman_pulse:
+      action: stop
+    dogfight_pulse:
+      action: stop
+    afterburner_pulse:
+      loops: -1
+      speed: 1
+      show_tokens:
+        led: l_mode_afterburner
+        color: white
+      key: afterburner_pulse
+    pop_bumpers_fade:
+      loops: -1
+      speed: 1
+      key: pop_fade
+    pilot_training_lit_fade:
+      loops: -1
+      speed: 1
+      key: pilot_lit_fade
+
+  player_training_mission_qualified{value==4}:
+    inverted_pulse:
+      action: stop
+    missles_pulse:
+      action: stop
+    afterburner_pulse:
+      action: stop
+    dogfight_pulse:
+      action: stop
+    wingman_pulse:
+      loops: -1
+      speed: 1
+      show_tokens:
+        led: l_mode_wingman
+        color: white
+      key: wingman_pulse
+    pop_bumpers_fade:
+      loops: -1
+      speed: 1
+      key: pop_fade
+    pilot_training_lit_fade:
+      loops: -1
+      speed: 1
+      key: pilot_lit_fade
+
+  player_training_mission_qualified{value==5}:
+    inverted_pulse:
+      action: stop
+    missles_pulse:
+      action: stop
+    afterburner_pulse:
+      action: stop
+    wingman_pulse:
+      action: stop
+    dogfight_pulse:
+      loops: -1
+      speed: 1
+      show_tokens:
+        led: l_mode_dogfight
+        color: white
+      key: dogfight_pulse
+    pop_bumpers_fade:
+      loops: -1
+      speed: 1
+      key: pop_fade
+    pilot_training_lit_fade:
+      loops: -1
+      speed: 1
+      key: pilot_lit_fade
+
+  # Restore pulsing show on ball start if mission is qualified
+  restore_training_mission_light{current_player.training_mission_qualified==1 and current_player.training_inverted_complete==0}:
+    inverted_pulse:
+      loops: -1
+      speed: 1
+      show_tokens:
+        led: l_mode_inverted
+        color: white
+      key: inverted_pulse
+    pop_bumpers_fade:
+      loops: -1
+      speed: 1
+      key: pop_fade
+    pilot_training_lit_fade:
+      loops: -1
+      speed: 1
+      key: pilot_lit_fade
+
+  restore_training_mission_light{current_player.training_mission_qualified==2 and current_player.training_missles_complete==0}:
+    missles_pulse:
+      loops: -1
+      speed: 1
+      show_tokens:
+        led: l_mode_missles
+        color: white
+      key: missles_pulse
+    pop_bumpers_fade:
+      loops: -1
+      speed: 1
+      key: pop_fade
+    pilot_training_lit_fade:
+      loops: -1
+      speed: 1
+      key: pilot_lit_fade
+
+  restore_training_mission_light{current_player.training_mission_qualified==3 and current_player.training_afterburner_complete==0}:
+    afterburner_pulse:
+      loops: -1
+      speed: 1
+      show_tokens:
+        led: l_mode_afterburner
+        color: white
+      key: afterburner_pulse
+    pop_bumpers_fade:
+      loops: -1
+      speed: 1
+      key: pop_fade
+    pilot_training_lit_fade:
+      loops: -1
+      speed: 1
+      key: pilot_lit_fade
+
+  restore_training_mission_light{current_player.training_mission_qualified==4 and current_player.training_wingman_complete==0}:
+    wingman_pulse:
+      loops: -1
+      speed: 1
+      show_tokens:
+        led: l_mode_wingman
+        color: white
+      key: wingman_pulse
+    pop_bumpers_fade:
+      loops: -1
+      speed: 1
+      key: pop_fade
+    pilot_training_lit_fade:
+      loops: -1
+      speed: 1
+      key: pilot_lit_fade
+
+  restore_training_mission_light{current_player.training_mission_qualified==5 and current_player.training_dogfight_complete==0}:
+    dogfight_pulse:
+      loops: -1
+      speed: 1
+      show_tokens:
+        led: l_mode_dogfight
+        color: white
+      key: dogfight_pulse
+    pop_bumpers_fade:
+      loops: -1
+      speed: 1
+      key: pop_fade
+    pilot_training_lit_fade:
+      loops: -1
+      speed: 1
+      key: pilot_lit_fade
+
+  # Stop pop bumper fade and pilot training lit fade when training mission starts
+  mode_training_inverted_started:
+    pop_bumpers_fade:
+      action: stop
+    pilot_training_lit_fade:
+      action: stop
+  mode_training_missles_started:
+    pop_bumpers_fade:
+      action: stop
+    pilot_training_lit_fade:
+      action: stop
+  mode_training_afterburner_started:
+    pop_bumpers_fade:
+      action: stop
+    pilot_training_lit_fade:
+      action: stop
+  mode_training_wingman_started:
+    pop_bumpers_fade:
+      action: stop
+    pilot_training_lit_fade:
+      action: stop
+  mode_training_dogfight_started:
+    pop_bumpers_fade:
+      action: stop
+    pilot_training_lit_fade:
+      action: stop
+
+  # TODO: Add light show when letters are collected
+  # s_i_iceman_target_active{current_player.iceman_letter_i==0}:
+  #   iceman_letter_collect_show:
+  #     loops: 1
+  #     speed: 1
+
+  # TODO: Add light show when ICEMAN is completed
+  # iceman_complete:
+  #   iceman_complete_show:
+  #     loops: 1
+  #     speed: 1
+
+shows:
+  inverted_pulse:
+    - duration: 1s
+      lights:
+        (led):
+          color: (color)
+          fade: 500ms
+    - duration: 1s
+      lights:
+        (led):
+          color: off
+          fade: 500ms
+
+  missles_pulse:
+    - duration: 1s
+      lights:
+        (led):
+          color: (color)
+          fade: 500ms
+    - duration: 1s
+      lights:
+        (led):
+          color: off
+          fade: 500ms
+
+  afterburner_pulse:
+    - duration: 1s
+      lights:
+        (led):
+          color: (color)
+          fade: 500ms
+    - duration: 1s
+      lights:
+        (led):
+          color: off
+          fade: 500ms
+
+  wingman_pulse:
+    - duration: 1s
+      lights:
+        (led):
+          color: (color)
+          fade: 500ms
+    - duration: 1s
+      lights:
+        (led):
+          color: off
+          fade: 500ms
+
+  dogfight_pulse:
+    - duration: 1s
+      lights:
+        (led):
+          color: (color)
+          fade: 500ms
+    - duration: 1s
+      lights:
+        (led):
+          color: off
+          fade: 500ms
+
+  pop_bumpers_fade:
+    - duration: 1s
+      lights:
+        l_gi_light_pop_left:
+          color: 4DB8FF
+          fade: 500ms
+        l_gi_light_pop_right:
+          color: 4DB8FF
+          fade: 500ms
+        l_gi_light_pop_bottom:
+          color: 4DB8FF
+          fade: 500ms
+    - duration: 1s
+      lights:
+        l_gi_light_pop_left:
+          color: off
+          fade: 500ms
+        l_gi_light_pop_right:
+          color: off
+          fade: 500ms
+        l_gi_light_pop_bottom:
+          color: off
+          fade: 500ms
+
+  pilot_training_lit_fade:
+    - duration: 1s
+      lights:
+        l_pilot_training_lit:
+          color: white
+          fade: 500ms
+    - duration: 1s
+      lights:
+        l_pilot_training_lit:
+          color: off
+          fade: 500ms
+
+##############################################
+## Light Player - Control ICEMAN Letter Lights
+##############################################
+
+light_player:
+  # Restore ICEMAN letter lights on mode start based on player variables
+  mode_iceman_letters_started{current_player.iceman_letter_i==1}:
+    l_iceman_i:
+      color: 4DB8FF
+
+  mode_iceman_letters_started{current_player.iceman_letter_c==1}:
+    l_iceman_c:
+      color: 4DB8FF
+
+  mode_iceman_letters_started{current_player.iceman_letter_e==1}:
+    l_iceman_e:
+      color: 4DB8FF
+
+  mode_iceman_letters_started{current_player.iceman_letter_m==1}:
+    l_iceman_m:
+      color: 4DB8FF
+
+  mode_iceman_letters_started{current_player.iceman_letter_a==1}:
+    l_iceman_a:
+      color: 4DB8FF
+
+  mode_iceman_letters_started{current_player.iceman_letter_n==1}:
+    l_iceman_n:
+      color: 4DB8FF
+
+  # Turn off all ICEMAN lights when mode stops
+  mode_iceman_letters_stopped:
+    l_iceman_i:
+      color: off
+    l_iceman_c:
+      color: off
+    l_iceman_e:
+      color: off
+    l_iceman_m:
+      color: off
+    l_iceman_a:
+      color: off
+    l_iceman_n:
+      color: off
+    l_pilot_training_lit:
+      color: off
+
+  ##############################################
+  ## Light Letters on Target Hit
+  ##############################################
+
+  s_i_iceman_target_active{current_player.iceman_letter_i==0 and current_player.iceman_completing==0}:
+    l_iceman_i:
+      color: 4DB8FF
+      fade: 100ms
+
+  s_c_iceman_target_active{current_player.iceman_letter_c==0 and current_player.iceman_completing==0}:
+    l_iceman_c:
+      color: 4DB8FF
+      fade: 100ms
+
+  s_e_iceman_target_active{current_player.iceman_letter_e==0 and current_player.iceman_completing==0}:
+    l_iceman_e:
+      color: 4DB8FF
+      fade: 100ms
+
+  s_m_iceman_target_active{current_player.iceman_letter_m==0 and current_player.iceman_completing==0}:
+    l_iceman_m:
+      color: 4DB8FF
+      fade: 100ms
+
+  s_a_iceman_target_active{current_player.iceman_letter_a==0 and current_player.iceman_completing==0}:
+    l_iceman_a:
+      color: 4DB8FF
+      fade: 100ms
+
+  s_n_iceman_target_active{current_player.iceman_letter_n==0 and current_player.iceman_completing==0}:
+    l_iceman_n:
+      color: 4DB8FF
+      fade: 100ms
+
+  ##############################################
+  ## Update Lights Based on Player Variables
+  ##############################################
+
+  player_iceman_letter_i{value==1}:
+    l_iceman_i:
+      color: 4DB8FF
+
+  player_iceman_letter_i{value==0}:
+    l_iceman_i:
+      color: off
+
+  player_iceman_letter_c{value==1}:
+    l_iceman_c:
+      color: 4DB8FF
+
+  player_iceman_letter_c{value==0}:
+    l_iceman_c:
+      color: off
+
+  player_iceman_letter_e{value==1}:
+    l_iceman_e:
+      color: 4DB8FF
+
+  player_iceman_letter_e{value==0}:
+    l_iceman_e:
+      color: off
+
+  player_iceman_letter_m{value==1}:
+    l_iceman_m:
+      color: 4DB8FF
+
+  player_iceman_letter_m{value==0}:
+    l_iceman_m:
+      color: off
+
+  player_iceman_letter_a{value==1}:
+    l_iceman_a:
+      color: 4DB8FF
+
+  player_iceman_letter_a{value==0}:
+    l_iceman_a:
+      color: off
+
+  player_iceman_letter_n{value==1}:
+    l_iceman_n:
+      color: 4DB8FF
+
+  player_iceman_letter_n{value==0}:
+    l_iceman_n:
+      color: off
+
+  ##############################################
+  ## Pilot Training Lit Light Control
+  ##############################################
+
+  # Light pilot training lit when mission is qualified
+  qualify_training_mission:
+    l_pilot_training_lit:
+      color: white
+      fade: 0ms
+
+  # Restore pilot training lit on ball start if qualified
+  mode_iceman_letters_started{current_player.training_mission_qualified>0}:
+    l_pilot_training_lit:
+      color: white
+      fade: 0ms
+
+  # Turn off pilot training lit, set mission lights to SOLID white, and turn off pop bumpers when mission starts
+  mode_training_inverted_started:
+    l_pilot_training_lit:
+      color: off
+    l_mode_inverted:
+      color: white
+      fade: 0ms
+    l_gi_light_pop_left:
+      color: off
+    l_gi_light_pop_right:
+      color: off
+    l_gi_light_pop_bottom:
+      color: off
+
+  mode_training_missles_started:
+    l_pilot_training_lit:
+      color: off
+    l_mode_missles:
+      color: white
+      fade: 0ms
+    l_gi_light_pop_left:
+      color: off
+    l_gi_light_pop_right:
+      color: off
+    l_gi_light_pop_bottom:
+      color: off
+
+  mode_training_afterburner_started:
+    l_pilot_training_lit:
+      color: off
+    l_mode_afterburner:
+      color: white
+      fade: 0ms
+    l_gi_light_pop_left:
+      color: off
+    l_gi_light_pop_right:
+      color: off
+    l_gi_light_pop_bottom:
+      color: off
+
+  mode_training_wingman_started:
+    l_pilot_training_lit:
+      color: off
+    l_mode_wingman:
+      color: white
+      fade: 0ms
+    l_gi_light_pop_left:
+      color: off
+    l_gi_light_pop_right:
+      color: off
+    l_gi_light_pop_bottom:
+      color: off
+
+  mode_training_dogfight_started:
+    l_pilot_training_lit:
+      color: off
+    l_mode_dogfight:
+      color: white
+      fade: 0ms
+    l_gi_light_pop_left:
+      color: off
+    l_gi_light_pop_right:
+      color: off
+    l_gi_light_pop_bottom:
+      color: off
+
+  ##############################################
+  ## Training Mission Light Control
+  ##############################################
+
+  # Turn off all mission lights after shows are stopped
+  stop_all_training_pulse_shows:
+    l_mode_inverted:
+      color: off
+    l_mode_missles:
+      color: off
+    l_mode_afterburner:
+      color: off
+    l_mode_wingman:
+      color: off
+    l_mode_dogfight:
+      color: off
+
+  # Restore mission light on ball start (pulsing handled by show_player)
+  restore_training_mission_light{current_player.training_mission_qualified==1}:
+    l_mode_inverted:
+      color: white
+  restore_training_mission_light{current_player.training_mission_qualified==2}:
+    l_mode_missles:
+      color: white
+  restore_training_mission_light{current_player.training_mission_qualified==3}:
+    l_mode_afterburner:
+      color: white
+  restore_training_mission_light{current_player.training_mission_qualified==4}:
+    l_mode_wingman:
+      color: white
+  restore_training_mission_light{current_player.training_mission_qualified==5}:
+    l_mode_dogfight:
+      color: white
+
+  # Initial light when qualified (will be overridden by pulsing show)
+  # Use player variable change event
+  # Turn off all mission lights first, then turn on the qualified one
+  player_training_mission_qualified{value==1}:
+    l_mode_inverted:
+      color: white
+    l_mode_missles:
+      color: off
+    l_mode_afterburner:
+      color: off
+    l_mode_wingman:
+      color: off
+    l_mode_dogfight:
+      color: off
+  
+  player_training_mission_qualified{value==2}:
+    l_mode_inverted:
+      color: off
+    l_mode_missles:
+      color: white
+    l_mode_afterburner:
+      color: off
+    l_mode_wingman:
+      color: off
+    l_mode_dogfight:
+      color: off
+  
+  player_training_mission_qualified{value==3}:
+    l_mode_inverted:
+      color: off
+    l_mode_missles:
+      color: off
+    l_mode_afterburner:
+      color: white
+    l_mode_wingman:
+      color: off
+    l_mode_dogfight:
+      color: off
+  
+  player_training_mission_qualified{value==4}:
+    l_mode_inverted:
+      color: off
+    l_mode_missles:
+      color: off
+    l_mode_afterburner:
+      color: off
+    l_mode_wingman:
+      color: white
+    l_mode_dogfight:
+      color: off
+  
+  player_training_mission_qualified{value==5}:
+    l_mode_inverted:
+      color: off
+    l_mode_missles:
+      color: off
+    l_mode_afterburner:
+      color: off
+    l_mode_wingman:
+      color: off
+    l_mode_dogfight:
+      color: white
+
+##############################################
+## Sound Player (Placeholders - Uncomment when sounds are ready)
+##############################################
+
+# sound_player:
+#   # Individual letter hits
+#   s_i_iceman_target_active{current_player.iceman_letter_i==0}:
+#     sfx_iceman_letter:
+#       action: play
+#   s_c_iceman_target_active{current_player.iceman_letter_c==0}:
+#     sfx_iceman_letter:
+#       action: play
+#   s_e_iceman_target_active{current_player.iceman_letter_e==0}:
+#     sfx_iceman_letter:
+#       action: play
+#   s_m_iceman_target_active{current_player.iceman_letter_m==0}:
+#     sfx_iceman_letter:
+#       action: play
+#   s_a_iceman_target_active{current_player.iceman_letter_a==0}:
+#     sfx_iceman_letter:
+#       action: play
+#   s_n_iceman_target_active{current_player.iceman_letter_n==0}:
+#     sfx_iceman_letter:
+#       action: play
+#   
+#   # ICE completed
+#   ice_complete:
+#     sfx_ice_complete:
+#       action: play
+#   
+#   # MAN completed
+#   man_complete:
+#     sfx_man_complete:
+#       action: play
+#   
+#   # ICEMAN completed
+#   iceman_complete:
+#     sfx_iceman_complete:
+#       action: play
+#   
+#   # Mission rotation
+#   s_pop_bumper_left_active{current_player.training_mission_qualified>0}:
+#     sfx_mission_rotate:
+#       action: play
+#   s_pop_bumper_right_active{current_player.training_mission_qualified>0}:
+#     sfx_mission_rotate:
+#       action: play
+#   s_pop_bumper_bottom_active{current_player.training_mission_qualified>0}:
+#     sfx_mission_rotate:
+#       action: play
+
+##############################################
+## Slide Player (Placeholders - Uncomment when slides are ready)
+##############################################
+
+# slide_player:
+#   # ICEMAN completed slide
+#   iceman_complete:
+#     iceman_complete_slide:
+#       expire: 3s
+#       priority: 300
+
+# slides:
+#   iceman_complete_slide:
+#     widgets:
+#       - type: text
+#         text: "ICEMAN COMPLETE!"
+#         font_size: 60
+#         color: 4DB8FF
+#       - type: text
+#         text: "PILOT TRAINING QUALIFIED"
+#         font_size: 40
+#         color: white
+#         y: -50
+
+# sounds:
+#   sfx_iceman_letter:
+#     file: iceman_letter.wav
+#     streaming: false
+#   sfx_ice_complete:
+#     file: ice_complete.wav
+#     streaming: false
+#   sfx_man_complete:
+#     file: man_complete.wav
+#     streaming: false
+#   sfx_iceman_complete:
+#     file: iceman_complete.wav
+#     streaming: false
+#   sfx_mission_rotate:
+#     file: mission_rotate.wav
+#     streaming: false
