@@ -1,0 +1,411 @@
+#config_version=6
+
+##
+## 2X PLAYFIELD Mode - Complete System (ROUNDS VERSION)
+## Tracks completions of MIG, ICEMAN, and GOOSE to qualify 2X scoring
+## First qualification: 2 completions of each
+## Subsequent qualifications: 5 completions of each
+## Activated by hitting s_flight_gear_target when qualified
+## Lasts 90 seconds
+##
+## Display shows ROUNDS completed (0, 1, 2 for first qualification; 0-5 for subsequent)
+## Round = All three groups completed that many times
+##
+## GODOT SLIDE SETUP:
+## - 2x_playfield_qualified: No variable needed (static slide)
+## - 2x_playfield_active: No variable needed (static slide)
+## - 2x_playfield_completions_needed: Variable Type = player_var, Variable Name = x2_completions_needed
+## - 2x_playfied_completions_done: Variable Type = player_var, Variable Name = x2_rounds_complete
+## - 2x_playfield_timer: Variable Type = player_var, Variable Name = x2_timer_remaining
+##
+
+mode:
+  start_events: mode_base_started
+  stop_events: mode_base_stopped
+  priority: 250
+  game_mode: true
+
+##############################################
+## Player Variables - Track Progress
+##############################################
+
+variable_player:
+  player_added:
+    # Track completion counts for each group (increments each time)
+    x2_mig_count:
+      action: set
+      int: 0
+    x2_iceman_count:
+      action: set
+      int: 0
+    x2_goose_count:
+      action: set
+      int: 0
+    
+    # How many ROUNDS completed (0-2 or 0-5) - THIS IS WHAT DISPLAYS
+    # A round = all three groups completed that many times
+    x2_rounds_complete:
+      action: set
+      int: 0
+    
+    # Track how many times 2X playfield has been qualified (persists across balls)
+    x2_times_qualified:
+      action: set
+      int: 0
+    
+    # Is 2X playfield currently qualified? (0 or 1)
+    x2_qualified:
+      action: set
+      int: 0
+    
+    # Is 2X playfield currently active? (0 or 1)
+    x2_active:
+      action: set
+      int: 0
+    
+    # Timer remaining (for GODOT display)
+    x2_timer_remaining:
+      action: set
+      int: 0
+    
+    # Multiplier value (0 = no bonus, 1 = 2X scoring active)
+    x2_multiplier:
+      action: set
+      int: 0
+
+  ##############################################
+  ## Initialize completions_needed on mode start
+  ##############################################
+
+  mode_2x_playfield_started{current_player.x2_times_qualified==0}:
+    x2_completions_needed:
+      action: set
+      int: 2
+
+  mode_2x_playfield_started{current_player.x2_times_qualified>=1}:
+    x2_completions_needed:
+      action: set
+      int: 5
+
+  ##############################################
+  ## Track Letter Group Completions
+  ## Only count when 2X is NOT active (not qualified AND not running)
+  ##############################################
+
+  # MIG completed - increment counter
+  mig_reset_letters{current_player.x2_qualified==0 and current_player.x2_active==0}:
+    x2_mig_count:
+      action: add
+      int: 1
+
+  # ICEMAN completed - increment counter
+  iceman_reset_letters{current_player.x2_qualified==0 and current_player.x2_active==0}:
+    x2_iceman_count:
+      action: add
+      int: 1
+
+  # GOOSE completed - increment counter
+  goose_reset_letters{current_player.x2_qualified==0 and current_player.x2_active==0}:
+    x2_goose_count:
+      action: add
+      int: 1
+
+  ##############################################
+  ## Update Rounds Complete Display
+  ## Find the MINIMUM count across all three groups
+  ## That's how many complete rounds have been done
+  ##############################################
+
+  # If all three are 0, rounds = 0
+  x2_update_display{current_player.x2_mig_count==0 or current_player.x2_iceman_count==0 or current_player.x2_goose_count==0}:
+    x2_rounds_complete:
+      action: set
+      int: 0
+
+  # If all three are >= 1, check if all >= 2, 3, 4, 5...
+  # Start with rounds = 1, then check if we can go higher
+
+  # All three >= 1 (first round complete)
+  x2_update_display{current_player.x2_mig_count>=1 and current_player.x2_iceman_count>=1 and current_player.x2_goose_count>=1 and (current_player.x2_mig_count==1 or current_player.x2_iceman_count==1 or current_player.x2_goose_count==1)}:
+    x2_rounds_complete:
+      action: set
+      int: 1
+
+  # All three >= 2 (second round complete)
+  x2_update_display{current_player.x2_mig_count>=2 and current_player.x2_iceman_count>=2 and current_player.x2_goose_count>=2 and (current_player.x2_mig_count==2 or current_player.x2_iceman_count==2 or current_player.x2_goose_count==2)}:
+    x2_rounds_complete:
+      action: set
+      int: 2
+
+  # All three >= 3 (third round complete)
+  x2_update_display{current_player.x2_mig_count>=3 and current_player.x2_iceman_count>=3 and current_player.x2_goose_count>=3 and (current_player.x2_mig_count==3 or current_player.x2_iceman_count==3 or current_player.x2_goose_count==3)}:
+    x2_rounds_complete:
+      action: set
+      int: 3
+
+  # All three >= 4 (fourth round complete)
+  x2_update_display{current_player.x2_mig_count>=4 and current_player.x2_iceman_count>=4 and current_player.x2_goose_count>=4 and (current_player.x2_mig_count==4 or current_player.x2_iceman_count==4 or current_player.x2_goose_count==4)}:
+    x2_rounds_complete:
+      action: set
+      int: 4
+
+  # All three >= 5 (fifth round complete)
+  x2_update_display{current_player.x2_mig_count>=5 and current_player.x2_iceman_count>=5 and current_player.x2_goose_count>=5}:
+    x2_rounds_complete:
+      action: set
+      int: 5
+
+  ##############################################
+  ## Qualify 2X Playfield
+  ##############################################
+
+  x2_playfield_qualified:
+    x2_qualified:
+      action: set
+      int: 1
+    x2_times_qualified:
+      action: add
+      int: 1
+
+  ##############################################
+  ## Activate 2X Playfield
+  ##############################################
+
+  x2_playfield_start:
+    x2_active:
+      action: set
+      int: 1
+    x2_qualified:
+      action: set
+      int: 0
+    x2_multiplier:
+      action: set
+      int: 1
+    x2_timer_remaining:
+      action: set
+      int: 90
+
+  ##############################################
+  ## Deactivate 2X Playfield
+  ##############################################
+
+  x2_playfield_stop:
+    x2_active:
+      action: set
+      int: 0
+    x2_multiplier:
+      action: set
+      int: 0
+    # Reset completion tracking for next cycle
+    x2_mig_count:
+      action: set
+      int: 0
+    x2_iceman_count:
+      action: set
+      int: 0
+    x2_goose_count:
+      action: set
+      int: 0
+    x2_rounds_complete:
+      action: set
+      int: 0
+    # Update completions_needed for next round
+    x2_completions_needed:
+      action: set
+      int: 5
+
+  ##############################################
+  ## Timer Countdown
+  ##############################################
+
+  timer_x2_playfield_tick:
+    x2_timer_remaining:
+      action: add
+      int: -1
+
+  ##############################################
+  ## End on Ball End
+  ##############################################
+
+  ball_will_end{current_player.x2_active==1}:
+    x2_active:
+      action: set
+      int: 0
+    x2_multiplier:
+      action: set
+      int: 0
+
+##############################################
+## Timers
+##############################################
+
+timers:
+  x2_playfield:
+    start_value: 90
+    end_value: 0
+    tick_interval: 1s
+    direction: down
+    control_events:
+      - event: x2_playfield_start
+        action: restart
+      - event: x2_playfield_stop
+        action: stop
+      - event: ball_will_end
+        action: stop
+
+##############################################
+## Event Player - Check Qualification & Start Mode
+##############################################
+
+event_player:
+  # Update display and check qualification after any letter group completes
+  # Only when not qualified AND not active
+  mig_reset_letters{current_player.x2_qualified==0 and current_player.x2_active==0}: 
+    - x2_update_display
+    - x2_check_qualification
+  
+  iceman_reset_letters{current_player.x2_qualified==0 and current_player.x2_active==0}: 
+    - x2_update_display
+    - x2_check_qualification
+  
+  goose_reset_letters{current_player.x2_qualified==0 and current_player.x2_active==0}: 
+    - x2_update_display
+    - x2_check_qualification
+
+  # Also update display when mode starts to show initial 0
+  mode_2x_playfield_started:
+    - x2_update_display
+    - x2_show_progress_slides
+
+  # Qualify when each group has reached the needed count
+  x2_check_qualification{current_player.x2_completions_needed>0 and current_player.x2_mig_count>=current_player.x2_completions_needed and current_player.x2_iceman_count>=current_player.x2_completions_needed and current_player.x2_goose_count>=current_player.x2_completions_needed}:
+    x2_playfield_qualified
+
+  # Start 2X playfield when flight gear target is hit and qualified
+  s_flight_gear_target_active{current_player.x2_qualified==1}:
+    x2_playfield_start
+
+  # Stop when timer expires
+  timer_x2_playfield_complete:
+    x2_playfield_stop
+
+  # Timer tick for countdown display
+  timer_x2_playfield_tick:
+    x2_timer_tick
+
+##############################################
+## Slide Player - Display Progress & Status
+##############################################
+
+slide_player:
+  # Show progress tracking slides when base mode starts (if not qualified and not active)
+  x2_show_progress_slides{current_player.x2_qualified==0 and current_player.x2_active==0}:
+    2x_playfield_completions_needed:
+      action: play
+      priority: 215
+    2x_playfied_completions_done:
+      action: play
+      priority: 215
+
+  # Show qualified slide when 2X is qualified
+  x2_playfield_qualified:
+    2x_playfield_completions_needed:
+      action: remove
+    2x_playfied_completions_done:
+      action: remove
+    2x_playfield_qualified:
+      action: play
+      priority: 220
+
+  # Show active slide and timer when mode starts
+  x2_playfield_start:
+    2x_playfield_qualified:
+      action: remove
+    2x_playfield_active:
+      action: play
+      priority: 400
+    2x_playfield_timer:
+      action: play
+      priority: 400
+
+  # Remove ALL slides when mode ends, restore progress tracking
+  x2_playfield_stop:
+    2x_playfield_qualified:
+      action: remove
+    2x_playfield_active:
+      action: remove
+    2x_playfield_timer:
+      action: remove
+    2x_playfield_completions_needed:
+      action: play
+      priority: 215
+    2x_playfied_completions_done:
+      action: play
+      priority: 215
+
+  # Clean up on mode stop
+  mode_2x_playfield_stopped:
+    2x_playfield_completions_needed:
+      action: remove
+    2x_playfied_completions_done:
+      action: remove
+    2x_playfield_qualified:
+      action: remove
+    2x_playfield_active:
+      action: remove
+    2x_playfield_timer:
+      action: remove
+
+##############################################
+## Light Player - Flight Gear Light Control
+##############################################
+
+light_player:
+  # Turn off flight gear light when mode starts
+  mode_2x_playfield_started:
+    l_shot_pilot_gear:
+      color: off
+
+  # Show pulsing light when qualified (uses show_player below)
+  x2_playfield_qualified:
+    l_shot_pilot_gear:
+      color: orange
+      fade: 0ms
+
+  # Turn off light when 2X is active
+  x2_playfield_start:
+    l_shot_pilot_gear:
+      color: off
+
+  # Restore qualified light on ball start if qualified
+  mode_2x_playfield_started{current_player.x2_qualified==1}:
+    l_shot_pilot_gear:
+      color: orange
+      fade: 0ms
+
+##############################################
+## Show Player - Orange Pulse for Qualified
+##############################################
+
+show_player:
+  x2_playfield_qualified:
+    pulse_orange:
+      loops: -1
+      speed: 1
+      show_tokens:
+        led: l_shot_pilot_gear
+        color: orange
+
+  # Stop pulse when 2X starts
+  x2_playfield_start:
+    pulse_orange:
+      action: stop
+
+shows:
+  pulse_orange:
+    - duration: 0.5s
+      lights:
+        (led): (color)
+    - duration: 0.5s
+      lights:
+        (led): off

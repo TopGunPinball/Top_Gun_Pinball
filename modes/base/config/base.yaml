@@ -15,6 +15,36 @@ event_player:
   mode_base_will_stop:
     - stop_mode_bumpers
 
+variable_player:
+  ##############################################
+  ## Total Scoring Multiplier - FIXED VERSION
+  ## Initialize on BOTH player_added AND mode start
+  ##############################################
+
+  # Initialize on player added (in case base mode already running)
+  player_added:
+    total_scoring_multiplier:
+      action: set
+      float: 1.0
+
+  # ALSO initialize when base mode starts (this is the key fix!)
+  mode_base_started:
+    total_scoring_multiplier:
+      action: set
+      float: current_player.mach_level * (1 + current_player.x2_multiplier)
+
+  # Recalculate whenever mach_level changes
+  player_mach_level:
+    total_scoring_multiplier:
+      action: set
+      float: current_player.mach_level * (1 + current_player.x2_multiplier)
+  
+  # Recalculate whenever x2_multiplier changes
+  player_x2_multiplier:
+    total_scoring_multiplier:
+      action: set
+      float: current_player.mach_level * (1 + current_player.x2_multiplier)
+
 slide_player:
   mode_base_started: base_slide
   

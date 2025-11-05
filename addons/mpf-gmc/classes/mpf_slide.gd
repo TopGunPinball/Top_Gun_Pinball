@@ -53,3 +53,9 @@ func _sort_widgets() -> void:
 
 func _to_string() -> String:
   return "<%s:MPFSlide:pri=%s:%s" % [self.name, self.priority, self.get_instance_id()]
+
+func _ready():
+    # Play fade in when slide becomes ready
+    if has_node("AnimationPlayer"):
+        $AnimationPlayer.play("fade_in")
+      

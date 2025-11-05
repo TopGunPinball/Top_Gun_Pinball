@@ -34,6 +34,12 @@ variable_player:
       action: set
       int: 0
 
+  # Also initialize when mode starts (in case player_added already fired)
+  mode_mig_letters_started{current_player.bonus_multiplier==0}:
+    bonus_multiplier:
+      action: set
+      int: 1
+
   s_mig_lane_left_active{current_player.mig_letter_m==0 and current_player.mig_completing==0}:
     mig_letter_m:
       action: set
@@ -53,7 +59,7 @@ variable_player:
       int: 1
     score:
       action: add
-      int: 50000
+      int: 50000 * current_player.total_scoring_multiplier
 
   mig_reset_letters:
     mig_letter_m:
@@ -186,6 +192,10 @@ slide_player:
     mig_destroyed:
       action: play
       priority: 300
+    bonus_display:
+      action: play
+      priority: 300
+      expire: 1350ms
 
 ##############################################
 ## Light Player - MIG Letter Indicators
@@ -202,17 +212,17 @@ light_player:
 
   s_mig_lane_left_active{current_player.mig_letter_m==0 and current_player.mig_completing==0}:
     l_mig_m:
-      color: white
+      color: cyan
       fade: 100ms
 
   s_mig_lane_right_active{current_player.mig_letter_g==0 and current_player.mig_completing==0}:
     l_mig_g:
-      color: white
+      color: cyan
       fade: 100ms
 
   player_mig_letter_m{value==1}:
     l_mig_m:
-      color: white
+      color: cyan
 
   player_mig_letter_m{value==0}:
     l_mig_m:
@@ -220,7 +230,7 @@ light_player:
 
   player_mig_letter_i{value==1}:
     l_mig_i:
-      color: white
+      color: cyan
 
   player_mig_letter_i{value==0}:
     l_mig_i:
@@ -228,7 +238,7 @@ light_player:
 
   player_mig_letter_g{value==1}:
     l_mig_g:
-      color: white
+      color: cyan
 
   player_mig_letter_g{value==0}:
     l_mig_g:

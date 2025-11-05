@@ -1,0 +1,91 @@
+[gd_scene load_steps=9 format=3 uid="uid://usd4repv4ddl"]
+
+[ext_resource type="Script" uid="uid://b6ivjr1y66vcc" path="res://addons/mpf-gmc/classes/mpf_slide.gd" id="1_8v1jk"]
+[ext_resource type="FontFile" uid="uid://bmeoubu4ga0gt" path="res://fonts/ITCMachine-Medium Medium.ttf" id="2_w4mhy"]
+[ext_resource type="Script" uid="uid://dfhaepcubofxp" path="res://addons/mpf-gmc/classes/mpf_variable.gd" id="3_uyaec"]
+
+[sub_resource type="Animation" id="Animation_14f4k"]
+resource_name = "fade_in"
+length = 0.75
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:modulate")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0.333333, 0.7),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Color(1, 1, 1, 0), Color(1, 1, 1, 1)]
+}
+
+[sub_resource type="Animation" id="Animation_q8rkp"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:modulate")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Color(1, 1, 1, 0.996078)]
+}
+
+[sub_resource type="Animation" id="Animation_43mo8"]
+resource_name = "fade_out"
+length = 0.5
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_42gxi"]
+_data = {
+&"RESET": SubResource("Animation_q8rkp"),
+&"fade_in": SubResource("Animation_14f4k"),
+&"fade_out": SubResource("Animation_43mo8")
+}
+
+[sub_resource type="FontVariation" id="FontVariation_63ftm"]
+base_font = ExtResource("2_w4mhy")
+spacing_space = -2
+
+[node name="bonus_display" type="Control"]
+process_priority = 200
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_8v1jk")
+metadata/_custom_type_script = "uid://b6ivjr1y66vcc"
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+root_node = NodePath("bonus x2")
+libraries = {
+&"": SubResource("AnimationLibrary_42gxi")
+}
+
+[node name="bonus x2" type="Label" parent="AnimationPlayer"]
+modulate = Color(1, 1, 1, 0.996078)
+self_modulate = Color(1, 1, 1, 0.921569)
+z_index = 51
+anchors_preset = -1
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -616.0
+offset_top = 96.0
+offset_right = -474.0
+offset_bottom = 181.0
+grow_horizontal = 0
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.898039, 0.894118, 0.823529, 0.835294)
+theme_override_fonts/font = SubResource("FontVariation_63ftm")
+theme_override_font_sizes/font_size = 73
+text = "5"
+horizontal_alignment = 1
+vertical_alignment = 1
+script = ExtResource("3_uyaec")
+variable_name = "bonus_multiplier"
+template_string = "%s"
+highlight_when_active = false
+metadata/_custom_type_script = "uid://dfhaepcubofxp"
