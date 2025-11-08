@@ -45,6 +45,251 @@ variable_player:
       action: set
       float: current_player.mach_level * (1 + current_player.x2_multiplier)
 
+## BASE SCORING - Add to your base mode YAML
+## Priority: 100 (can be blocked by higher priority modes)
+##
+## Scoring Philosophy:
+## - Basic switches: 500-2,000 points
+## - Skill shots (ramps, orbits): 5,000-10,000 points
+## - Targets: 1,000-3,000 points
+## - Mode shots: 150,000-1,000,000 points (defined in mode files)
+##
+
+
+  ##############################################
+  ## SLINGSHOTS - Quick, frequent hits
+  ##############################################
+  s_slingshot_left_active:
+    score:
+      action: add
+      int: 500 * current_player.total_scoring_multiplier
+  
+  s_slingshot_right_active:
+    score:
+      action: add
+      int: 500 * current_player.total_scoring_multiplier
+  
+  ##############################################
+  ## POP BUMPERS - Frequent hits
+  ##############################################
+  s_bumper_left_active:
+    score:
+      action: add
+      int: 1000 * current_player.total_scoring_multiplier
+  
+  s_bumper_center_active:
+    score:
+      action: add
+      int: 1000 * current_player.total_scoring_multiplier
+  
+  s_bumper_right_active:
+    score:
+      action: add
+      int: 1000 * current_player.total_scoring_multiplier
+  
+  ##############################################
+  ## SPINNER - Per spin (can rack up quickly)
+  ##############################################
+  s_spinner_active:
+    score:
+      action: add
+      int: 1000 * current_player.total_scoring_multiplier
+  
+  ##############################################
+  ## INLANES - Lower scoring (often lit for letters)
+  ##############################################
+  s_inlane_left_active:
+    score:
+      action: add
+      int: 2000 * current_player.total_scoring_multiplier
+  
+  s_inner_inlane_right_active:
+    score:
+      action: add
+      int: 2000 * current_player.total_scoring_multiplier
+  
+  s_outer_inlane_right_active:
+    score:
+      action: add
+      int: 2000 * current_player.total_scoring_multiplier
+  
+  ##############################################
+  ## OUTLANES - Higher value (ball save risk)
+  ##############################################
+  s_outlane_left_active:
+    score:
+      action: add
+      int: 2000 * current_player.total_scoring_multiplier
+  
+  s_outlane_right_active:
+    score:
+      action: add
+      int: 2000 * current_player.total_scoring_multiplier
+  
+  ##############################################
+  ## MIG LANES - Skill shot area
+  ##############################################
+  s_mig_lane_left_active:
+    score:
+      action: add
+      int: 5000 * current_player.total_scoring_multiplier
+  
+  s_mig_lane_right_active:
+    score:
+      action: add
+      int: 5000 * current_player.total_scoring_multiplier
+  
+  ##############################################
+  ## ICEMAN TARGETS - Standup targets (6 total)
+  ##############################################
+  s_i_iceman_target_active:
+    score:
+      action: add
+      int: 2000 * current_player.total_scoring_multiplier
+  
+  s_c_iceman_target_active:
+    score:
+      action: add
+      int: 2000 * current_player.total_scoring_multiplier
+  
+  s_e_iceman_target_active:
+    score:
+      action: add
+      int: 2000 * current_player.total_scoring_multiplier
+  
+  s_m_iceman_target_active:
+    score:
+      action: add
+      int: 2000 * current_player.total_scoring_multiplier
+  
+  s_a_iceman_target_active:
+    score:
+      action: add
+      int: 2000 * current_player.total_scoring_multiplier
+  
+  s_n_iceman_target_active:
+    score:
+      action: add
+      int: 2000 * current_player.total_scoring_multiplier
+  
+  ##############################################
+  ## LOCK TARGETS - Standup targets (4 total)
+  ##############################################
+  s_l_lock_target_active:
+    score:
+      action: add
+      int: 2500 * current_player.total_scoring_multiplier
+  
+  s_o_lock_target_active:
+    score:
+      action: add
+      int: 2500 * current_player.total_scoring_multiplier
+  
+  s_c_lock_target_active:
+    score:
+      action: add
+      int: 2500 * current_player.total_scoring_multiplier
+  
+  s_k_lock_target_active:
+    score:
+      action: add
+      int: 2500 * current_player.total_scoring_multiplier
+  
+  ##############################################
+  ## SPECIAL TARGETS
+  ##############################################
+  s_barrier_target_active:
+    score:
+      action: add
+      int: 3000 * current_player.total_scoring_multiplier
+  
+  s_flight_gear_target_active:
+    score:
+      action: add
+      int: 3000 * current_player.total_scoring_multiplier
+  
+  ##############################################
+  ## RAMPS - Major shots
+  ##############################################
+  s_ramp_left_exit_active:
+    score:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+  
+  s_ramp_right_exit_active:
+    score:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+  
+  s_ramp_inner_exit_active:
+    score:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+  
+  s_ramp_tower_exit_active:
+    score:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+  
+  ##############################################
+  ## ORBITS - Major shots
+  ##############################################
+  s_orbit_left_active:
+    score:
+      action: add
+      int: 8000 * current_player.total_scoring_multiplier
+  
+  s_orbit_right_active:
+    score:
+      action: add
+      int: 8000 * current_player.total_scoring_multiplier
+  
+  s_orbit_upper_active:
+    score:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+  
+  s_orbit_lower_active:
+    score:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+  
+  ##############################################
+  ## LANES - Feed shots
+  ##############################################
+  s_lane_left_active:
+    score:
+      action: add
+      int: 5000 * current_player.total_scoring_multiplier
+  
+  s_lane_right_active:
+    score:
+      action: add
+      int: 5000 * current_player.total_scoring_multiplier
+  
+  ##############################################
+  ## LOCK SWITCHES - Special shots
+  ##############################################
+  s_lock_mav_active:
+    score:
+      action: add
+      int: 25000 * current_player.total_scoring_multiplier
+  
+  s_lock_goose_active:
+    score:
+      action: add
+      int: 25000 * current_player.total_scoring_multiplier
+  
+  ##############################################
+  ## NO SCORING for these switches:
+  ## - Flippers (s_flipper_left, s_flipper_right, etc.)
+  ## - Flipper EOS switches
+  ## - Trough switches (s_trough_1-6, s_jam)
+  ## - Shooter lane (s_shooter_lane) - typically only scores on skillshot
+  ## - Lock plunger (s_lock_plunger) - mechanical
+  ## - Cabinet switches (coin door, service, tilt)
+  ##############################################
+
 slide_player:
   mode_base_started: base_slide
   
@@ -67,6 +312,36 @@ slide_player:
       expire: 8s  # Auto-remove after 5 seconds
 
 sound_player:
-  playfield_active:
+  playfield_active{mode.rescue_cougar.active==False}:
     music_danger_zone:
       bus: music
+      loops: -1
+  
+  # Rescue Cougar music - solo bus auto-stops previous music
+  s_mode_start_active:
+    silence:
+      bus: music
+      loops: 0
+  
+  # Start mode music when ball ejects from scoop
+  balldevice_bd_mode_scoop_ball_eject_success{mode.rescue_cougar.active==True}:
+    music_rescue_cougar_1:
+      bus: music
+      loops: -1
+  
+  # Step 6 - force stop music_1 by playing silence briefly, then music_2
+  rescue_cougar_step_7_complete:
+    silence:
+      bus: music
+      loops: 0
+  
+  rescue_cougar_setup_step_8:
+    music_rescue_cougar_2:
+      bus: music
+      loops: -1
+  
+  mode_rescue_cougar_stopped:
+    music_danger_zone:
+      bus: music
+      loops: -1
+  

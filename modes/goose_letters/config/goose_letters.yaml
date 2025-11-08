@@ -114,6 +114,10 @@ variable_player:
     ejection_shots_completed:
       action: add
       int: 1
+    score:
+      action: add
+      int: 48000 * current_player.total_scoring_multiplier
+      block: true
 
   # Reset letters after short delay
   goose_reset_letters:
@@ -485,6 +489,22 @@ event_player:
     - light_mystery_award
 
 ##############################################
+## Random Event Player - Randomize GOOSE Collected Slides
+##############################################
+
+random_event_player:
+  # Only play goose collected slides when NOT qualifying eject or extra ball
+  # Check if the CURRENT count + 1 (after this completion) will be a milestone
+  # So we check if current count is NOT 2, 9, 19, 49, or 99 (one before milestones)
+  goose_complete{current_player.goose_completions!=2 and current_player.goose_completions!=9 and current_player.goose_completions!=19 and current_player.goose_completions!=49 and current_player.goose_completions!=99}:
+    events:
+      - goose_collected_slide_01
+      - goose_collected_slide_02
+      - goose_collected_slide_03
+      - goose_collected_slide_04
+      - goose_collected_slide_05
+
+##############################################
 ## Slide Player - Progress Tracking & Videos
 ##############################################
 
@@ -536,6 +556,38 @@ slide_player:
       action: remove
     ejection_seat_active:
       action: remove
+  
+  # Play one of 5 randomized slides when GOOSE is collected
+  goose_collected_slide_01:
+    goose_collected_01:
+      action: play
+      priority: 230
+  
+  goose_collected_slide_02:
+    goose_collected_02:
+      action: play
+      priority: 230
+  
+  goose_collected_slide_03:
+    goose_collected_03:
+      action: play
+      priority: 230
+  
+  goose_collected_slide_04:
+    goose_collected_04:
+      action: play
+      priority: 230
+  
+  goose_collected_slide_05:
+    goose_collected_05:
+      action: play
+      priority: 230
+  
+  # Play extra ball video when extra ball is lit
+  light_extra_ball:
+    extra_ball_lit_video:
+      action: play
+      priority: 240
 
 ##############################################
 ## Light Player - GOOSE Letters & Awards
@@ -654,22 +706,38 @@ light_player:
   ##############################################
 
   light_mystery_award:
-    l_shot_pilot_gear:
+    l_mystery_lit:
       color: purple
       fade: 0ms
+  
+  light_extra_ball:
+    l_extra_ball_lit:
+      color: orange
+      fade: 0ms
+
+##############################################
+## Coil Player - Barrier Control
+##############################################
+
+coil_player:
+  # Drop and hold barrier when mystery is lit
+  light_mystery_award:
+    c_mode_barrier:
+      action: pulse
+      hold_power: 1.0
+  
+  # Release barrier when mystery is collected or disabled
+  # (Add your specific event here for when to release, e.g., mystery_collected)
+  # mystery_collected:
+  #   c_mode_barrier:
+  #     action: disable
 
 ##############################################
 ## Show Player - Purple Pulse for Mystery
 ##############################################
 
 show_player:
-  light_mystery_award:
-    pulse_purple:
-      loops: -1
-      speed: 1
-      show_tokens:
-        led: l_shot_pilot_gear
-        color: purple
+  # Removed pulse show - mystery light now stays solid via light_player
 
   # Play Goose collect show when GOOSE collected
   goose_complete:

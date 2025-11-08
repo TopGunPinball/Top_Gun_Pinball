@@ -62,43 +62,47 @@ variable_player:
     training_dogfight_complete:
       action: set
       int: 0
+    # MIG post lockout tracking
+    right_post_locked_out:
+      action: set
+      int: 0
 
   ##############################################
   ## Light Letters When Standup Targets Hit
   ##############################################
 
   # I target
-  s_i_iceman_target_active{current_player.iceman_letter_i==0 and current_player.iceman_completing==0}:
+  s_i_iceman_target_active{current_player.iceman_letter_i==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0}:
     iceman_letter_i:
       action: set
       int: 1
 
   # C target
-  s_c_iceman_target_active{current_player.iceman_letter_c==0 and current_player.iceman_completing==0}:
+  s_c_iceman_target_active{current_player.iceman_letter_c==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0}:
     iceman_letter_c:
       action: set
       int: 1
 
   # E target
-  s_e_iceman_target_active{current_player.iceman_letter_e==0 and current_player.iceman_completing==0}:
+  s_e_iceman_target_active{current_player.iceman_letter_e==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0}:
     iceman_letter_e:
       action: set
       int: 1
 
   # M target
-  s_m_iceman_target_active{current_player.iceman_letter_m==0 and current_player.iceman_completing==0}:
+  s_m_iceman_target_active{current_player.iceman_letter_m==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0}:
     iceman_letter_m:
       action: set
       int: 1
 
   # A target
-  s_a_iceman_target_active{current_player.iceman_letter_a==0 and current_player.iceman_completing==0}:
+  s_a_iceman_target_active{current_player.iceman_letter_a==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0}:
     iceman_letter_a:
       action: set
       int: 1
 
   # N target
-  s_n_iceman_target_active{current_player.iceman_letter_n==0 and current_player.iceman_completing==0}:
+  s_n_iceman_target_active{current_player.iceman_letter_n==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0}:
     iceman_letter_n:
       action: set
       int: 1
@@ -149,7 +153,8 @@ variable_player:
       int: 1
     score:
       action: add
-      int: 25000
+      int: 73000 * current_player.total_scoring_multiplier
+      block: true
 
   ##############################################
   ## Reset Letters After Completion
@@ -250,6 +255,37 @@ variable_player:
       action: set
       int: 1
 
+  ##############################################
+  ## MIG Post Lockout Logic
+  ##############################################
+
+  # Set lockout flag when ball comes from right side
+  s_orbit_right_active:
+    right_post_locked_out:
+      action: set
+      int: 1
+
+  s_ramp_inner_exit_active:
+    right_post_locked_out:
+      action: set
+      int: 1
+
+  s_orbit_upper_active:
+    right_post_locked_out:
+      action: set
+      int: 1
+
+  s_spinner_active:
+    right_post_locked_out:
+      action: set
+      int: 1
+
+  # Clear lockout when timer expires
+  timer_right_orbit_lockout_timer_complete:
+    right_post_locked_out:
+      action: set
+      int: 0
+
 ##############################################
 ## Timers
 ##############################################
@@ -263,6 +299,30 @@ timers:
     control_events:
       - event: iceman_complete
         action: restart
+  
+  # Left MIG post - holds for 2 seconds after spinner hit
+  left_mig_post_timer:
+    start_value: 0
+    end_value: 2000  # 2000ms = 2 seconds (adjust as needed during testing)
+    direction: up
+    tick_interval: 100ms
+    start_running: false
+  
+  # Right MIG post - holds for 2 seconds after left orbit hit
+  right_mig_post_timer:
+    start_value: 0
+    end_value: 2000  # 2000ms = 2 seconds (adjust as needed during testing)
+    direction: up
+    tick_interval: 100ms
+    start_running: false
+  
+  # Lockout timer - prevents right post activation if ball came from right side
+  right_orbit_lockout_timer:
+    start_value: 0
+    end_value: 3000  # 3 seconds lockout
+    direction: up
+    tick_interval: 100ms
+    start_running: false
 
 ##############################################
 ## Event Player - Check for Completion & Handle Logic
@@ -326,8 +386,43 @@ event_player:
   mode_training_dogfight_started:
     stop_all_training_pulse_shows
 
+  ##############################################
+  ## MIG Post Timer Control Events
+  ##############################################
+
+  # Start left post timer when spinner hit (if training qualified)
+  s_spinner_active{current_player.training_mission_qualified>0}:
+    - restart_left_mig_post_timer
+
+  # Start right post timer when left orbit hit (if training qualified and NOT locked out)
+  s_orbit_left_active{current_player.training_mission_qualified>0 and current_player.right_post_locked_out==0}:
+    - restart_right_mig_post_timer
+
+  # Start lockout timer when right-side switches hit
+  s_orbit_right_active:
+    - restart_right_orbit_lockout_timer
+
+  s_ramp_inner_exit_active:
+    - restart_right_orbit_lockout_timer
+
+  s_orbit_upper_active:
+    - restart_right_orbit_lockout_timer
+
+  # Custom events to restart timers
+  restart_left_mig_post_timer:
+    - timer_left_mig_post_timer_stop
+    - timer_left_mig_post_timer_start
+
+  restart_right_mig_post_timer:
+    - timer_right_mig_post_timer_stop
+    - timer_right_mig_post_timer_start
+
+  restart_right_orbit_lockout_timer:
+    - timer_right_orbit_lockout_timer_stop
+    - timer_right_orbit_lockout_timer_start
+
 ##############################################
-## Coil Player - Control Barrier Target
+## Coil Player - Control Barrier Target & MIG Posts
 ##############################################
 
 coil_player:
@@ -359,6 +454,44 @@ coil_player:
     c_mode_barrier:
       action: pulse
       hold_power: 0.5
+
+  ##############################################
+  ## MIG Post Control
+  ##############################################
+
+  # LEFT MIG POST - Activate when spinner hit and training mission qualified
+  s_spinner_active{current_player.training_mission_qualified>0}:
+    c_left_mig_up_post:
+      action: pulse
+      hold_power: 0.125
+
+  # Hold left post while timer is running
+  timer_left_mig_post_timer_started:
+    c_left_mig_up_post:
+      action: enable
+      hold_power: 0.125
+
+  # Release left post when timer completes
+  timer_left_mig_post_timer_complete:
+    c_left_mig_up_post:
+      action: disable
+
+  # RIGHT MIG POST - Activate when left orbit hit, NOT locked out, and training qualified
+  s_orbit_left_active{current_player.training_mission_qualified>0 and current_player.right_post_locked_out==0}:
+    c_right_mig_up_post:
+      action: pulse
+      hold_power: 0.125
+
+  # Hold right post while timer is running
+  timer_right_mig_post_timer_started:
+    c_right_mig_up_post:
+      action: enable
+      hold_power: 0.125
+
+  # Release right post when timer completes
+  timer_right_mig_post_timer_complete:
+    c_right_mig_up_post:
+      action: disable
 
 ##############################################
 ## Show Player - Pulse Qualified Missions & Pop Bumpers
@@ -730,38 +863,84 @@ light_player:
       color: off
 
   ##############################################
-  ## Light Letters on Target Hit
+  ## Light Letters on Target Hit (only when not paused)
   ##############################################
 
-  s_i_iceman_target_active{current_player.iceman_letter_i==0 and current_player.iceman_completing==0}:
+  s_i_iceman_target_active{current_player.iceman_letter_i==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0}:
     l_iceman_i:
       color: 4DB8FF
       fade: 100ms
 
-  s_c_iceman_target_active{current_player.iceman_letter_c==0 and current_player.iceman_completing==0}:
+  s_c_iceman_target_active{current_player.iceman_letter_c==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0}:
     l_iceman_c:
       color: 4DB8FF
       fade: 100ms
 
-  s_e_iceman_target_active{current_player.iceman_letter_e==0 and current_player.iceman_completing==0}:
+  s_e_iceman_target_active{current_player.iceman_letter_e==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0}:
     l_iceman_e:
       color: 4DB8FF
       fade: 100ms
 
-  s_m_iceman_target_active{current_player.iceman_letter_m==0 and current_player.iceman_completing==0}:
+  s_m_iceman_target_active{current_player.iceman_letter_m==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0}:
     l_iceman_m:
       color: 4DB8FF
       fade: 100ms
 
-  s_a_iceman_target_active{current_player.iceman_letter_a==0 and current_player.iceman_completing==0}:
+  s_a_iceman_target_active{current_player.iceman_letter_a==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0}:
     l_iceman_a:
       color: 4DB8FF
       fade: 100ms
 
-  s_n_iceman_target_active{current_player.iceman_letter_n==0 and current_player.iceman_completing==0}:
+  s_n_iceman_target_active{current_player.iceman_letter_n==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0}:
     l_iceman_n:
       color: 4DB8FF
       fade: 100ms
+
+  ##############################################
+  ## Turn Off All Letters When Collection Paused
+  ##############################################
+
+  player_letter_collection_paused{value==1}:
+    l_iceman_i:
+      color: off
+    l_iceman_c:
+      color: off
+    l_iceman_e:
+      color: off
+    l_iceman_m:
+      color: off
+    l_iceman_a:
+      color: off
+    l_iceman_n:
+      color: off
+
+  ##############################################
+  ## Restore Letters When Collection Unpaused
+  ##############################################
+
+  player_letter_collection_paused{value==0 and current_player.iceman_letter_i==1}:
+    l_iceman_i:
+      color: 4DB8FF
+
+  player_letter_collection_paused{value==0 and current_player.iceman_letter_c==1}:
+    l_iceman_c:
+      color: 4DB8FF
+
+  player_letter_collection_paused{value==0 and current_player.iceman_letter_e==1}:
+    l_iceman_e:
+      color: 4DB8FF
+
+  player_letter_collection_paused{value==0 and current_player.iceman_letter_m==1}:
+    l_iceman_m:
+      color: 4DB8FF
+
+  player_letter_collection_paused{value==0 and current_player.iceman_letter_a==1}:
+    l_iceman_a:
+      color: 4DB8FF
+
+  player_letter_collection_paused{value==0 and current_player.iceman_letter_n==1}:
+    l_iceman_n:
+      color: 4DB8FF
 
   ##############################################
   ## Update Lights Based on Player Variables

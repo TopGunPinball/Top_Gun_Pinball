@@ -1,0 +1,1409 @@
+#config_version=6
+
+####################################################################################
+# RESCUE COUGAR - PILOT MISSION MODE
+# Timer: 90 seconds countdown
+# Total Steps: 11 shots to complete
+# Can stack with multiball: Yes
+# GI Color: Blue
+####################################################################################
+
+#:mode: rescue_cougar
+
+mode:
+  start_events: start_mode_rescue_cougar
+  stop_events: 
+    - timer_rescue_cougar_complete_delay_complete
+    - timer_rescue_cougar_failed_delay_complete
+    - ball_will_end
+    - ball_ending
+  priority: 300
+  game_mode: true
+  use_wait_queue: true
+
+# Mode can stack with multiball
+mode_settings:
+  can_stack_with_multiball: true
+
+
+####################################################################################
+# SOUNDS - Define in Main Machine Config (NOT here)
+####################################################################################
+# MPF 0.80+ requires sounds to be defined in your main machine config file,
+# not in mode configs. Add these to your main sounds: section:
+#
+# sounds:
+#   rescue_cougar_music_base:
+#     file: music/rescue_cougar_music_base.ogg
+#     volume: 0.8
+#     streaming: true
+#   rescue_cougar_music_2:
+#     file: music/rescue_cougar_music_2.ogg
+#     volume: 0.8
+#     streaming: true
+
+####################################################################################
+# VARIABLE PLAYER - Initialize mode variables
+####################################################################################
+
+variable_player:
+  mode_rescue_cougar_started:
+    # Pause TOPGUN and ICEMAN letter collection during this mode
+    letter_collection_paused:
+      action: set
+      int: 1
+    rescue_cougar_step:
+      action: set
+      int: 0
+    rescue_cougar_complete_flag:
+      action: set
+      int: 0
+    pilot_missions_played:
+      action: add
+      int: 1
+    rescue_cougar_shots_remaining:
+      action: set
+      int: 11
+
+  # Step completion tracking - also decrement shots remaining
+  rescue_cougar_step_1_complete:
+    rescue_cougar_step:
+      action: set
+      int: 1
+    score: 100000 * current_player.score_multiplier
+    rescue_cougar_shots_remaining:
+      action: add
+      int: -1
+      
+  rescue_cougar_step_2_complete:
+    rescue_cougar_step:
+      action: set
+      int: 2
+    score: 125000 * current_player.score_multiplier
+    rescue_cougar_shots_remaining:
+      action: add
+      int: -1
+      
+  rescue_cougar_step_3_complete:
+    rescue_cougar_step:
+      action: set
+      int: 3
+    score: 150000 * current_player.score_multiplier
+    rescue_cougar_shots_remaining:
+      action: add
+      int: -1
+      
+  rescue_cougar_step_4_complete:
+    rescue_cougar_step:
+      action: set
+      int: 4
+    score: 175000 * current_player.score_multiplier
+    rescue_cougar_shots_remaining:
+      action: add
+      int: -1
+      
+  rescue_cougar_step_5_complete:
+    rescue_cougar_step:
+      action: set
+      int: 5
+    score: 200000 * current_player.score_multiplier
+    rescue_cougar_shots_remaining:
+      action: add
+      int: -1
+      
+  rescue_cougar_step_6_complete:
+    rescue_cougar_step:
+      action: set
+      int: 6
+    score: 225000 * current_player.score_multiplier
+    rescue_cougar_shots_remaining:
+      action: add
+      int: -1
+      
+  rescue_cougar_step_7_complete:
+    rescue_cougar_step:
+      action: set
+      int: 7
+    score: 250000 * current_player.score_multiplier
+    rescue_cougar_shots_remaining:
+      action: add
+      int: -1
+      
+  rescue_cougar_step_8_complete:
+    rescue_cougar_step:
+      action: set
+      int: 8
+    score: 275000 * current_player.score_multiplier
+    rescue_cougar_shots_remaining:
+      action: add
+      int: -1
+      
+  rescue_cougar_step_9_complete:
+    rescue_cougar_step:
+      action: set
+      int: 9
+    score: 300000 * current_player.score_multiplier
+    rescue_cougar_shots_remaining:
+      action: add
+      int: -1
+      
+  rescue_cougar_step_10_complete:
+    rescue_cougar_step:
+      action: set
+      int: 10
+    score: 325000 * current_player.score_multiplier
+    rescue_cougar_shots_remaining:
+      action: add
+      int: -1
+      
+  rescue_cougar_step_11_complete:
+    rescue_cougar_step:
+      action: set
+      int: 11
+    rescue_cougar_complete_flag:
+      action: set
+      int: 1
+    score: 350000 * current_player.score_multiplier
+    pilot_missions_won:
+      action: add
+      int: 1
+    rescue_cougar_shots_remaining:
+      action: add
+      int: -1
+
+####################################################################################
+# SLIDE PLAYER - Mode Slides (GODOT 4.1.1 Format)
+####################################################################################
+
+slide_player:
+  mode_rescue_cougar_started:
+    rescue_cougar_timer:
+      action: play
+      priority: 1000
+    rescue_cougar_shots_remaining:
+      action: play
+      priority: 1000
+    rescue_cougar_intro_video:
+      action: play
+      priority: 900
+    rescue_cougar_step_1_instructions:
+      action: play
+      priority: 850  # Below main video, above background
+
+  # Cancel intro video when both flippers pressed
+  rescue_cougar_skip_intro:
+    rescue_cougar_intro_video:
+      action: remove
+
+  # Step 3 starts - turn off step 1 instructions, show step 3 instructions
+  rescue_cougar_setup_step_3:
+    rescue_cougar_step_1_instructions:
+      action: remove
+    rescue_cougar_step_3_instructions:
+      action: play
+      priority: 850
+
+  # Step 6 starts - turn off step 3 instructions, show step 6 instructions
+  rescue_cougar_setup_step_6:
+    rescue_cougar_step_3_instructions:
+      action: remove
+    rescue_cougar_step_6_instructions:
+      action: play
+      priority: 850
+
+  # Step 7 starts - turn off step 6 instructions, show step 7 instructions
+  rescue_cougar_setup_step_7:
+    rescue_cougar_step_6_instructions:
+      action: remove
+    rescue_cougar_step_7_instructions:
+      action: play
+      priority: 850
+
+  # Step 8 starts - turn off step 7 instructions, show step 8 instructions
+  rescue_cougar_setup_step_8:
+    rescue_cougar_step_7_instructions:
+      action: remove
+    rescue_cougar_step_8_instructions:
+      action: play
+      priority: 850
+
+  # Step 9 starts - turn off step 8 instructions
+  rescue_cougar_setup_step_9:
+    rescue_cougar_step_8_instructions:
+      action: remove
+
+  rescue_cougar_complete:
+    rescue_cougar_timer:
+      action: remove
+    rescue_cougar_shots_remaining:
+      action: remove
+    rescue_cougar_intro_video:
+      action: remove
+    rescue_cougar_step_1_instructions:
+      action: remove
+    rescue_cougar_step_3_instructions:
+      action: remove
+    rescue_cougar_step_6_instructions:
+      action: remove
+    rescue_cougar_step_7_instructions:
+      action: remove
+    rescue_cougar_step_8_instructions:
+      action: remove
+    rescue_cougar_won:
+      action: play
+      priority: 900
+      expire: 8s  # Match complete_delay timer
+
+  rescue_cougar_failed:
+    rescue_cougar_timer:
+      action: remove
+    rescue_cougar_shots_remaining:
+      action: remove
+    rescue_cougar_intro_video:
+      action: remove
+    rescue_cougar_step_1_instructions:
+      action: remove
+    rescue_cougar_step_3_instructions:
+      action: remove
+    rescue_cougar_step_6_instructions:
+      action: remove
+    rescue_cougar_step_7_instructions:
+      action: remove
+    rescue_cougar_step_8_instructions:
+      action: remove
+    rescue_cougar_lost:
+      action: play
+      priority: 900
+      expire: 16s  # Match failed_delay timer
+
+  mode_rescue_cougar_stopped:
+    rescue_cougar_timer:
+      action: remove
+    rescue_cougar_shots_remaining:
+      action: remove
+    rescue_cougar_step_1_instructions:
+      action: remove
+    rescue_cougar_step_3_instructions:
+      action: remove
+    rescue_cougar_step_6_instructions:
+      action: remove
+    rescue_cougar_step_7_instructions:
+      action: remove
+    rescue_cougar_step_8_instructions:
+      action: remove
+
+
+  # Step videos - play when shot is hit, remove previous
+  rescue_cougar_step_1_shot_hit:
+    rescue_cougar_step_1:
+      action: play
+      priority: 800
+
+  rescue_cougar_step_2_shot_hit:
+    rescue_cougar_step_1:
+      action: remove
+    rescue_cougar_step_2:
+      action: play
+      priority: 800
+
+  rescue_cougar_step_3_shot_hit:
+    rescue_cougar_step_2:
+      action: remove
+    rescue_cougar_step_3:
+      action: play
+      priority: 800
+
+  rescue_cougar_step_4_shot_hit:
+    rescue_cougar_step_3:
+      action: remove
+    rescue_cougar_step_4:
+      action: play
+      priority: 800
+
+  rescue_cougar_step_5_shot_hit:
+    rescue_cougar_step_4:
+      action: remove
+    rescue_cougar_step_5:
+      action: play
+      priority: 800
+
+  rescue_cougar_step_6_shot_hit:
+    rescue_cougar_step_5:
+      action: remove
+    rescue_cougar_step_6:
+      action: play
+      priority: 800
+
+  rescue_cougar_step_7_shot_hit:
+    rescue_cougar_step_6:
+      action: remove
+    rescue_cougar_step_7:
+      action: play
+      priority: 800
+
+  rescue_cougar_step_8_shot_hit:
+    rescue_cougar_step_7:
+      action: remove
+    rescue_cougar_step_8:
+      action: play
+      priority: 800
+
+  rescue_cougar_step_9_shot_hit:
+    rescue_cougar_step_8:
+      action: remove
+    rescue_cougar_step_9:
+      action: play
+      priority: 800
+
+  rescue_cougar_step_10_shot_hit:
+    rescue_cougar_step_9:
+      action: remove
+    rescue_cougar_step_10:
+      action: play
+      priority: 800
+
+  rescue_cougar_step_11_shot_hit:
+    rescue_cougar_step_10:
+      action: remove
+    rescue_cougar_step_11:
+      action: play
+      priority: 800
+
+
+####################################################################################
+# TIMERS
+####################################################################################
+
+timers:
+  rescue_cougar_timer:
+    start_value: 90
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: s_mode_start_inactive
+        action: start
+      - event: timer_rescue_cougar_complete_delay_start
+        action: stop
+      - event: timer_rescue_cougar_failed_delay_start
+        action: stop
+      - event: s_lane_left_active
+        action: pause
+      - event: s_lane_left_inactive
+        action: start
+
+  # Delay timer for barrier release after mode scoop eject
+  rescue_cougar_barrier_delay:
+    start_value: 0
+    end_value: 500
+    direction: up
+    tick_interval: 1ms
+    start_running: false
+    control_events:
+      - event: balldevice_bd_mode_scoop_ball_eject_attempt
+        action: start
+      - event: rescue_cougar_barrier_delay_complete
+        action: stop
+
+  # MIG post activation timers (2 second hold)
+  rescue_cougar_left_mig_post_timer:
+    start_value: 2
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+
+  rescue_cougar_right_mig_post_timer:
+    start_value: 2
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+
+  # Left lane post timer (3 second hold)
+  rescue_cougar_left_lane_post_timer:
+    start_value: 3
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+
+  # Shot lockout timers (prevent repeated hits during post activation)
+  rescue_cougar_left_orbit_lockout:
+    start_value: 2
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+
+  rescue_cougar_right_orbit_lockout:
+    start_value: 2
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+
+  rescue_cougar_left_lane_lockout:
+    start_value: 3
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+  
+  # End video delay timers
+  rescue_cougar_complete_delay:
+    start_value: 8
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: timer_rescue_cougar_complete_delay_start
+        action: start
+  
+  rescue_cougar_failed_delay:
+    start_value: 16
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: timer_rescue_cougar_failed_delay_start
+        action: start
+
+####################################################################################
+# EVENT PLAYER
+####################################################################################
+
+event_player:
+  mode_rescue_cougar_started:
+    - reset_topgun_letters  # Reset TOPGUN collection for duration of mode
+    - rescue_cougar_setup_shots
+
+  # Skip intro video and release ball when both flippers pressed
+  rescue_cougar_skip_intro:
+    - rescue_cougar_ball_released
+
+  # Detect both flippers pressed to skip intro
+  s_flipper_left_active{device.switches.s_flipper_right.state}:
+    - rescue_cougar_skip_intro
+  
+  s_flipper_right_active{device.switches.s_flipper_left.state}:
+    - rescue_cougar_skip_intro
+
+  # Step progression
+  rescue_cougar_step_6_complete:
+    - rescue_cougar_setup_step_7
+
+  rescue_cougar_step_7_complete:
+    - rescue_cougar_setup_step_8
+
+  # Timer expired
+  timer_rescue_cougar_timer_complete:
+    - rescue_cougar_failed
+
+  # Barrier delay complete
+  timer_rescue_cougar_barrier_delay_complete:
+    - rescue_cougar_release_barrier
+
+  # Step 1 and 2 - Left and Right Orbits
+  s_orbit_left_active{current_player.rescue_cougar_step==0 and device.timers.rescue_cougar_left_orbit_lockout.running==False}:
+    - rescue_cougar_step_1_complete
+    - rescue_cougar_activate_right_mig_post
+    - rescue_cougar_step_1_shot_hit
+
+  s_orbit_right_active{current_player.rescue_cougar_step==0 and device.timers.rescue_cougar_right_orbit_lockout.running==False}:
+    - rescue_cougar_step_1_complete
+    - rescue_cougar_activate_left_mig_post
+    - rescue_cougar_step_1_shot_hit
+
+  s_orbit_left_active{current_player.rescue_cougar_step==1 and device.timers.rescue_cougar_left_orbit_lockout.running==False}:
+    - rescue_cougar_step_2_complete
+    - rescue_cougar_activate_right_mig_post
+    - rescue_cougar_step_2_shot_hit
+
+  s_orbit_right_active{current_player.rescue_cougar_step==1 and device.timers.rescue_cougar_right_orbit_lockout.running==False}:
+    - rescue_cougar_step_2_complete
+    - rescue_cougar_activate_left_mig_post
+    - rescue_cougar_step_2_shot_hit
+
+  # Step 3, 4, 5 - Left Ramp, Upper Orbit, Inner Ramp, Right Ramp
+  s_ramp_left_exit_active{current_player.rescue_cougar_step==2}:
+    - rescue_cougar_step_3_complete
+    - rescue_cougar_step_3_shot_hit
+
+  s_orbit_upper_active{current_player.rescue_cougar_step==2}:
+    - rescue_cougar_step_3_complete
+    - rescue_cougar_step_3_shot_hit
+
+  s_ramp_inner_exit_active{current_player.rescue_cougar_step==2}:
+    - rescue_cougar_step_3_complete
+    - rescue_cougar_step_3_shot_hit
+
+  s_ramp_right_exit_active{current_player.rescue_cougar_step==2}:
+    - rescue_cougar_step_3_complete
+    - rescue_cougar_step_3_shot_hit
+
+  s_ramp_left_exit_active{current_player.rescue_cougar_step==3}:
+    - rescue_cougar_step_4_complete
+    - rescue_cougar_step_4_shot_hit
+
+  s_orbit_upper_active{current_player.rescue_cougar_step==3}:
+    - rescue_cougar_step_4_complete
+    - rescue_cougar_step_4_shot_hit
+
+  s_ramp_inner_exit_active{current_player.rescue_cougar_step==3}:
+    - rescue_cougar_step_4_complete
+    - rescue_cougar_step_4_shot_hit
+
+  s_ramp_right_exit_active{current_player.rescue_cougar_step==3}:
+    - rescue_cougar_step_4_complete
+    - rescue_cougar_step_4_shot_hit
+
+  s_ramp_left_exit_active{current_player.rescue_cougar_step==4}:
+    - rescue_cougar_step_5_complete
+    - rescue_cougar_step_5_shot_hit
+
+  s_orbit_upper_active{current_player.rescue_cougar_step==4}:
+    - rescue_cougar_step_5_complete
+    - rescue_cougar_step_5_shot_hit
+
+  s_ramp_inner_exit_active{current_player.rescue_cougar_step==4}:
+    - rescue_cougar_step_5_complete
+    - rescue_cougar_step_5_shot_hit
+
+  s_ramp_right_exit_active{current_player.rescue_cougar_step==4}:
+    - rescue_cougar_step_5_complete
+    - rescue_cougar_step_5_shot_hit
+
+  # Step 6 - Left Lane
+  s_lane_left_active{current_player.rescue_cougar_step==5 and device.timers.rescue_cougar_left_lane_lockout.running==False}:
+    - rescue_cougar_step_6_complete
+    - rescue_cougar_activate_left_lane_post
+    - rescue_cougar_step_6_shot_hit
+
+  # Step 7 - Right Orbit
+  s_orbit_right_active{current_player.rescue_cougar_step==6 and device.timers.rescue_cougar_right_orbit_lockout.running==False}:
+    - rescue_cougar_step_7_complete
+    - rescue_cougar_step_7_shot_hit
+
+  # Step 8 - Left Orbit or Spinner
+  s_orbit_left_active{current_player.rescue_cougar_step==7 and device.timers.rescue_cougar_left_orbit_lockout.running==False}:
+    - rescue_cougar_step_8_complete
+    - rescue_cougar_step_8_shot_hit
+
+  s_spinner_active{current_player.rescue_cougar_step==7}:
+    - rescue_cougar_step_8_complete
+    - rescue_cougar_step_8_shot_hit
+
+  # Step 9 - Upper Orbit or Flight Gear Target
+  s_orbit_upper_active{current_player.rescue_cougar_step==8}:
+    - rescue_cougar_step_9_complete
+    - rescue_cougar_step_9_shot_hit
+
+  s_flight_gear_target_active{current_player.rescue_cougar_step==8}:
+    - rescue_cougar_step_9_complete
+    - rescue_cougar_step_9_shot_hit
+
+  # Step 10 - Spinner or Tower Ramp
+  s_spinner_active{current_player.rescue_cougar_step==9}:
+    - rescue_cougar_step_10_complete
+    - rescue_cougar_step_10_shot_hit
+
+  s_ramp_tower_exit_active{current_player.rescue_cougar_step==9}:
+    - rescue_cougar_step_10_complete
+    - rescue_cougar_step_10_shot_hit
+
+  # Step 11 - Left Orbit or Lower Orbit (FINAL SHOT)
+  s_orbit_left_active{current_player.rescue_cougar_step==10 and device.timers.rescue_cougar_left_orbit_lockout.running==False}:
+    - rescue_cougar_step_11_complete
+    - rescue_cougar_step_11_shot_hit
+    - rescue_cougar_complete
+
+  s_orbit_lower_active{current_player.rescue_cougar_step==10}:
+    - rescue_cougar_step_11_complete
+    - rescue_cougar_step_11_shot_hit
+    - rescue_cougar_complete
+
+  # MIG post deactivation
+  timer_rescue_cougar_left_mig_post_timer_complete:
+    - rescue_cougar_deactivate_left_mig_post
+
+  timer_rescue_cougar_right_mig_post_timer_complete:
+    - rescue_cougar_deactivate_right_mig_post
+
+  # Left lane post deactivation
+  timer_rescue_cougar_left_lane_post_timer_complete:
+    - rescue_cougar_deactivate_left_lane_post
+
+  # Shot lockout timer completions
+  timer_rescue_cougar_left_orbit_lockout_complete:
+    - rescue_cougar_left_orbit_available
+
+  timer_rescue_cougar_right_orbit_lockout_complete:
+    - rescue_cougar_right_orbit_available
+
+  timer_rescue_cougar_left_lane_lockout_complete:
+    - rescue_cougar_left_lane_available
+
+  # Step completion events to set up next step
+  rescue_cougar_step_1_complete:
+    - rescue_cougar_setup_step_2
+
+  rescue_cougar_step_2_complete:
+    - rescue_cougar_setup_step_3
+
+  rescue_cougar_step_3_complete:
+    - rescue_cougar_setup_step_4
+
+  rescue_cougar_step_4_complete:
+    - rescue_cougar_setup_step_5
+
+  rescue_cougar_step_5_complete:
+    - rescue_cougar_setup_step_6
+
+  rescue_cougar_step_8_complete:
+    - rescue_cougar_setup_step_9
+
+  rescue_cougar_step_9_complete:
+    - rescue_cougar_setup_step_10
+
+  rescue_cougar_step_10_complete:
+    - rescue_cougar_setup_step_11
+
+  # Mode completion and failure - start delay timers
+  rescue_cougar_complete:
+    - rescue_cougar_cleanup
+    - timer_rescue_cougar_complete_delay_start
+
+  rescue_cougar_failed:
+    - rescue_cougar_cleanup
+    - timer_rescue_cougar_failed_delay_start
+  
+  # Post completion/failure events after videos finish (for base mode to use)
+  timer_rescue_cougar_complete_delay_complete:
+    - rescue_cougar_video_complete
+  
+  timer_rescue_cougar_failed_delay_complete:
+    - rescue_cougar_video_complete
+  
+  # Skip left lane post video with both flippers
+  s_flipper_left_active{device.switches.s_flipper_right.state and device.timers.rescue_cougar_left_lane_post_timer.running}:
+    - rescue_cougar_skip_left_lane_post
+  
+  s_flipper_right_active{device.switches.s_flipper_left.state and device.timers.rescue_cougar_left_lane_post_timer.running}:
+    - rescue_cougar_skip_left_lane_post
+  
+  rescue_cougar_skip_left_lane_post:
+    - timer_rescue_cougar_left_lane_post_timer_stop
+    - rescue_cougar_deactivate_left_lane_post
+
+  # Additional events for post activations with lockout timers
+  rescue_cougar_activate_left_mig_post:
+    - timer_rescue_cougar_left_mig_post_timer_start
+    - timer_rescue_cougar_right_orbit_lockout_start
+
+  rescue_cougar_activate_right_mig_post:
+    - timer_rescue_cougar_right_mig_post_timer_start
+    - timer_rescue_cougar_left_orbit_lockout_start
+
+  rescue_cougar_activate_left_lane_post:
+    - timer_rescue_cougar_left_lane_post_timer_start
+    - timer_rescue_cougar_left_lane_lockout_start
+
+####################################################################################
+# SHOW PLAYER - Light Shows Only (Videos should use video_player)
+####################################################################################
+
+#show_player:
+  #   mode_rescue_cougar_started:
+    #     rescue_cougar_main_video:
+    #       loops: -1  # Loop main video
+    #       priority: 1000
+    # rescue_cougar_main_show:  # Uncomment when light show is ready
+    #   loops: -1
+    #   priority: 1000
+
+  # Step completion videos and shows (commented out until created)
+  # rescue_cougar_step_1_shot_hit:
+  #   rescue_cougar_step_1:
+  #     priority: 2000
+  #   rescue_cougar_step_1_show:
+  #     priority: 2000
+
+  # rescue_cougar_step_2_shot_hit:
+  #   rescue_cougar_step_2:
+  #     priority: 2000
+  #   rescue_cougar_step_2_show:
+  #     priority: 2000
+
+  # rescue_cougar_step_3_shot_hit:
+  #   rescue_cougar_step_3:
+  #     priority: 2000
+  #   rescue_cougar_step_3_show:
+  #     priority: 2000
+
+  # rescue_cougar_step_4_shot_hit:
+  #   rescue_cougar_step_4:
+  #     priority: 2000
+  #   rescue_cougar_step_4_show:
+  #     priority: 2000
+
+  # rescue_cougar_step_5_shot_hit:
+  #   rescue_cougar_step_5:
+  #     priority: 2000
+  #   rescue_cougar_step_5_show:
+  #     priority: 2000
+
+  # rescue_cougar_step_6_shot_hit:
+  #   rescue_cougar_step_6:
+  #     priority: 2000
+  #   rescue_cougar_step_6_show:
+  #     priority: 2000
+
+  # rescue_cougar_step_7_shot_hit:
+  #   rescue_cougar_step_7:
+  #     priority: 2000
+  #   rescue_cougar_step_7_show:
+  #     priority: 2000
+
+  # rescue_cougar_step_8_shot_hit:
+  #   rescue_cougar_step_8:
+  #     priority: 2000
+  #   rescue_cougar_step_8_show:
+  #     priority: 2000
+
+  # rescue_cougar_step_9_shot_hit:
+  #   rescue_cougar_step_9:
+  #     priority: 2000
+  #   rescue_cougar_step_9_show:
+  #     priority: 2000
+
+  # rescue_cougar_step_10_shot_hit:
+  #   rescue_cougar_step_10:
+  #     priority: 2000
+  #   rescue_cougar_step_10_show:
+  #     priority: 2000
+
+  # rescue_cougar_step_11_shot_hit:
+  #   rescue_cougar_step_11:
+  #     priority: 2000
+  #   rescue_cougar_step_11_show:
+  #     priority: 2000
+
+  # Mode won video and show
+  #   rescue_cougar_complete:
+    #     rescue_cougar_main_video:
+    #       action: stop
+    # rescue_cougar_won_video:  # Uncomment when video is ready
+    #   priority: 3000
+    # rescue_cougar_won_show:  # Uncomment when light show is ready
+    #   priority: 3000
+
+  # Mode failed video
+  #   rescue_cougar_failed:
+    #     rescue_cougar_main_video:
+    #       action: stop
+    # rescue_cougar_lost_video:  # Uncomment when video is ready
+    #   priority: 3000
+
+####################################################################################
+# SOUND PLAYER - Delay base music restart until after win/loss video
+####################################################################################
+
+sound_player:
+  # Play silence during win/loss videos so base music doesn't interfere
+  rescue_cougar_complete:
+    silence:
+      bus: music
+      loops: 0
+  
+  rescue_cougar_failed:
+    silence:
+      bus: music
+      loops: 0
+
+####################################################################################
+# SHOWS - Flashing light patterns
+####################################################################################
+
+shows:
+  flash_green:
+    - duration: 500ms
+      lights:
+        (led):
+          color: green
+    - duration: 500ms
+      lights:
+        (led):
+          color: off
+  
+  flash_red:
+    - duration: 500ms
+      lights:
+        (led):
+          color: red
+    - duration: 500ms
+      lights:
+        (led):
+          color: off
+
+####################################################################################
+# SHOW PLAYER - Control flashing lights for mode shots
+####################################################################################
+
+show_player:
+  # Start flashing shows for each step
+  rescue_cougar_setup_shots:
+    flash_green:
+      show_tokens:
+        led: l_shot_left_orbit, l_shot_right_orbit
+      loops: -1
+  
+  rescue_cougar_setup_step_2:
+    flash_green:
+      show_tokens:
+        led: l_shot_left_orbit, l_shot_right_orbit
+      loops: -1
+  
+  rescue_cougar_setup_step_3:
+    flash_green:
+      action: stop
+    flash_red:
+      show_tokens:
+        led: l_shot_left_ramp, l_shot_upper_orbit, l_shot_middle_ramp, l_shot_right_orbit
+      loops: -1
+  
+  # Stop all flashing when shots are hit or steps change
+  s_orbit_left_active{current_player.rescue_cougar_step==0 or current_player.rescue_cougar_step==1}:
+    flash_green:
+      action: stop
+  
+  s_orbit_right_active{current_player.rescue_cougar_step==0 or current_player.rescue_cougar_step==1}:
+    flash_green:
+      action: stop
+  
+  rescue_cougar_setup_step_4:
+    flash_red:
+      show_tokens:
+        led: l_shot_left_ramp, l_shot_upper_orbit, l_shot_middle_ramp, l_shot_right_orbit
+      loops: -1
+  
+  rescue_cougar_setup_step_5:
+    flash_red:
+      show_tokens:
+        led: l_shot_left_ramp, l_shot_upper_orbit, l_shot_middle_ramp, l_shot_right_orbit
+      loops: -1
+  
+  rescue_cougar_setup_step_6:
+    flash_red:
+      action: stop
+    flash_green:
+      show_tokens:
+        led: l_shot_left_lane
+      loops: -1
+  
+  rescue_cougar_setup_step_7:
+    flash_green:
+      show_tokens:
+        led: l_shot_right_orbit
+      loops: -1
+  
+  rescue_cougar_setup_step_8:
+    flash_green:
+      show_tokens:
+        led: l_shot_left_orbit, l_shot_spinner
+      loops: -1
+  
+  rescue_cougar_setup_step_9:
+    flash_green:
+      show_tokens:
+        led: l_shot_upper_orbit, l_shot_pilot_gear
+      loops: -1
+  
+  rescue_cougar_setup_step_10:
+    flash_green:
+      show_tokens:
+        led: l_shot_spinner, l_shot_tower_ramp
+      loops: -1
+  
+  rescue_cougar_setup_step_11:
+    flash_green:
+      show_tokens:
+        led: l_shot_left_orbit, l_shot_middle_ramp
+      loops: -1
+
+  # Stop all flashing shows when mode completes or fails
+  rescue_cougar_complete:
+    flash_green:
+      action: stop
+    flash_red:
+      action: stop
+  
+  rescue_cougar_failed:
+    flash_green:
+      action: stop
+    flash_red:
+      action: stop
+
+####################################################################################
+# LIGHT PLAYER - GI and Shot Lights
+####################################################################################
+
+light_player:
+  # Mode start - Change GI to Blue and set mode lights
+  mode_rescue_cougar_started:
+    gi_lights:
+      color: blue
+      fade: 500ms
+    l_mode_rescue_cougar:
+      color: white
+      fade: 100ms
+    l_pilot_mission_lit:
+      color: off
+
+  # Initial shot setup (Steps 1 & 2) - Flash handled by show_player
+
+  # Step 2 setup (one orbit already hit) - Flash handled by show_player
+
+  # Step 1 shot hits - turn off the shot that was made
+  s_orbit_left_active{current_player.rescue_cougar_step==0}:
+    l_shot_left_orbit:
+      color: off
+
+  s_orbit_right_active{current_player.rescue_cougar_step==0}:
+    l_shot_right_orbit:
+      color: off
+
+  # Step 2 shot hits - turn off the shot that was made
+  s_orbit_left_active{current_player.rescue_cougar_step==1}:
+    l_shot_left_orbit:
+      color: off
+
+  s_orbit_right_active{current_player.rescue_cougar_step==1}:
+    l_shot_right_orbit:
+      color: off
+
+  # Step 3 setup (Steps 3, 4, 5) - Turn off previous step lights, flash handled by show_player
+  rescue_cougar_setup_step_3:
+    # Turn off orbit lights from steps 1 & 2
+    l_shot_left_orbit:
+      color: off
+
+  # Step 3 shot hits - turn off shots as they're made
+  s_ramp_left_exit_active{current_player.rescue_cougar_step==2}:
+    l_shot_left_ramp:
+      color: off
+
+  s_orbit_upper_active{current_player.rescue_cougar_step==2}:
+    l_shot_upper_orbit:
+      color: off
+
+  s_ramp_inner_exit_active{current_player.rescue_cougar_step==2}:
+    l_shot_middle_ramp:
+      color: off
+
+  s_ramp_right_exit_active{current_player.rescue_cougar_step==2}:
+    l_shot_right_orbit:
+      color: off
+
+  # Step 4 setup - continue with remaining ramp shots
+  rescue_cougar_setup_step_4:
+    l_shot_left_ramp:
+      color: red
+      fade: 100ms
+    l_shot_upper_orbit:
+      color: red
+      fade: 100ms
+    l_shot_middle_ramp:
+      color: red
+      fade: 100ms
+    l_shot_right_orbit:
+      color: red
+      fade: 100ms
+
+  # Step 4 shot hits
+  s_ramp_left_exit_active{current_player.rescue_cougar_step==3}:
+    l_shot_left_ramp:
+      color: off
+
+  s_orbit_upper_active{current_player.rescue_cougar_step==3}:
+    l_shot_upper_orbit:
+      color: off
+
+  s_ramp_inner_exit_active{current_player.rescue_cougar_step==3}:
+    l_shot_middle_ramp:
+      color: off
+
+  s_ramp_right_exit_active{current_player.rescue_cougar_step==3}:
+    l_shot_right_orbit:
+      color: off
+
+  # Step 5 setup
+  rescue_cougar_setup_step_5:
+    l_shot_left_ramp:
+      color: red
+      fade: 100ms
+    l_shot_upper_orbit:
+      color: red
+      fade: 100ms
+    l_shot_middle_ramp:
+      color: red
+      fade: 100ms
+    l_shot_right_orbit:
+      color: red
+      fade: 100ms
+
+  # Step 5 shot hits
+  s_ramp_left_exit_active{current_player.rescue_cougar_step==4}:
+    l_shot_left_ramp:
+      color: off
+
+  s_orbit_upper_active{current_player.rescue_cougar_step==4}:
+    l_shot_upper_orbit:
+      color: off
+
+  s_ramp_inner_exit_active{current_player.rescue_cougar_step==4}:
+    l_shot_middle_ramp:
+      color: off
+
+  s_ramp_right_exit_active{current_player.rescue_cougar_step==4}:
+    l_shot_right_orbit:
+      color: off
+
+  # Step 6 setup - Left lane (turn off previous step lights)
+  rescue_cougar_setup_step_6:
+    # Turn off ramp/orbit lights from steps 3-5
+    l_shot_left_ramp:
+      color: off
+    l_shot_upper_orbit:
+      color: off
+    l_shot_middle_ramp:
+      color: off
+    l_shot_right_orbit:
+      color: off
+    # Setup step 6 light
+    l_shot_left_lane:
+      color: green
+      fade: 100ms
+
+  # Step 6 shot hit
+  s_lane_left_active{current_player.rescue_cougar_step==5}:
+    l_shot_left_lane:
+      color: off
+
+  # Step 7 setup - Right orbit (turn off left lane from step 6)
+  rescue_cougar_setup_step_7:
+    l_shot_left_lane:
+      color: off
+    # Right orbit flashes via show_player
+
+  # Step 7 shot hit
+  s_orbit_right_active{current_player.rescue_cougar_step==6}:
+    l_shot_right_orbit:
+      color: off
+
+  # Step 8 setup - Left orbit and spinner flash green, Left ramp (red indicator, not active)
+  rescue_cougar_setup_step_8:
+    # Turn off right orbit from step 7
+    l_shot_right_orbit:
+      color: off
+    # Left orbit and spinner flash via show_player
+    # Red indicator light (not flashing)
+    l_shot_left_ramp:
+      color: red
+      fade: 100ms
+
+  # Step 8 shot hits
+  s_orbit_left_active{current_player.rescue_cougar_step==7}:
+    l_shot_left_orbit:
+      color: off
+    l_shot_spinner:
+      color: off
+    l_shot_left_ramp:
+      color: off
+
+  s_spinner_active{current_player.rescue_cougar_step==7}:
+    l_shot_left_orbit:
+      color: off
+    l_shot_spinner:
+      color: off
+    l_shot_left_ramp:
+      color: off
+
+  # Step 9 setup - Upper orbit and pilot gear flash green, middle ramp (red indicator, not active)
+  rescue_cougar_setup_step_9:
+    # Turn off left orbit, spinner, left ramp from step 8
+    l_shot_left_orbit:
+      color: off
+    l_shot_spinner:
+      color: off
+    l_shot_left_ramp:
+      color: off
+    # Upper orbit and pilot gear flash via show_player
+    # Red indicator light (not flashing)
+    l_shot_middle_ramp:
+      color: red
+      fade: 100ms
+
+  # Step 9 shot hits
+  s_orbit_upper_active{current_player.rescue_cougar_step==8}:
+    l_shot_upper_orbit:
+      color: off
+    l_shot_pilot_gear:
+      color: off
+    l_shot_middle_ramp:
+      color: off
+
+  s_flight_gear_target_active{current_player.rescue_cougar_step==8}:
+    l_shot_upper_orbit:
+      color: off
+    l_shot_pilot_gear:
+      color: off
+    l_shot_middle_ramp:
+      color: off
+
+  # Step 10 setup - Spinner and tower ramp flash green, barrier (red indicator, not active)
+  rescue_cougar_setup_step_10:
+    # Turn off upper orbit, pilot gear, middle ramp from step 9
+    l_shot_upper_orbit:
+      color: off
+    l_shot_pilot_gear:
+      color: off
+    l_shot_middle_ramp:
+      color: off
+    # Spinner and tower ramp flash via show_player
+    # Red indicator light (not flashing)
+    l_shot_barrier:
+      color: red
+      fade: 100ms
+
+  # Step 10 shot hits
+  s_spinner_active{current_player.rescue_cougar_step==9}:
+    l_shot_spinner:
+      color: off
+    l_shot_tower_ramp:
+      color: off
+    l_shot_barrier:
+      color: off
+
+  s_ramp_tower_exit_active{current_player.rescue_cougar_step==9}:
+    l_shot_spinner:
+      color: off
+    l_shot_tower_ramp:
+      color: off
+    l_shot_barrier:
+      color: off
+
+  # Step 11 setup - Left orbit and middle ramp (FINAL)
+  rescue_cougar_setup_step_11:
+    # Turn off spinner, tower ramp, barrier from step 10
+    l_shot_spinner:
+      color: off
+    l_shot_tower_ramp:
+      color: off
+    l_shot_barrier:
+      color: off
+    # Left orbit and middle ramp flash via show_player
+
+  # Step 11 shot hits
+  s_orbit_left_active{current_player.rescue_cougar_step==10}:
+    l_shot_left_orbit:
+      color: off
+    l_shot_middle_ramp:
+      color: off
+
+  s_orbit_lower_active{current_player.rescue_cougar_step==10}:
+    l_shot_left_orbit:
+      color: off
+    l_shot_middle_ramp:
+      color: off
+
+  # Mode cleanup - restore base GI
+  rescue_cougar_cleanup:
+    gi_lights:
+      color: white  # Restore to base mode color
+      fade: 500ms
+    l_mode_rescue_cougar:
+      color: white  # Keep lit solid after completion
+    # Turn off all active shot lights
+    l_shot_left_orbit:
+      color: off
+    l_shot_right_orbit:
+      color: off
+    l_shot_left_ramp:
+      color: off
+    l_shot_middle_ramp:
+      color: off
+    l_shot_upper_orbit:
+      color: off
+    l_shot_tower_ramp:
+      color: off
+    l_shot_spinner:
+      color: off
+    l_shot_pilot_gear:
+      color: off
+    l_shot_barrier:
+      color: off
+    l_shot_left_lane:
+      color: off
+
+####################################################################################
+# COIL PLAYER - Ramp Lifts, Diverters, and Posts
+####################################################################################
+
+coil_player:
+  # Mode start - Lift right ramp for steps 1-2
+  mode_rescue_cougar_started:
+    c_right_ramp_lifter:
+      action: enable
+      hold_power: 0.125
+
+  # Barrier release after mode scoop eject delay
+  rescue_cougar_release_barrier:
+    c_mode_barrier:
+      action: disable  # Release barrier so it comes back up
+
+  # Step 1 and 2 - MIG post activations (2 second hold)
+  rescue_cougar_activate_left_mig_post:
+    c_left_mig_up_post:
+      action: enable
+      hold_power: 0.125
+
+  rescue_cougar_activate_right_mig_post:
+    c_right_mig_up_post:
+      action: enable
+      hold_power: 0.125
+
+  rescue_cougar_deactivate_left_mig_post:
+    c_left_mig_up_post:
+      action: disable
+
+  rescue_cougar_deactivate_right_mig_post:
+    c_right_mig_up_post:
+      action: disable
+
+  # Step 3 setup - Lower right ramp
+  rescue_cougar_setup_step_3:
+    c_right_ramp_lifter:
+      action: disable
+
+  # Step 6 - Lift right ramp and open left diverter
+  rescue_cougar_setup_step_6:
+    c_right_ramp_lifter:
+      action: enable
+      hold_power: 0.125
+    c_left_orbit_diverter:
+      action: enable
+      hold_power: 0.125
+
+  # Step 6 - Left lane post activation and close left diverter
+  rescue_cougar_activate_left_lane_post:
+    c_left_lane_up_post:
+      action: enable
+      hold_power: 0.125
+    c_left_orbit_diverter:
+      action: disable
+
+  rescue_cougar_deactivate_left_lane_post:
+    c_left_lane_up_post:
+      action: disable
+
+  # Step 7 - Lower right ramp when shot is hit
+  rescue_cougar_step_7_shot_hit:
+    c_right_ramp_lifter:
+      action: disable
+
+  # Step 11 - Lift inner ramp
+  rescue_cougar_setup_step_11:
+    c_top_ramp_lifter:
+      action: enable
+      hold_power: 0.125
+
+  # Mode cleanup - Turn off all coils
+  rescue_cougar_cleanup:
+    c_right_ramp_lifter:
+      action: disable
+    c_top_ramp_lifter:
+      action: disable
+    c_left_orbit_diverter:
+      action: disable
+    c_left_lane_up_post:
+      action: disable
+    c_left_mig_up_post:
+      action: disable
+    c_right_mig_up_post:
+      action: disable
+
+####################################################################################
+# BALL HOLD INSTRUCTIONS (Mode Scoop)
+#
+# The queue_relay_player cannot be used with mode_rescue_cougar_started.
+# To hold the ball in the mode scoop, increase the rescue_cougar_barrier_delay timer.
+# Currently set to 500ms (line ~171). Change end_value to your video length.
+# Example: For 5 second hold, set end_value: 5000
+#
+
+####################################################################################
+# NOTES AND INSTRUCTIONS
+####################################################################################
+
+# TOPGUN Letter Reset:
+# The event "reset_topgun_letters" needs to be added to your pilot_mission_qualifier
+# yaml file to reset the TOPGUN collection when this mode starts and prevent
+# collection during the mode.
+
+# Video Placeholders:
+# - rescue_cougar_main_video: Main video that plays during mode
+# - rescue_cougar_step_1 through rescue_cougar_step_11: Videos for each step
+# - rescue_cougar_won_video: Victory video
+# - rescue_cougar_lost_video: Failure video
+# All video show_player entries are commented out until you create the shows.
+
+# Light Show Placeholders:
+# - rescue_cougar_main_show: Main light show
+# - rescue_cougar_step_1_show through rescue_cougar_step_11_show: Step light shows
+# - rescue_cougar_won_show: Victory light show
+# All light show entries are commented out until you create the shows.
+
+# Sound/Video Muting:
+# The sound_player section for muting the main video during step videos is commented
+# out. Uncomment and configure when videos are implemented. Alternative is to pause
+# the main video show during step videos if muting proves difficult.
+
+# Mode Scoop Ball Hold:
+# When the mode starts, it will hold the ball in bd_mode_scoop. You need to manually
+# trigger the event "rescue_cougar_ball_released" after your desired video delay
+# to eject the ball. After ejection, there's a 500ms delay before the barrier
+# releases (comes back up).
+
+# Mission Tracking Variables:
+# - pilot_missions_played: Tracks total pilot missions attempted
+# - pilot_missions_won: Tracks total pilot missions completed successfully
+# These can be used for end-of-ball bonus calculations.
+
+# Adjustable Timing Values:
+# - Mode timer: 90 seconds (line 59)
+# - Barrier delay: 500ms (line 71)
+# - MIG post hold: 2 seconds (lines 82, 88)
+# - Left lane post hold: 3 seconds (line 95)
+# - Shot lockout timers: 2-3 seconds (lines 102, 108, 114)
+
+####################################################################################
+# GODOT 4.1.1 SLIDE SETUP INSTRUCTIONS
+####################################################################################
+
+# You need to create TWO slides in GODOT:
+#
+# Slide 1: rescue_cougar_timer
+#   - Variable Type: device
+#   - Variable Name: timers.rescue_cougar_timer.ticks
+#   - This will show the countdown timer (90 down to 0)
+#
+# Slide 2: rescue_cougar_shots_remaining
+#   - Variable Type: player_var
+#   - Variable Name: rescue_cougar_shots_remaining
+#   - This will show shots remaining (11 down to 0)
+
+####################################################################################

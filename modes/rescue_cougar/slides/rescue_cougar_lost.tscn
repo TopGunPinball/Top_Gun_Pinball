@@ -1,0 +1,98 @@
+[gd_scene load_steps=9 format=3 uid="uid://vtw14351baq0"]
+
+[ext_resource type="Script" uid="uid://b6ivjr1y66vcc" path="res://addons/mpf-gmc/classes/mpf_slide.gd" id="1_u4fuv"]
+[ext_resource type="VideoStream" uid="uid://rtxjdyh0ux1s" path="res://addons/artwork/videos/rescue_cougar/rescue_cougar_lost.ogv" id="2_u4fuv"]
+[ext_resource type="Script" uid="uid://bwrcoctjeon82" path="res://addons/mpf-gmc/classes/mpf_video_player.gd" id="3_j4pyo"]
+[ext_resource type="Texture2D" uid="uid://blwtf62oda21i" path="res://addons/artwork/images/scoreboard_background_with_video.png" id="4_j4pyo"]
+[ext_resource type="FontFile" uid="uid://bmeoubu4ga0gt" path="res://fonts/ITCMachine-Medium Medium.ttf" id="5_2rbep"]
+
+[sub_resource type="Animation" id="Animation_n0yfp"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("AnimationPlayer/screen label:theme_override_colors/font_color")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Color(0.776471, 0.772549, 0.709804, 1)]
+}
+
+[sub_resource type="Animation" id="Animation_mip73"]
+resource_name = "fade_in"
+length = 0.5
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("AnimationPlayer/screen label:theme_override_colors/font_color")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Color(0.776471, 0.772549, 0.709804, 0), Color(0.776471, 0.772549, 0.709804, 1)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_dj7d1"]
+_data = {
+&"RESET": SubResource("Animation_n0yfp"),
+&"fade_in": SubResource("Animation_mip73")
+}
+
+[node name="rescue_cougar_lost" type="Control"]
+process_priority = 200
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_u4fuv")
+metadata/_custom_type_script = "uid://b6ivjr1y66vcc"
+
+[node name="TextureRect" type="VideoStreamPlayer" parent="."]
+z_index = 48
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_right = 1280.0
+offset_bottom = 720.0
+grow_horizontal = 2
+grow_vertical = 2
+stream = ExtResource("2_u4fuv")
+autoplay = true
+expand = true
+script = ExtResource("3_j4pyo")
+end_behavior = 1
+preview_in_editor = true
+metadata/_custom_type_script = "uid://bwrcoctjeon82"
+
+[node name="background_video_opening" type="Sprite2D" parent="."]
+visible = false
+z_index = 50
+texture = ExtResource("4_j4pyo")
+centered = false
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_dj7d1")
+}
+
+[node name="screen label" type="Label" parent="AnimationPlayer"]
+z_index = 51
+anchors_preset = -1
+anchor_top = -0.505556
+anchor_bottom = -0.505556
+offset_left = 51.0
+offset_top = 498.0
+offset_right = 921.0
+offset_bottom = 545.0
+theme_override_colors/font_color = Color(0.776471, 0.772549, 0.709804, 1)
+theme_override_constants/line_spacing = -9
+theme_override_fonts/font = ExtResource("5_2rbep")
+theme_override_font_sizes/font_size = 45
+text = "rescue cougar mission - failed"
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
