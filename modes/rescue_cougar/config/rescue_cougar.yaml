@@ -6,9 +6,16 @@
 # Total Steps: 11 shots to complete
 # Can stack with multiball: Yes
 # GI Color: Blue
-####################################################################################
 
-#:mode: rescue_cougar
+# Adjustable Timing Values:
+# - Mode timer: 90 seconds (line 59386)
+# - Intro Video Delay: (line 407)
+# - Barrier delay: 750ms (line 417)
+# - Mode Switch Debounce: 150ms (line 430)
+# - MIG post hold: 2 seconds (lines 400 - 483)
+# - Left lane post hold: 3 seconds (lines 400 - 483)
+# - Shot lockout timers: 2-3 seconds (lines 400 - 483)
+####################################################################################
 
 mode:
   start_events: start_mode_rescue_cougar
@@ -393,18 +400,42 @@ timers:
       - event: s_lane_left_inactive
         action: start
 
-  # Delay timer for barrier release after mode scoop eject
+  # INTRO VIDEO TIMER - Time before ball releases (normal path)
+  # This timer waits for the intro video to finish before releasing the ball
+  # Adjust end_value to match your intro video length
+  rescue_cougar_intro_video_timer:
+    start_value: 0
+    end_value: 5000  # 5 seconds - ADJUST THIS to match intro video length
+    direction: up
+    tick_interval: 1ms
+    start_running: false
+
+  # BARRIER RAISE DELAY - Time after ball successfully leaves mode scoop
+  # Timer starts when debounce completes (confirming ball actually left)
+  # After 750ms, barrier raises
   rescue_cougar_barrier_delay:
     start_value: 0
-    end_value: 500
+    end_value: 750  # 750ms - ADJUST THIS for ball clearance time
     direction: up
     tick_interval: 1ms
     start_running: false
     control_events:
-      - event: balldevice_bd_mode_scoop_ball_eject_attempt
+      - event: timer_rescue_cougar_eject_debounce_complete
         action: start
-      - event: rescue_cougar_barrier_delay_complete
-        action: stop
+
+  # Debounce timer - Ensures ball actually left before starting main delay
+  # Prevents false starts on failed ejects or ball bouncing back
+  rescue_cougar_eject_debounce:
+    start_value: 0
+    end_value: 150  # 150ms debounce - ball must stay away from switch
+    direction: up
+    tick_interval: 1ms
+    start_running: false
+    control_events:
+      - event: s_mode_start_inactive
+        action: restart  # Restart on each inactive (resets if ball bounces back)
+      - event: s_mode_start_active
+        action: stop     # Stop if ball goes back to switch
 
   # MIG post activation timers (2 second hold)
   rescue_cougar_left_mig_post_timer:
@@ -480,10 +511,23 @@ event_player:
   mode_rescue_cougar_started:
     - reset_topgun_letters  # Reset TOPGUN collection for duration of mode
     - rescue_cougar_setup_shots
+    - timer_rescue_cougar_intro_video_timer_start  # Start intro video timer
 
-  # Skip intro video and release ball when both flippers pressed
-  rescue_cougar_skip_intro:
+  # NORMAL PATH: Intro video timer completes → release ball
+  timer_rescue_cougar_intro_video_timer_complete:
     - rescue_cougar_ball_released
+
+  # SKIP PATH: Both flippers pressed → stop intro timer, release ball immediately
+  rescue_cougar_skip_intro:
+    - timer_rescue_cougar_intro_video_timer_stop  # Stop intro timer
+    - rescue_cougar_ball_released  # Release ball immediately
+
+  # DEBOUNCE: Timer automatically starts barrier delay when complete
+  # (configured in timer control_events)
+
+  # BOTH PATHS: After ball clears barrier area → raise barrier
+  timer_rescue_cougar_barrier_delay_complete:
+    - pilot_mission_raise_barrier
 
   # Detect both flippers pressed to skip intro
   s_flipper_left_active{device.switches.s_flipper_right.state}:
@@ -502,10 +546,6 @@ event_player:
   # Timer expired
   timer_rescue_cougar_timer_complete:
     - rescue_cougar_failed
-
-  # Barrier delay complete
-  timer_rescue_cougar_barrier_delay_complete:
-    - rescue_cougar_release_barrier
 
   # Step 1 and 2 - Left and Right Orbits
   s_orbit_left_active{current_player.rescue_cougar_step==0 and device.timers.rescue_cougar_left_orbit_lockout.running==False}:
@@ -1259,11 +1299,6 @@ coil_player:
     c_right_ramp_lifter:
       action: enable
       hold_power: 0.125
-
-  # Barrier release after mode scoop eject delay
-  rescue_cougar_release_barrier:
-    c_mode_barrier:
-      action: disable  # Release barrier so it comes back up
 
   # Step 1 and 2 - MIG post activations (2 second hold)
   rescue_cougar_activate_left_mig_post:

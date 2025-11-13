@@ -194,6 +194,22 @@ variable_player:
     pilot_qualifier_paused:
       action: set
       int: 0
+    # Track if ANY multiball is active (prevents mode start)
+    multiball_active:
+      action: set
+      int: 0
+    # Bonus tracking - training missions played (persists whole game)
+    training_missions_played:
+      action: set
+      int: 0
+    # Bonus tracking - hard deck awards (persists whole game)
+    hard_deck_awards_count:
+      action: set
+      int: 0
+    # Bonus tracking - pilot missions won (persists whole game)
+    pilot_missions_won:
+      action: set
+      int: 0
     # Track which modes are PLAYED (win or loss - prevents re-qualification)
     mode_rescue_cougar_played:
       action: set
@@ -778,64 +794,56 @@ variable_player:
       int: 100000 * current_player.total_scoring_multiplier
       block: true
 
+  # Track multiball state
+  multiball_started:
+    multiball_active:
+      action: set
+      int: 1
+  
+  multiball_ended:
+    multiball_active:
+      action: set
+      int: 0
+
 
 ##############################################
 ## Coil Player - Mode Barrier Control
 ##############################################
 
 coil_player:
-  # Drop and hold barrier when any mode is qualified
-  topgun_qualified:
+  # DROP barrier (enable hold) when TOPGUN qualified - ONLY if not in multiball
+  # Uses default_hold_power: 0.125 from coil config (safe for extended holds)
+  topgun_qualified{current_player.multiball_active==0}:
     c_mode_barrier:
-      action: pulse
-      hold_power: 0.125
+      action: enable
 
-  # Release barrier when any pilot mission mode starts
-  mode_rescue_cougar_started:
+  # RAISE barrier (disable) when ball ends
+  ball_ending:
     c_mode_barrier:
       action: disable
 
-  mode_balls_of_fire_started:
+  # RAISE barrier (disable) - Custom event fired by pilot mission modes
+  # Each mode controls WHEN to raise the barrier via adjustable timers
+  pilot_mission_raise_barrier:
     c_mode_barrier:
       action: disable
 
-  mode_cool_under_pressure_started:
+  # RAISE barrier when any multiball starts
+  multiball_started:
     c_mode_barrier:
       action: disable
 
-  mode_battle_jester_started:
+  # DROP barrier when multiball ends - ONLY if qualified and not in a mode
+  # Uses default_hold_power: 0.125 from coil config (safe for extended holds)
+  multiball_ended{current_player.qualified_mode_number>0}:
     c_mode_barrier:
-      action: disable
+      action: enable
 
-  mode_no_points_for_second_place_started:
+  # DROP barrier on ball start if qualified and NOT in multiball
+  # Uses default_hold_power: 0.125 from coil config (safe for extended holds)
+  mode_pilot_mission_qualifier_started{current_player.qualified_mode_number>0 and current_player.multiball_active==0}:
     c_mode_barrier:
-      action: disable
-
-  mode_edge_of_space_started:
-    c_mode_barrier:
-      action: disable
-
-  mode_below_the_hard_deck_started:
-    c_mode_barrier:
-      action: disable
-
-  mode_canyon_run_started:
-    c_mode_barrier:
-      action: disable
-
-  mode_rise_of_phoenix_started:
-    c_mode_barrier:
-      action: disable
-
-  mode_no_margin_for_error_started:
-    c_mode_barrier:
-      action: disable
-
-  # Restore barrier on ball start if a mode is qualified
-  mode_pilot_mission_qualifier_started{current_player.qualified_mode_number>0}:
-    c_mode_barrier:
-      action: pulse
-      hold_power: 0.125
+      action: enable
 
 ##############################################
 ## Event Player - Mode Qualification & Rotation

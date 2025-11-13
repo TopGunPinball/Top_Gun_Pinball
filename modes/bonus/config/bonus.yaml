@@ -1,0 +1,215 @@
+#config_version=6
+
+##
+## BONUS MODE - End of Ball Bonus Countdown
+## Uses MPF 0.80's built-in bonus system
+## Priority: 500 (runs after ball ends, before next ball/player)
+##
+## TIMING ADJUSTMENTS:
+## - display_delay_ms: Time for ALL bonus slides (default: 2000ms = 2 seconds)
+## - light_show_speed: Speed multiplier for light show (default: 1.0, higher = faster)
+##
+## NOTE: MPF does not support per-entry display_delay_ms, only global setting
+##
+
+mode:
+  start_events: ball_ending
+  stop_events: bonus_done
+  priority: 500
+  game_mode: true
+  use_wait_queue: true
+
+##############################################
+## Mode Settings - Bonus Entries
+##############################################
+
+mode_settings:
+  # ADJUST THIS: Display time for ALL bonus slides (in milliseconds)
+  # 1000 = 1 second, 2000 = 2 seconds, 3000 = 3 seconds, etc.
+  display_delay_ms: 1800
+  
+  # If player hits flipper, speed up to instant
+  hurry_up_delay_ms: 0
+  hurry_up_event: flipper_cancel
+  
+  # Force MPF to always show multiplier slide (even when multiplier = 1)
+  keep_multiplier: true
+  
+  # Define all bonus entries in order
+  bonus_entries:
+    # 1. Switches - count and points
+    - entry: switches
+      text: "Switches Hit"
+      player_score_entry: bonus_switches_count
+      score: 350
+      skip_if_zero: false
+    
+    # 2. Ramps - count and points
+    - entry: ramps
+      text: "Ramps Made"
+      player_score_entry: bonus_ramps_count
+      score: 2500
+      skip_if_zero: false
+    
+    # 3. Highest Mach - level and points
+    - entry: highest_mach
+      text: "Highest Mach Level"
+      player_score_entry: bonus_highest_mach
+      score: 10000
+      skip_if_zero: false
+    
+    # 4. Hard Deck Awards - count and points (does NOT reset)
+    - entry: hard_deck_awards
+      text: "Hard Deck Awards"
+      player_score_entry: hard_deck_awards_count
+      score: 35000
+      skip_if_zero: false
+    
+    # 5. Training Missions Played - count and points (does NOT reset)
+    - entry: training_missions
+      text: "Training Missions Played"
+      player_score_entry: training_missions_played
+      score: 50000
+      skip_if_zero: false
+    
+    # 6. Pilot Missions Won - count and points (does NOT reset)
+    - entry: pilot_missions
+      text: "Pilot Missions Won"
+      player_score_entry: pilot_missions_won
+      score: 75000
+      skip_if_zero: false
+    
+    # 7. SUBTOTAL - Shows sum before multiplier (triggers slide without adding points)
+    - entry: subtotal
+      text: "Bonus Subtotal"
+      player_score_entry: bonus_multiplier
+      score: 0
+      skip_if_zero: false
+
+##############################################
+## Variable Player - Calculate Display Points
+## AND RESET PER-BALL VARIABLES AFTER MODE ENDS
+##############################################
+
+variable_player:
+  # Calculate points variables when each bonus entry is shown
+  bonus_entry{entry=="switches"}:
+    bonus_switches_points:
+      action: set
+      int: current_player.bonus_switches_count * 350
+  
+  bonus_entry{entry=="ramps"}:
+    bonus_ramps_points:
+      action: set
+      int: current_player.bonus_ramps_count * 2500
+  
+  bonus_entry{entry=="highest_mach"}:
+    bonus_highest_mach_points:
+      action: set
+      int: current_player.bonus_highest_mach * 10000
+  
+  bonus_entry{entry=="hard_deck_awards"}:
+    bonus_hard_deck_awards_points:
+      action: set
+      int: current_player.hard_deck_awards_count * 35000
+  
+  bonus_entry{entry=="training_missions"}:
+    bonus_training_missions_points:
+      action: set
+      int: current_player.training_missions_played * 50000
+  
+  bonus_entry{entry=="pilot_missions"}:
+    bonus_pilot_missions_points:
+      action: set
+      int: current_player.pilot_missions_won * 75000
+  
+  # Per-ball variables reset has been moved to base.yaml
+  # (bonus mode stops before ball_ended fires, so base handles it)
+
+##############################################
+## Show Player - Light Show During Bonus
+## SPEED ADJUSTMENT: Change 'speed' parameter to adjust light show speed
+##############################################
+
+show_player:
+  mode_bonus_started:
+    bonus_count_down_light_show:
+      loops: -1          # Loop infinitely until mode stops
+      speed: 40          # ADJUST THIS: 1.0 = normal, 2.0 = 2x speed, 0.5 = half speed
+      key: bonus_lights
+  
+  mode_bonus_stopped:
+    bonus_count_down_light_show:
+      action: stop
+      key: bonus_lights
+
+##############################################
+## Slide Player - Display Bonus Screens
+##############################################
+
+slide_player:
+  # Initial "BONUS" screen
+  mode_bonus_started:
+    bonus_start:
+      action: play
+      priority: 510
+  
+  # Switches bonus slide
+  bonus_entry{entry=="switches"}:
+    bonus_switches:
+      action: play
+      priority: 510
+  
+  # Ramps bonus slide
+  bonus_entry{entry=="ramps"}:
+    bonus_ramps:
+      action: play
+      priority: 510
+  
+  # Highest Mach bonus slide (shows both count and points)
+  bonus_entry{entry=="highest_mach"}:
+    bonus_highest_mach:
+      action: play
+      priority: 510
+  
+  # Hard Deck Awards bonus slide
+  bonus_entry{entry=="hard_deck_awards"}:
+    bonus_hard_deck_awards:
+      action: play
+      priority: 510
+  
+  # Training Missions bonus slide
+  bonus_entry{entry=="training_missions"}:
+    bonus_training_missions:
+      action: play
+      priority: 510
+  
+  # Pilot Missions Won bonus slide
+  bonus_entry{entry=="pilot_missions"}:
+    bonus_pilot_missions:
+      action: play
+      priority: 510
+  
+  # Subtotal slide (shows subtotal and multiplier together)
+  bonus_entry{entry=="subtotal"}:
+    bonus_subtotal:
+      action: play
+      priority: 510
+  
+  # Final Total slide
+  bonus_entry{entry=="total"}:
+    bonus_total:
+      action: play
+      priority: 510
+
+##############################################
+## Event Player - Flipper Cancel
+##############################################
+
+event_player:
+  # Both flippers pressed = skip to end
+  s_flipper_left_active{device.switches.s_flipper_right.state}:
+    - flipper_cancel
+  
+  s_flipper_right_active{device.switches.s_flipper_left.state}:
+    - flipper_cancel

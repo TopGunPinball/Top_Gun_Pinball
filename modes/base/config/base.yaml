@@ -26,18 +26,46 @@ variable_player:
     total_scoring_multiplier:
       action: set
       float: 1.0
+    bonus_switches_count:
+      action: set
+      int: 0
+    bonus_ramps_count:
+      action: set
+      int: 0
+    bonus_highest_mach:
+      action: set
+      int: 0
 
   # ALSO initialize when base mode starts (this is the key fix!)
+  # Reset per-ball bonus counters AND bonus multiplier
   mode_base_started:
     total_scoring_multiplier:
       action: set
       float: current_player.mach_level * (1 + current_player.x2_multiplier)
+    bonus_switches_count:
+      action: set
+      int: 0
+    bonus_ramps_count:
+      action: set
+      int: 0
+    bonus_highest_mach:
+      action: set
+      int: 0
+    bonus_multiplier:
+      action: set
+      int: 1
 
   # Recalculate whenever mach_level changes
   player_mach_level:
     total_scoring_multiplier:
       action: set
       float: current_player.mach_level * (1 + current_player.x2_multiplier)
+  
+  # Track highest mach level reached this ball
+  player_mach_level{value > current_player.bonus_highest_mach}:
+    bonus_highest_mach:
+      action: set
+      int: current_player.mach_level
   
   # Recalculate whenever x2_multiplier changes
   player_x2_multiplier:
@@ -63,11 +91,17 @@ variable_player:
     score:
       action: add
       int: 500 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_slingshot_right_active:
     score:
       action: add
       int: 500 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   ##############################################
   ## POP BUMPERS - Frequent hits
@@ -76,16 +110,25 @@ variable_player:
     score:
       action: add
       int: 1000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_bumper_center_active:
     score:
       action: add
       int: 1000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_bumper_right_active:
     score:
       action: add
       int: 1000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   ##############################################
   ## SPINNER - Per spin (can rack up quickly)
@@ -94,6 +137,9 @@ variable_player:
     score:
       action: add
       int: 1000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   ##############################################
   ## INLANES - Lower scoring (often lit for letters)
@@ -102,16 +148,25 @@ variable_player:
     score:
       action: add
       int: 2000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_inner_inlane_right_active:
     score:
       action: add
       int: 2000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_outer_inlane_right_active:
     score:
       action: add
       int: 2000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   ##############################################
   ## OUTLANES - Higher value (ball save risk)
@@ -120,11 +175,17 @@ variable_player:
     score:
       action: add
       int: 2000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_outlane_right_active:
     score:
       action: add
       int: 2000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   ##############################################
   ## MIG LANES - Skill shot area
@@ -133,11 +194,17 @@ variable_player:
     score:
       action: add
       int: 5000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_mig_lane_right_active:
     score:
       action: add
       int: 5000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   ##############################################
   ## ICEMAN TARGETS - Standup targets (6 total)
@@ -146,31 +213,49 @@ variable_player:
     score:
       action: add
       int: 2000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_c_iceman_target_active:
     score:
       action: add
       int: 2000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_e_iceman_target_active:
     score:
       action: add
       int: 2000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_m_iceman_target_active:
     score:
       action: add
       int: 2000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_a_iceman_target_active:
     score:
       action: add
       int: 2000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_n_iceman_target_active:
     score:
       action: add
       int: 2000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   ##############################################
   ## LOCK TARGETS - Standup targets (4 total)
@@ -179,21 +264,33 @@ variable_player:
     score:
       action: add
       int: 2500 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_o_lock_target_active:
     score:
       action: add
       int: 2500 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_c_lock_target_active:
     score:
       action: add
       int: 2500 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_k_lock_target_active:
     score:
       action: add
       int: 2500 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   ##############################################
   ## SPECIAL TARGETS
@@ -202,11 +299,17 @@ variable_player:
     score:
       action: add
       int: 3000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_flight_gear_target_active:
     score:
       action: add
       int: 3000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   ##############################################
   ## RAMPS - Major shots
@@ -215,21 +318,45 @@ variable_player:
     score:
       action: add
       int: 10000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
+    bonus_ramps_count:
+      action: add
+      int: 1
   
   s_ramp_right_exit_active:
     score:
       action: add
       int: 10000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
+    bonus_ramps_count:
+      action: add
+      int: 1
   
   s_ramp_inner_exit_active:
     score:
       action: add
       int: 10000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
+    bonus_ramps_count:
+      action: add
+      int: 1
   
   s_ramp_tower_exit_active:
     score:
       action: add
       int: 15000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
+    bonus_ramps_count:
+      action: add
+      int: 1
   
   ##############################################
   ## ORBITS - Major shots
@@ -238,21 +365,33 @@ variable_player:
     score:
       action: add
       int: 8000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_orbit_right_active:
     score:
       action: add
       int: 8000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_orbit_upper_active:
     score:
       action: add
       int: 10000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_orbit_lower_active:
     score:
       action: add
       int: 10000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   ##############################################
   ## LANES - Feed shots
@@ -261,11 +400,17 @@ variable_player:
     score:
       action: add
       int: 5000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_lane_right_active:
     score:
       action: add
       int: 5000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   ##############################################
   ## LOCK SWITCHES - Special shots
@@ -274,11 +419,17 @@ variable_player:
     score:
       action: add
       int: 25000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   s_lock_goose_active:
     score:
       action: add
       int: 25000 * current_player.total_scoring_multiplier
+    bonus_switches_count:
+      action: add
+      int: 1
   
   ##############################################
   ## NO SCORING for these switches:
@@ -312,18 +463,27 @@ slide_player:
       expire: 8s  # Auto-remove after 5 seconds
 
 sound_player:
+  # Start base music when playfield becomes active (not during rescue_cougar)
   playfield_active{mode.rescue_cougar.active==False}:
     music_danger_zone:
       bus: music
       loops: -1
   
-  # Rescue Cougar music - solo bus auto-stops previous music
+  # Restart base music after bonus mode completes
+  mode_bonus_stopped:
+    music_danger_zone:
+      bus: music
+      loops: -1
+
+#################################################################################### 
+  # Rescue Cougar Mode Music Handler
+####################################################################################
+
   s_mode_start_active:
     silence:
       bus: music
       loops: 0
   
-  # Start mode music when ball ejects from scoop
   balldevice_bd_mode_scoop_ball_eject_success{mode.rescue_cougar.active==True}:
     music_rescue_cougar_1:
       bus: music
@@ -344,4 +504,3 @@ sound_player:
     music_danger_zone:
       bus: music
       loops: -1
-  
