@@ -1,0 +1,1146 @@
+#config_version=6
+
+####################################################################################
+# RISE OF PHOENIX - PILOT MISSION MODE
+# Timer: 90 seconds countdown
+# Total Steps: 9 shots to complete
+# Can stack with multiball: Yes
+# GI Color: Bold Orange (#ff6600)
+
+# Adjustable Timing Values:
+# - Mode timer: 90 seconds (line 218)
+# - Intro Video Delay: 5000ms (line 185) - ADJUST THIS to match intro video length
+# - Barrier delay: 750ms (line 195)
+# - Mode Switch Debounce: 150ms (line 208)
+# - Shot lockout: 1500ms (line 225)
+####################################################################################
+
+mode:
+  start_events: start_mode_rise_of_phoenix
+  stop_events:
+    - timer_rise_of_phoenix_complete_delay_complete
+    - timer_rise_of_phoenix_failed_delay_complete
+    - ball_will_end
+  priority: 300
+  game_mode: true
+  use_wait_queue: true
+
+# Mode can stack with multiball
+mode_settings:
+  can_stack_with_multiball: true
+
+####################################################################################
+# SOUNDS - Define in Main Machine Config (NOT here)
+####################################################################################
+# MPF 0.80+ requires sounds to be defined in your main machine config file,
+# not in mode configs. Add these to your main sounds: section:
+#
+# sounds:
+#   rise_of_phoenix_music:
+#     file: music/rise_of_phoenix_music.ogg
+#     volume: 0.8
+#     streaming: true
+#
+# SOUND CONTROL is handled in base.yaml - see notes at bottom of this file
+
+####################################################################################
+# VARIABLE PLAYER - Initialize mode variables and track progress
+####################################################################################
+
+variable_player:
+  player_added:
+    rise_of_phoenix_step:
+      action: set
+      int: 0
+    shots_remaining_phoenix:
+      action: set
+      int: 9
+    mode_rise_of_phoenix_played:
+      action: set
+      int: 0
+    mode_rise_of_phoenix_won:
+      action: set
+      int: 0
+
+  mode_rise_of_phoenix_started:
+    rise_of_phoenix_step:
+      action: set
+      int: 0
+    shots_remaining_phoenix:
+      action: set
+      int: 9
+    mode_rise_of_phoenix_played:
+      action: set
+      int: 1
+    qualified_mode_number:
+      action: set
+      int: 0
+    letter_collection_paused:
+      action: set
+      int: 1
+    rise_of_phoenix_complete_flag:
+      action: set
+      int: 0
+    pilot_missions_played:
+      action: add
+      int: 1
+
+  # Step 1: Take Flight - Left Orbit
+  rise_of_phoenix_step_1_complete:
+    rise_of_phoenix_step:
+      action: set
+      int: 1
+    score: 150000 * current_player.total_scoring_multiplier
+    shots_remaining_phoenix:
+      action: add
+      int: -1
+
+  # Step 2: Trust Your Instinct - Spinner (3 spins)
+  rise_of_phoenix_step_2_complete:
+    rise_of_phoenix_step:
+      action: set
+      int: 2
+    score: 175000 * current_player.total_scoring_multiplier
+    shots_remaining_phoenix:
+      action: add
+      int: -1
+
+  # Step 3: Break the Barrier - Barrier Target
+  rise_of_phoenix_step_3_complete:
+    rise_of_phoenix_step:
+      action: set
+      int: 3
+    score: 200000 * current_player.total_scoring_multiplier
+    shots_remaining_phoenix:
+      action: add
+      int: -1
+
+  # Step 4: Stay Focused - Tower Ramp
+  rise_of_phoenix_step_4_complete:
+    rise_of_phoenix_step:
+      action: set
+      int: 4
+    score: 225000 * current_player.total_scoring_multiplier
+    shots_remaining_phoenix:
+      action: add
+      int: -1
+
+  # Step 5: Lead the Wing - Right Orbit (lifter raised)
+  rise_of_phoenix_step_5_complete:
+    rise_of_phoenix_step:
+      action: set
+      int: 5
+    score: 250000 * current_player.total_scoring_multiplier
+    shots_remaining_phoenix:
+      action: add
+      int: -1
+
+  # Step 6: Never Back Down - Middle Ramp (lifter raised)
+  rise_of_phoenix_step_6_complete:
+    rise_of_phoenix_step:
+      action: set
+      int: 6
+    score: 275000 * current_player.total_scoring_multiplier
+    shots_remaining_phoenix:
+      action: add
+      int: -1
+
+  # Step 7: Perfect Formation - All 4 LOCK Targets
+  rise_of_phoenix_step_7_complete:
+    rise_of_phoenix_step:
+      action: set
+      int: 7
+    score: 300000 * current_player.total_scoring_multiplier
+    shots_remaining_phoenix:
+      action: add
+      int: -1
+
+  # Step 8: Beyond Limits - Upper Orbit
+  rise_of_phoenix_step_8_complete:
+    rise_of_phoenix_step:
+      action: set
+      int: 8
+    score: 325000 * current_player.total_scoring_multiplier
+    shots_remaining_phoenix:
+      action: add
+      int: -1
+
+  # Step 9: Phoenix Rising - Mode Scoop
+  rise_of_phoenix_step_9_complete:
+    rise_of_phoenix_step:
+      action: set
+      int: 9
+    score: 500000 * current_player.total_scoring_multiplier
+    shots_remaining_phoenix:
+      action: set
+      int: 0
+
+  # Mission Complete
+  rise_of_phoenix_complete:
+    rise_of_phoenix_complete_flag:
+      action: set
+      int: 1
+    mode_rise_of_phoenix_won:
+      action: set
+      int: 1
+    pilot_missions_won:
+      action: add
+      int: 1
+    modes_completed_count:
+      action: add
+      int: 1
+    score: 1000000 * current_player.total_scoring_multiplier
+
+  # Spinner tracking
+  rise_of_phoenix_setup_step_2:
+    rise_of_phoenix_spinner_count:
+      action: set
+      int: 0
+
+  rise_of_phoenix_spinner_hit:
+    rise_of_phoenix_spinner_count:
+      action: add
+      int: 1
+
+  # LOCK targets tracking
+  rise_of_phoenix_setup_step_7:
+    rise_of_phoenix_lock_count:
+      action: set
+      int: 0
+    rise_of_phoenix_lock_l:
+      action: set
+      int: 0
+    rise_of_phoenix_lock_o:
+      action: set
+      int: 0
+    rise_of_phoenix_lock_c:
+      action: set
+      int: 0
+    rise_of_phoenix_lock_k:
+      action: set
+      int: 0
+
+  rise_of_phoenix_lock_l_hit:
+    rise_of_phoenix_lock_l:
+      action: set
+      int: 1
+
+  rise_of_phoenix_lock_o_hit:
+    rise_of_phoenix_lock_o:
+      action: set
+      int: 1
+
+  rise_of_phoenix_lock_c_hit:
+    rise_of_phoenix_lock_c:
+      action: set
+      int: 1
+
+  rise_of_phoenix_lock_k_hit:
+    rise_of_phoenix_lock_k:
+      action: set
+      int: 1
+
+  rise_of_phoenix_lock_target_hit:
+    rise_of_phoenix_lock_count:
+      action: add
+      int: 1
+
+##############################################
+## Timers
+##############################################
+
+timers:
+  # INTRO VIDEO TIMER - Time before ball releases (normal path)
+  # This timer waits for the intro video to finish before releasing the ball
+  # Adjust end_value to match your intro video length
+  rise_of_phoenix_intro_video_timer:
+    start_value: 0
+    end_value: 11200  # 5 seconds - ADJUST THIS to match intro video length
+    direction: up
+    tick_interval: 1ms
+    start_running: false
+
+  # BARRIER RAISE DELAY - Time after ball successfully leaves mode scoop
+  # Timer starts when debounce completes (confirming ball actually left)
+  # After 750ms, barrier raises
+  rise_of_phoenix_barrier_delay:
+    start_value: 0
+    end_value: 750  # 750ms - ADJUST THIS for ball clearance time
+    direction: up
+    tick_interval: 1ms
+    start_running: false
+    control_events:
+      - event: timer_rise_of_phoenix_eject_debounce_complete
+        action: start
+
+  # Debounce timer - Ensures ball actually left before starting main delay
+  # Prevents false starts on failed ejects or ball bouncing back
+  rise_of_phoenix_eject_debounce:
+    start_value: 0
+    end_value: 150  # 150ms debounce - ball must stay away from switch
+    direction: up
+    tick_interval: 1ms
+    start_running: false
+    control_events:
+      - event: s_mode_start_inactive
+        action: restart  # Restart on each inactive (resets if ball bounces back)
+      - event: s_mode_start_active
+        action: stop     # Stop if ball goes back to switch
+
+  # Main mission timer (matches rescue_cougar pattern)
+  rise_of_phoenix_timer:
+    start_value: 90
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: s_mode_start_inactive
+        action: start
+      - event: timer_rise_of_phoenix_complete_delay_start
+        action: stop
+      - event: timer_rise_of_phoenix_failed_delay_start
+        action: stop
+
+  # Shot lockout (prevent rapid-fire hits)
+  shot_lockout:
+    start_value: 1500
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+
+  # End video delay timers
+  rise_of_phoenix_complete_delay:
+    start_value: 6
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: timer_rise_of_phoenix_complete_delay_start
+        action: start
+
+  rise_of_phoenix_failed_delay:
+    start_value: 4
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: timer_rise_of_phoenix_failed_delay_start
+        action: start
+
+##############################################
+## Event Player - Shot Detection & Flow
+##############################################
+
+event_player:
+  mode_rise_of_phoenix_started:
+    - reset_topgun_letters  # Reset TOPGUN collection for duration of mode
+    - rise_of_phoenix_setup_step_1
+    - timer_rise_of_phoenix_intro_video_timer_start  # Start intro video timer
+
+  # NORMAL PATH: Intro video timer completes → release ball
+  timer_rise_of_phoenix_intro_video_timer_complete:
+    - rise_of_phoenix_ball_released
+
+  # SKIP PATH: Both flippers pressed → stop intro timer, release ball immediately
+  rise_of_phoenix_skip_intro:
+    - timer_rise_of_phoenix_intro_video_timer_stop  # Stop intro timer
+    - rise_of_phoenix_ball_released  # Release ball immediately
+
+  # DEBOUNCE: Timer automatically starts barrier delay when complete
+  # (configured in timer control_events)
+
+  # BOTH PATHS: After ball clears barrier area → raise barrier
+  timer_rise_of_phoenix_barrier_delay_complete:
+    - rise_of_phoenix_raise_barrier
+
+  # Detect both flippers pressed to skip intro
+  s_flipper_left_active{device.switches.s_flipper_right.state}:
+    - rise_of_phoenix_skip_intro
+
+  s_flipper_right_active{device.switches.s_flipper_left.state}:
+    - rise_of_phoenix_skip_intro
+
+  # Ball released from scoop - start mission timer
+  balldevice_bd_mode_scoop_ball_eject_success{mode.rise_of_phoenix.active==True}:
+    - timer_rise_of_phoenix_timer_start
+
+  # Step 1: Left Orbit
+  s_orbit_left_active{current_player.rise_of_phoenix_step==0 and device.timers.shot_lockout.running==False}:
+    - rise_of_phoenix_step_1_complete
+    - rise_of_phoenix_step_1_shot_hit
+    - timer_shot_lockout_start
+    - rise_of_phoenix_setup_step_2
+
+  # Step 2: Spinner (3 spins required)
+  s_spinner_active{current_player.rise_of_phoenix_step==1}:
+    - rise_of_phoenix_spinner_hit
+
+  rise_of_phoenix_spinner_hit{current_player.rise_of_phoenix_spinner_count>=2}:
+    - rise_of_phoenix_step_2_complete
+    - rise_of_phoenix_step_2_shot_hit
+    - timer_shot_lockout_start
+    - rise_of_phoenix_setup_step_3
+
+  # Step 3: Barrier Target
+  s_barrier_target_active{current_player.rise_of_phoenix_step==2 and device.timers.shot_lockout.running==False}:
+    - rise_of_phoenix_step_3_complete
+    - rise_of_phoenix_step_3_shot_hit
+    - timer_shot_lockout_start
+    - rise_of_phoenix_setup_step_4
+
+  # Step 4: Tower Ramp
+  s_ramp_tower_exit_active{current_player.rise_of_phoenix_step==3 and device.timers.shot_lockout.running==False}:
+    - rise_of_phoenix_step_4_complete
+    - rise_of_phoenix_step_4_shot_hit
+    - timer_shot_lockout_start
+    - rise_of_phoenix_setup_step_5
+
+  # Step 5: Right Orbit (lifter raised until shot made)
+  s_orbit_right_active{current_player.rise_of_phoenix_step==4 and device.timers.shot_lockout.running==False}:
+    - rise_of_phoenix_step_5_complete
+    - rise_of_phoenix_step_5_shot_hit
+    - timer_shot_lockout_start
+    - rise_of_phoenix_setup_step_6
+
+  # Step 6: Middle Ramp (lifter raised until shot made)
+  s_ramp_inner_exit_active{current_player.rise_of_phoenix_step==5 and device.timers.shot_lockout.running==False}:
+    - rise_of_phoenix_step_6_complete
+    - rise_of_phoenix_step_6_shot_hit
+    - timer_shot_lockout_start
+    - rise_of_phoenix_setup_step_7
+
+  # Step 7: All 4 LOCK Targets (need 3 of 4)
+  s_l_lock_target_active{current_player.rise_of_phoenix_step==6 and current_player.rise_of_phoenix_lock_l==0}:
+    - rise_of_phoenix_lock_l_hit
+    - rise_of_phoenix_lock_target_hit
+
+  s_o_lock_target_active{current_player.rise_of_phoenix_step==6 and current_player.rise_of_phoenix_lock_o==0}:
+    - rise_of_phoenix_lock_o_hit
+    - rise_of_phoenix_lock_target_hit
+
+  s_c_lock_target_active{current_player.rise_of_phoenix_step==6 and current_player.rise_of_phoenix_lock_c==0}:
+    - rise_of_phoenix_lock_c_hit
+    - rise_of_phoenix_lock_target_hit
+
+  s_k_lock_target_active{current_player.rise_of_phoenix_step==6 and current_player.rise_of_phoenix_lock_k==0}:
+    - rise_of_phoenix_lock_k_hit
+    - rise_of_phoenix_lock_target_hit
+
+  rise_of_phoenix_lock_target_hit{current_player.rise_of_phoenix_lock_count>=2}:
+    - rise_of_phoenix_step_7_complete
+    - rise_of_phoenix_step_7_shot_hit
+    - timer_shot_lockout_start
+    - rise_of_phoenix_setup_step_8
+
+  # Step 8: Upper Orbit
+  s_orbit_upper_active{current_player.rise_of_phoenix_step==7 and device.timers.shot_lockout.running==False}:
+    - rise_of_phoenix_step_8_complete
+    - rise_of_phoenix_step_8_shot_hit
+    - timer_shot_lockout_start
+    - rise_of_phoenix_setup_step_9
+
+  # Step 9: Mode Scoop
+  s_mode_start_active{current_player.rise_of_phoenix_step==8}:
+    - rise_of_phoenix_step_9_complete
+    - rise_of_phoenix_step_9_shot_hit
+    - rise_of_phoenix_complete
+
+  # Mission Complete
+  rise_of_phoenix_complete:
+    - rise_of_phoenix_cleanup
+    - timer_rise_of_phoenix_timer_stop
+    - timer_rise_of_phoenix_complete_delay_start
+
+  # Mission Failed (timer runs out)
+  timer_rise_of_phoenix_timer_complete:
+    - rise_of_phoenix_failed
+    - timer_rise_of_phoenix_failed_delay_start
+
+  # Mode cleanup (turn off all coils at end)
+  rise_of_phoenix_failed:
+    - rise_of_phoenix_cleanup
+
+##############################################
+## Slide Player - Videos & Instructions
+##############################################
+
+slide_player:
+  # Mode start - timer, shots remaining, intro video, first instructions
+  mode_rise_of_phoenix_started:
+    rise_of_phoenix_timer:
+      action: play
+      priority: 1000
+    rise_of_phoenix_shots_remaining:
+      action: play
+      priority: 1000
+    rise_of_phoenix_intro_video:
+      action: play
+      priority: 900
+    rise_of_phoenix_instructions_base:
+      action: play
+      priority: 850
+
+  # Cancel intro video when both flippers pressed
+  rise_of_phoenix_skip_intro:
+    rise_of_phoenix_intro_video:
+      action: remove
+
+  # Step videos - remove previous, play current
+  rise_of_phoenix_step_1_shot_hit:
+    rise_of_phoenix_step_1:
+      action: play
+      priority: 800
+
+  rise_of_phoenix_step_2_shot_hit:
+    rise_of_phoenix_step_1:
+      action: remove
+    rise_of_phoenix_step_2:
+      action: play
+      priority: 800
+
+  rise_of_phoenix_step_3_shot_hit:
+    rise_of_phoenix_step_2:
+      action: remove
+    rise_of_phoenix_step_3:
+      action: play
+      priority: 800
+
+  rise_of_phoenix_step_4_shot_hit:
+    rise_of_phoenix_step_3:
+      action: remove
+    rise_of_phoenix_step_4:
+      action: play
+      priority: 800
+
+  rise_of_phoenix_step_5_shot_hit:
+    rise_of_phoenix_step_4:
+      action: remove
+    rise_of_phoenix_step_5:
+      action: play
+      priority: 800
+
+  rise_of_phoenix_step_6_shot_hit:
+    rise_of_phoenix_step_5:
+      action: remove
+    rise_of_phoenix_step_6:
+      action: play
+      priority: 800
+
+  rise_of_phoenix_step_7_shot_hit:
+    rise_of_phoenix_step_6:
+      action: remove
+    rise_of_phoenix_step_7:
+      action: play
+      priority: 800
+    rise_of_phoenix_step_6_targets2:
+      action: remove
+
+  # Lock target progress slides - trigger from first two hits
+  rise_of_phoenix_lock_l_hit{current_player.rise_of_phoenix_lock_count==0}:
+    rise_of_phoenix_step_6_targets1:
+      action: play
+      priority: 800
+
+  rise_of_phoenix_lock_o_hit{current_player.rise_of_phoenix_lock_count==0}:
+    rise_of_phoenix_step_6_targets1:
+      action: play
+      priority: 800
+
+  rise_of_phoenix_lock_c_hit{current_player.rise_of_phoenix_lock_count==0}:
+    rise_of_phoenix_step_6_targets1:
+      action: play
+      priority: 800
+
+  rise_of_phoenix_lock_k_hit{current_player.rise_of_phoenix_lock_count==0}:
+    rise_of_phoenix_step_6_targets1:
+      action: play
+      priority: 800
+
+  rise_of_phoenix_lock_l_hit{current_player.rise_of_phoenix_lock_count==1}:
+    rise_of_phoenix_step_6_targets1:
+      action: remove
+    rise_of_phoenix_step_6_targets2:
+      action: play
+      priority: 800
+
+  rise_of_phoenix_lock_o_hit{current_player.rise_of_phoenix_lock_count==1}:
+    rise_of_phoenix_step_6_targets1:
+      action: remove
+    rise_of_phoenix_step_6_targets2:
+      action: play
+      priority: 800
+
+  rise_of_phoenix_lock_c_hit{current_player.rise_of_phoenix_lock_count==1}:
+    rise_of_phoenix_step_6_targets1:
+      action: remove
+    rise_of_phoenix_step_6_targets2:
+      action: play
+      priority: 800
+
+  rise_of_phoenix_lock_k_hit{current_player.rise_of_phoenix_lock_count==1}:
+    rise_of_phoenix_step_6_targets1:
+      action: remove
+    rise_of_phoenix_step_6_targets2:
+      action: play
+      priority: 800
+
+  rise_of_phoenix_step_8_shot_hit:
+    rise_of_phoenix_step_7:
+      action: remove
+    rise_of_phoenix_step_8:
+      action: play
+      priority: 800
+
+  # Update instructions at key points
+  rise_of_phoenix_setup_step_7:
+    rise_of_phoenix_instructions_base:
+      action: remove
+    rise_of_phoenix_instructions_locks:
+      action: play
+      priority: 850
+
+  rise_of_phoenix_setup_step_8:
+    rise_of_phoenix_instructions_locks:
+      action: remove
+    rise_of_phoenix_instructions_base:
+      action: play
+      priority: 850
+
+  rise_of_phoenix_setup_step_9:
+    rise_of_phoenix_instructions_base:
+      action: remove
+
+  # Mission complete - remove all active slides, show won video
+  rise_of_phoenix_complete:
+    rise_of_phoenix_timer:
+      action: remove
+    rise_of_phoenix_shots_remaining:
+      action: remove
+    rise_of_phoenix_intro_video:
+      action: remove
+    rise_of_phoenix_instructions_base:
+      action: remove
+    rise_of_phoenix_instructions_locks:
+      action: remove
+    rise_of_phoenix_won:
+      action: play
+      priority: 900
+      expire: 8s
+
+  # Mission failed - remove all active slides, show lost video
+  rise_of_phoenix_failed:
+    rise_of_phoenix_timer:
+      action: remove
+    rise_of_phoenix_shots_remaining:
+      action: remove
+    rise_of_phoenix_intro_video:
+      action: remove
+    rise_of_phoenix_instructions_base:
+      action: remove
+    rise_of_phoenix_instructions_locks:
+      action: remove
+    rise_of_phoenix_lost:
+      action: play
+      priority: 900
+      expire: 5s
+
+##############################################
+## Light Player - Shot Indicators & GI
+##############################################
+
+light_player:
+  # GI Color - Bold Orange (Phoenix's confident spirit)
+  mode_rise_of_phoenix_started:
+    gi_lights:
+      color: ff6600
+      fade: 500ms
+
+  mode_rise_of_phoenix_stopped:
+    gi_lights:
+      color: white
+      fade: 500ms
+
+  # Step 1: Left Orbit - Flashing (handled by show_player)
+  rise_of_phoenix_step_1_complete:
+    l_shot_left_orbit:
+      color: off
+
+  # Step 2: Spinner - Handled by show_player (flashing)
+  rise_of_phoenix_step_2_complete:
+    l_shot_spinner:
+      color: off
+
+  # Step 3: Barrier Target - Flashing (handled by show_player)
+  rise_of_phoenix_step_3_complete:
+    l_shot_barrier:
+      color: off
+
+  # Step 4: Tower Ramp - Flashing (handled by show_player)
+  rise_of_phoenix_step_4_complete:
+    l_shot_tower_ramp:
+      color: off
+
+  # Step 5: Right Orbit - Flashing (handled by show_player)
+  rise_of_phoenix_step_5_complete:
+    l_shot_right_orbit:
+      color: off
+
+  # Step 6: Middle Ramp - Flashing (handled by show_player)
+  rise_of_phoenix_step_6_complete:
+    l_shot_middle_ramp:
+      color: off
+
+  # Step 7: LOCK Targets - Handled by show_player (flashing), then solid when hit
+  rise_of_phoenix_lock_l_hit:
+    l_lock_l:
+      color: ff6600
+      fade: 0ms
+
+  rise_of_phoenix_lock_o_hit:
+    l_lock_o:
+      color: ff6600
+      fade: 0ms
+
+  rise_of_phoenix_lock_c_hit:
+    l_lock_c:
+      color: ff6600
+      fade: 0ms
+
+  rise_of_phoenix_lock_k_hit:
+    l_lock_k:
+      color: ff6600
+      fade: 0ms
+
+  rise_of_phoenix_step_7_complete:
+    l_lock_l:
+      color: off
+    l_lock_o:
+      color: off
+    l_lock_c:
+      color: off
+    l_lock_k:
+      color: off
+
+  # Step 8: Upper Orbit - Flashing (handled by show_player)
+  rise_of_phoenix_step_8_complete:
+    l_shot_upper_orbit:
+      color: off
+
+  # Step 9: Mode Scoop - Handled by show_player (pulsing)
+  rise_of_phoenix_step_9_complete:
+    l_shot_barrier:
+      color: off
+
+  # Mode cleanup - restore GI and turn off all shot lights
+  rise_of_phoenix_cleanup:
+    gi_lights:
+      color: white
+      fade: 500ms
+    l_mode_rise_of_phoenix:
+      color: white  # Keep lit solid after completion
+    l_shot_left_orbit:
+      color: off
+    l_shot_spinner:
+      color: off
+    l_shot_barrier:
+      color: off
+    l_shot_tower_ramp:
+      color: off
+    l_shot_right_orbit:
+      color: off
+    l_shot_middle_ramp:
+      color: off
+    l_lock_l:
+      color: off
+    l_lock_o:
+      color: off
+    l_lock_c:
+      color: off
+    l_lock_k:
+      color: off
+    l_shot_upper_orbit:
+      color: off
+
+##############################################
+## Shows - Flashing/Animated Lights
+##############################################
+
+shows:
+  phoenix_shot_flash:
+    - duration: 400ms
+      lights:
+        (led):
+          color: ff6600
+          fade: 100ms
+    - duration: 400ms
+      lights:
+        (led):
+          color: off
+          fade: 100ms
+
+  phoenix_spinner_flash:
+    - duration: 300ms
+      lights:
+        (led):
+          color: ff6600
+          fade: 50ms
+    - duration: 300ms
+      lights:
+        (led):
+          color: off
+          fade: 50ms
+
+  phoenix_lock_targets_flash:
+    - duration: 400ms
+      lights:
+        (led):
+          color: ff6600
+          fade: 100ms
+    - duration: 400ms
+      lights:
+        (led):
+          color: off
+          fade: 100ms
+
+  phoenix_lock_l_flash:
+    - duration: 400ms
+      lights:
+        (led):
+          color: ff6600
+          fade: 100ms
+    - duration: 400ms
+      lights:
+        (led):
+          color: off
+          fade: 100ms
+
+  phoenix_lock_o_flash:
+    - duration: 400ms
+      lights:
+        (led):
+          color: ff6600
+          fade: 100ms
+    - duration: 400ms
+      lights:
+        (led):
+          color: off
+          fade: 100ms
+
+  phoenix_lock_c_flash:
+    - duration: 400ms
+      lights:
+        (led):
+          color: ff6600
+          fade: 100ms
+    - duration: 400ms
+      lights:
+        (led):
+          color: off
+          fade: 100ms
+
+  phoenix_lock_k_flash:
+    - duration: 400ms
+      lights:
+        (led):
+          color: ff6600
+          fade: 100ms
+    - duration: 400ms
+      lights:
+        (led):
+          color: off
+          fade: 100ms
+
+  phoenix_final_shot_pulse:
+    - duration: 500ms
+      lights:
+        (led):
+          color: ff6600
+          fade: 100ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: orange
+          fade: 100ms
+
+##############################################
+## Show Player - Animated Lights
+##############################################
+
+show_player:
+  # Step 1: Left orbit flashes
+  rise_of_phoenix_setup_step_1:
+    phoenix_shot_flash:
+      show_tokens:
+        led: l_shot_left_orbit
+      loops: -1
+      key: step_1_flash
+
+  rise_of_phoenix_step_1_complete:
+    phoenix_shot_flash:
+      action: stop
+      key: step_1_flash
+
+  # Step 2: Spinner flash during step 2
+  rise_of_phoenix_setup_step_2:
+    phoenix_spinner_flash:
+      show_tokens:
+        led: l_shot_spinner
+      loops: -1
+      key: spinner_flash
+
+  rise_of_phoenix_step_2_complete:
+    phoenix_spinner_flash:
+      action: stop
+      key: spinner_flash
+
+  # Step 3: Barrier target flashes
+  rise_of_phoenix_setup_step_3:
+    phoenix_shot_flash:
+      show_tokens:
+        led: l_shot_barrier
+      loops: -1
+      key: step_3_flash
+
+  rise_of_phoenix_step_3_complete:
+    phoenix_shot_flash:
+      action: stop
+      key: step_3_flash
+
+  # Step 4: Tower ramp flashes
+  rise_of_phoenix_setup_step_4:
+    phoenix_shot_flash:
+      show_tokens:
+        led: l_shot_tower_ramp
+      loops: -1
+      key: step_4_flash
+
+  rise_of_phoenix_step_4_complete:
+    phoenix_shot_flash:
+      action: stop
+      key: step_4_flash
+
+  # Step 5: Right orbit flashes
+  rise_of_phoenix_setup_step_5:
+    phoenix_shot_flash:
+      show_tokens:
+        led: l_shot_right_orbit
+      loops: -1
+      key: step_5_flash
+
+  rise_of_phoenix_step_5_complete:
+    phoenix_shot_flash:
+      action: stop
+      key: step_5_flash
+
+  # Step 6: Middle ramp flashes
+  rise_of_phoenix_setup_step_6:
+    phoenix_shot_flash:
+      show_tokens:
+        led: l_shot_middle_ramp
+      loops: -1
+      key: step_6_flash
+
+  rise_of_phoenix_step_6_complete:
+    phoenix_shot_flash:
+      action: stop
+      key: step_6_flash
+
+  # LOCK targets flash during step 7 - start shows for each
+  rise_of_phoenix_setup_step_7:
+    phoenix_lock_l_flash:
+      show_tokens:
+        led: l_lock_l
+      loops: -1
+      key: lock_l
+    phoenix_lock_o_flash:
+      show_tokens:
+        led: l_lock_o
+      loops: -1
+      key: lock_o
+    phoenix_lock_c_flash:
+      show_tokens:
+        led: l_lock_c
+      loops: -1
+      key: lock_c
+    phoenix_lock_k_flash:
+      show_tokens:
+        led: l_lock_k
+      loops: -1
+      key: lock_k
+
+  # Stop individual shows when targets are hit
+  rise_of_phoenix_lock_l_hit:
+    phoenix_lock_l_flash:
+      action: stop
+      key: lock_l
+
+  rise_of_phoenix_lock_o_hit:
+    phoenix_lock_o_flash:
+      action: stop
+      key: lock_o
+
+  rise_of_phoenix_lock_c_hit:
+    phoenix_lock_c_flash:
+      action: stop
+      key: lock_c
+
+  rise_of_phoenix_lock_k_hit:
+    phoenix_lock_k_flash:
+      action: stop
+      key: lock_k
+
+  # Stop all remaining shows at step complete
+  rise_of_phoenix_step_7_complete:
+    phoenix_lock_l_flash:
+      action: stop
+      key: lock_l
+    phoenix_lock_o_flash:
+      action: stop
+      key: lock_o
+    phoenix_lock_c_flash:
+      action: stop
+      key: lock_c
+    phoenix_lock_k_flash:
+      action: stop
+      key: lock_k
+
+  # Step 8: Upper orbit flashes
+  rise_of_phoenix_setup_step_8:
+    phoenix_shot_flash:
+      show_tokens:
+        led: l_shot_upper_orbit
+      loops: -1
+      key: step_8_flash
+
+  rise_of_phoenix_step_8_complete:
+    phoenix_shot_flash:
+      action: stop
+      key: step_8_flash
+
+  # Mode scoop pulse during step 9
+  rise_of_phoenix_setup_step_9:
+    phoenix_final_shot_pulse:
+      show_tokens:
+        led: l_shot_barrier
+      loops: -1
+      key: final_pulse
+
+  rise_of_phoenix_step_9_complete:
+    phoenix_final_shot_pulse:
+      action: stop
+      key: final_pulse
+
+##############################################
+## Coil Player - Ramp Lifters & Barrier
+##############################################
+
+coil_player:
+  # Step 5: Raise right ramp lifter (stays up until shot made or mode ends)
+  rise_of_phoenix_setup_step_5:
+    c_right_ramp_lifter:
+      action: enable
+      hold_power: 0.125
+
+  # Step 5 complete: Lower right ramp lifter
+  rise_of_phoenix_step_5_complete:
+    c_right_ramp_lifter:
+      action: disable
+
+  # Step 6: Raise middle ramp lifter (stays up until shot made or mode ends)
+  rise_of_phoenix_setup_step_6:
+    c_top_ramp_lifter:
+      action: enable
+      hold_power: 0.125
+
+  # Step 6 complete: Lower middle ramp lifter
+  rise_of_phoenix_step_6_complete:
+    c_top_ramp_lifter:
+      action: disable
+
+  # Barrier control - Lower at mode start (hold ball), raise after ball eject
+  mode_rise_of_phoenix_started:
+    c_mode_barrier:
+      action: enable
+      hold_power: 0.125
+
+  rise_of_phoenix_raise_barrier:
+    c_mode_barrier:
+      action: disable
+
+  # Mode cleanup - Turn off all coils
+  rise_of_phoenix_cleanup:
+    c_right_ramp_lifter:
+      action: disable
+    c_top_ramp_lifter:
+      action: disable
+    c_mode_barrier:
+      action: disable
+
+##############################################
+## Sound Player - Mode Music Control
+##############################################
+
+sound_player:
+  # CRITICAL: Force silence when ball enters mode scoop
+  # This runs at priority 300 (mode priority) which overrides base mode (priority 100)
+  s_mode_start_active:
+    silence:
+      bus: music
+      loops: 0
+
+####################################################################################
+# SOUND CONTROL - Must be added to base.yaml
+####################################################################################
+# Add this to base.yaml sound_player section:
+#
+# sound_player:
+#   # Start Phoenix music when mode starts
+#   s_mode_start_active{mode.rise_of_phoenix.active==True}:
+#     silence:
+#       bus: music
+#       loops: 0
+#
+#   balldevice_bd_mode_scoop_ball_eject_success{mode.rise_of_phoenix.active==True}:
+#     rise_of_phoenix_music:
+#       bus: music
+#       loops: -1
+#
+#   # Stop Phoenix music when mode ends
+#   mode_rise_of_phoenix_stopped:
+#     music_danger_zone:
+#       bus: music
+#       loops: -1
+#
+####################################################################################
+
+####################################################################################
+# NOTES AND INSTRUCTIONS
+####################################################################################
+
+# TOPGUN Letter Reset:
+# The event "reset_topgun_letters" needs to be added to your pilot_mission_qualifier
+# yaml file to reset the TOPGUN collection when this mode starts and prevent
+# collection during the mode.
+
+# Video Slides Required (create in Godot):
+# - rise_of_phoenix_intro_video: Intro video
+# - rise_of_phoenix_step_1 through rise_of_phoenix_step_9: Videos for each step
+# - rise_of_phoenix_won: Victory video (8s)
+# - rise_of_phoenix_lost: Failure video (5s)
+# - rise_of_phoenix_timer: Mission timer display
+# - rise_of_phoenix_shots_remaining: Shots counter (links to shots_remaining_phoenix var)
+# - rise_of_phoenix_step_1_instructions: Steps 1-3 instructions
+# - rise_of_phoenix_step_4_instructions: Steps 4-6 instructions
+# - rise_of_phoenix_step_7_instructions: Steps 7-8 instructions
+
+# Ball Hold Behavior:
+# When the mode starts, the ball is held in bd_mode_scoop with barrier down.
+# The intro video plays, then after intro_video_timer completes (or flippers pressed),
+# the ball is ejected. After debounce confirms ball left, barrier raises.
+# On mode complete, ball in scoop is ejected with same barrier sequence.
+
+####################################################################################

@@ -272,9 +272,65 @@ variable_player:
     mode_no_margin_for_error_won:
       action: set
       int: 0
+    # Track which modes are COMPLETE (for rotation skip logic)
+    mode_rescue_cougar_complete:
+      action: set
+      int: 0
+    mode_balls_of_fire_complete:
+      action: set
+      int: 0
+    mode_cool_under_pressure_complete:
+      action: set
+      int: 0
+    mode_battle_jester_complete:
+      action: set
+      int: 0
+    mode_no_points_for_second_place_complete:
+      action: set
+      int: 0
+    mode_edge_of_space_complete:
+      action: set
+      int: 0
+    mode_below_the_hard_deck_complete:
+      action: set
+      int: 0
+    mode_canyon_run_complete:
+      action: set
+      int: 0
+    mode_rise_of_phoenix_complete:
+      action: set
+      int: 0
+    mode_no_margin_for_error_complete:
+      action: set
+      int: 0
   
   # Clear pause flag when rescue_cougar stops (can't do this in rescue_cougar itself)
   mode_rescue_cougar_stopped:
+    letter_collection_paused:
+      action: set
+      int: 0
+    # Letter display tracking (based on count, not specific shots)
+    topgun_letter_t:
+      action: set
+      int: 0
+    topgun_letter_o:
+      action: set
+      int: 0
+    topgun_letter_p:
+      action: set
+      int: 0
+    topgun_letter_g:
+      action: set
+      int: 0
+    topgun_letter_u:
+      action: set
+      int: 0
+    topgun_letter_n:
+      action: set
+      int: 0
+
+  # Clear pause flag when rise_of_phoenix stops
+  mode_rise_of_phoenix_stopped:
     letter_collection_paused:
       action: set
       int: 0
@@ -637,6 +693,9 @@ variable_player:
     mode_rescue_cougar_won:
       action: set
       int: 1
+    mode_rescue_cougar_complete:
+      action: set
+      int: 1
     modes_completed_count:
       action: add
       int: 1
@@ -649,6 +708,37 @@ variable_player:
   
   # Clear qualified number when mode starts (so player can't start it again mid-game)
   mode_rescue_cougar_started:
+    qualified_mode_number:
+      action: set
+      int: 0
+
+  ##############################################
+  ## Rise of Phoenix Mode Tracking
+  ##############################################
+
+  # Mark mode as PLAYED and WON when completed
+  rise_of_phoenix_complete:
+    mode_rise_of_phoenix_played:
+      action: set
+      int: 1
+    mode_rise_of_phoenix_won:
+      action: set
+      int: 1
+    mode_rise_of_phoenix_complete:
+      action: set
+      int: 1
+    modes_completed_count:
+      action: add
+      int: 1
+  
+  # Mark mode as PLAYED (but not won) when failed
+  rise_of_phoenix_failed:
+    mode_rise_of_phoenix_played:
+      action: set
+      int: 1
+  
+  # Clear qualified number when mode starts
+  mode_rise_of_phoenix_started:
     qualified_mode_number:
       action: set
       int: 0
@@ -768,10 +858,6 @@ variable_player:
   #     int: 1
   
   # Clear qualified number when mode starts
-  mode_rise_of_phoenix_started:
-    qualified_mode_number:
-      action: set
-      int: 0
 
   # Mark mode as complete when the mode is WON (use no_margin_for_error_complete event when mode exists)
   # no_margin_for_error_complete:
@@ -1718,6 +1804,57 @@ light_player:
   # Keep pilot mission lit ON when mode starts if qualified
   mode_pilot_mission_qualifier_started{current_player.qualified_mode_number>0}:
     l_pilot_mission_lit:
+      color: white
+      fade: 0ms
+  
+  # Restore solid white lights for PLAYED modes at ball start
+  mode_pilot_mission_qualifier_started{current_player.mode_rescue_cougar_played==1}:
+    l_mode_rescue_cougar:
+      color: white
+      fade: 0ms
+  
+  mode_pilot_mission_qualifier_started{current_player.mode_balls_of_fire_played==1}:
+    l_mode_balls_of_fire:
+      color: white
+      fade: 0ms
+  
+  mode_pilot_mission_qualifier_started{current_player.mode_cool_under_pressure_played==1}:
+    l_mode_cool_under_pressure:
+      color: white
+      fade: 0ms
+  
+  mode_pilot_mission_qualifier_started{current_player.mode_battle_jester_played==1}:
+    l_mode_battle_jester:
+      color: white
+      fade: 0ms
+  
+  mode_pilot_mission_qualifier_started{current_player.mode_no_points_for_second_place_played==1}:
+    l_mode_no_points_for_second_place:
+      color: white
+      fade: 0ms
+  
+  mode_pilot_mission_qualifier_started{current_player.mode_edge_of_space_played==1}:
+    l_mode_edge_of_space:
+      color: white
+      fade: 0ms
+  
+  mode_pilot_mission_qualifier_started{current_player.mode_below_the_hard_deck_played==1}:
+    l_mode_below_the_hard_deck:
+      color: white
+      fade: 0ms
+  
+  mode_pilot_mission_qualifier_started{current_player.mode_canyon_run_played==1}:
+    l_mode_canyon_run:
+      color: white
+      fade: 0ms
+  
+  mode_pilot_mission_qualifier_started{current_player.mode_rise_of_phoenix_played==1}:
+    l_mode_rise_of_phoenix:
+      color: white
+      fade: 0ms
+  
+  mode_pilot_mission_qualifier_started{current_player.mode_no_margin_for_error_played==1}:
+    l_mode_no_margin_for_error:
       color: white
       fade: 0ms
 

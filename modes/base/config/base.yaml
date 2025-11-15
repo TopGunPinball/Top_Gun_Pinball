@@ -476,13 +476,18 @@ sound_player:
       loops: -1
 
 #################################################################################### 
-  # Rescue Cougar Mode Music Handler
+  # CRITICAL: Mode Scoop Silence - Works for BOTH rescue_cougar AND rise_of_phoenix
+  # NO CONDITIONAL - This plays silence whenever ball enters mode scoop
 ####################################################################################
 
   s_mode_start_active:
     silence:
       bus: music
       loops: 0
+
+#################################################################################### 
+  # Rescue Cougar Mode Music Handler
+####################################################################################
   
   balldevice_bd_mode_scoop_ball_eject_success{mode.rescue_cougar.active==True}:
     music_rescue_cougar_1:
@@ -501,6 +506,21 @@ sound_player:
       loops: -1
   
   mode_rescue_cougar_stopped:
+    music_danger_zone:
+      bus: music
+      loops: -1
+
+#################################################################################### 
+  # Rise of Phoenix Mode Music Handler
+####################################################################################
+
+  # When ball ejects from scoop (after intro video), start Phoenix music
+  balldevice_bd_mode_scoop_ball_eject_success{mode.rise_of_phoenix.active==True}:
+    rise_of_phoenix_music:
+      bus: music
+      loops: -1
+  
+  mode_rise_of_phoenix_stopped:
     music_danger_zone:
       bus: music
       loops: -1
