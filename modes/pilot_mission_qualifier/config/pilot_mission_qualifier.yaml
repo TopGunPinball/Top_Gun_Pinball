@@ -354,6 +354,31 @@ variable_player:
       action: set
       int: 0
 
+  # Clear pause flag when battle_jester stops
+  mode_battle_jester_stopped:
+    letter_collection_paused:
+      action: set
+      int: 0
+    # Letter display tracking (based on count, not specific shots)
+    topgun_letter_t:
+      action: set
+      int: 0
+    topgun_letter_o:
+      action: set
+      int: 0
+    topgun_letter_p:
+      action: set
+      int: 0
+    topgun_letter_g:
+      action: set
+      int: 0
+    topgun_letter_u:
+      action: set
+      int: 0
+    topgun_letter_n:
+      action: set
+      int: 0
+
 ##############################################
 ## Shot Hit Tracking - ANY Shot Increments Counter
 ##############################################
@@ -773,14 +798,51 @@ variable_player:
       action: set
       int: 0
 
-  # Mark mode as complete when the mode is WON (use battle_jester_complete event when mode exists)
-  # battle_jester_complete:
-  #   mode_battle_jester_complete:
-  #     action: set
-  #     int: 1
-  #   modes_completed_count:
-  #     action: add
-  #     int: 1
+  ##############################################
+  ## Battle Jester Mode Tracking (4 Outcomes)
+  ##############################################
+
+  # Outcome 1: Player chose NO to tower challenge - 100% payout (MODE WON)
+  battle_jester_complete:
+    mode_battle_jester_played:
+      action: set
+      int: 1
+    mode_battle_jester_won:
+      action: set
+      int: 1
+    mode_battle_jester_complete:
+      action: set
+      int: 1
+    modes_completed_count:
+      action: add
+      int: 1
+  
+  # Outcome 2: Timer expired or ball drained - 100% payout (MODE FAILED)
+  battle_jester_failed:
+    mode_battle_jester_played:
+      action: set
+      int: 1
+  
+  # Outcome 3: Tower challenge WON - 150% payout (MODE WON)
+  battle_jester_tower_won:
+    mode_battle_jester_played:
+      action: set
+      int: 1
+    mode_battle_jester_won:
+      action: set
+      int: 1
+    mode_battle_jester_complete:
+      action: set
+      int: 1
+    modes_completed_count:
+      action: add
+      int: 1
+  
+  # Outcome 4: Tower challenge LOST - 50% payout (MODE FAILED)
+  battle_jester_tower_lost:
+    mode_battle_jester_played:
+      action: set
+      int: 1
   
   # Clear qualified number when mode starts
   mode_battle_jester_started:

@@ -1,0 +1,151 @@
+[gd_scene load_steps=11 format=3 uid="uid://vtw14351baq0"]
+
+[ext_resource type="Script" uid="uid://b6ivjr1y66vcc" path="res://addons/mpf-gmc/classes/mpf_slide.gd" id="1_vovqv"]
+[ext_resource type="VideoStream" uid="uid://dvidbvlncmlqh" path="res://addons/artwork/videos/battle_jester/battle_jester_lost_video.ogv" id="2_m33f1"]
+[ext_resource type="Script" uid="uid://bwrcoctjeon82" path="res://addons/mpf-gmc/classes/mpf_video_player.gd" id="3_hpiir"]
+[ext_resource type="Texture2D" uid="uid://blwtf62oda21i" path="res://addons/artwork/images/scoreboard_background_with_video.png" id="4_a5au2"]
+[ext_resource type="FontFile" uid="uid://bmeoubu4ga0gt" path="res://fonts/ITCMachine-Medium Medium.ttf" id="5_4huqo"]
+[ext_resource type="Script" uid="uid://dfhaepcubofxp" path="res://addons/mpf-gmc/classes/mpf_variable.gd" id="6_m33f1"]
+
+[sub_resource type="Animation" id="Animation_n0yfp"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("AnimationPlayer/screen label:theme_override_colors/font_color")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Color(0.776471, 0.772549, 0.709804, 1)]
+}
+
+[sub_resource type="Animation" id="Animation_mip73"]
+resource_name = "fade_in"
+length = 0.5
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("AnimationPlayer/screen label:theme_override_colors/font_color")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Color(0.776471, 0.772549, 0.709804, 0), Color(0.776471, 0.772549, 0.709804, 1)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_dj7d1"]
+_data = {
+&"RESET": SubResource("Animation_n0yfp"),
+&"fade_in": SubResource("Animation_mip73")
+}
+
+[sub_resource type="FontVariation" id="FontVariation_hpiir"]
+base_font = ExtResource("5_4huqo")
+spacing_space = -2
+
+[node name="battle_jester_lost_video" type="Control"]
+process_priority = 200
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_vovqv")
+metadata/_custom_type_script = "uid://b6ivjr1y66vcc"
+
+[node name="TextureRect" type="VideoStreamPlayer" parent="."]
+z_index = 48
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_right = 1280.0
+offset_bottom = 720.0
+grow_horizontal = 2
+grow_vertical = 2
+stream = ExtResource("2_m33f1")
+autoplay = true
+expand = true
+script = ExtResource("3_hpiir")
+end_behavior = 1
+preview_in_editor = true
+metadata/_custom_type_script = "uid://bwrcoctjeon82"
+
+[node name="background_video_opening" type="Sprite2D" parent="."]
+visible = false
+z_index = 50
+texture = ExtResource("4_a5au2")
+centered = false
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_dj7d1")
+}
+
+[node name="screen label" type="Label" parent="AnimationPlayer"]
+z_index = 51
+anchors_preset = -1
+anchor_top = -0.505556
+anchor_bottom = -0.505556
+offset_left = 51.0
+offset_top = 498.0
+offset_right = 921.0
+offset_bottom = 545.0
+theme_override_colors/font_color = Color(0.776471, 0.772549, 0.709804, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
+theme_override_constants/line_spacing = -9
+theme_override_constants/shadow_outline_size = 3
+theme_override_fonts/font = ExtResource("5_4huqo")
+theme_override_font_sizes/font_size = 45
+text = "battle jester mission - failed"
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
+
+[node name="bank2" type="Label" parent="."]
+self_modulate = Color(1, 1, 1, 0.921569)
+z_index = 52
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = 588.0
+offset_top = 463.5
+offset_right = 829.0
+offset_bottom = 530.5
+grow_horizontal = 0
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.898039, 0.894118, 0.823529, 0.921569)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
+theme_override_constants/shadow_outline_size = 3
+theme_override_fonts/font = SubResource("FontVariation_hpiir")
+theme_override_font_sizes/font_size = 65
+text = "6,525,500"
+horizontal_alignment = 1
+vertical_alignment = 1
+script = ExtResource("6_m33f1")
+variable_name = "battle_jester_points_awarded"
+comma_separate = true
+template_string = "%s"
+highlight_when_active = false
+metadata/_custom_type_script = "uid://dfhaepcubofxp"
+
+[node name="screen label2" type="Label" parent="."]
+z_index = 52
+offset_left = 121.0
+offset_top = 464.0
+offset_right = 555.0
+offset_bottom = 531.0
+theme_override_colors/font_color = Color(0.776471, 0.772549, 0.709804, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
+theme_override_constants/line_spacing = -9
+theme_override_constants/shadow_outline_size = 3
+theme_override_fonts/font = ExtResource("5_4huqo")
+theme_override_font_sizes/font_size = 65
+text = "points awarded  -"
+horizontal_alignment = 1
+vertical_alignment = 1
