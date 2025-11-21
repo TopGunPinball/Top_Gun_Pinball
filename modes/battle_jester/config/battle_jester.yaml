@@ -30,8 +30,6 @@ mode:
     - timer_battle_jester_failed_delay_complete
     - timer_battle_jester_tower_won_delay_complete
     - timer_battle_jester_tower_lost_delay_complete
-    - ball_will_end
-    - ball_ending
   priority: 300
   game_mode: true
   use_wait_queue: true
@@ -308,6 +306,14 @@ timers:
 
 variable_player:
   mode_battle_jester_started:
+    # Universal pilot mode tracking - set when any pilot mode starts
+    pilot_mode_active:
+      action: set
+      int: 1
+    # Delay time for bonus mode (seconds) - matches lost video duration
+    bonus_delay_time:
+      action: set
+      int: 5
     # Pause TOPGUN and ICEMAN letter collection during this mode
     letter_collection_paused:
       action: set
@@ -617,6 +623,20 @@ variable_player:
 ####################################################################################
 
 event_player:
+  # Post pilot_mode_cleanup_complete when any delay timer completes (for bonus delay)
+  timer_battle_jester_complete_delay_complete:
+    - pilot_mode_cleanup_complete
+  timer_battle_jester_failed_delay_complete:
+    - pilot_mode_cleanup_complete
+  timer_battle_jester_tower_won_delay_complete:
+    - pilot_mode_cleanup_complete
+  timer_battle_jester_tower_lost_delay_complete:
+    - pilot_mode_cleanup_complete
+
+  # Ball drain during mode - trigger failed routine
+  ball_will_end{mode.battle_jester.active==True and current_player.battle_jester_tower_choice==0}:
+    - battle_jester_failed
+  
   # Timer adjustments - green shots add 5 seconds
   battle_jester_timer_add_5s:
     - battle_jester_timer_add
@@ -810,7 +830,7 @@ event_player:
     - battle_jester_setup_step_6
     - battle_jester_add_time_green
 
-  s_ramp_middle_exit_active{current_player.battle_jester_step==4 and device.timers.battle_jester_step_5_timer.ticks < 10}:
+  s_ramp_inner_exit_active{current_player.battle_jester_step==4 and device.timers.battle_jester_step_5_timer.ticks < 10}:
     - battle_jester_step_5_complete
     - battle_jester_setup_step_6
     - battle_jester_add_time_green
@@ -819,7 +839,7 @@ event_player:
   s_flight_gear_target_active{current_player.battle_jester_step==4 and device.timers.battle_jester_step_5_timer.ticks >= 20}:
     - battle_jester_subtract_time_red
 
-  s_ramp_middle_exit_active{current_player.battle_jester_step==4 and device.timers.battle_jester_step_5_timer.ticks >= 10}:
+  s_ramp_inner_exit_active{current_player.battle_jester_step==4 and device.timers.battle_jester_step_5_timer.ticks >= 10}:
     - battle_jester_subtract_time_red
 
   ## STEP 6 - Mode scoop shot
@@ -837,6 +857,7 @@ event_player:
   battle_jester_step_6_shot_made:
     - battle_jester_step_6_complete
     - battle_jester_step_6_video_delay_start
+    - battle_jester_add_time_green
     
   # Skip step 6 video with both flippers
   s_flipper_left_active{current_player.battle_jester_step==5 and device.timers.battle_jester_step_6_video_delay.running}:
@@ -860,7 +881,6 @@ event_player:
   # Step 7 starts when ball leaves scoop (after step 6)
   s_mode_start_inactive{current_player.battle_jester_step==6}:
     - battle_jester_setup_step_7
-    - battle_jester_add_time_green
 
   ##############################################
   ## STEPS 7-10 - 4 ramp shots total
@@ -870,16 +890,19 @@ event_player:
   player_battle_jester_ramps_hit{value==1}:
     - battle_jester_step_7_video
     - battle_jester_shots_remaining_decrement
+    - battle_jester_add_time_green
     
   # Second ramp hit
   player_battle_jester_ramps_hit{value==2}:
     - battle_jester_step_8_video
     - battle_jester_shots_remaining_decrement
+    - battle_jester_add_time_green
     
   # Third ramp hit
   player_battle_jester_ramps_hit{value==3}:
     - battle_jester_step_9_video
     - battle_jester_shots_remaining_decrement
+    - battle_jester_add_time_green
     
   # Fourth ramp hit - advance to step 11
   player_battle_jester_ramps_hit{value==4}:
@@ -887,6 +910,7 @@ event_player:
     - battle_jester_ramps_complete
     - battle_jester_setup_step_11
     - battle_jester_shots_remaining_decrement
+    - battle_jester_add_time_green
     
   battle_jester_shots_remaining_decrement:
     - battle_jester_shots_remaining_minus_one
@@ -908,6 +932,7 @@ event_player:
     - battle_jester_activate_left_lane_post
     - battle_jester_deactivate_left_diverter
     - battle_jester_step_11_complete
+    - battle_jester_add_time_green
     
   # Wait for player decision (left=no, right=yes)
   timer_battle_jester_step_11_decision_video_complete:
@@ -962,22 +987,21 @@ event_player:
   s_ramp_right_exit_active{current_player.battle_jester_step==0}:
     - battle_jester_subtract_time_red
     
-  # Step 2 red shots
+  # Step 2 red shots (all non-green: lane_left, orbit_left, ramp_left, middle_ramp, pilot_gear, right_orbit)
   s_lane_left_active{current_player.battle_jester_step==1}:
     - battle_jester_subtract_time_red
   s_orbit_left_active{current_player.battle_jester_step==1}:
     - battle_jester_subtract_time_red
-  s_orbit_upper_active{current_player.battle_jester_step==1}:
+  s_ramp_left_exit_active{current_player.battle_jester_step==1}:
     - battle_jester_subtract_time_red
   s_ramp_inner_exit_active{current_player.battle_jester_step==1}:
-    - battle_jester_subtract_time_red
-  s_orbit_lower_active{current_player.battle_jester_step==1}:
     - battle_jester_subtract_time_red
   s_flight_gear_target_active{current_player.battle_jester_step==1}:
     - battle_jester_subtract_time_red
   s_orbit_right_active{current_player.battle_jester_step==1}:
     - battle_jester_subtract_time_red
   s_ramp_right_exit_active{current_player.battle_jester_step==1}:
+    - battle_jester_subtract_time_red
     - battle_jester_subtract_time_red
     
   # Step 3 red shots
@@ -1141,16 +1165,13 @@ slide_player:
       action: play
       priority: 900
 
-  # Step 5 starts - turn off step 1 instructions, show step 5 instructions
-  battle_jester_setup_step_5:
+  # Step 5 complete - show step 5 video
+  battle_jester_step_5_complete:
     battle_jester_step_1_instructions:
       action: remove
     battle_jester_step_5_instructions:
       action: play
       priority: 850
-
-  # Step 5 complete - show step 5 video
-  battle_jester_step_5_complete:
     battle_jester_points_bank:
       action: play
       priority: 1000
@@ -1159,55 +1180,75 @@ slide_player:
       action: play
       priority: 900
 
-  # Step 6 starts - turn off step 5 instructions, show step 6 instructions
-  battle_jester_setup_step_6:
+  # Step 6 complete - turn off step 5 instructions
+  battle_jester_step_6_complete:
     battle_jester_step_5_instructions:
       action: remove
-    battle_jester_step_6_instructions:
+    battle_jester_points_bank:
       action: play
-      priority: 850
-
-  # Step 6 complete - show step 6 video
-  battle_jester_step_6_complete:
+      priority: 1000
+      expire: 2s
     battle_jester_step_6_video:
       action: play
       priority: 900
 
-  # Step 7 starts - turn off step 6 instructions, show step 7 instructions
+  # Step 7 starts - show step 7 instructions
   battle_jester_setup_step_7:
-    battle_jester_step_6_instructions:
-      action: remove
     battle_jester_step_7_instructions:
       action: play
       priority: 850
 
   # Step 7 video (ramp 1 of 4)
   battle_jester_step_7_video:
+    battle_jester_points_bank:
+      action: play
+      priority: 1000
+      expire: 2s
     battle_jester_step_7:
       action: play
       priority: 900
 
   # Step 8 video (ramp 2 of 4)
   battle_jester_step_8_video:
+    battle_jester_points_bank:
+      action: play
+      priority: 1000
+      expire: 2s
     battle_jester_step_8:
       action: play
       priority: 900
 
   # Step 9 video (ramp 3 of 4)
   battle_jester_step_9_video:
+    battle_jester_points_bank:
+      action: play
+      priority: 1000
+      expire: 2s
     battle_jester_step_9:
       action: play
       priority: 900
 
   # Step 10 video (ramp 4 of 4)
   battle_jester_step_10_video:
+    battle_jester_points_bank:
+      action: play
+      priority: 1000
+      expire: 2s
     battle_jester_step_10:
       action: play
       priority: 900
 
-  # Step 11 starts - turn off step 7 instructions
+  # Step 11 starts - turn off step 7 instructions, show step 11 instructions
   battle_jester_setup_step_11:
     battle_jester_step_7_instructions:
+      action: remove
+    battle_jester_step_11_instructions:
+      action: play
+      priority: 850
+
+  # Step 11 complete - turn off step 11 instructions
+  battle_jester_step_11_complete:
+    battle_jester_step_11_instructions:
       action: remove
 
   # Step 11 decision video (ask player to risk points)
@@ -1220,6 +1261,9 @@ slide_player:
   battle_jester_tower_challenge_start:
     battle_jester_step_11_decision:
       action: remove
+    battle_jester_buzz_tower:
+      action: play
+      priority: 850
     battle_jester_instructions_buzz_tower:
       action: play
       priority: 850
@@ -1238,13 +1282,15 @@ slide_player:
       action: remove
     battle_jester_step_5_instructions:
       action: remove
-    battle_jester_step_6_instructions:
+    battle_jester_step_11_instructions:
       action: remove
     battle_jester_step_7_instructions:
       action: remove
     battle_jester_step_11_decision:
       action: remove
     battle_jester_instructions_buzz_tower:
+      action: remove
+    battle_jester_buzz_tower:
       action: remove
     battle_jester_won_video:
       action: play
@@ -1265,13 +1311,15 @@ slide_player:
       action: remove
     battle_jester_step_5_instructions:
       action: remove
-    battle_jester_step_6_instructions:
+    battle_jester_step_11_instructions:
       action: remove
     battle_jester_step_7_instructions:
       action: remove
     battle_jester_step_11_decision:
       action: remove
     battle_jester_instructions_buzz_tower:
+      action: remove
+    battle_jester_buzz_tower:
       action: remove
     battle_jester_lost_video:
       action: play
@@ -1290,6 +1338,8 @@ slide_player:
       action: remove
     battle_jester_instructions_buzz_tower:
       action: remove
+    battle_jester_buzz_tower:
+      action: remove
     battle_jester_won2_video:
       action: play
       priority: 900
@@ -1306,6 +1356,8 @@ slide_player:
     battle_jester_step_11_decision:
       action: remove
     battle_jester_instructions_buzz_tower:
+      action: remove
+    battle_jester_buzz_tower:
       action: remove
     battle_jester_lost2_video:
       action: play
@@ -1338,6 +1390,24 @@ slide_player:
 ####################################################################################
 
 show_player:
+  # GI effects for green shot hit - flash green once
+  battle_jester_add_time_green:
+    gi_green_flash:
+      show: jester_gi_green_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
+  # GI effects for red shot hit - rapid red flicker
+  battle_jester_subtract_time_red:
+    gi_red_flicker:
+      show: jester_gi_red_flicker
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
   # Step 1 flashing - each shot has unique show instance
   battle_jester_setup_step_1:
     flash_step1_lane_left:
@@ -1892,30 +1962,84 @@ show_player:
       show_tokens:
         led: l_shot_left_lane
 
-  # Step 11 complete - set ALL shots to solid red for decision time
+  # Step 11 complete - turn off ALL shots for decision time
   battle_jester_step_11_complete:
-    # Set step 11 shots to solid red
+    # Turn off step 11 shots
     flash_step11_spinner:
-      show: jester_solid_red
+      show: jester_off
       key: step11_spinner
       loops: -1
       show_tokens:
         led: l_shot_spinner
     flash_step11_right_orbit:
-      show: jester_solid_red
+      show: jester_off
       key: step11_right_orbit
       loops: -1
       show_tokens:
         led: l_shot_right_orbit
     flash_step11_left_lane:
-      show: jester_solid_red
+      show: jester_off
       key: step11_left_lane
       loops: -1
       show_tokens:
         led: l_shot_left_lane
+    # Turn off step 7 ramp shows (were solid red)
+    flash_step7_ramp_left:
+      show: jester_off
+      key: step7_ramp_left
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+    flash_step7_ramp_middle:
+      show: jester_off
+      key: step7_ramp_middle
+      loops: -1
+      show_tokens:
+        led: l_shot_middle_ramp
+    flash_step7_ramp_tower:
+      show: jester_off
+      key: step7_ramp_tower
+      loops: -1
+      show_tokens:
+        led: l_shot_tower_ramp
+    flash_step7_ramp_right:
+      show: jester_off
+      key: step7_ramp_right
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
+    # Turn off remaining red lights (orbit_left, barrier, upper_orbit, pilot_gear)
+    flash_step11_orbit_left:
+      show: jester_off
+      key: step11_orbit_left
+      loops: -1
+      show_tokens:
+        led: l_shot_left_orbit
+    flash_step11_barrier:
+      show: jester_off
+      key: step11_barrier
+      loops: -1
+      show_tokens:
+        led: l_shot_barrier
+    flash_step11_upper_orbit:
+      show: jester_off
+      key: step11_upper_orbit
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
+    flash_step11_pilot_gear:
+      show: jester_off
+      key: step11_pilot_gear
+      loops: -1
+      show_tokens:
+        led: l_shot_pilot_gear
 
   # Tower challenge - flash tower ramp green
   battle_jester_tower_challenge_start:
+    # Stop the existing jester_off show on tower ramp first
+    flash_step7_ramp_tower:
+      action: stop
+    # Then start flashing green
     flash_tower_challenge:
       show: jester_flash_green
       key: tower_challenge
@@ -2637,7 +2761,7 @@ coil_player:
 # Instruction Slides:
 # - battle_jester_step_1_instructions: Appears at mode start
 # - battle_jester_step_5_instructions: Appears at step 5
-# - battle_jester_step_6_instructions: Appears at step 6
+# - battle_jester_step_11_instructions: Appears at step 6
 # - battle_jester_step_7_instructions: Appears at step 7 (NEW!)
 # - battle_jester_instructions_buzz_tower: Appears during tower challenge (NEW!)
 
@@ -2748,3 +2872,65 @@ shows:
       lights:
         (led):
           color: red
+
+  jester_off:
+    - duration: 1s
+      lights:
+        (led):
+          color: off
+
+  # GI red flicker - rapid on/off for 500ms (5 flickers)
+  jester_gi_red_flicker:
+    - duration: 50ms
+      lights:
+        (led):
+          color: red
+    - duration: 50ms
+      lights:
+        (led):
+          color: off
+    - duration: 50ms
+      lights:
+        (led):
+          color: red
+    - duration: 50ms
+      lights:
+        (led):
+          color: off
+    - duration: 50ms
+      lights:
+        (led):
+          color: red
+    - duration: 50ms
+      lights:
+        (led):
+          color: off
+    - duration: 50ms
+      lights:
+        (led):
+          color: red
+    - duration: 50ms
+      lights:
+        (led):
+          color: off
+    - duration: 50ms
+      lights:
+        (led):
+          color: red
+    - duration: 50ms
+      lights:
+        (led):
+          color: off
+
+  # GI green flash - fade in/out once over 500ms
+  jester_gi_green_flash:
+    - duration: 250ms
+      lights:
+        (led):
+          color: lime
+          fade: 250ms
+    - duration: 250ms
+      lights:
+        (led):
+          color: off
+          fade: 250ms
