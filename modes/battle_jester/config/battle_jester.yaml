@@ -10,17 +10,21 @@
 # Music: Controlled in base.yaml (starts on ball eject, NOT mode start)
 #
 # Adjustable Timing Values:
-# - Mode timer: 120 seconds (line 88)
-# - Intro Video Delay: 5000ms (line 103)
-# - Barrier delay: 750ms (line 113)
-# - Mode Switch Debounce: 150ms (line 123)
-# - Step 6 video delay: 3500ms (line 132)
-# - Step 7-10 video delays: adjustable per step
-# - Step 11 decision video: 8500ms (line 165)
-# - Tower challenge timer: 20 seconds (line 176)
-# - Shot timer duration: 10 seconds (line 192)
-# - Shot color change time: 8 seconds (line 199)
-# - Shot grace period: 2 seconds (line 206)
+# - Mode timer: 120 seconds (line 90, start_value)
+# - Intro Video Delay: 5 seconds (line 117, end_value)
+# - Barrier delay: 1 second (line 127, end_value)
+# - Mode Switch Debounce: 1 second (line 137, end_value)
+# - Step 6 video delay: 4 seconds (line 147, end_value)
+# - Step 7 video delay: 3 seconds (line 157, end_value)
+# - Step 8 video delay: 3 seconds (line 164, end_value)
+# - Step 9 video delay: 3 seconds (line 171, end_value)
+# - Step 10 video delay: 3 seconds (line 178, end_value)
+# - Step 11 decision video: 9 seconds (line 185, end_value)
+# - Buzz tower accepted delay: 8 seconds (line 195, end_value)
+# - Tower challenge timer: 20 seconds (line 206, start_value)
+# - Shot timer duration: 10 seconds (line 217, end_value)
+# - Shot color change time: 8 seconds (line 224, end_value)
+# - Shot grace period: 2 seconds (line 231, end_value)
 ####################################################################################
 
 mode:
@@ -30,13 +34,36 @@ mode:
     - timer_battle_jester_failed_delay_complete
     - timer_battle_jester_tower_won_delay_complete
     - timer_battle_jester_tower_lost_delay_complete
-  priority: 300
+    - battle_jester_drain_cleanup_complete
+  priority: 600
   game_mode: true
   use_wait_queue: true
 
 # Mode can stack with multiball (but cannot be STARTED during multiball)
 mode_settings:
   can_stack_with_multiball: true
+
+####################################################################################
+# BALL HOLDS - Control when the mode scoop releases the ball
+####################################################################################
+# The mode scoop should HOLD the ball during intro video and step 6 video,
+# then release it when the video completes (or player skips with flippers).
+# This prevents MPF from auto-ejecting the ball before the video finishes.
+
+ball_holds:
+  battle_jester_scoop_hold:
+    balls_to_hold: 1
+    hold_devices: bd_mode_scoop
+    # Enable the hold when mode starts OR when step 6 captures ball
+    enable_events: 
+      - mode_battle_jester_started
+      - battle_jester_step_6_scoop_entered
+    # Release one ball when ball_released event fires (this triggers the eject)
+    release_one_events: 
+      - battle_jester_ball_released
+    # Also release all on mode stop (safety)
+    release_all_events:
+      - mode_battle_jester_will_stop
 
 ####################################################################################
 # SOUNDS - Define in Main Machine Config (NOT here)
@@ -93,7 +120,7 @@ timers:
   # Intro video delay timer - 5 seconds
   battle_jester_intro_video_delay:
     start_value: 0
-    end_value: 5
+    end_value: 8
     direction: up
     tick_interval: 1s
     control_events:
@@ -123,7 +150,7 @@ timers:
   # Step 6 success video delay
   battle_jester_step_6_video_delay:
     start_value: 0
-    end_value: 4
+    end_value: 8
     direction: up
     tick_interval: 1s
     control_events:
@@ -168,15 +195,26 @@ timers:
       - event: s_lane_left_active
         action: start
 
+  # Buzz tower accepted delay - hold ball while "accepted" slide shows
+  battle_jester_buzz_tower_accepted_delay:
+    start_value: 0
+    end_value: 8
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: battle_jester_choice_yes
+        action: start
+
   # Tower challenge timer (20 seconds to make tower shot)
+  # Starts when ball LEAVES the left lane (after accepted delay)
   battle_jester_tower_challenge_timer:
     start_value: 20
     end_value: 0
     direction: down
     tick_interval: 1s
     control_events:
-      - event: battle_jester_tower_challenge_start
-        action: start
+      - event: battle_jester_tower_ball_released
+        action: restart
 
   # Shot color change timers (adjustable per step)
   # Default: 10 second total, change to orange at 8s, change to red at 10s
@@ -199,6 +237,17 @@ timers:
     end_value: 2
     direction: up
     tick_interval: 1s
+
+  # DRAIN DELAY TIMER - Holds ball_ending until video plays
+  # Uses queue_event to hold the ball_ending process
+  battle_jester_drain_delay:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: battle_jester_drain_detected
+        action: start
 
   # Mode completion delay (for won video)
   battle_jester_complete_delay:
@@ -301,6 +350,28 @@ timers:
         action: stop
 
 ####################################################################################
+# QUEUE RELAY PLAYER - Hold ball_ending until mode cleanup completes
+####################################################################################
+# This is CRITICAL for proper drain handling:
+# - When ball drains, we need time to play the failure video BEFORE bonus starts
+# - queue_relay_player intercepts ball_ending and holds it
+# - We release it when battle_jester_drain_cleanup_complete fires
+# - Priority 1000 ensures this runs BEFORE bonus mode (priority 500) can start
+#
+# NOTE: ball_will_end is NOT a queue event, only ball_ending is. That's why we
+# intercept ball_ending here with high priority.
+
+queue_relay_player:
+  # Hold ball_ending when mode is active
+  # ball_ending IS a queue event so queue_relay_player works on it
+  # We block ball_ending, show lost video, then release
+  # Priority 1000 should make this run before bonus mode's handler
+  ball_ending{mode.battle_jester.active==True}:
+    post: battle_jester_ball_ending_hold
+    wait_for: battle_jester_drain_cleanup_complete
+    priority: 1000
+
+####################################################################################
 # VARIABLE PLAYER - Initialize mode variables and points bank
 ####################################################################################
 
@@ -343,6 +414,16 @@ variable_player:
     battle_jester_tower_choice:
       action: set
       int: 0
+    # Initialize tower challenge timer display (20 seconds)
+    battle_jester_tower_challenge_timer_tick:
+      action: set
+      int: 20
+
+  # Update tower challenge timer display on each tick
+  timer_battle_jester_tower_challenge_timer_tick:
+    battle_jester_tower_challenge_timer_tick:
+      action: set
+      int: device.timers.battle_jester_tower_challenge_timer.ticks
 
   # Timer expired or ball drained - 100% payout
   timer_battle_jester_timer_complete:
@@ -360,6 +441,10 @@ variable_player:
     battle_jester_points_awarded:
       action: set
       int: current_player.battle_jester_points_bank
+    # Mark that drain happened during pilot mode - triggers bonus after cleanup
+    pilot_mode_drain_pending:
+      action: set
+      int: 1
 
   ##############################################
   ## POINTS BANK - Mode shots add to bank (NOT score)
@@ -626,16 +711,40 @@ event_player:
   # Post pilot_mode_cleanup_complete when any delay timer completes (for bonus delay)
   timer_battle_jester_complete_delay_complete:
     - pilot_mode_cleanup_complete
+    - battle_jester_cleanup
   timer_battle_jester_failed_delay_complete:
     - pilot_mode_cleanup_complete
+    - battle_jester_cleanup
   timer_battle_jester_tower_won_delay_complete:
     - pilot_mode_cleanup_complete
+    - battle_jester_cleanup
   timer_battle_jester_tower_lost_delay_complete:
     - pilot_mode_cleanup_complete
+    - battle_jester_cleanup
 
-  # Ball drain during mode - trigger failed routine
-  ball_will_end{mode.battle_jester.active==True and current_player.battle_jester_tower_choice==0}:
+  ##############################################
+  ## DRAIN HANDLING - Critical for proper cleanup
+  ## queue_relay_player holds ball_ending until we're ready
+  ## This ensures pilot_mission_qualifier stays active to clear pause flags
+  ##############################################
+  
+  # When ball_ending is held by queue_relay_player, this fires
+  # Start the drain delay timer and trigger appropriate failure routine
+  
+  # Normal drain (not during tower challenge)
+  battle_jester_ball_ending_hold{current_player.battle_jester_tower_choice==0}:
     - battle_jester_failed
+    - battle_jester_drain_detected
+  
+  # Drain during tower challenge (50% payout path)
+  battle_jester_ball_ending_hold{current_player.battle_jester_tower_choice==1}:
+    - battle_jester_tower_lost
+    - battle_jester_drain_detected
+  
+  # When drain delay timer completes, signal cleanup complete to release queue
+  timer_battle_jester_drain_delay_complete:
+    - battle_jester_drain_cleanup_complete
+    - battle_jester_cleanup
   
   # Timer adjustments - green shots add 5 seconds
   battle_jester_timer_add_5s:
@@ -673,6 +782,11 @@ event_player:
     - battle_jester_skip_intro
     
   battle_jester_skip_intro:
+    - battle_jester_ball_released
+    - battle_jester_setup_step_1
+  
+  # Intro video timer complete - release ball automatically
+  timer_battle_jester_intro_video_delay_complete:
     - battle_jester_ball_released
     - battle_jester_setup_step_1
 
@@ -847,6 +961,7 @@ event_player:
   s_mode_start_active{current_player.battle_jester_step==5 and device.timers.battle_jester_mode_scoop_debounce.running==False}:
     - battle_jester_mode_scoop_debounce_start
     - battle_jester_pause_timer
+    - battle_jester_step_6_scoop_entered
     
   battle_jester_mode_scoop_debounce_start:
     - battle_jester_mode_scoop_debounce_restart
@@ -932,7 +1047,7 @@ event_player:
     - battle_jester_activate_left_lane_post
     - battle_jester_deactivate_left_diverter
     - battle_jester_step_11_complete
-    - battle_jester_add_time_green
+    # Note: No add_time_green here - timer jumps to 20 for decision phase
     
   # Wait for player decision (left=no, right=yes)
   timer_battle_jester_step_11_decision_video_complete:
@@ -947,8 +1062,17 @@ event_player:
   # Right flipper = YES (start tower challenge)
   s_flipper_right_active{current_player.battle_jester_step==10 and device.timers.battle_jester_step_11_decision_video.running==False}:
     - battle_jester_choice_yes
-    - battle_jester_deactivate_left_lane_post
+    # Post stays up during accepted delay - drops when tower_challenge_start fires
+    # Tower challenge start is now delayed - triggered by buzz_tower_accepted_delay timer
+    
+  # Buzz tower accepted delay complete - start the actual tower challenge
+  timer_battle_jester_buzz_tower_accepted_delay_complete:
     - battle_jester_tower_challenge_start
+    - battle_jester_deactivate_left_lane_post
+    
+  # Ball has left the left lane - start the 20 second tower challenge timer
+  s_lane_left_inactive{current_player.battle_jester_tower_choice==1 and current_player.battle_jester_complete_flag==0}:
+    - battle_jester_tower_ball_released
     
   # Tower shot made - 150% payout
   s_ramp_tower_exit_active{current_player.battle_jester_step==10 and current_player.battle_jester_tower_choice==1}:
@@ -958,9 +1082,8 @@ event_player:
   timer_battle_jester_tower_challenge_timer_complete:
     - battle_jester_tower_lost
     
-  # Ball drain during tower challenge - 50% payout
-  ball_will_end{mode.battle_jester.active==True and current_player.battle_jester_step==10 and current_player.battle_jester_tower_choice==1}:
-    - battle_jester_tower_lost
+  # Note: Ball drain during tower challenge is now handled by queue_relay_player
+  # which triggers battle_jester_ball_ending_hold with tower_choice==1 condition
 
   ##############################################
   ## GREEN SHOT TIME BONUS (+5 seconds)
@@ -1257,13 +1380,22 @@ slide_player:
       action: play
       priority: 900
 
-  # Tower challenge starts - show buzz tower instructions
-  battle_jester_tower_challenge_start:
+  # Player chose YES - show accepted slide while ball is held
+  battle_jester_choice_yes:
     battle_jester_step_11_decision:
       action: remove
-    battle_jester_buzz_tower:
+    battle_jester_timer:
+      action: remove
+    battle_jester_buzz_tower_accepted:
       action: play
-      priority: 850
+      priority: 900
+
+  # Tower challenge starts - show buzz tower instructions (after accepted delay)
+  battle_jester_tower_challenge_start:
+    battle_jester_buzz_tower_accepted:
+      action: remove
+    battle_jester_timer:
+      action: remove
     battle_jester_instructions_buzz_tower:
       action: play
       priority: 850
@@ -1287,6 +1419,8 @@ slide_player:
     battle_jester_step_7_instructions:
       action: remove
     battle_jester_step_11_decision:
+      action: remove
+    battle_jester_buzz_tower_accepted:
       action: remove
     battle_jester_instructions_buzz_tower:
       action: remove
@@ -1317,6 +1451,8 @@ slide_player:
       action: remove
     battle_jester_step_11_decision:
       action: remove
+    battle_jester_buzz_tower_accepted:
+      action: remove
     battle_jester_instructions_buzz_tower:
       action: remove
     battle_jester_buzz_tower:
@@ -1336,6 +1472,8 @@ slide_player:
       action: remove
     battle_jester_step_11_decision:
       action: remove
+    battle_jester_buzz_tower_accepted:
+      action: remove
     battle_jester_instructions_buzz_tower:
       action: remove
     battle_jester_buzz_tower:
@@ -1354,6 +1492,8 @@ slide_player:
     battle_jester_points_bank:
       action: remove
     battle_jester_step_11_decision:
+      action: remove
+    battle_jester_buzz_tower_accepted:
       action: remove
     battle_jester_instructions_buzz_tower:
       action: remove
@@ -1968,18 +2108,21 @@ show_player:
     flash_step11_spinner:
       show: jester_off
       key: step11_spinner
+      priority: 500
       loops: -1
       show_tokens:
         led: l_shot_spinner
     flash_step11_right_orbit:
       show: jester_off
       key: step11_right_orbit
+      priority: 500
       loops: -1
       show_tokens:
         led: l_shot_right_orbit
     flash_step11_left_lane:
       show: jester_off
       key: step11_left_lane
+      priority: 500
       loops: -1
       show_tokens:
         led: l_shot_left_lane
@@ -1987,24 +2130,28 @@ show_player:
     flash_step7_ramp_left:
       show: jester_off
       key: step7_ramp_left
+      priority: 500
       loops: -1
       show_tokens:
         led: l_shot_left_ramp
     flash_step7_ramp_middle:
       show: jester_off
       key: step7_ramp_middle
+      priority: 500
       loops: -1
       show_tokens:
         led: l_shot_middle_ramp
     flash_step7_ramp_tower:
       show: jester_off
       key: step7_ramp_tower
+      priority: 500
       loops: -1
       show_tokens:
         led: l_shot_tower_ramp
     flash_step7_ramp_right:
       show: jester_off
       key: step7_ramp_right
+      priority: 500
       loops: -1
       show_tokens:
         led: l_shot_right_orbit
@@ -2012,37 +2159,62 @@ show_player:
     flash_step11_orbit_left:
       show: jester_off
       key: step11_orbit_left
+      priority: 500
       loops: -1
       show_tokens:
         led: l_shot_left_orbit
     flash_step11_barrier:
       show: jester_off
       key: step11_barrier
+      priority: 500
       loops: -1
       show_tokens:
         led: l_shot_barrier
     flash_step11_upper_orbit:
       show: jester_off
       key: step11_upper_orbit
+      priority: 500
       loops: -1
       show_tokens:
         led: l_shot_upper_orbit
     flash_step11_pilot_gear:
       show: jester_off
       key: step11_pilot_gear
+      priority: 500
       loops: -1
       show_tokens:
         led: l_shot_pilot_gear
 
   # Tower challenge - flash tower ramp green
   battle_jester_tower_challenge_start:
-    # Stop the existing jester_off show on tower ramp first
-    flash_step7_ramp_tower:
+    # Stop ALL the jester_off shows from step_11_complete that might be blocking
+    step7_ramp_tower:
       action: stop
-    # Then start flashing green
+    step11_pilot_gear:
+      action: stop
+    step11_upper_orbit:
+      action: stop
+    step11_spinner:
+      action: stop
+    step11_right_orbit:
+      action: stop
+    step11_left_lane:
+      action: stop
+    step7_ramp_left:
+      action: stop
+    step7_ramp_middle:
+      action: stop
+    step7_ramp_right:
+      action: stop
+    step11_orbit_left:
+      action: stop
+    step11_barrier:
+      action: stop
+    # Start flashing tower green with high priority
     flash_tower_challenge:
       show: jester_flash_green
       key: tower_challenge
+      priority: 500
       loops: -1
       show_tokens:
         led: l_shot_tower_ramp
@@ -2138,9 +2310,9 @@ light_player:
     l_gi_light_pop_bottom:
       color: purple
       fade: 500ms
-    # Light 19 = purple (even pattern)
+    # Light 19 = white (odd pattern)
     l_gi_light_19:
-      color: purple
+      color: white
       fade: 500ms
 
   ##############################################
@@ -2636,7 +2808,9 @@ light_player:
       color: off
     l_shot_right_orbit:
       color: off
-    # tower_ramp handled by show_player flash
+    # Tower ramp also set to off in light_player - show_player flash will override
+    l_shot_tower_ramp:
+      color: off
 
   # Mode cleanup - restore base GI
   battle_jester_cleanup:

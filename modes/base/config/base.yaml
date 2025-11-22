@@ -3,10 +3,15 @@
 # Base mode that starts at the beginning of each ball
 # and stops at the end of each ball.
 # Slides at 50(Video Background) and 0 (no video Playing)
+#
+# IMPORTANT: This mode stops on ball_ending. When pilot mission modes are active
+# during a drain, they use queue_relay_player with high priority (1000) to hold
+# ball_ending until cleanup is complete, so this mode stays alive long enough
+# for pilot_mission_qualifier to properly clear pause flags when pilot modes stop.
 
 mode:
   start_events: ball_starting
-  stop_events: ball_will_end
+  stop_events: ball_ending
   priority: 100
 
 event_player:
@@ -33,6 +38,14 @@ variable_player:
       action: set
       int: 0
     bonus_highest_mach:
+      action: set
+      int: 0
+    # Initialize mode-active tracking variables (used for music control)
+    # These are set to 1 by respective modes when they start
+    training_mission_active:
+      action: set
+      int: 0
+    hard_deck_active:
       action: set
       int: 0
 
@@ -463,8 +476,14 @@ slide_player:
       expire: 8s  # Auto-remove after 5 seconds
 
 sound_player:
-  # Start base music when playfield becomes active (not during rescue_cougar)
-  playfield_active{mode.rescue_cougar.active==False}:
+  # Start base music when playfield becomes active (not during any special mode)
+  # Uses player variables instead of checking each mode individually:
+  # - pilot_mode_active: Set to 1 when any pilot mission is running
+  # - training_mission_active: Set to 1 when any training mission is running
+  # - hard_deck_active: Set to 1 when any hard deck mode is running
+  # - multiball_active: Set to 1 when any multiball is running
+  # Add additional variables as needed for future mode types
+  playfield_active{current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
     music_danger_zone:
       bus: music
       loops: -1
@@ -478,9 +497,11 @@ sound_player:
 #################################################################################### 
   # CRITICAL: Mode Scoop Silence - Works for BOTH rescue_cougar AND rise_of_phoenix
   # NO CONDITIONAL - This plays silence whenever ball enters mode scoop
+  # EXCEPTION: battle_jester step 6 - music keeps playing during that scoop entry
 ####################################################################################
 
-  s_mode_start_active:
+  # Silence for all modes EXCEPT battle_jester step 6
+  s_mode_start_active{mode.battle_jester.active==False or current_player.battle_jester_step!=5}:
     silence:
       bus: music
       loops: 0
@@ -529,12 +550,50 @@ sound_player:
   # Battle Jester Mode Music Handler
 ####################################################################################
 
-  # When ball ejects from mode scoop, start battle_jester music
-  balldevice_bd_mode_scoop_ball_eject_success{mode.battle_jester.active==True}:
+  # Start music when ball is released from scoop (after intro video or step 6 video)
+  battle_jester_ball_released:
     battle_jester_music:
       bus: music
       loops: -1
   
+  # Silence music during step 11 decision (Risk points? YES/NO)
+  battle_jester_step_11_complete:
+    silence:
+      bus: music
+      loops: 0
+  
+  # If player chooses NO - music stays silent, won video plays, mode ends
+  # (mode_battle_jester_stopped handles restarting danger_zone)
+  
+  # If player chooses YES - restart mode music for tower challenge
+  battle_jester_choice_yes:
+    battle_jester_music:
+      bus: music
+      loops: -1
+  
+  # Silence music when lost/won videos play (before mode stops)
+  battle_jester_failed:
+    silence:
+      bus: music
+      loops: 0
+  
+  battle_jester_complete:
+    silence:
+      bus: music
+      loops: 0
+  
+  battle_jester_tower_won:
+    silence:
+      bus: music
+      loops: 0
+  
+  battle_jester_tower_lost:
+    silence:
+      bus: music
+      loops: 0
+  
+  # Restart base music when battle_jester mode stops
+  # This handles both won (where bonus doesn't run) and lost scenarios
   mode_battle_jester_stopped:
     music_danger_zone:
       bus: music

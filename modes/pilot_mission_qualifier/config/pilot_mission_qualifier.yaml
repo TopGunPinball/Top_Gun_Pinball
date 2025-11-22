@@ -6,6 +6,11 @@
 ## Mode tracking with pulsing for available, solid for completed
 ## Mode rotation on spinner or flight_gear_target switch hits
 ##
+## IMPORTANT: This mode stops when base mode stops (mode_base_stopped).
+## Since base mode now stops on ball_ending (held by pilot mode queue_relay_player),
+## this mode stays alive long enough to receive mode_xxx_stopped events from
+## pilot missions and properly clear the letter_collection_paused flag.
+##
 
 mode:
   start_events: mode_base_started
@@ -178,6 +183,14 @@ variable_player:
     letter_collection_paused:
       action: set
       int: 0
+    # Pilot mode active flag - prevents bonus from starting during pilot modes
+    pilot_mode_active:
+      action: set
+      int: 0
+    # Drain pending flag - set when drain occurs during pilot mode
+    pilot_mode_drain_pending:
+      action: set
+      int: 0
     # Shot counter (resets after each TOPGUN complete)
     topgun_shots_collected:
       action: set
@@ -309,6 +322,10 @@ variable_player:
     letter_collection_paused:
       action: set
       int: 0
+    # Clear pilot mode active flag
+    pilot_mode_active:
+      action: set
+      int: 0
     # Letter display tracking (based on count, not specific shots)
     topgun_letter_t:
       action: set
@@ -332,6 +349,10 @@ variable_player:
   # Clear pause flag when rise_of_phoenix stops
   mode_rise_of_phoenix_stopped:
     letter_collection_paused:
+      action: set
+      int: 0
+    # Clear pilot mode active flag
+    pilot_mode_active:
       action: set
       int: 0
     # Letter display tracking (based on count, not specific shots)
@@ -359,6 +380,10 @@ variable_player:
     letter_collection_paused:
       action: set
       int: 0
+    # Clear pilot mode active flag
+    pilot_mode_active:
+      action: set
+      int: 0
     # Letter display tracking (based on count, not specific shots)
     topgun_letter_t:
       action: set
@@ -376,6 +401,12 @@ variable_player:
       action: set
       int: 0
     topgun_letter_n:
+      action: set
+      int: 0
+  
+  # Clear drain pending flag after bonus starts
+  pilot_mission_drain_complete:
+    pilot_mode_drain_pending:
       action: set
       int: 0
 
@@ -998,6 +1029,26 @@ coil_player:
 ##############################################
 
 event_player:
+  ##############################################
+  ## Pilot Mission Bonus Ready - Post when drain cleanup completes
+  ## Only posts if pilot_mode_drain_pending==1 (set by pilot mode on drain)
+  ##############################################
+  
+  # Battle Jester - post bonus ready only if drain is pending
+  mode_battle_jester_stopped{current_player.pilot_mode_drain_pending==1}:
+    - pilot_mission_bonus_ready
+    - pilot_mission_drain_complete
+  
+  # Rescue Cougar
+  mode_rescue_cougar_stopped{current_player.pilot_mode_drain_pending==1}:
+    - pilot_mission_bonus_ready
+    - pilot_mission_drain_complete
+  
+  # Rise of Phoenix
+  mode_rise_of_phoenix_stopped{current_player.pilot_mode_drain_pending==1}:
+    - pilot_mission_bonus_ready
+    - pilot_mission_drain_complete
+
   # Determine which mode qualifies based on completed count
   player_topgun_shots_collected{value==6 and current_player.mode_rescue_cougar_played==0}:
     - qualify_rescue_cougar

@@ -10,6 +10,7 @@ ball_devices:
     confirm_eject_event: s_shooter_lane_inactive
     eject_timeouts: 3s
     eject_all_events: tilt
+    
   bd_trough:
     ball_switches: s_trough_1, s_trough_2, s_trough_3, s_trough_4, s_trough_5, s_trough_6, s_jam
     eject_coil: c_trough_eject
@@ -20,17 +21,20 @@ ball_devices:
     eject_targets: bd_plunger
     tags: trough, home, drain
     debug: true
+    
   bd_lock_elevator:
     ball_switches: s_lock_plunger
     eject_coil: c_lock_upkicker
     entrance_count_delay: 300ms
     eject_timeouts: 3s
     eject_all_events: tilt
+    
   bd_mode_scoop:
     ball_switches: s_mode_start
     eject_coil: c_mode_outkicker
     entrance_count_delay: 300ms
     eject_timeouts: 3s
     eject_all_events: tilt
-    
-    
+    # CRITICAL: Prevent auto-eject of unexpected balls
+    # The scoop should HOLD balls until a mode/event releases them
+    auto_fire_on_unexpected_ball: false
