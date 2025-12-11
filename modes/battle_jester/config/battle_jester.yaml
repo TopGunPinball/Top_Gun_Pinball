@@ -703,6 +703,20 @@ variable_player:
       action: add
       int: -1
 
+  # Step 11 complete - player has reached the end of the mode (counts as WIN)
+  # This triggers at the left lane hit before the tower challenge decision
+  # Player is credited with a win even if they attempt tower and fail
+  battle_jester_step_11_complete:
+    battle_jester_step:
+      action: set
+      int: 11
+    pilot_missions_won:
+      action: add
+      int: 1
+    battle_jester_shots_remaining:
+      action: set
+      int: 0
+
 ####################################################################################
 # EVENT PLAYER - Shot detection and step progression
 ####################################################################################
@@ -1054,13 +1068,15 @@ event_player:
     - battle_jester_wait_for_decision
     
   # Left flipper = NO (play won video, 100% payout)
-  s_flipper_left_active{current_player.battle_jester_step==10 and device.timers.battle_jester_step_11_decision_video.running==False}:
+  # Can select during or after the decision video plays
+  s_flipper_left_active{current_player.battle_jester_step==11 and current_player.battle_jester_tower_choice==0}:
     - battle_jester_choice_no
     - battle_jester_deactivate_left_lane_post
     - battle_jester_complete
     
   # Right flipper = YES (start tower challenge)
-  s_flipper_right_active{current_player.battle_jester_step==10 and device.timers.battle_jester_step_11_decision_video.running==False}:
+  # Can select during or after the decision video plays
+  s_flipper_right_active{current_player.battle_jester_step==11 and current_player.battle_jester_tower_choice==0}:
     - battle_jester_choice_yes
     # Post stays up during accepted delay - drops when tower_challenge_start fires
     # Tower challenge start is now delayed - triggered by buzz_tower_accepted_delay timer
@@ -1075,7 +1091,7 @@ event_player:
     - battle_jester_tower_ball_released
     
   # Tower shot made - 150% payout
-  s_ramp_tower_exit_active{current_player.battle_jester_step==10 and current_player.battle_jester_tower_choice==1}:
+  s_ramp_tower_exit_active{current_player.battle_jester_step==11 and current_player.battle_jester_tower_choice==1}:
     - battle_jester_tower_won
     
   # Tower challenge timer expired - 50% payout
@@ -1195,6 +1211,28 @@ event_player:
   s_spinner_active{current_player.battle_jester_step==6}:
     - battle_jester_subtract_time_red
 
+  # Step 10 red shots (after ramps complete, trying to hit left lane)
+  # Green: left_lane (goal), spinner & right_orbit (helpers - activate diverter)
+  # Red: everything else
+  s_orbit_left_active{current_player.battle_jester_step==10}:
+    - battle_jester_subtract_time_red
+  s_ramp_left_exit_active{current_player.battle_jester_step==10}:
+    - battle_jester_subtract_time_red
+  s_barrier_target_active{current_player.battle_jester_step==10}:
+    - battle_jester_subtract_time_red
+  s_ramp_tower_exit_active{current_player.battle_jester_step==10}:
+    - battle_jester_subtract_time_red
+  s_orbit_upper_active{current_player.battle_jester_step==10}:
+    - battle_jester_subtract_time_red
+  s_orbit_lower_active{current_player.battle_jester_step==10}:
+    - battle_jester_subtract_time_red
+  s_ramp_inner_exit_active{current_player.battle_jester_step==10}:
+    - battle_jester_subtract_time_red
+  s_flight_gear_target_active{current_player.battle_jester_step==10}:
+    - battle_jester_subtract_time_red
+  s_ramp_right_exit_active{current_player.battle_jester_step==10}:
+    - battle_jester_subtract_time_red
+
   battle_jester_subtract_time_red:
     - battle_jester_timer_subtract_5s
 
@@ -1207,7 +1245,7 @@ event_player:
     - battle_jester_failed
   
   # Mode timer expired during step 11 decision - default to NO (safe choice)
-  timer_battle_jester_timer_complete{current_player.battle_jester_step==10}:
+  timer_battle_jester_timer_complete{current_player.battle_jester_step==11}:
     - battle_jester_choice_no
     - battle_jester_deactivate_left_lane_post
     - battle_jester_complete
@@ -1223,6 +1261,21 @@ event_player:
     - battle_jester_cleanup
 
   # Mode stops via stop_events in mode header
+
+####################################################################################
+# RANDOM EVENT PLAYER - Random video selection for missed shots
+####################################################################################
+
+random_event_player:
+  # When a red shot is hit, randomly play one of the missed shot videos
+  battle_jester_subtract_time_red:
+    events:
+      - battle_jester_play_missed_1
+      - battle_jester_play_missed_2
+      - battle_jester_play_missed_3
+      - battle_jester_play_missed_4
+      - battle_jester_play_missed_5
+      - battle_jester_play_missed_6
 
 ####################################################################################
 # SLIDE PLAYER - Mode Slides (GODOT 4.4.1 Format)
@@ -1503,6 +1556,43 @@ slide_player:
       action: play
       priority: 900
       expire: 5s
+
+  # Missed shot videos (red shots) - randomly selected via random_event_player
+  battle_jester_play_missed_1:
+    battle_jester_missed_1_video:
+      action: play
+      priority: 850
+      expire: 3s
+
+  battle_jester_play_missed_2:
+    battle_jester_missed_2_video:
+      action: play
+      priority: 850
+      expire: 3s
+
+  battle_jester_play_missed_3:
+    battle_jester_missed_3_video:
+      action: play
+      priority: 850
+      expire: 3s
+
+  battle_jester_play_missed_4:
+    battle_jester_missed_4_video:
+      action: play
+      priority: 850
+      expire: 3s
+
+  battle_jester_play_missed_5:
+    battle_jester_missed_5_video:
+      action: play
+      priority: 850
+      expire: 3s
+
+  battle_jester_play_missed_6:
+    battle_jester_missed_6_video:
+      action: play
+      priority: 850
+      expire: 3s
 
 ####################################################################################
 # SHOW PLAYER - Flashing light shows for green shots

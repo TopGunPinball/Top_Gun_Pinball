@@ -454,6 +454,47 @@ variable_player:
   ## - Cabinet switches (coin door, service, tilt)
   ##############################################
 
+##############################################
+## GI AND POP BUMPER LIGHTS - Default white
+## Sets all GI and pop bumper lights to white when base mode starts
+## This ensures a consistent white starting point after any mode ends
+##############################################
+light_player:
+  mode_base_started:
+    # GI Lights - set to white
+    l_gi_light_1: white
+    l_gi_light_2: white
+    l_gi_light_3: white
+    l_gi_light_4: white
+    l_gi_light_5: white
+    l_gi_light_6: white
+    l_gi_light_7: white
+    l_gi_light_8: white
+    l_gi_light_9: white
+    l_gi_light_10: white
+    l_gi_light_11: white
+    l_gi_light_12: white
+    l_gi_light_13: white
+    l_gi_light_14: white
+    l_gi_light_15: white
+    l_gi_light_16: white
+    l_gi_light_17: white
+    l_gi_light_18: white
+    l_gi_light_19: white
+    l_gi_light_20: white
+    l_gi_light_21: white
+    l_gi_light_22: white
+    l_gi_light_23: white
+    l_gi_light_24: white
+    l_gi_light_25: white
+    # Apron GI Lights - set to white
+    l_apron_light_1: white
+    l_apron_light_2: white
+    # Pop Bumper Lights - set to white
+    l_gi_light_pop_left: white
+    l_gi_light_pop_right: white
+    l_gi_light_pop_bottom: white
+
 slide_player:
   mode_base_started: base_slide
   
@@ -495,7 +536,7 @@ sound_player:
       loops: -1
 
 #################################################################################### 
-  # CRITICAL: Mode Scoop Silence - Works for BOTH rescue_cougar AND rise_of_phoenix
+  # CRITICAL: Mode Scoop Silence - Works for ALL pilot mission modes
   # NO CONDITIONAL - This plays silence whenever ball enters mode scoop
   # EXCEPTION: battle_jester step 6 - music keeps playing during that scoop entry
 ####################################################################################
@@ -508,40 +549,68 @@ sound_player:
 
 #################################################################################### 
   # Rescue Cougar Mode Music Handler
+  # PATTERN: Music starts on xxx_ball_released event (like battle_jester)
 ####################################################################################
   
-  balldevice_bd_mode_scoop_ball_eject_success{mode.rescue_cougar.active==True}:
+  # Start music when ball is released from scoop (after intro video or skip)
+  rescue_cougar_ball_released:
     music_rescue_cougar_1:
       bus: music
       loops: -1
   
-  # Step 6 - force stop music_1 by playing silence briefly, then music_2
+  # Step 7 complete - silence before switching to music_2
   rescue_cougar_step_7_complete:
     silence:
       bus: music
       loops: 0
   
+  # Step 8 setup - start music_2
   rescue_cougar_setup_step_8:
     music_rescue_cougar_2:
       bus: music
       loops: -1
   
-  mode_rescue_cougar_stopped:
+  # Silence music when failed/complete videos play (before mode stops)
+  rescue_cougar_failed:
+    silence:
+      bus: music
+      loops: 0
+  
+  rescue_cougar_complete:
+    silence:
+      bus: music
+      loops: 0
+  
+  # Restart base music when rescue_cougar mode stops (but NOT if drain pending - bonus will handle it)
+  mode_rescue_cougar_stopped{current_player.pilot_mode_drain_pending==0}:
     music_danger_zone:
       bus: music
       loops: -1
 
 #################################################################################### 
   # Rise of Phoenix Mode Music Handler
+  # PATTERN: Music starts on xxx_ball_released event (like battle_jester)
 ####################################################################################
 
-  # When ball ejects from scoop (after intro video), start Phoenix music
-  balldevice_bd_mode_scoop_ball_eject_success{mode.rise_of_phoenix.active==True}:
+  # Start music when ball is released from scoop (after intro video or skip)
+  rise_of_phoenix_ball_released:
     rise_of_phoenix_music:
       bus: music
       loops: -1
   
-  mode_rise_of_phoenix_stopped:
+  # Silence music when failed/complete videos play (before mode stops)
+  rise_of_phoenix_failed:
+    silence:
+      bus: music
+      loops: 0
+  
+  rise_of_phoenix_complete:
+    silence:
+      bus: music
+      loops: 0
+  
+  # Restart base music when rise_of_phoenix mode stops (but NOT if drain pending - bonus will handle it)
+  mode_rise_of_phoenix_stopped{current_player.pilot_mode_drain_pending==0}:
     music_danger_zone:
       bus: music
       loops: -1
@@ -592,9 +661,9 @@ sound_player:
       bus: music
       loops: 0
   
-  # Restart base music when battle_jester mode stops
+  # Restart base music when battle_jester mode stops (but NOT if drain pending - bonus will handle it)
   # This handles both won (where bonus doesn't run) and lost scenarios
-  mode_battle_jester_stopped:
+  mode_battle_jester_stopped{current_player.pilot_mode_drain_pending==0}:
     music_danger_zone:
       bus: music
       loops: -1

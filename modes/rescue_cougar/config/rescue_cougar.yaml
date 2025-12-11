@@ -22,15 +22,50 @@ mode:
   stop_events: 
     - timer_rescue_cougar_complete_delay_complete
     - timer_rescue_cougar_failed_delay_complete
-    - ball_will_end
-    - ball_ending
-  priority: 300
+    - rescue_cougar_drain_cleanup_complete
+  priority: 600
   game_mode: true
   use_wait_queue: true
 
 # Mode can stack with multiball
 mode_settings:
   can_stack_with_multiball: true
+
+####################################################################################
+# BALL HOLDS - Control when the mode scoop releases the ball
+####################################################################################
+# The mode scoop should HOLD the ball during intro video,
+# then release it when the video completes (or player skips with flippers).
+# This prevents MPF from auto-ejecting the ball before the video finishes.
+
+ball_holds:
+  rescue_cougar_scoop_hold:
+    balls_to_hold: 1
+    hold_devices: bd_mode_scoop
+    # Enable the hold when mode starts
+    enable_events: 
+      - mode_rescue_cougar_started
+    # Release one ball when ball_released event fires (this triggers the eject)
+    release_one_events: 
+      - rescue_cougar_ball_released
+    # Also release all on mode stop (safety)
+    release_all_events:
+      - mode_rescue_cougar_will_stop
+
+####################################################################################
+# QUEUE RELAY PLAYER - Hold ball_ending until mode cleanup completes
+####################################################################################
+# This is CRITICAL for proper drain handling:
+# - When ball drains, we need time to play the failure video BEFORE bonus starts
+# - queue_relay_player intercepts ball_ending and holds it
+# - We release it when rescue_cougar_drain_cleanup_complete fires
+# - Priority 1000 ensures this runs BEFORE bonus mode (priority 500) can start
+
+queue_relay_player:
+  ball_ending{mode.rescue_cougar.active==True}:
+    post: rescue_cougar_ball_ending_hold
+    wait_for: rescue_cougar_drain_cleanup_complete
+    priority: 1000
 
 
 ####################################################################################
@@ -55,6 +90,10 @@ mode_settings:
 
 variable_player:
   mode_rescue_cougar_started:
+    # Universal pilot mode tracking - set when any pilot mode starts
+    pilot_mode_active:
+      action: set
+      int: 1
     # Pause TOPGUN and ICEMAN letter collection during this mode
     letter_collection_paused:
       action: set
@@ -71,6 +110,13 @@ variable_player:
     rescue_cougar_shots_remaining:
       action: set
       int: 11
+
+  # Ball drain during mode - award points and mark drain pending
+  ball_will_end{mode.rescue_cougar.active==True}:
+    # Mark that drain happened during pilot mode - triggers bonus after cleanup
+    pilot_mode_drain_pending:
+      action: set
+      int: 1
 
   # Step completion tracking - also decrement shots remaining
   rescue_cougar_step_1_complete:
@@ -400,15 +446,16 @@ timers:
       - event: s_lane_left_inactive
         action: start
 
-  # INTRO VIDEO TIMER - Time before ball releases (normal path)
-  # This timer waits for the intro video to finish before releasing the ball
-  # Adjust end_value to match your intro video length
-  rescue_cougar_intro_video_timer:
+  # INTRO VIDEO TIMER - Match battle_jester pattern EXACTLY
+  # Auto-starts on mode_started, tick_interval in seconds, control_events to start
+  rescue_cougar_intro_video_delay:
     start_value: 0
-    end_value: 5000  # 5 seconds - ADJUST THIS to match intro video length
+    end_value: 24
     direction: up
-    tick_interval: 1ms
-    start_running: false
+    tick_interval: 1s
+    control_events:
+      - event: mode_rescue_cougar_started
+        action: start
 
   # BARRIER RAISE DELAY - Time after ball successfully leaves mode scoop
   # Timer starts when debounce completes (confirming ball actually left)
@@ -476,7 +523,7 @@ timers:
     start_running: false
 
   rescue_cougar_left_lane_lockout:
-    start_value: 3
+    start_value: 7
     end_value: 0
     direction: down
     tick_interval: 1s
@@ -503,24 +550,54 @@ timers:
       - event: timer_rescue_cougar_failed_delay_start
         action: start
 
+  # DRAIN DELAY TIMER - Holds ball_ending until lost video plays
+  # Uses queue_relay_player to hold the ball_ending process
+  rescue_cougar_drain_delay:
+    start_value: 0
+    end_value: 16
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: rescue_cougar_drain_detected
+        action: start
+
 ####################################################################################
 # EVENT PLAYER
 ####################################################################################
 
 event_player:
+  ##############################################
+  ## DRAIN HANDLING - Critical for proper cleanup
+  ## queue_relay_player holds ball_ending until we're ready
+  ## This ensures pilot_mission_qualifier stays active to clear pause flags
+  ##############################################
+  
+  # When ball_ending is held by queue_relay_player, this fires
+  # Start the drain delay timer and trigger failure routine
+  rescue_cougar_ball_ending_hold:
+    - rescue_cougar_failed
+    - rescue_cougar_drain_detected
+  
+  # When drain delay timer completes, signal cleanup complete to release queue
+  timer_rescue_cougar_drain_delay_complete:
+    - rescue_cougar_drain_cleanup_complete
+    - rescue_cougar_cleanup
+
   mode_rescue_cougar_started:
     - reset_topgun_letters  # Reset TOPGUN collection for duration of mode
-    - rescue_cougar_setup_shots
-    - timer_rescue_cougar_intro_video_timer_start  # Start intro video timer
+    # Timer auto-starts via control_events (like battle_jester)
+    # Shots setup when timer_rescue_cougar_intro_video_delay_complete fires
 
-  # NORMAL PATH: Intro video timer completes → release ball
-  timer_rescue_cougar_intro_video_timer_complete:
+  # NORMAL PATH: Intro video delay completes → release ball AND setup shots
+  timer_rescue_cougar_intro_video_delay_complete:
     - rescue_cougar_ball_released
+    - rescue_cougar_setup_shots
 
-  # SKIP PATH: Both flippers pressed → stop intro timer, release ball immediately
+  # SKIP PATH: Both flippers pressed → stop intro timer, release ball, setup shots
   rescue_cougar_skip_intro:
-    - timer_rescue_cougar_intro_video_timer_stop  # Stop intro timer
+    - timer_rescue_cougar_intro_video_delay_stop  # Stop intro timer
     - rescue_cougar_ball_released  # Release ball immediately
+    - rescue_cougar_setup_shots  # Setup shots immediately
 
   # DEBOUNCE: Timer automatically starts barrier delay when complete
   # (configured in timer control_events)
@@ -529,11 +606,13 @@ event_player:
   timer_rescue_cougar_barrier_delay_complete:
     - pilot_mission_raise_barrier
 
-  # Detect both flippers pressed to skip intro
-  s_flipper_left_active{device.switches.s_flipper_right.state}:
-    - rescue_cougar_skip_intro
-  
-  s_flipper_right_active{device.switches.s_flipper_left.state}:
+  # Skip intro video with both flippers (match battle_jester pattern)
+  s_flipper_left_active{current_player.rescue_cougar_step==0 and device.timers.rescue_cougar_intro_video_delay.running}:
+    - rescue_cougar_check_skip_intro
+  s_flipper_right_active{current_player.rescue_cougar_step==0 and device.timers.rescue_cougar_intro_video_delay.running}:
+    - rescue_cougar_check_skip_intro
+    
+  rescue_cougar_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
     - rescue_cougar_skip_intro
 
   # Step progression
@@ -724,9 +803,11 @@ event_player:
   # Post completion/failure events after videos finish (for base mode to use)
   timer_rescue_cougar_complete_delay_complete:
     - rescue_cougar_video_complete
+    - pilot_mode_cleanup_complete
   
   timer_rescue_cougar_failed_delay_complete:
     - rescue_cougar_video_complete
+    - pilot_mode_cleanup_complete
   
   # Skip left lane post video with both flippers
   s_flipper_left_active{device.switches.s_flipper_right.state and device.timers.rescue_cougar_left_lane_post_timer.running}:
