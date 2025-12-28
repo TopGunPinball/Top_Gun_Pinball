@@ -115,6 +115,18 @@ timers:
       - action: stop
         event: mode_skillshot_will_stop
 
+  # Left MIG post hold timer - 3 seconds when ball is plunged without flipper held
+  skillshot_left_mig_post_timer:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - action: start
+        event: skillshot_activate_left_mig_post
+      - action: stop
+        event: mode_skillshot_will_stop
+
 variable_player:
   # Conditional scoring based on skillshot count - use priorities to control execution order
   mig_lane_left_skill_lit_hit{current_player.skillshot_count>=4}:
@@ -309,6 +321,16 @@ event_player:
     show_skillshot_tower_video
   ramp_inner_skill_lit_hit:
     show_skillshot_inverted_video
+    
+  # LEFT MIG POST CONTROL ON PLUNGE
+  # When ball is plunged (leaves shooter lane), check if left flipper is NOT held
+  # If flipper not held, activate the left MIG post for 3 seconds
+  s_shooter_lane_inactive{mode.skillshot.active and not device.switches.s_flipper_left.state}:
+    - skillshot_activate_left_mig_post
+    
+  # When MIG post timer completes, deactivate the post
+  timer_skillshot_left_mig_post_timer_complete:
+    - skillshot_deactivate_left_mig_post
       
 sound_player:
   timer_skillshot_sound_loop_tick:
@@ -332,3 +354,23 @@ slide_player:
       action: remove
     skillshot_ball_launched:
       action: play
+
+####################################################################################
+# COIL PLAYER - Left MIG Post Control During Skillshot
+####################################################################################
+
+coil_player:
+  # Activate left MIG post when ball is plunged (if flipper not held)
+  skillshot_activate_left_mig_post:
+    c_left_mig_up_post:
+      action: enable
+      
+  # Deactivate left MIG post when timer completes
+  skillshot_deactivate_left_mig_post:
+    c_left_mig_up_post:
+      action: disable
+      
+  # Safety: deactivate post when mode stops
+  mode_skillshot_will_stop:
+    c_left_mig_up_post:
+      action: disable

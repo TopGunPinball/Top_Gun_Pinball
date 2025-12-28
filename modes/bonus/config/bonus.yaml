@@ -37,14 +37,15 @@ sound_player:
 mode_settings:
   # ADJUST THIS: Display time for ALL bonus slides (in milliseconds)
   # 1000 = 1 second, 2000 = 2 seconds, 3000 = 3 seconds, etc.
-  display_delay_ms: 2100
+  display_delay_ms: 2000
   
   # If player hits flipper, speed up to instant
   hurry_up_delay_ms: 0
   hurry_up_event: flipper_cancel
   
-  # Force MPF to always show multiplier slide (even when multiplier = 1)
-  keep_multiplier: true
+  # When false: prevents MPF from adding extra subtotal/multiplier steps
+  # We use our own custom subtotal entry instead for consistent flow
+  keep_multiplier: false
   
   # Define all bonus entries in order
   bonus_entries:
@@ -90,12 +91,9 @@ mode_settings:
       score: 75000
       skip_if_zero: false
     
-    # 7. SUBTOTAL - Shows sum before multiplier (triggers slide without adding points)
-    - entry: subtotal
-      text: "Bonus Subtotal"
-      player_score_entry: bonus_multiplier
-      score: 0
-      skip_if_zero: false
+    # NOTE: No custom subtotal entry - using MPF's built-in behavior
+    # At 1x: goes straight from last entry to total (no subtotal slide)
+    # At 2x+: MPF shows subtotal/multiplier automatically
 
 ##############################################
 ## Variable Player - Calculate Display Points
@@ -133,6 +131,13 @@ variable_player:
     bonus_pilot_missions_points:
       action: set
       int: current_player.pilot_missions_won * 75000
+  
+  # Capture the running bonus subtotal into a player variable for the slide
+  # This triggers on MPF's built-in subtotal event (only fires at 2x+ multiplier)
+  bonus_entry{entry=="subtotal"}:
+    bonus_subtotal_points:
+      action: set
+      int: score
   
   # Per-ball variables reset has been moved to base.yaml
   # (bonus mode stops before ball_ended fires, so base handles it)
@@ -201,7 +206,8 @@ slide_player:
       action: play
       priority: 510
   
-  # Subtotal slide (shows subtotal and multiplier together)
+  # Subtotal slide - uses MPF's built-in subtotal event (only fires at 2x+ multiplier)
+  # At 1x multiplier, this slide won't show (goes straight to total)
   bonus_entry{entry=="subtotal"}:
     bonus_subtotal:
       action: play

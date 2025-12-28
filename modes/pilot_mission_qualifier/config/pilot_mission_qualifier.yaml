@@ -18,6 +18,60 @@ mode:
   priority: 200
   game_mode: true
 
+##############################################
+## SPINNER SHOT LOGIC
+## A "spinner shot" requires 3 spins within 2 seconds.
+## This prevents single weak spins from counting as shots,
+## while still allowing fast spinning to progress modes.
+##############################################
+
+timers:
+  spinner_shot_timeout:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - action: restart
+        event: s_spinner_active
+  
+  # Spinner lockout - prevents rapid re-triggering after shot fires
+  spinner_shot_lockout:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - action: restart
+        event: spinner_shot_made
+
+  ##############################################
+  ## ORBIT SHOT TIMERS
+  ## Orbit shots require entry switch then exit switch within 3 seconds
+  ## Left orbit: s_orbit_left -> s_orbit_right
+  ## Right orbit: s_orbit_right -> s_orbit_left
+  ## NOTE: No orbit_pending variable - just use timer.running checks
+  ## IMPORTANT: Use 'restart' action so timer resets each time!
+  ##############################################
+  
+  left_orbit_shot_timeout:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - action: restart
+        event: s_orbit_left_active
+  
+  right_orbit_shot_timeout:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - action: restart
+        event: s_orbit_right_active
+
 
 
 slide_player:
@@ -189,6 +243,23 @@ variable_player:
       int: 0
     # Drain pending flag - set when drain occurs during pilot mode
     pilot_mode_drain_pending:
+      action: set
+      int: 0
+    # Spinner shot counter (tracks spins within 2-second window)
+    spinner_spin_count:
+      action: set
+      int: 0
+    ##############################################
+    ## SHOT TRACKING VARIABLES
+    ## Used for sneaky shot and under flipper shot detection
+    ##############################################
+    # Previous switch type for sneaky shot detection
+    # 0=other, 1=orbit_left, 2=upper_flipper_eos
+    previous_switch_type:
+      action: set
+      int: 0
+    # Left orbit diverter state (0=closed/inactive, 1=open/active)
+    left_orbit_diverter_active:
       action: set
       int: 0
     # Shot counter (resets after each TOPGUN complete)
@@ -422,7 +493,14 @@ variable_player:
       action: add
       int: 1
 
-  s_orbit_left_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
+  # Left orbit letter collection - uses left_orbit_shot_hit (requires full orbit: s_orbit_left -> s_orbit_right)
+  left_orbit_shot_hit{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
+    topgun_shots_collected:
+      action: add
+      int: 1
+
+  # Right orbit letter collection - uses right_orbit_shot_hit (requires full orbit: s_orbit_right -> s_orbit_left)
+  right_orbit_shot_hit{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
     topgun_shots_collected:
       action: add
       int: 1
@@ -432,10 +510,51 @@ variable_player:
       action: add
       int: 1
 
-  s_spinner_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
+  # Spinner letter collection - uses spinner_shot_made (requires 3 spins in 2 seconds)
+  spinner_shot_made{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
     topgun_shots_collected:
       action: add
       int: 1
+
+  # Track each spinner activation for shot detection and reset previous_switch_type
+  s_spinner_active:
+    spinner_spin_count:
+      action: add
+      int: 1
+    previous_switch_type:
+      action: set
+      int: 0
+
+  # Reset spin count when timer completes (2 seconds of no spins)
+  timer_spinner_shot_timeout_complete:
+    spinner_spin_count:
+      action: set
+      int: 0
+
+  # Reset spin count after spinner_shot_made fires (prevents rapid re-triggering)
+  spinner_shot_reset_count:
+    spinner_spin_count:
+      action: set
+      int: 0
+
+  ##############################################
+  ## SWITCH TRACKING FOR SNEAKY SHOT DETECTION
+  ## Tracks previous switch to determine shot type when s_lane_left is hit
+  ## 0=other/reset, 1=orbit_left, 2=upper_flipper_eos
+  ## NOTE: Orbit shot detection uses timer.running checks only, not orbit_pending
+  ##############################################
+  
+  # Left orbit entry - track for sneaky shot (ball came from left orbit)
+  s_orbit_left_active:
+    previous_switch_type:
+      action: set
+      int: 1
+  
+  # Right orbit entry - reset sneaky shot tracking
+  s_orbit_right_active:
+    previous_switch_type:
+      action: set
+      int: 0
 
   s_ramp_tower_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
     topgun_shots_collected:
@@ -456,6 +575,85 @@ variable_player:
     topgun_shots_collected:
       action: add
       int: 1
+
+  ##############################################
+  ## SWITCH TRACKING FOR SNEAKY SHOT DETECTION
+  ## Tracks previous switch to determine shot type when s_lane_left is hit
+  ## 0=other/reset, 1=orbit_left, 2=upper_flipper_eos
+  ## NOTE: s_orbit_left_active and s_orbit_right_active tracking is merged
+  ## into the ORBIT SHOT TRACKING section above
+  ##############################################
+  
+  # Set previous_switch_type=2 when upper flipper EOS is triggered
+  s_flipper_left_upper_eos_active:
+    previous_switch_type:
+      action: set
+      int: 2
+  
+  # Reset previous_switch_type when other key switches are hit
+  # (these would indicate a different ball path)
+  s_orbit_upper_active:
+    previous_switch_type:
+      action: set
+      int: 0
+  
+  s_orbit_lower_active:
+    previous_switch_type:
+      action: set
+      int: 0
+  
+  s_ramp_left_exit_active:
+    previous_switch_type:
+      action: set
+      int: 0
+  
+  s_ramp_right_exit_active:
+    previous_switch_type:
+      action: set
+      int: 0
+  
+  s_ramp_tower_exit_active:
+    previous_switch_type:
+      action: set
+      int: 0
+  
+  s_ramp_inner_exit_active:
+    previous_switch_type:
+      action: set
+      int: 0
+  
+  # Reset after lane_left is processed
+  s_lane_left_active:
+    previous_switch_type:
+      action: set
+      int: 0
+
+  ##############################################
+  ## LEFT ORBIT DIVERTER TRACKING
+  ## Tracks when diverter is enabled/disabled for under flipper shot detection
+  ## OPEN = coil active (ball diverted), CLOSED = coil inactive (ball continues)
+  ##############################################
+  
+  # Diverter opened (coil active) - diverts ball
+  left_orbit_diverter_open:
+    left_orbit_diverter_active:
+      action: set
+      int: 1
+  
+  # Diverter closed (coil inactive) - ball continues through
+  left_orbit_diverter_closed:
+    left_orbit_diverter_active:
+      action: set
+      int: 0
+  
+  # Also reset on ball start
+  ball_started:
+    left_orbit_diverter_active:
+      action: set
+      int: 0
+    previous_switch_type:
+      action: set
+      int: 0
 
   ##############################################
   ## Pause/Unpause During Other Modes
@@ -988,21 +1186,65 @@ variable_player:
 ##############################################
 ## Coil Player - Mode Barrier Control
 ##############################################
+# BARRIER SEMANTICS:
+#   barrier_drop → action: enable → coil ON → barrier physically drops → path OPEN
+#   barrier_raise → action: disable → coil OFF → barrier springs up → path BLOCKED
+#
+# All modes should use barrier_drop/barrier_raise events for consistency.
+# Power settings defined in config_coils.yaml (default_hold_power: 0.375)
 
 coil_player:
-  # DROP barrier (enable hold) when TOPGUN qualified - ONLY if not in multiball
-  # Uses default_hold_power: 0.125 from coil config (safe for extended holds)
+  # UNIVERSAL BARRIER EVENTS - All modes use these
+  barrier_drop:
+    c_mode_barrier:
+      action: enable
+  
+  barrier_raise:
+    c_mode_barrier:
+      action: disable
+
+  ##############################################
+  ## LEFT ORBIT DIVERTER CONTROL
+  ## All modes should use left_orbit_diverter_open/closed events.
+  ## This ensures tracking works for under_flipper_shot detection.
+  ## OPEN = coil active (ball diverted to left lane)
+  ## CLOSED = coil inactive (ball continues through orbit)
+  ##############################################
+  
+  # Open diverter (coil active - diverts ball to left lane)
+  left_orbit_diverter_open:
+    c_left_orbit_diverter:
+      action: enable
+  
+  # Close diverter (coil inactive - ball continues through)
+  left_orbit_diverter_closed:
+    c_left_orbit_diverter:
+      action: disable
+  
+  # Right orbit diverter control
+  right_orbit_diverter_open:
+    c_right_orbit_diverter:
+      action: enable
+  
+  right_orbit_diverter_closed:
+    c_right_orbit_diverter:
+      action: disable
+
+  # DROP barrier when TOPGUN qualified - ONLY if not in multiball
   topgun_qualified{current_player.multiball_active==0}:
     c_mode_barrier:
       action: enable
 
-  # RAISE barrier (disable) when ball ends
+  # RAISE barrier and close diverters when ball ends
   ball_ending:
     c_mode_barrier:
       action: disable
+    c_left_orbit_diverter:
+      action: disable
+    c_right_orbit_diverter:
+      action: disable
 
-  # RAISE barrier (disable) - Custom event fired by pilot mission modes
-  # Each mode controls WHEN to raise the barrier via adjustable timers
+  # LEGACY EVENT - Keep for backwards compatibility, maps to barrier_raise
   pilot_mission_raise_barrier:
     c_mode_barrier:
       action: disable
@@ -1013,13 +1255,11 @@ coil_player:
       action: disable
 
   # DROP barrier when multiball ends - ONLY if qualified and not in a mode
-  # Uses default_hold_power: 0.125 from coil config (safe for extended holds)
   multiball_ended{current_player.qualified_mode_number>0}:
     c_mode_barrier:
       action: enable
 
   # DROP barrier on ball start if qualified and NOT in multiball
-  # Uses default_hold_power: 0.125 from coil config (safe for extended holds)
   mode_pilot_mission_qualifier_started{current_player.qualified_mode_number>0 and current_player.multiball_active==0}:
     c_mode_barrier:
       action: enable
@@ -1029,6 +1269,62 @@ coil_player:
 ##############################################
 
 event_player:
+  ##############################################
+  ## SPINNER SHOT DETECTION
+  ## Fire spinner_shot_made when 3+ spins occur within 2 seconds
+  ## AND lockout timer is not running (prevents rapid re-triggering)
+  ##############################################
+  
+  s_spinner_active{current_player.spinner_spin_count>=2 and device.timers.spinner_shot_lockout.running==False}:
+    - spinner_shot_made
+    - spinner_shot_reset_count
+  
+  # Reset count after shot is made (separate event to ensure it happens after shot fires)
+  spinner_shot_reset_count:
+    - timer_spinner_shot_timeout_stop
+
+  ##############################################
+  ## ORBIT SHOT DETECTION
+  ## Left orbit: s_orbit_left -> s_orbit_right (fires left_orbit_shot_hit)
+  ## Right orbit: s_orbit_right -> s_orbit_left (fires right_orbit_shot_hit)
+  ## Uses ONLY timer.running checks - no orbit_pending variable
+  ## This avoids race conditions between variable_player and event_player
+  ##############################################
+  
+  # Left orbit complete: s_orbit_right hit while left orbit timer running
+  s_orbit_right_active{device.timers.left_orbit_shot_timeout.running}:
+    - left_orbit_shot_hit
+    - timer_left_orbit_shot_timeout_stop
+  
+  # Right orbit complete: s_orbit_left hit while right orbit timer running
+  s_orbit_left_active{device.timers.right_orbit_shot_timeout.running}:
+    - right_orbit_shot_hit
+    - timer_right_orbit_shot_timeout_stop
+
+  ##############################################
+  ## SNEAKY SHOT DETECTION
+  ## Fires when s_lane_left is hit AND the previous switch was NOT:
+  ## - s_orbit_left (previous_switch_type=1)
+  ## - s_flipper_left_upper_eos (previous_switch_type=2)
+  ## This means the ball snuck into the left lane without coming from
+  ## the left orbit or being flipped by the upper left flipper.
+  ##############################################
+  
+  s_lane_left_active{current_player.previous_switch_type!=1 and current_player.previous_switch_type!=2}:
+    - sneaky_shot_hit
+  
+  ##############################################
+  ## UNDER FLIPPER SHOT DETECTION
+  ## Fires when s_lane_left is hit AND:
+  ## - The upper left flipper EOS was the previous switch (previous_switch_type=2)
+  ##   OR the upper left flipper EOS is still active
+  ## - AND the left orbit diverter is NOT active (ball wasn't diverted)
+  ## This means the ball went under the upper left flipper into the lane.
+  ##############################################
+  
+  s_lane_left_active{(current_player.previous_switch_type==2 or device.switches.s_flipper_left_upper_eos.state) and current_player.left_orbit_diverter_active==0}:
+    - under_flipper_shot_hit
+
   ##############################################
   ## Pilot Mission Bonus Ready - Post when drain cleanup completes
   ## Only posts if pilot_mode_drain_pending==1 (set by pilot mode on drain)
@@ -1054,39 +1350,39 @@ event_player:
     - qualify_rescue_cougar
     - topgun_qualified
 
-  player_topgun_shots_collected{value==6 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_complete==0}:
+  player_topgun_shots_collected{value==6 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_played==0}:
     - qualify_balls_of_fire
     - topgun_qualified
 
-  player_topgun_shots_collected{value==6 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==0}:
+  player_topgun_shots_collected{value==6 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==0}:
     - qualify_cool_under_pressure
     - topgun_qualified
 
-  player_topgun_shots_collected{value==6 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==0}:
+  player_topgun_shots_collected{value==6 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==0}:
     - qualify_battle_jester
     - topgun_qualified
 
-  player_topgun_shots_collected{value==6 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==0}:
+  player_topgun_shots_collected{value==6 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==0}:
     - qualify_no_points_for_second_place
     - topgun_qualified
 
-  player_topgun_shots_collected{value==6 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==0}:
+  player_topgun_shots_collected{value==6 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==0}:
     - qualify_edge_of_space
     - topgun_qualified
 
-  player_topgun_shots_collected{value==6 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==0}:
+  player_topgun_shots_collected{value==6 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==0}:
     - qualify_below_the_hard_deck
     - topgun_qualified
 
-  player_topgun_shots_collected{value==6 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_complete==0}:
+  player_topgun_shots_collected{value==6 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==0}:
     - qualify_canyon_run
     - topgun_qualified
 
-  player_topgun_shots_collected{value==6 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_rise_of_phoenix_complete==0}:
+  player_topgun_shots_collected{value==6 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==0}:
     - qualify_rise_of_phoenix
     - topgun_qualified
 
-  player_topgun_shots_collected{value==6 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_no_margin_for_error_complete==0}:
+  player_topgun_shots_collected{value==6 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_no_margin_for_error_played==0}:
     - qualify_no_margin_for_error
     - topgun_qualified
   
@@ -1154,133 +1450,133 @@ event_player:
   rotate_qualified_mode{current_player.qualified_mode_number==1 and current_player.mode_balls_of_fire_played==0}:
     qualify_balls_of_fire
   
-  rotate_qualified_mode{current_player.qualified_mode_number==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==0}:
     qualify_cool_under_pressure
   
-  rotate_qualified_mode{current_player.qualified_mode_number==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==0}:
     qualify_battle_jester
   
-  rotate_qualified_mode{current_player.qualified_mode_number==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==0}:
     qualify_no_points_for_second_place
   
-  rotate_qualified_mode{current_player.qualified_mode_number==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==0}:
     qualify_edge_of_space
   
-  rotate_qualified_mode{current_player.qualified_mode_number==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==0}:
     qualify_below_the_hard_deck
   
-  rotate_qualified_mode{current_player.qualified_mode_number==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==0}:
     qualify_canyon_run
   
-  rotate_qualified_mode{current_player.qualified_mode_number==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_rise_of_phoenix_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==0}:
     qualify_rise_of_phoenix
   
-  rotate_qualified_mode{current_player.qualified_mode_number==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_no_margin_for_error_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_no_margin_for_error_played==0}:
     qualify_no_margin_for_error
   
   rotate_qualified_mode{current_player.qualified_mode_number==2 and current_player.mode_cool_under_pressure_played==0}:
     qualify_cool_under_pressure
   
-  rotate_qualified_mode{current_player.qualified_mode_number==2 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==2 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==0}:
     qualify_battle_jester
   
-  rotate_qualified_mode{current_player.qualified_mode_number==2 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==2 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==0}:
     qualify_no_points_for_second_place
   
-  rotate_qualified_mode{current_player.qualified_mode_number==2 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==2 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==0}:
     qualify_edge_of_space
   
-  rotate_qualified_mode{current_player.qualified_mode_number==2 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==2 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==0}:
     qualify_below_the_hard_deck
   
-  rotate_qualified_mode{current_player.qualified_mode_number==2 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==2 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==0}:
     qualify_canyon_run
   
-  rotate_qualified_mode{current_player.qualified_mode_number==2 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_rise_of_phoenix_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==2 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==0}:
     qualify_rise_of_phoenix
   
-  rotate_qualified_mode{current_player.qualified_mode_number==2 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_no_margin_for_error_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==2 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_no_margin_for_error_played==0}:
     qualify_no_margin_for_error
   
   rotate_qualified_mode{current_player.qualified_mode_number==3 and current_player.mode_battle_jester_played==0}:
     qualify_battle_jester
   
-  rotate_qualified_mode{current_player.qualified_mode_number==3 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==3 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==0}:
     qualify_no_points_for_second_place
   
-  rotate_qualified_mode{current_player.qualified_mode_number==3 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==3 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==0}:
     qualify_edge_of_space
   
-  rotate_qualified_mode{current_player.qualified_mode_number==3 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==3 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==0}:
     qualify_below_the_hard_deck
   
-  rotate_qualified_mode{current_player.qualified_mode_number==3 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==3 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==0}:
     qualify_canyon_run
   
-  rotate_qualified_mode{current_player.qualified_mode_number==3 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_rise_of_phoenix_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==3 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==0}:
     qualify_rise_of_phoenix
   
-  rotate_qualified_mode{current_player.qualified_mode_number==3 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_no_margin_for_error_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==3 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_no_margin_for_error_played==0}:
     qualify_no_margin_for_error
   
   rotate_qualified_mode{current_player.qualified_mode_number==4 and current_player.mode_no_points_for_second_place_played==0}:
     qualify_no_points_for_second_place
   
-  rotate_qualified_mode{current_player.qualified_mode_number==4 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==4 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==0}:
     qualify_edge_of_space
   
-  rotate_qualified_mode{current_player.qualified_mode_number==4 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==4 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==0}:
     qualify_below_the_hard_deck
   
-  rotate_qualified_mode{current_player.qualified_mode_number==4 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==4 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==0}:
     qualify_canyon_run
   
-  rotate_qualified_mode{current_player.qualified_mode_number==4 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_rise_of_phoenix_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==4 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==0}:
     qualify_rise_of_phoenix
   
-  rotate_qualified_mode{current_player.qualified_mode_number==4 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_no_margin_for_error_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==4 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_no_margin_for_error_played==0}:
     qualify_no_margin_for_error
   
   rotate_qualified_mode{current_player.qualified_mode_number==5 and current_player.mode_edge_of_space_played==0}:
     qualify_edge_of_space
   
-  rotate_qualified_mode{current_player.qualified_mode_number==5 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==5 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==0}:
     qualify_below_the_hard_deck
   
-  rotate_qualified_mode{current_player.qualified_mode_number==5 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==5 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==0}:
     qualify_canyon_run
   
-  rotate_qualified_mode{current_player.qualified_mode_number==5 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_rise_of_phoenix_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==5 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==0}:
     qualify_rise_of_phoenix
   
-  rotate_qualified_mode{current_player.qualified_mode_number==5 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_no_margin_for_error_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==5 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_no_margin_for_error_played==0}:
     qualify_no_margin_for_error
   
   rotate_qualified_mode{current_player.qualified_mode_number==6 and current_player.mode_below_the_hard_deck_played==0}:
     qualify_below_the_hard_deck
   
-  rotate_qualified_mode{current_player.qualified_mode_number==6 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==6 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==0}:
     qualify_canyon_run
   
-  rotate_qualified_mode{current_player.qualified_mode_number==6 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_rise_of_phoenix_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==6 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==0}:
     qualify_rise_of_phoenix
   
-  rotate_qualified_mode{current_player.qualified_mode_number==6 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_no_margin_for_error_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==6 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_no_margin_for_error_played==0}:
     qualify_no_margin_for_error
   
   rotate_qualified_mode{current_player.qualified_mode_number==7 and current_player.mode_canyon_run_played==0}:
     qualify_canyon_run
   
-  rotate_qualified_mode{current_player.qualified_mode_number==7 and current_player.mode_canyon_run_complete==1 and current_player.mode_rise_of_phoenix_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==7 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==0}:
     qualify_rise_of_phoenix
   
-  rotate_qualified_mode{current_player.qualified_mode_number==7 and current_player.mode_canyon_run_complete==1 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_no_margin_for_error_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==7 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_no_margin_for_error_played==0}:
     qualify_no_margin_for_error
   
   rotate_qualified_mode{current_player.qualified_mode_number==8 and current_player.mode_rise_of_phoenix_played==0}:
     qualify_rise_of_phoenix
   
-  rotate_qualified_mode{current_player.qualified_mode_number==8 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_no_margin_for_error_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==8 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_no_margin_for_error_played==0}:
     qualify_no_margin_for_error
   
   rotate_qualified_mode{current_player.qualified_mode_number==9 and current_player.mode_no_margin_for_error_played==0}:
@@ -1294,25 +1590,25 @@ event_player:
   rotate_qualified_mode{current_player.qualified_mode_number==10 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_played==0}:
     qualify_balls_of_fire
   
-  rotate_qualified_mode{current_player.qualified_mode_number==10 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==10 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==0}:
     qualify_cool_under_pressure
   
-  rotate_qualified_mode{current_player.qualified_mode_number==10 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==10 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==0}:
     qualify_battle_jester
   
-  rotate_qualified_mode{current_player.qualified_mode_number==10 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==10 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==0}:
     qualify_no_points_for_second_place
   
-  rotate_qualified_mode{current_player.qualified_mode_number==10 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==10 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==0}:
     qualify_edge_of_space
   
-  rotate_qualified_mode{current_player.qualified_mode_number==10 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==10 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==0}:
     qualify_below_the_hard_deck
   
-  rotate_qualified_mode{current_player.qualified_mode_number==10 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==10 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==0}:
     qualify_canyon_run
   
-  rotate_qualified_mode{current_player.qualified_mode_number==10 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_rise_of_phoenix_played==0}:
+  rotate_qualified_mode{current_player.qualified_mode_number==10 and current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==0}:
     qualify_rise_of_phoenix
 
   ##############################################
@@ -1322,127 +1618,127 @@ event_player:
   rotate_qualified_mode_backwards{current_player.qualified_mode_number==10 and current_player.mode_rise_of_phoenix_played==0}:
     qualify_rise_of_phoenix
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==10 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_canyon_run_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==10 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==0}:
     qualify_canyon_run
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==10 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==10 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==0}:
     qualify_below_the_hard_deck
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==10 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==10 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==0}:
     qualify_edge_of_space
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==10 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==10 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==0}:
     qualify_no_points_for_second_place
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==10 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==10 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==0}:
     qualify_battle_jester
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==10 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==10 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==0}:
     qualify_cool_under_pressure
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==10 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_balls_of_fire_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==10 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==0}:
     qualify_balls_of_fire
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==10 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_rescue_cougar_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==10 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_rescue_cougar_played==0}:
     qualify_rescue_cougar
   
   rotate_qualified_mode_backwards{current_player.qualified_mode_number==9 and current_player.mode_canyon_run_played==0}:
     qualify_canyon_run
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==9 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==9 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==0}:
     qualify_below_the_hard_deck
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==9 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==9 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==0}:
     qualify_edge_of_space
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==9 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==9 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==0}:
     qualify_no_points_for_second_place
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==9 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==9 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==0}:
     qualify_battle_jester
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==9 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==9 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==0}:
     qualify_cool_under_pressure
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==9 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_balls_of_fire_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==9 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==0}:
     qualify_balls_of_fire
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==9 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_rescue_cougar_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==9 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_rescue_cougar_played==0}:
     qualify_rescue_cougar
   
   rotate_qualified_mode_backwards{current_player.qualified_mode_number==8 and current_player.mode_below_the_hard_deck_played==0}:
     qualify_below_the_hard_deck
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==8 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==8 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==0}:
     qualify_edge_of_space
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==8 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==8 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==0}:
     qualify_no_points_for_second_place
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==8 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==8 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==0}:
     qualify_battle_jester
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==8 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==8 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==0}:
     qualify_cool_under_pressure
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==8 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_balls_of_fire_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==8 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==0}:
     qualify_balls_of_fire
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==8 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_rescue_cougar_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==8 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_rescue_cougar_played==0}:
     qualify_rescue_cougar
   
   rotate_qualified_mode_backwards{current_player.qualified_mode_number==7 and current_player.mode_edge_of_space_played==0}:
     qualify_edge_of_space
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==7 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==7 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==0}:
     qualify_no_points_for_second_place
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==7 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==7 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==0}:
     qualify_battle_jester
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==7 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==7 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==0}:
     qualify_cool_under_pressure
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==7 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_balls_of_fire_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==7 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==0}:
     qualify_balls_of_fire
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==7 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_rescue_cougar_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==7 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_rescue_cougar_played==0}:
     qualify_rescue_cougar
   
   rotate_qualified_mode_backwards{current_player.qualified_mode_number==6 and current_player.mode_no_points_for_second_place_played==0}:
     qualify_no_points_for_second_place
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==6 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==6 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==0}:
     qualify_battle_jester
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==6 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==6 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==0}:
     qualify_cool_under_pressure
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==6 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_balls_of_fire_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==6 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==0}:
     qualify_balls_of_fire
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==6 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_rescue_cougar_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==6 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_rescue_cougar_played==0}:
     qualify_rescue_cougar
   
   rotate_qualified_mode_backwards{current_player.qualified_mode_number==5 and current_player.mode_battle_jester_played==0}:
     qualify_battle_jester
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==5 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==5 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==0}:
     qualify_cool_under_pressure
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==5 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_balls_of_fire_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==5 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==0}:
     qualify_balls_of_fire
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==5 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_rescue_cougar_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==5 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_rescue_cougar_played==0}:
     qualify_rescue_cougar
   
   rotate_qualified_mode_backwards{current_player.qualified_mode_number==4 and current_player.mode_cool_under_pressure_played==0}:
     qualify_cool_under_pressure
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==4 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_balls_of_fire_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==4 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==0}:
     qualify_balls_of_fire
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==4 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_rescue_cougar_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==4 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_rescue_cougar_played==0}:
     qualify_rescue_cougar
   
   rotate_qualified_mode_backwards{current_player.qualified_mode_number==3 and current_player.mode_balls_of_fire_played==0}:
@@ -1484,28 +1780,28 @@ event_player:
   rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_no_margin_for_error_played==0}:
     qualify_no_margin_for_error
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_no_margin_for_error_complete==1 and current_player.mode_rise_of_phoenix_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_no_margin_for_error_played==1 and current_player.mode_rise_of_phoenix_played==0}:
     qualify_rise_of_phoenix
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_no_margin_for_error_complete==1 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_canyon_run_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_no_margin_for_error_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==0}:
     qualify_canyon_run
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_no_margin_for_error_complete==1 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_no_margin_for_error_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==0}:
     qualify_below_the_hard_deck
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_no_margin_for_error_complete==1 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_no_margin_for_error_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==0}:
     qualify_edge_of_space
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_no_margin_for_error_complete==1 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_no_margin_for_error_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==0}:
     qualify_no_points_for_second_place
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_no_margin_for_error_complete==1 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_no_margin_for_error_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==0}:
     qualify_battle_jester
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_no_margin_for_error_complete==1 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_no_margin_for_error_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==0}:
     qualify_cool_under_pressure
   
-  rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_no_margin_for_error_complete==1 and current_player.mode_rise_of_phoenix_complete==1 and current_player.mode_canyon_run_complete==1 and current_player.mode_below_the_hard_deck_complete==1 and current_player.mode_edge_of_space_complete==1 and current_player.mode_no_points_for_second_place_complete==1 and current_player.mode_battle_jester_complete==1 and current_player.mode_cool_under_pressure_complete==1 and current_player.mode_balls_of_fire_played==0}:
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_no_margin_for_error_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==0}:
     qualify_balls_of_fire
 
   ##############################################
@@ -1516,31 +1812,31 @@ event_player:
   s_mode_start_active{current_player.qualified_mode_number==1 and current_player.mode_rescue_cougar_played==0}:
     - start_mode_rescue_cougar
   
-  s_mode_start_active{current_player.qualified_mode_number==2 and current_player.mode_balls_of_fire_complete==0}:
+  s_mode_start_active{current_player.qualified_mode_number==2 and current_player.mode_balls_of_fire_played==0}:
     - start_mode_balls_of_fire
   
-  s_mode_start_active{current_player.qualified_mode_number==3 and current_player.mode_cool_under_pressure_complete==0}:
+  s_mode_start_active{current_player.qualified_mode_number==3 and current_player.mode_cool_under_pressure_played==0}:
     - start_mode_cool_under_pressure
   
-  s_mode_start_active{current_player.qualified_mode_number==4 and current_player.mode_battle_jester_complete==0}:
+  s_mode_start_active{current_player.qualified_mode_number==4 and current_player.mode_battle_jester_played==0}:
     - start_mode_battle_jester
   
-  s_mode_start_active{current_player.qualified_mode_number==5 and current_player.mode_no_points_for_second_place_complete==0}:
+  s_mode_start_active{current_player.qualified_mode_number==5 and current_player.mode_no_points_for_second_place_played==0}:
     - start_mode_no_points_for_second_place
   
-  s_mode_start_active{current_player.qualified_mode_number==6 and current_player.mode_edge_of_space_complete==0}:
+  s_mode_start_active{current_player.qualified_mode_number==6 and current_player.mode_edge_of_space_played==0}:
     - start_mode_edge_of_space
   
-  s_mode_start_active{current_player.qualified_mode_number==7 and current_player.mode_below_the_hard_deck_complete==0}:
+  s_mode_start_active{current_player.qualified_mode_number==7 and current_player.mode_below_the_hard_deck_played==0}:
     - start_mode_below_the_hard_deck
   
-  s_mode_start_active{current_player.qualified_mode_number==8 and current_player.mode_canyon_run_complete==0}:
+  s_mode_start_active{current_player.qualified_mode_number==8 and current_player.mode_canyon_run_played==0}:
     - start_mode_canyon_run
   
-  s_mode_start_active{current_player.qualified_mode_number==9 and current_player.mode_rise_of_phoenix_complete==0}:
+  s_mode_start_active{current_player.qualified_mode_number==9 and current_player.mode_rise_of_phoenix_played==0}:
     - start_mode_rise_of_phoenix
   
-  s_mode_start_active{current_player.qualified_mode_number==10 and current_player.mode_no_margin_for_error_complete==0}:
+  s_mode_start_active{current_player.qualified_mode_number==10 and current_player.mode_no_margin_for_error_played==0}:
     - start_mode_no_margin_for_error
   
   ##############################################
@@ -1609,6 +1905,17 @@ show_player:
   
   # Restart pulsing when letter collection unpaused (and not yet qualified)
   player_letter_collection_paused{value==0 and current_player.qualified_mode_number==0}:
+    qualifying_shots_pulse:
+      loops: -1
+      speed: 1
+  
+  # Stop pulsing during skillshot (pilot_qualifier_paused)
+  player_pilot_qualifier_paused{value==1 and current_player.qualified_mode_number==0}:
+    qualifying_shots_pulse:
+      action: stop
+
+  # Restart pulsing when skillshot ends (and not yet qualified)
+  player_pilot_qualifier_paused{value==0 and current_player.qualified_mode_number==0}:
     qualifying_shots_pulse:
       loops: -1
       speed: 1
@@ -1778,7 +2085,7 @@ show_player:
         color: white
       key: rescue_cougar_pulse
   
-  restore_qualified_mode_light{current_player.qualified_mode_number==2 and current_player.mode_balls_of_fire_complete==0}:
+  restore_qualified_mode_light{current_player.qualified_mode_number==2 and current_player.mode_balls_of_fire_played==0}:
     pulse_mode_light:
       loops: -1
       speed: 1
@@ -1787,7 +2094,7 @@ show_player:
         color: white
       key: balls_of_fire_pulse
   
-  restore_qualified_mode_light{current_player.qualified_mode_number==3 and current_player.mode_cool_under_pressure_complete==0}:
+  restore_qualified_mode_light{current_player.qualified_mode_number==3 and current_player.mode_cool_under_pressure_played==0}:
     pulse_mode_light:
       loops: -1
       speed: 1
@@ -1796,7 +2103,7 @@ show_player:
         color: white
       key: cool_under_pressure_pulse
   
-  restore_qualified_mode_light{current_player.qualified_mode_number==4 and current_player.mode_battle_jester_complete==0}:
+  restore_qualified_mode_light{current_player.qualified_mode_number==4 and current_player.mode_battle_jester_played==0}:
     pulse_mode_light:
       loops: -1
       speed: 1
@@ -1805,7 +2112,7 @@ show_player:
         color: white
       key: battle_jester_pulse
   
-  restore_qualified_mode_light{current_player.qualified_mode_number==5 and current_player.mode_no_points_for_second_place_complete==0}:
+  restore_qualified_mode_light{current_player.qualified_mode_number==5 and current_player.mode_no_points_for_second_place_played==0}:
     pulse_mode_light:
       loops: -1
       speed: 1
@@ -1814,7 +2121,7 @@ show_player:
         color: white
       key: no_points_pulse
   
-  restore_qualified_mode_light{current_player.qualified_mode_number==6 and current_player.mode_edge_of_space_complete==0}:
+  restore_qualified_mode_light{current_player.qualified_mode_number==6 and current_player.mode_edge_of_space_played==0}:
     pulse_mode_light:
       loops: -1
       speed: 1
@@ -1823,7 +2130,7 @@ show_player:
         color: white
       key: edge_of_space_pulse
   
-  restore_qualified_mode_light{current_player.qualified_mode_number==7 and current_player.mode_below_the_hard_deck_complete==0}:
+  restore_qualified_mode_light{current_player.qualified_mode_number==7 and current_player.mode_below_the_hard_deck_played==0}:
     pulse_mode_light:
       loops: -1
       speed: 1
@@ -1832,7 +2139,7 @@ show_player:
         color: white
       key: below_hard_deck_pulse
   
-  restore_qualified_mode_light{current_player.qualified_mode_number==8 and current_player.mode_canyon_run_complete==0}:
+  restore_qualified_mode_light{current_player.qualified_mode_number==8 and current_player.mode_canyon_run_played==0}:
     pulse_mode_light:
       loops: -1
       speed: 1
@@ -1841,7 +2148,7 @@ show_player:
         color: white
       key: canyon_run_pulse
   
-  restore_qualified_mode_light{current_player.qualified_mode_number==9 and current_player.mode_rise_of_phoenix_complete==0}:
+  restore_qualified_mode_light{current_player.qualified_mode_number==9 and current_player.mode_rise_of_phoenix_played==0}:
     pulse_mode_light:
       loops: -1
       speed: 1
@@ -1850,7 +2157,7 @@ show_player:
         color: white
       key: rise_of_phoenix_pulse
   
-  restore_qualified_mode_light{current_player.qualified_mode_number==10 and current_player.mode_no_margin_for_error_complete==0}:
+  restore_qualified_mode_light{current_player.qualified_mode_number==10 and current_player.mode_no_margin_for_error_played==0}:
     pulse_mode_light:
       loops: -1
       speed: 1
@@ -1891,7 +2198,7 @@ light_player:
   topgun_qualified:
     l_pilot_mission_lit:
       color: white
-      fade: 100ms
+      fade: 0ms
     l_shot_left_lane:
       color: off
     l_shot_left_orbit:
@@ -2032,47 +2339,47 @@ light_player:
       color: white
       fade: 0ms
   
-  stop_all_mode_pulse_shows{current_player.mode_balls_of_fire_complete==1}:
+  stop_all_mode_pulse_shows{current_player.mode_balls_of_fire_played==1}:
     l_mode_balls_of_fire:
       color: white
       fade: 0ms
   
-  stop_all_mode_pulse_shows{current_player.mode_cool_under_pressure_complete==1}:
+  stop_all_mode_pulse_shows{current_player.mode_cool_under_pressure_played==1}:
     l_mode_cool_under_pressure:
       color: white
       fade: 0ms
   
-  stop_all_mode_pulse_shows{current_player.mode_battle_jester_complete==1}:
+  stop_all_mode_pulse_shows{current_player.mode_battle_jester_played==1}:
     l_mode_battle_jester:
       color: white
       fade: 0ms
   
-  stop_all_mode_pulse_shows{current_player.mode_no_points_for_second_place_complete==1}:
+  stop_all_mode_pulse_shows{current_player.mode_no_points_for_second_place_played==1}:
     l_mode_no_points_for_second_place:
       color: white
       fade: 0ms
   
-  stop_all_mode_pulse_shows{current_player.mode_edge_of_space_complete==1}:
+  stop_all_mode_pulse_shows{current_player.mode_edge_of_space_played==1}:
     l_mode_edge_of_space:
       color: white
       fade: 0ms
   
-  stop_all_mode_pulse_shows{current_player.mode_below_the_hard_deck_complete==1}:
+  stop_all_mode_pulse_shows{current_player.mode_below_the_hard_deck_played==1}:
     l_mode_below_the_hard_deck:
       color: white
       fade: 0ms
   
-  stop_all_mode_pulse_shows{current_player.mode_canyon_run_complete==1}:
+  stop_all_mode_pulse_shows{current_player.mode_canyon_run_played==1}:
     l_mode_canyon_run:
       color: white
       fade: 0ms
   
-  stop_all_mode_pulse_shows{current_player.mode_rise_of_phoenix_complete==1}:
+  stop_all_mode_pulse_shows{current_player.mode_rise_of_phoenix_played==1}:
     l_mode_rise_of_phoenix:
       color: white
       fade: 0ms
   
-  stop_all_mode_pulse_shows{current_player.mode_no_margin_for_error_complete==1}:
+  stop_all_mode_pulse_shows{current_player.mode_no_margin_for_error_played==1}:
     l_mode_no_margin_for_error:
       color: white
       fade: 0ms

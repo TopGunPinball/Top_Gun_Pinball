@@ -126,16 +126,18 @@ timers:
     control_events:
       - event: mode_battle_jester_started
         action: start
+      - event: battle_jester_skip_intro
+        action: stop
 
   # Barrier release delay after ball eject
   battle_jester_barrier_delay:
     start_value: 0
-    end_value: 1
+    end_value: 2
     direction: up
     tick_interval: 1s
     control_events:
       - event: battle_jester_ball_released
-        action: start
+        action: restart
 
   # Debounce timer for mode scoop
   battle_jester_mode_scoop_debounce:
@@ -156,6 +158,8 @@ timers:
     control_events:
       - event: battle_jester_step_6_complete
         action: start
+      - event: battle_jester_skip_step_6
+        action: stop
         
   # Step 7 video delay
   battle_jester_step_7_video_delay:
@@ -474,7 +478,7 @@ variable_player:
       action: add
       int: 125000 * current_player.total_scoring_multiplier
       
-  s_spinner_active{current_player.battle_jester_step==0}:
+  spinner_shot_made{current_player.battle_jester_step==0}:
     battle_jester_points_bank:
       action: add
       int: 100000 * current_player.total_scoring_multiplier
@@ -485,7 +489,7 @@ variable_player:
       action: add
       int: 125000 * current_player.total_scoring_multiplier
       
-  s_spinner_active{current_player.battle_jester_step==1}:
+  spinner_shot_made{current_player.battle_jester_step==1}:
     battle_jester_points_bank:
       action: add
       int: 100000 * current_player.total_scoring_multiplier
@@ -527,7 +531,7 @@ variable_player:
       action: add
       int: 125000 * current_player.total_scoring_multiplier
       
-  s_spinner_active{current_player.battle_jester_step==3}:
+  spinner_shot_made{current_player.battle_jester_step==3}:
     battle_jester_points_bank:
       action: add
       int: 100000 * current_player.total_scoring_multiplier
@@ -804,9 +808,26 @@ event_player:
     - battle_jester_ball_released
     - battle_jester_setup_step_1
 
-  # Raise barrier after delay
+  # Raise barrier after delay (ball released from intro or step 6)
   timer_battle_jester_barrier_delay_complete:
     - battle_jester_barrier_raise
+
+  ##############################################
+  ## BARRIER CONTROL - Standardized Events
+  ## All barrier control goes through pilot_mission_qualifier
+  ##############################################
+  
+  # Step 6 setup - DROP barrier to allow ball entry to scoop
+  battle_jester_setup_step_6:
+    - barrier_drop
+  
+  # After ball release - RAISE barrier to prevent immediate re-entry
+  battle_jester_barrier_raise:
+    - barrier_raise
+  
+  # Mode cleanup - RAISE barrier (let qualification logic handle dropping if needed)
+  battle_jester_cleanup:
+    - barrier_raise
 
   ##############################################
   ##############################################
@@ -830,7 +851,7 @@ event_player:
     - battle_jester_setup_step_2
     - battle_jester_add_time_green
 
-  s_spinner_active{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks < 10}:
+  spinner_shot_made{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks < 10}:
     - battle_jester_step_1_complete
     - battle_jester_setup_step_2
     - battle_jester_add_time_green
@@ -839,7 +860,7 @@ event_player:
   s_lane_left_active{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks >= 20}:
     - battle_jester_subtract_time_red
 
-  s_spinner_active{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks >= 10}:
+  spinner_shot_made{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks >= 10}:
     - battle_jester_subtract_time_red
 
   ##############################################
@@ -853,7 +874,7 @@ event_player:
     - battle_jester_setup_step_3
     - battle_jester_add_time_green
 
-  s_spinner_active{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks < 20}:
+  spinner_shot_made{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks < 20}:
     - battle_jester_step_2_complete
     - battle_jester_setup_step_3
     - battle_jester_add_time_green
@@ -872,7 +893,7 @@ event_player:
   s_orbit_upper_active{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks >= 10}:
     - battle_jester_subtract_time_red
 
-  s_spinner_active{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks >= 20}:
+  spinner_shot_made{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks >= 20}:
     - battle_jester_subtract_time_red
 
   s_barrier_target_active{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks >= 30}:
@@ -925,7 +946,7 @@ event_player:
     - battle_jester_setup_step_5
     - battle_jester_add_time_green
 
-  s_spinner_active{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks < 10}:
+  spinner_shot_made{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks < 10}:
     - battle_jester_step_4_complete
     - battle_jester_setup_step_5
     - battle_jester_add_time_green
@@ -936,7 +957,7 @@ event_player:
     - battle_jester_add_time_green
 
   # RED shots
-  s_spinner_active{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks >= 10}:
+  spinner_shot_made{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks >= 10}:
     - battle_jester_subtract_time_red
 
   s_orbit_left_active{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks >= 20}:
@@ -1003,9 +1024,9 @@ event_player:
   timer_battle_jester_step_6_video_delay_complete:
     - battle_jester_step_6_ball_release
     
+  # Step 6 ball release - barrier raise handled by battle_jester_barrier_delay timer
   battle_jester_step_6_ball_release:
     - battle_jester_ball_released
-    - battle_jester_barrier_raise
 
   # Step 7 starts when ball leaves scoop (after step 6)
   s_mode_start_inactive{current_player.battle_jester_step==6}:
@@ -1049,7 +1070,7 @@ event_player:
   ##############################################
   
   # Spinner or right orbit activates diverter
-  s_spinner_active{current_player.battle_jester_step==10}:
+  spinner_shot_made{current_player.battle_jester_step==10}:
     - battle_jester_activate_left_diverter
     
   s_orbit_right_active{current_player.battle_jester_step==10}:
@@ -1150,7 +1171,7 @@ event_player:
     - battle_jester_subtract_time_red
   s_ramp_left_exit_active{current_player.battle_jester_step==2}:
     - battle_jester_subtract_time_red
-  s_spinner_active{current_player.battle_jester_step==2}:
+  spinner_shot_made{current_player.battle_jester_step==2}:
     - battle_jester_subtract_time_red
   s_barrier_target_active{current_player.battle_jester_step==2}:
     - battle_jester_subtract_time_red
@@ -1186,7 +1207,7 @@ event_player:
     - battle_jester_subtract_time_red
   s_ramp_left_exit_active{current_player.battle_jester_step==4}:
     - battle_jester_subtract_time_red
-  s_spinner_active{current_player.battle_jester_step==4}:
+  spinner_shot_made{current_player.battle_jester_step==4}:
     - battle_jester_subtract_time_red
   s_barrier_target_active{current_player.battle_jester_step==4}:
     - battle_jester_subtract_time_red
@@ -1208,7 +1229,7 @@ event_player:
     - battle_jester_subtract_time_red
   s_flight_gear_target_active{current_player.battle_jester_step==6}:
     - battle_jester_subtract_time_red
-  s_spinner_active{current_player.battle_jester_step==6}:
+  spinner_shot_made{current_player.battle_jester_step==6}:
     - battle_jester_subtract_time_red
 
   # Step 10 red shots (after ramps complete, trying to hit left lane)
@@ -2325,85 +2346,85 @@ light_player:
     # Odd numbered GI lights = white
     l_gi_light_1:
       color: white
-      fade: 500ms
+      fade: 0ms
     l_gi_light_3:
       color: white
-      fade: 500ms
+      fade: 0ms
     l_gi_light_5:
       color: white
-      fade: 500ms
+      fade: 0ms
     l_gi_light_7:
       color: white
-      fade: 500ms
+      fade: 0ms
     l_gi_light_9:
       color: white
-      fade: 500ms
+      fade: 0ms
     l_gi_light_11:
       color: white
-      fade: 500ms
+      fade: 0ms
     l_gi_light_13:
       color: white
-      fade: 500ms
+      fade: 0ms
     l_gi_light_15:
       color: white
-      fade: 500ms
+      fade: 0ms
     l_gi_light_17:
       color: white
-      fade: 500ms
+      fade: 0ms
     l_gi_light_21:
       color: white
-      fade: 500ms
+      fade: 0ms
     l_gi_light_23:
       color: white
-      fade: 500ms
+      fade: 0ms
     # Even numbered GI lights = purple
     l_gi_light_2:
       color: purple
-      fade: 500ms
+      fade: 0ms
     l_gi_light_4:
       color: purple
-      fade: 500ms
+      fade: 0ms
     l_gi_light_6:
       color: purple
-      fade: 500ms
+      fade: 0ms
     l_gi_light_8:
       color: purple
-      fade: 500ms
+      fade: 0ms
     l_gi_light_10:
       color: purple
-      fade: 500ms
+      fade: 0ms
     l_gi_light_12:
       color: purple
-      fade: 500ms
+      fade: 0ms
     l_gi_light_14:
       color: purple
-      fade: 500ms
+      fade: 0ms
     l_gi_light_16:
       color: purple
-      fade: 500ms
+      fade: 0ms
     l_gi_light_18:
       color: purple
-      fade: 500ms
+      fade: 0ms
     l_gi_light_20:
       color: purple
-      fade: 500ms
+      fade: 0ms
     l_gi_light_22:
       color: purple
-      fade: 500ms
+      fade: 0ms
     # Pop bumper lights = purple
     l_gi_light_pop_left:
       color: purple
-      fade: 500ms
+      fade: 0ms
     l_gi_light_pop_right:
       color: purple
-      fade: 500ms
+      fade: 0ms
     l_gi_light_pop_bottom:
       color: purple
-      fade: 500ms
+      fade: 0ms
     # Light 19 = white (odd pattern)
     l_gi_light_19:
       color: white
-      fade: 500ms
+      fade: 0ms
 
   ##############################################
   ## STEP 1 - Green: lane_left, orbit_left, ramp_left, spinner
@@ -2533,35 +2554,35 @@ light_player:
     # Green shots
     l_shot_upper_orbit:
       color: lime
-      fade: 100ms
+      fade: 0ms
     l_shot_middle_ramp:
       color: lime
-      fade: 100ms
+      fade: 0ms
     l_shot_pilot_gear:
       color: lime
-      fade: 100ms
+      fade: 0ms
     l_shot_right_orbit:
       color: lime
-      fade: 100ms
+      fade: 0ms
     # Red shots
     l_shot_left_lane:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_left_orbit:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_left_ramp:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_spinner:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_barrier:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_tower_ramp:
       color: red
-      fade: 100ms
+      fade: 0ms
 
 
   # Step 3 - Right orbit: green → orange at 8s
@@ -2625,35 +2646,35 @@ light_player:
     # Green shots
     l_shot_left_ramp:
       color: lime
-      fade: 100ms
+      fade: 0ms
     l_shot_spinner:
       color: lime
-      fade: 100ms
+      fade: 0ms
     l_shot_left_orbit:
       color: lime
-      fade: 100ms
+      fade: 0ms
     # Red shots
     l_shot_left_lane:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_barrier:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_tower_ramp:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_upper_orbit:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_middle_ramp:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_pilot_gear:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_right_orbit:
       color: red
-      fade: 100ms
+      fade: 0ms
 
 
   # Step 4 - Spinner: green → orange at 8s
@@ -2707,35 +2728,35 @@ light_player:
     # Green shots
     l_shot_right_orbit:
       color: lime
-      fade: 100ms
+      fade: 0ms
     l_shot_pilot_gear:
       color: lime
-      fade: 100ms
+      fade: 0ms
     l_shot_middle_ramp:
       color: lime
-      fade: 100ms
+      fade: 0ms
     # Red shots
     l_shot_left_lane:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_left_orbit:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_left_ramp:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_spinner:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_barrier:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_tower_ramp:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_upper_orbit:
       color: red
-      fade: 100ms
+      fade: 0ms
 
 
   # Step 5 - Middle ramp: green → orange at 8s
@@ -2787,7 +2808,7 @@ light_player:
   battle_jester_setup_step_6:
     l_shot_barrier:
       color: lime
-      fade: 100ms
+      fade: 0ms
 
   battle_jester_step_6_complete:
     l_shot_barrier:
@@ -2800,32 +2821,32 @@ light_player:
     # Green ramps
     l_shot_left_ramp:
       color: lime
-      fade: 100ms
+      fade: 0ms
     l_shot_middle_ramp:
       color: lime
-      fade: 100ms
+      fade: 0ms
     l_shot_tower_ramp:
       color: lime
-      fade: 100ms
+      fade: 0ms
     l_shot_right_orbit:
       color: lime
-      fade: 100ms
+      fade: 0ms
     # Red shots
     l_shot_left_lane:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_left_orbit:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_barrier:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_pilot_gear:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_spinner:
       color: red
-      fade: 100ms
+      fade: 0ms
 
   ##############################################
   ## STEP 11 - Flash spinner, right_orbit, left_lane green; all others red
@@ -2834,25 +2855,25 @@ light_player:
     # Red shots (all non-step-11 shots)
     l_shot_left_orbit:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_left_ramp:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_middle_ramp:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_tower_ramp:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_barrier:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_pilot_gear:
       color: red
-      fade: 100ms
+      fade: 0ms
     l_shot_upper_orbit:
       color: red
-      fade: 100ms
+      fade: 0ms
     # Step 11 green shots handled by show_player (flashing)
 
   # Step 11 complete - turn off ALL lights for decision time
@@ -2906,7 +2927,7 @@ light_player:
   battle_jester_cleanup:
     gi_lights:
       color: white
-      fade: 500ms
+      fade: 0ms
     l_mode_battle_jester:
       color: white
     # Turn off all shot lights
@@ -2933,6 +2954,8 @@ light_player:
 
 ####################################################################################
 # COIL PLAYER - Ramp Lifts, Diverters, and Posts
+# NOTE: Barrier control uses standardized events (barrier_drop/barrier_raise)
+#       handled by pilot_mission_qualifier.yaml for consistency
 ####################################################################################
 
 coil_player:
@@ -2955,16 +2978,6 @@ coil_player:
   battle_jester_step_5_complete:
     c_right_ramp_lifter:
       action: disable
-
-  # Step 6 - Lower barrier
-  battle_jester_setup_step_6:
-    c_mode_barrier:
-      action: disable
-
-  # Step 6 ball release - raise barrier after delay
-  battle_jester_barrier_raise:
-    c_mode_barrier:
-      action: enable
 
   # Step 11 - Activate left orbit diverter
   battle_jester_activate_left_diverter:
@@ -2991,14 +3004,12 @@ coil_player:
     c_right_ramp_lifter:
       action: enable
 
-  # Mode cleanup - Turn off all coils
+  # Mode cleanup - Turn off all coils (barrier handled via barrier_raise event)
   battle_jester_cleanup:
     c_top_ramp_lifter:
       action: disable
     c_right_ramp_lifter:
       action: disable
-    c_mode_barrier:
-      action: enable
     c_left_orbit_diverter:
       action: disable
     c_left_lane_up_post:
@@ -3100,36 +3111,36 @@ shows:
       lights:
         (led):
           color: lime
-          fade: 100ms
+          fade: 0ms
     - duration: 400ms
       lights:
         (led):
           color: off
-          fade: 100ms
+          fade: 0ms
 
   jester_flash_orange:
     - duration: 400ms
       lights:
         (led):
           color: orange
-          fade: 100ms
+          fade: 0ms
     - duration: 400ms
       lights:
         (led):
           color: off
-          fade: 100ms
+          fade: 0ms
 
   jester_flash_red:
     - duration: 400ms
       lights:
         (led):
           color: red
-          fade: 100ms
+          fade: 0ms
     - duration: 400ms
       lights:
         (led):
           color: off
-          fade: 100ms
+          fade: 0ms
 
   jester_solid_red:
     - duration: 1s
@@ -3144,11 +3155,12 @@ shows:
           color: off
 
   # GI red flicker - rapid on/off for 500ms (5 flickers)
+  # NOTE: GI lights require hex codes, not color names (MPF bug workaround)
   jester_gi_red_flicker:
     - duration: 50ms
       lights:
         (led):
-          color: red
+          color: FF0000
     - duration: 50ms
       lights:
         (led):
@@ -3156,7 +3168,7 @@ shows:
     - duration: 50ms
       lights:
         (led):
-          color: red
+          color: FF0000
     - duration: 50ms
       lights:
         (led):
@@ -3164,7 +3176,7 @@ shows:
     - duration: 50ms
       lights:
         (led):
-          color: red
+          color: FF0000
     - duration: 50ms
       lights:
         (led):
@@ -3172,7 +3184,7 @@ shows:
     - duration: 50ms
       lights:
         (led):
-          color: red
+          color: FF0000
     - duration: 50ms
       lights:
         (led):
@@ -3180,21 +3192,22 @@ shows:
     - duration: 50ms
       lights:
         (led):
-          color: red
+          color: FF0000
     - duration: 50ms
       lights:
         (led):
           color: off
 
   # GI green flash - fade in/out once over 500ms
+  # NOTE: GI lights require hex codes, not color names (MPF bug workaround)
   jester_gi_green_flash:
     - duration: 250ms
       lights:
         (led):
-          color: lime
-          fade: 250ms
+          color: 00FF00
+          fade: 0ms
     - duration: 250ms
       lights:
         (led):
           color: off
-          fade: 250ms
+          fade: 0ms

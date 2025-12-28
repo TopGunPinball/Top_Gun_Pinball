@@ -307,6 +307,12 @@ slide_player:
       action: play
       priority: 215
 
+  # Restore qualified slide on ball start if already qualified
+  mode_2x_playfield_started{current_player.x2_qualified==1}:
+    2x_playfield_qualified:
+      action: play
+      priority: 220
+
   # Show qualified slide when 2X is qualified
   x2_playfield_qualified:
     2x_playfield_completions_needed:
@@ -361,51 +367,64 @@ slide_player:
 ##############################################
 
 light_player:
-  # Turn off flight gear light when mode starts
-  mode_2x_playfield_started:
+  # Turn off flight gear light when mode starts (not qualified yet)
+  mode_2x_playfield_started{current_player.x2_qualified==0}:
     l_shot_pilot_gear:
       color: off
 
-  # Show pulsing light when qualified (uses show_player below)
+  # Show solid orange light when qualified
   x2_playfield_qualified:
     l_shot_pilot_gear:
       color: orange
       fade: 0ms
 
-  # Turn off light when 2X is active
-  x2_playfield_start:
-    l_shot_pilot_gear:
-      color: off
-
-  # Restore qualified light on ball start if qualified
+  # Restore solid orange light on ball start if qualified
   mode_2x_playfield_started{current_player.x2_qualified==1}:
     l_shot_pilot_gear:
       color: orange
       fade: 0ms
 
+  # Light controlled by show_player when 2X is active (slow fade)
+  # Turn off light when 2X ends
+  x2_playfield_stop:
+    l_shot_pilot_gear:
+      color: off
+
 ##############################################
-## Show Player - Orange Pulse for Qualified
+## Show Player - Slow Fade When 2X Active
 ##############################################
 
 show_player:
-  x2_playfield_qualified:
-    pulse_orange:
+  # No pulse when qualified - light_player handles solid orange
+  
+  # Restore solid light on ball start if already qualified (handled by light_player)
+  
+  # Start slow fade when 2X is active
+  x2_playfield_start:
+    x2_slow_fade:
       loops: -1
       speed: 1
       show_tokens:
         led: l_shot_pilot_gear
         color: orange
 
-  # Stop pulse when 2X starts
-  x2_playfield_start:
-    pulse_orange:
+  # Stop fade when 2X ends
+  x2_playfield_stop:
+    x2_slow_fade:
+      action: stop
+
+  # Stop fade on ball end
+  ball_will_end{current_player.x2_active==1}:
+    x2_slow_fade:
       action: stop
 
 shows:
-  pulse_orange:
-    - duration: 0.5s
+  x2_slow_fade:
+    - duration: 1s
       lights:
-        (led): (color)
-    - duration: 0.5s
+        (led): 
+          color: (color)
+    - duration: 1s
       lights:
-        (led): off
+        (led): 
+          color: off
