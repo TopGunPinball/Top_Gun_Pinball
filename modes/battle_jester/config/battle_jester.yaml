@@ -826,8 +826,36 @@ event_player:
     - barrier_raise
   
   # Mode cleanup - RAISE barrier (let qualification logic handle dropping if needed)
+  # Also lower both ramps via servo events
   battle_jester_cleanup:
     - barrier_raise
+    - right_ramp_down             # SERVO: Lower right ramp on cleanup
+    - top_ramp_down               # SERVO: Lower top ramp on cleanup
+
+  ##############################################
+  ## SERVO CONTROL - Ramp lifters
+  ## These events trigger servo movements
+  ##############################################
+  
+  # Step 3: Raise top ramp for orbit_lower shot
+  battle_jester_setup_step_3:
+    - top_ramp_up
+  
+  # Step 3 complete: Lower top ramp
+  battle_jester_step_3_complete:
+    - top_ramp_down
+  
+  # Step 5: Raise right ramp
+  battle_jester_setup_step_5:
+    - right_ramp_up
+  
+  # Step 5 complete: Lower right ramp
+  battle_jester_step_5_complete:
+    - right_ramp_down
+  
+  # Step 11: Raise right ramp for final shot
+  battle_jester_setup_step_11:
+    - right_ramp_up
 
   ##############################################
   ##############################################
@@ -2959,25 +2987,8 @@ light_player:
 ####################################################################################
 
 coil_player:
-  # Step 3 - Lift top ramp for orbit_lower shot
-  battle_jester_setup_step_3:
-    c_top_ramp_lifter:
-      action: enable
-
-  # Step 3 complete - lower top ramp
-  battle_jester_step_3_complete:
-    c_top_ramp_lifter:
-      action: disable
-
-  # Step 5 - Lift right ramp
-  battle_jester_setup_step_5:
-    c_right_ramp_lifter:
-      action: enable
-
-  # Step 5 complete - lower right ramp
-  battle_jester_step_5_complete:
-    c_right_ramp_lifter:
-      action: disable
+  # NOTE: Right ramp and top ramp lifters are now controlled by servos via event_player
+  # Servo events: right_ramp_up, right_ramp_down, top_ramp_up, top_ramp_down
 
   # Step 11 - Activate left orbit diverter
   battle_jester_activate_left_diverter:
@@ -2999,17 +3010,8 @@ coil_player:
     c_left_lane_up_post:
       action: disable
 
-  # Step 11 - Lift right ramp
-  battle_jester_setup_step_11:
-    c_right_ramp_lifter:
-      action: enable
-
-  # Mode cleanup - Turn off all coils (barrier handled via barrier_raise event)
+  # Mode cleanup - Turn off all coils (barrier handled via barrier_raise event, ramps via servos)
   battle_jester_cleanup:
-    c_top_ramp_lifter:
-      action: disable
-    c_right_ramp_lifter:
-      action: disable
     c_left_orbit_diverter:
       action: disable
     c_left_lane_up_post:
@@ -3156,58 +3158,112 @@ shows:
 
   # GI red flicker - rapid on/off for 500ms (5 flickers)
   # NOTE: GI lights require hex codes, not color names (MPF bug workaround)
+  # Includes apron lights 3 and 4 which may not be in gi_lights tag
   jester_gi_red_flicker:
     - duration: 50ms
       lights:
         (led):
           color: FF0000
-    - duration: 50ms
-      lights:
-        (led):
-          color: off
-    - duration: 50ms
-      lights:
-        (led):
+        l_apron_light_3:
+          color: FF0000
+        l_apron_light_4:
           color: FF0000
     - duration: 50ms
       lights:
         (led):
           color: off
-    - duration: 50ms
-      lights:
-        (led):
-          color: FF0000
-    - duration: 50ms
-      lights:
-        (led):
+        l_apron_light_3:
+          color: off
+        l_apron_light_4:
           color: off
     - duration: 50ms
       lights:
         (led):
           color: FF0000
+        l_apron_light_3:
+          color: FF0000
+        l_apron_light_4:
+          color: FF0000
     - duration: 50ms
       lights:
         (led):
+          color: off
+        l_apron_light_3:
+          color: off
+        l_apron_light_4:
           color: off
     - duration: 50ms
       lights:
         (led):
           color: FF0000
+        l_apron_light_3:
+          color: FF0000
+        l_apron_light_4:
+          color: FF0000
     - duration: 50ms
       lights:
         (led):
+          color: off
+        l_apron_light_3:
+          color: off
+        l_apron_light_4:
+          color: off
+    - duration: 50ms
+      lights:
+        (led):
+          color: FF0000
+        l_apron_light_3:
+          color: FF0000
+        l_apron_light_4:
+          color: FF0000
+    - duration: 50ms
+      lights:
+        (led):
+          color: off
+        l_apron_light_3:
+          color: off
+        l_apron_light_4:
+          color: off
+    - duration: 50ms
+      lights:
+        (led):
+          color: FF0000
+        l_apron_light_3:
+          color: FF0000
+        l_apron_light_4:
+          color: FF0000
+    - duration: 50ms
+      lights:
+        (led):
+          color: off
+        l_apron_light_3:
+          color: off
+        l_apron_light_4:
           color: off
 
   # GI green flash - fade in/out once over 500ms
   # NOTE: GI lights require hex codes, not color names (MPF bug workaround)
+  # Includes apron lights 3 and 4 which may not be in gi_lights tag
   jester_gi_green_flash:
     - duration: 250ms
       lights:
         (led):
           color: 00FF00
           fade: 0ms
+        l_apron_light_3:
+          color: 00FF00
+          fade: 0ms
+        l_apron_light_4:
+          color: 00FF00
+          fade: 0ms
     - duration: 250ms
       lights:
         (led):
+          color: off
+          fade: 0ms
+        l_apron_light_3:
+          color: off
+          fade: 0ms
+        l_apron_light_4:
           color: off
           fade: 0ms

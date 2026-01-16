@@ -8,6 +8,7 @@ config:
   - config_hardware_fast.yaml
   - config_lights.yaml
   - config_switches.yaml
+  - config_servos.yaml
   - variable_player.yaml
   - config_videos.yaml
 
@@ -42,6 +43,23 @@ playfields:
     ball_search_timeout: 15s
     ball_search_wait_after_iteration: 10s
     ball_search_interval: 250ms
+    ball_search_block_events: 
+      - ball_search_block
+      # Rescue Cougar - left lane post hold
+      - rescue_cougar_activate_left_lane_post
+      # Battle Jester - left lane post hold (step 11)
+      - battle_jester_activate_left_lane_post
+    ball_search_unblock_events:
+      - ball_search_unblock
+      # Rescue Cougar - post release events
+      - rescue_cougar_deactivate_left_lane_post
+      - rescue_cougar_skip_left_lane_post
+      - rescue_cougar_cleanup
+      - mode_rescue_cougar_stopped
+      # Battle Jester - post release events
+      - battle_jester_deactivate_left_lane_post
+      - battle_jester_cleanup
+      - mode_battle_jester_stopped
     tags: default
 
 machine:
@@ -65,6 +83,26 @@ event_player:
   player_turn_started{number==2}: ui_player_2_up
   player_turn_started{number==3}: ui_player_3_up
   player_turn_started{number==4}: ui_player_4_up
+
+# Volume Control - Coin Door Service Buttons (works in attract and game)
+# Uses variable_player to modify machine variable directly - FAST audio listens for changes
+variable_player:
+  s_coin_door_service_3_active:
+    fast_audio_main_volume:
+      action: add_machine
+      int: 1
+  s_coin_door_service_2_active:
+    fast_audio_main_volume:
+      action: add_machine
+      int: -1
+
+slide_player:
+  # Show volume overlay when volume changes (3 second display)
+  machine_var_fast_audio_main_volume:
+    volume_display:
+      action: play
+      priority: 10000
+      expire: 3s
 
 bcp:
   connections:

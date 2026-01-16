@@ -24,7 +24,7 @@ coils:
   c_flipper_left_upper:
     number: playfield_board_upper-0
     allow_enable: true
-    default_pulse_ms: 30         # duration the coil is activated
+    default_pulse_ms: 40         # duration the coil is activated
     default_pulse_power: 0.625     # percentage of coil power during initial pulse (0 - 1), factor of 1/8
     default_hold_power: 0.125     # factor of 1/8
     max_pulse_ms: none
@@ -119,19 +119,22 @@ coils:
 # Up Post
   c_left_lane_up_post:
     number: playfield_board_lower-6
+    allow_enable: true            # REQUIRED for action: enable in coil_player
     default_pulse_ms: 20          # duration the coil is activated
     default_pulse_power: 0.75     # percentage of coil power during initial pulse (0 - 1), factor of 1/8
-    default_hold_power: 0.125     # factor of 1/8
+    default_hold_power: 0.375     # INCREASED from 0.125 - needs more power to hold ball for 27 seconds
     max_pulse_ms: none
     max_pulse_power: 1.0
     max_hold_duration: none
     max_hold_power: 1.0
     platform_settings:            # minimum time between pulses for this coil (coil cool down time)       
       recycle_ms: 30              # suggested to start at about 2x the ms power
+      pwm2_ms: 25000              # max amount of time this coil can be held (30 seconds for 27s timer + margin)
     label: "Left Lane Up Post"
     tags: [up post, playfield]
   c_left_mig_up_post:
     number: playfield_board_upper-6
+    allow_enable: true            # REQUIRED for action: enable in coil_player
     default_pulse_ms: 20          # duration the coil is activated
     default_pulse_power: 0.75     # percentage of coil power during initial pulse (0 - 1), factor of 1/8
     default_hold_power: 0.125     # factor of 1/8
@@ -146,6 +149,7 @@ coils:
     tags: [up post, playfield]
   c_right_mig_up_post:
     number: playfield_board_upper-7 
+    allow_enable: true            # REQUIRED for action: enable in coil_player
     default_pulse_ms: 20          # duration the coil is activated
     default_pulse_power: 0.75     # percentage of coil power during initial pulse (0 - 1), factor of 1/8
     default_hold_power: 0.125     # factor of 1/8
@@ -162,7 +166,8 @@ coils:
 # Lane Diverters
   c_left_orbit_diverter:
     number: playfield_board_mags_diverter_mechs-0 
-    default_pulse_ms: 45          # duration the coil is activated
+    allow_enable: true            # REQUIRED for action: enable in coil_player
+    default_pulse_ms: 50          # duration the coil is activated
     default_pulse_power: 1     # percentage of coil power during initial pulse (0 - 1), factor of 1/8
     default_hold_power: 0.5     # factor of 1/8
     max_pulse_ms: none
@@ -175,7 +180,8 @@ coils:
     tags: [lane diverter, playfield]
   c_right_orbit_diverter: 
     number: playfield_board_mags_diverter_mechs-1
-    default_pulse_ms: 45          # duration the coil is activated
+    allow_enable: true            # REQUIRED for action: enable in coil_player
+    default_pulse_ms: 50          # duration the coil is activated
     default_pulse_power: 1     # percentage of coil power during initial pulse (0 - 1), factor of 1/8
     default_hold_power: 0.5     # factor of 1/8
     max_pulse_ms: none
@@ -190,6 +196,7 @@ coils:
 # Mode Coils
   c_mode_barrier:
     number: playfield_board_upper-1
+    allow_enable: true            # REQUIRED for action: enable in coil_player
     default_pulse_ms: 45          # duration the coil is activated
     default_pulse_power: 0.75     # percentage of coil power during initial pulse (0 - 1), factor of 1/8
     default_hold_power: 0.375     # factor of 1/8
@@ -215,6 +222,7 @@ coils:
 # Ramp Lift Coils
   c_right_ramp_lifter: 
     number: playfield_board_lock_ramps_mechs-2
+    allow_enable: true            # REQUIRED for action: enable in coil_player
     default_pulse_ms: 15          # duration the coil is activated
     default_pulse_power: 0.75     # percentage of coil power during initial pulse (0 - 1), factor of 1/8
     default_hold_power: 0.125     # factor of 1/8
@@ -228,6 +236,7 @@ coils:
     tags: [Ramp Lift]
   c_top_ramp_lifter: 
     number: playfield_board_lock_ramps_mechs-3 
+    allow_enable: true            # REQUIRED for action: enable in coil_player
     default_pulse_ms: 15          # duration the coil is activated
     default_pulse_power: 0.75     # percentage of coil power during initial pulse (0 - 1), factor of 1/8
     default_hold_power: 0.125     # factor of 1/8
@@ -243,6 +252,7 @@ coils:
 # Lock Coils
   c_lock_release:
     number: playfield_board_lock_ramps_mechs-1
+    allow_enable: true            # REQUIRED for action: enable in coil_player
     default_pulse_ms: 15          # duration the coil is activated
     default_pulse_power: 0.75     # percentage of coil power during initial pulse (0 - 1), factor of 1/8
     default_hold_power: 0.125     # factor of 1/8
@@ -266,11 +276,47 @@ coils:
     label: "Lock Upkicker"
     tags: [lock upkicker, playfield]  
 
+# Cabinet Board LED Drivers (Low Current)
+# These are on the FP-I/O-0024 Cabinet I/O Board
+# Wiring: V+ (or 5V) → LED (+) → LED (-) → Lx driver pin
+# The driver SINKS to ground when enabled
+
+  c_start_button_led:
+    number: cabinet_board-3           # L3 on J1 (Cabinet Left), pin 12
+    allow_enable: true
+    default_pulse_ms: 10
+    default_pulse_power: 1.0
+    default_hold_power: 1.0
+    label: "Start Button LED"
+    tags: [cabinet, led]
+
+  c_coin_door_led:
+    number: cabinet_board-0           # L0 on J4 (Coin Door), pin 11
+    allow_enable: true
+    default_pulse_ms: 10
+    default_pulse_power: 1.0
+    default_hold_power: 1.0
+    label: "Coin Door LED"
+    tags: [cabinet, led]
+
 coil_player:
+
+# Cabinet LED Control
+# Coin door LED - Always on when machine is running
+  init_done:
+    c_coin_door_led:
+      action: enable
+
+# Start button LED - Solid on during game (attract mode handles flashing)
+  game_started:
+    c_start_button_led:
+      action: enable
+
+  game_ended:
+    c_start_button_led:
+      action: disable
 
 # Auto Shooter, Shooter Lane
   fire_autoplunger:
     c_plunger:
       pulse_ms: 30
-
-

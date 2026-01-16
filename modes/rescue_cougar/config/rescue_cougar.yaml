@@ -488,7 +488,7 @@ timers:
 
   # MIG post activation timers (2 second hold)
   rescue_cougar_left_mig_post_timer:
-    start_value: 2
+    start_value: 3
     end_value: 0
     direction: down
     tick_interval: 1s
@@ -498,7 +498,7 @@ timers:
         action: start
 
   rescue_cougar_right_mig_post_timer:
-    start_value: 2
+    start_value: 3
     end_value: 0
     direction: down
     tick_interval: 1s
@@ -637,23 +637,25 @@ event_player:
   timer_rescue_cougar_timer_complete:
     - rescue_cougar_failed
 
-  # Step 1 and 2 - Left and Right Orbits
-  left_orbit_shot_hit{current_player.rescue_cougar_step==0 and device.timers.rescue_cougar_left_orbit_lockout.running==False}:
+  # Step 1 and 2 - Left and Right Orbits (using entrance switches for MIG post shots)
+  # These steps use single switch detection since the MIG posts stop the ball
+  # s_orbit_left triggers RIGHT MIG post, s_orbit_right triggers LEFT MIG post
+  s_orbit_left_active{current_player.rescue_cougar_step==0 and device.timers.rescue_cougar_left_orbit_lockout.running==False}:
     - rescue_cougar_step_1_complete
     - rescue_cougar_activate_right_mig_post
     - rescue_cougar_step_1_shot_hit
 
-  right_orbit_shot_hit{current_player.rescue_cougar_step==0 and device.timers.rescue_cougar_right_orbit_lockout.running==False}:
+  s_orbit_right_active{current_player.rescue_cougar_step==0 and device.timers.rescue_cougar_right_orbit_lockout.running==False}:
     - rescue_cougar_step_1_complete
     - rescue_cougar_activate_left_mig_post
     - rescue_cougar_step_1_shot_hit
 
-  left_orbit_shot_hit{current_player.rescue_cougar_step==1 and device.timers.rescue_cougar_left_orbit_lockout.running==False}:
+  s_orbit_left_active{current_player.rescue_cougar_step==1 and device.timers.rescue_cougar_left_orbit_lockout.running==False}:
     - rescue_cougar_step_2_complete
     - rescue_cougar_activate_right_mig_post
     - rescue_cougar_step_2_shot_hit
 
-  right_orbit_shot_hit{current_player.rescue_cougar_step==1 and device.timers.rescue_cougar_right_orbit_lockout.running==False}:
+  s_orbit_right_active{current_player.rescue_cougar_step==1 and device.timers.rescue_cougar_right_orbit_lockout.running==False}:
     - rescue_cougar_step_2_complete
     - rescue_cougar_activate_left_mig_post
     - rescue_cougar_step_2_shot_hit
@@ -763,9 +765,10 @@ event_player:
   timer_rescue_cougar_right_mig_post_timer_complete:
     - rescue_cougar_deactivate_right_mig_post
 
-  # Left lane post deactivation
+  # Left lane post deactivation - also re-enable ball search
   timer_rescue_cougar_left_lane_post_timer_complete:
     - rescue_cougar_deactivate_left_lane_post
+    - ball_search_unblock
 
   # Shot lockout timer completions
   timer_rescue_cougar_left_orbit_lockout_complete:
@@ -823,7 +826,7 @@ event_player:
     - rescue_cougar_video_complete
     - pilot_mode_cleanup_complete
   
-  # Skip left lane post video with both flippers
+  # Skip left lane post hold with both flippers (player can skip if they want)
   s_flipper_left_active{device.switches.s_flipper_right.state and device.timers.rescue_cougar_left_lane_post_timer.running}:
     - rescue_cougar_skip_left_lane_post
   
@@ -833,6 +836,13 @@ event_player:
   rescue_cougar_skip_left_lane_post:
     - timer_rescue_cougar_left_lane_post_timer_stop
     - rescue_cougar_deactivate_left_lane_post
+    - ball_search_unblock   # Re-enable ball search when post drops
+
+  # Ball search control - disable when post holds ball, re-enable when released
+  rescue_cougar_activate_left_lane_post:
+    - timer_rescue_cougar_left_lane_lockout_start
+    - left_orbit_diverter_closed
+    - ball_search_block  # Prevent ball search while ball is held on post
 
   # Additional events for post activations with lockout timers
   # Post timers now auto-start via control_events when these events fire
@@ -842,9 +852,36 @@ event_player:
   rescue_cougar_activate_right_mig_post:
     - timer_rescue_cougar_left_orbit_lockout_start
 
-  rescue_cougar_activate_left_lane_post:
-    - timer_rescue_cougar_left_lane_lockout_start
-    - left_orbit_diverter_closed
+  ##############################################
+  ## SERVO EVENTS - Control ramp servo positions
+  ## These events trigger the servos defined in config_servos.yaml
+  ##############################################
+  
+  # Ball released from scoop - raise right ramp for steps 1-2
+  rescue_cougar_ball_released:
+    - right_ramp_up
+  
+  # Step 3 setup - lower right ramp (steps 3-5 use other shots)
+  rescue_cougar_setup_step_3:
+    - right_ramp_down
+  
+  # Step 6 setup - raise right ramp (for left lane shot)
+  rescue_cougar_setup_step_6:
+    - right_ramp_up
+  
+  # Step 7 shot hit - lower right ramp
+  rescue_cougar_step_7_shot_hit:
+    - right_ramp_down
+  
+  # Step 11 setup - raise top/inner ramp
+  rescue_cougar_setup_step_11:
+    - top_ramp_up
+  
+  # Mode cleanup - ensure ramps are lowered and ball search is re-enabled
+  rescue_cougar_cleanup:
+    - right_ramp_down
+    - top_ramp_down
+    - ball_search_unblock  # Re-enable ball search in case it was disabled
 
 ####################################################################################
 # SHOW PLAYER - Light Shows Only (Videos should use video_player)
@@ -983,6 +1020,79 @@ shows:
         (led):
           color: off
 
+  # GI blue flash - quick flash on shot hits (2 flashes over 500ms)
+  # NOTE: GI lights require hex codes, not color names (MPF bug workaround)
+  # Includes apron lights which may not be in gi_lights tag
+  rescue_cougar_gi_flash:
+    - duration: 125ms
+      lights:
+        (led):
+          color: 0000FF
+          fade: 0ms
+        l_apron_light_1:
+          color: 0000FF
+          fade: 0ms
+        l_apron_light_2:
+          color: 0000FF
+          fade: 0ms
+        l_apron_light_3:
+          color: 0000FF
+          fade: 0ms
+        l_apron_light_4:
+          color: 0000FF
+          fade: 0ms
+    - duration: 125ms
+      lights:
+        (led):
+          color: off
+          fade: 0ms
+        l_apron_light_1:
+          color: off
+          fade: 0ms
+        l_apron_light_2:
+          color: off
+          fade: 0ms
+        l_apron_light_3:
+          color: off
+          fade: 0ms
+        l_apron_light_4:
+          color: off
+          fade: 0ms
+    - duration: 125ms
+      lights:
+        (led):
+          color: 0000FF
+          fade: 0ms
+        l_apron_light_1:
+          color: 0000FF
+          fade: 0ms
+        l_apron_light_2:
+          color: 0000FF
+          fade: 0ms
+        l_apron_light_3:
+          color: 0000FF
+          fade: 0ms
+        l_apron_light_4:
+          color: 0000FF
+          fade: 0ms
+    - duration: 125ms
+      lights:
+        (led):
+          color: off
+          fade: 0ms
+        l_apron_light_1:
+          color: off
+          fade: 0ms
+        l_apron_light_2:
+          color: off
+          fade: 0ms
+        l_apron_light_3:
+          color: off
+          fade: 0ms
+        l_apron_light_4:
+          color: off
+          fade: 0ms
+
 ####################################################################################
 # SHOW PLAYER - Control flashing lights for mode shots
 ####################################################################################
@@ -1080,6 +1190,97 @@ show_player:
       action: stop
     flash_red:
       action: stop
+
+  ##############################################
+  ## GI FLASH - Flash GI blue on each shot hit
+  ##############################################
+  rescue_cougar_step_1_shot_hit:
+    gi_flash:
+      show: rescue_cougar_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
+  rescue_cougar_step_2_shot_hit:
+    gi_flash:
+      show: rescue_cougar_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
+  rescue_cougar_step_3_shot_hit:
+    gi_flash:
+      show: rescue_cougar_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
+  rescue_cougar_step_4_shot_hit:
+    gi_flash:
+      show: rescue_cougar_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
+  rescue_cougar_step_5_shot_hit:
+    gi_flash:
+      show: rescue_cougar_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
+  rescue_cougar_step_6_shot_hit:
+    gi_flash:
+      show: rescue_cougar_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
+  rescue_cougar_step_7_shot_hit:
+    gi_flash:
+      show: rescue_cougar_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
+  rescue_cougar_step_8_shot_hit:
+    gi_flash:
+      show: rescue_cougar_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
+  rescue_cougar_step_9_shot_hit:
+    gi_flash:
+      show: rescue_cougar_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
+  rescue_cougar_step_10_shot_hit:
+    gi_flash:
+      show: rescue_cougar_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
+  rescue_cougar_step_11_shot_hit:
+    gi_flash:
+      show: rescue_cougar_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
 
 ####################################################################################
 # LIGHT PLAYER - GI and Shot Lights
@@ -1388,11 +1589,8 @@ light_player:
 ####################################################################################
 
 coil_player:
-  # Mode start - Lift right ramp for steps 1-2
-  # Power settings defined in config_coils.yaml (default_hold_power)
-  mode_rescue_cougar_started:
-    c_right_ramp_lifter:
-      action: enable
+  # NOTE: Right ramp and top ramp are controlled by servos via event_player
+  # Servo events: right_ramp_up, right_ramp_down, top_ramp_up, top_ramp_down
 
   # Step 1 and 2 - MIG post activations (2 second hold)
   rescue_cougar_activate_left_mig_post:
@@ -1411,15 +1609,8 @@ coil_player:
     c_right_mig_up_post:
       action: disable
 
-  # Step 3 setup - Lower right ramp
-  rescue_cougar_setup_step_3:
-    c_right_ramp_lifter:
-      action: disable
-
-  # Step 6 - Lift right ramp and open left diverter
+  # Step 6 - Open left diverter (ramp handled by servo event right_ramp_up)
   rescue_cougar_setup_step_6:
-    c_right_ramp_lifter:
-      action: enable
     c_left_orbit_diverter:
       action: enable
 
@@ -1434,10 +1625,8 @@ coil_player:
     c_left_lane_up_post:
       action: disable
 
-  # Step 7 - Lower right ramp when shot is hit and close right diverter
+  # Step 7 - Close right diverter (ramp handled by servo event right_ramp_down)
   rescue_cougar_step_7_shot_hit:
-    c_right_ramp_lifter:
-      action: disable
     c_right_orbit_diverter:
       action: disable
 
@@ -1446,26 +1635,26 @@ coil_player:
     c_right_orbit_diverter:
       action: enable
 
-  # Step 11 - Lift inner ramp
-  rescue_cougar_setup_step_11:
-    c_top_ramp_lifter:
-      action: enable
+  # Step 11 - Top ramp handled by servo event (top_ramp_up) in event_player above
 
   # Mode cleanup - Turn off all coils
+  # NOTE: c_left_lane_up_post is NOT disabled here - let left_lane_post_timer handle it
+  # This ensures the post stays up to catch the ball even if mode fails/times out
+  # NOTE: Ramp lifters controlled by servo events (right_ramp_down, top_ramp_down) in event_player
   rescue_cougar_cleanup:
-    c_right_ramp_lifter:
-      action: disable
-    c_top_ramp_lifter:
-      action: disable
     c_left_orbit_diverter:
       action: disable
     c_right_orbit_diverter:
       action: disable
-    c_left_lane_up_post:
-      action: disable
     c_left_mig_up_post:
       action: disable
     c_right_mig_up_post:
+      action: disable
+
+  # Safety - disable left_lane_up_post when mode actually stops
+  # This catches the case where the mode ends before left_lane_post_timer completes
+  mode_rescue_cougar_stopping:
+    c_left_lane_up_post:
       action: disable
 
 

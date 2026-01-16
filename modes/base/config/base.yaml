@@ -19,6 +19,13 @@ event_player:
     - start_mode_bumpers
   mode_base_will_stop:
     - stop_mode_bumpers
+  
+  ##############################################
+  ## SHUTDOWN CLEANUP - Reset servos when MPF exits
+  ##############################################
+  shutdown:
+    - right_ramp_down
+    - top_ramp_down
 
 variable_player:
   ##############################################
@@ -455,6 +462,48 @@ variable_player:
   ##############################################
 
 ##############################################
+## SERVO-LINKED COIL CONTROL
+## When servos move, automatically control linked coils
+## This ensures ramp lifters and diverters work together
+##############################################
+coil_player:
+  # Right ramp servo UP → Open right orbit diverter
+  right_ramp_up:
+    c_right_orbit_diverter:
+      action: enable
+  
+  # Right ramp servo DOWN → Close right orbit diverter
+  right_ramp_down:
+    c_right_orbit_diverter:
+      action: disable
+
+  ##############################################
+  ## SHUTDOWN CLEANUP - Turn off all hold coils when MPF exits
+  ## This prevents lights/coils from staying on after closing the game
+  ##############################################
+  shutdown:
+    c_left_lane_up_post:
+      action: disable
+    c_left_mig_up_post:
+      action: disable
+    c_right_mig_up_post:
+      action: disable
+    c_left_orbit_diverter:
+      action: disable
+    c_right_orbit_diverter:
+      action: disable
+    c_mode_barrier:
+      action: disable
+    c_right_ramp_lifter:
+      action: disable
+    c_top_ramp_lifter:
+      action: disable
+    c_coin_door_led:
+      action: disable
+    c_start_button_led:
+      action: disable
+
+##############################################
 ## GI AND POP BUMPER LIGHTS - Default white
 ## Sets all GI and pop bumper lights to white when base mode starts
 ## This ensures a consistent white starting point after any mode ends
@@ -494,6 +543,95 @@ light_player:
     l_gi_light_pop_left: white
     l_gi_light_pop_right: white
     l_gi_light_pop_bottom: white
+
+  ##############################################
+  ## SHUTDOWN CLEANUP - Turn off all lights when MPF exits
+  ## This prevents lights from staying on after closing the game
+  ##############################################
+  shutdown:
+    # GI Lights
+    l_gi_light_1: off
+    l_gi_light_2: off
+    l_gi_light_3: off
+    l_gi_light_4: off
+    l_gi_light_5: off
+    l_gi_light_6: off
+    l_gi_light_7: off
+    l_gi_light_8: off
+    l_gi_light_9: off
+    l_gi_light_10: off
+    l_gi_light_11: off
+    l_gi_light_12: off
+    l_gi_light_13: off
+    l_gi_light_14: off
+    l_gi_light_15: off
+    l_gi_light_16: off
+    l_gi_light_17: off
+    l_gi_light_18: off
+    l_gi_light_19: off
+    l_gi_light_20: off
+    l_gi_light_21: off
+    l_gi_light_22: off
+    l_gi_light_23: off
+    l_gi_light_24: off
+    l_gi_light_25: off
+    l_apron_light_1: off
+    l_apron_light_2: off
+    l_gi_light_pop_left: off
+    l_gi_light_pop_right: off
+    l_gi_light_pop_bottom: off
+    # Shot Lights
+    l_shot_left_lane: off
+    l_shot_left_orbit: off
+    l_shot_left_ramp: off
+    l_shot_spinner: off
+    l_shot_barrier: off
+    l_shot_tower_ramp: off
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+    l_shot_right_orbit: off
+    l_shot_pilot_gear: off
+    # Letter Lights
+    l_goose_g: off
+    l_goose_o_left: off
+    l_goose_o_right: off
+    l_goose_s: off
+    l_goose_e: off
+    l_mig_m: off
+    l_mig_i: off
+    l_mig_g: off
+    l_iceman_i: off
+    l_iceman_c: off
+    l_iceman_e: off
+    l_iceman_m: off
+    l_iceman_a: off
+    l_iceman_n: off
+    l_lock_l: off
+    l_lock_o: off
+    l_lock_c: off
+    l_lock_k: off
+    l_lock_lit: off
+    # Mode Lights
+    l_mode_rescue_cougar: off
+    l_mode_balls_of_fire: off
+    l_mode_cool_under_pressure: off
+    l_mode_battle_jester: off
+    l_mode_no_points_for_second_place: off
+    l_mode_edge_of_space: off
+    l_mode_below_the_hard_deck: off
+    l_mode_canyon_run: off
+    l_mode_rise_of_phoenix: off
+    l_mode_no_margin_for_error: off
+    l_mode_inverted: off
+    l_mode_missles: off
+    l_mode_afterburner: off
+    l_mode_wingman: off
+    l_mode_dogfight: off
+    l_mode_top_top_gun: off
+    l_mode_gun_top_gun: off
+    # Other Lights
+    l_eject: off
+    l_shoot_again: off
 
 slide_player:
   mode_base_started: base_slide

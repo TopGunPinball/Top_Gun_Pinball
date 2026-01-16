@@ -27,7 +27,23 @@ sound_player:
 event_player:
   mode_attract_started: attract_cycle_step1
 
+##############################################
+## Start Button LED - Slow flash in attract mode
+##############################################
+coil_player:
+  # Stop flashing (turn off) when attract mode ends
+  mode_attract_stopping:
+    c_start_button_led:
+      action: disable
+
 show_player:                                            # Light Shows being played
+  # Start button slow flash during attract
+  mode_attract_started:
+    start_button_flash:
+      show: start_button_slow_flash
+      loops: -1
+      priority: 100
+
   attract_cycle_step1:
     attract_corners_sweep:
       loops: 1
@@ -78,6 +94,7 @@ show_player:                                            # Light Shows being play
     attract_insert_color_bounce: stop
     attract_chase_all_inserts: stop
     attract_color_wheel: stop
+    start_button_flash: stop
 
 timers:
   attract_carousel_timer:
@@ -91,3 +108,16 @@ timers:
         action: stop
       - event: flipper_cradle_release
         action: restart
+
+##############################################
+## SHOWS - Start Button Flash
+##############################################
+shows:
+  # Slow flash for start button LED (1 second on, 1 second off)
+  start_button_slow_flash:
+    - duration: 1s
+      coils:
+        c_start_button_led: enable
+    - duration: 1s
+      coils:
+        c_start_button_led: disable

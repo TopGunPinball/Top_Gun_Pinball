@@ -18,7 +18,7 @@
 mode:
   start_events: start_mode_rise_of_phoenix
   stop_events:
-    - timer_rise_of_phoenix_complete_delay_complete
+    - rise_of_phoenix_victory_cleanup_complete
     - timer_rise_of_phoenix_failed_delay_complete
     - rise_of_phoenix_drain_cleanup_complete
   priority: 600
@@ -46,6 +46,7 @@ ball_holds:
     # Release one ball when ball_released event fires (this triggers the eject)
     release_one_events: 
       - rise_of_phoenix_ball_released
+      - rise_of_phoenix_victory_ball_released
     # Also release all on mode stop (safety)
     release_all_events:
       - mode_rise_of_phoenix_will_stop
@@ -365,6 +366,17 @@ timers:
       - event: rise_of_phoenix_drain_detected
         action: start
 
+  # VICTORY BARRIER DELAY - After ball is kicked out on victory, wait then raise barrier
+  # Uses same timing pattern as intro barrier delay
+  rise_of_phoenix_victory_barrier_delay:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: rise_of_phoenix_victory_ball_released
+        action: restart
+
 ##############################################
 ## Event Player - Shot Detection & Flow
 ##############################################
@@ -374,6 +386,7 @@ event_player:
   timer_rise_of_phoenix_complete_delay_complete:
     - pilot_mode_cleanup_complete
     - rise_of_phoenix_cleanup
+    - rise_of_phoenix_victory_ball_released
   timer_rise_of_phoenix_failed_delay_complete:
     - pilot_mode_cleanup_complete
     - rise_of_phoenix_cleanup
@@ -453,6 +466,7 @@ event_player:
     - rise_of_phoenix_step_4_shot_hit
     - timer_shot_lockout_start
     - rise_of_phoenix_setup_step_5
+    - right_ramp_up               # SERVO: Raise right ramp for step 5
 
   # Step 5: Right Orbit (lifter raised until shot made)
   right_orbit_shot_hit{current_player.rise_of_phoenix_step==4 and device.timers.shot_lockout.running==False}:
@@ -460,6 +474,8 @@ event_player:
     - rise_of_phoenix_step_5_shot_hit
     - timer_shot_lockout_start
     - rise_of_phoenix_setup_step_6
+    - right_ramp_down             # SERVO: Lower right ramp after step 5
+    - top_ramp_up                 # SERVO: Raise top ramp for step 6
 
   # Step 6: Middle Ramp (lifter raised until shot made)
   s_ramp_inner_exit_active{current_player.rise_of_phoenix_step==5 and device.timers.shot_lockout.running==False}:
@@ -467,6 +483,7 @@ event_player:
     - rise_of_phoenix_step_6_shot_hit
     - timer_shot_lockout_start
     - rise_of_phoenix_setup_step_7
+    - top_ramp_down               # SERVO: Lower top ramp after step 6
 
   # Step 7: All 4 LOCK Targets (need 3 of 4)
   s_l_lock_target_active{current_player.rise_of_phoenix_step==6 and current_player.rise_of_phoenix_lock_l==0}:
@@ -498,17 +515,28 @@ event_player:
     - timer_shot_lockout_start
     - rise_of_phoenix_setup_step_9
 
-  # Step 9: Mode Scoop
+  # Step 9: Mode Scoop (final shot - barrier is down)
   s_mode_start_active{current_player.rise_of_phoenix_step==8}:
     - rise_of_phoenix_step_9_complete
     - rise_of_phoenix_step_9_shot_hit
     - rise_of_phoenix_complete
+
+  # Step 9 setup - drop barrier for final scoop shot
+  rise_of_phoenix_setup_step_9:
+    - barrier_drop
+
+  # Victory flow - after ball is kicked out, raise barrier and complete mode
+  timer_rise_of_phoenix_victory_barrier_delay_complete:
+    - barrier_raise
+    - rise_of_phoenix_victory_cleanup_complete
 
   # Mission Complete
   rise_of_phoenix_complete:
     - rise_of_phoenix_cleanup
     - timer_rise_of_phoenix_timer_stop
     - timer_rise_of_phoenix_complete_delay_start
+    - right_ramp_down             # SERVO: Lower right ramp on mode complete
+    - top_ramp_down               # SERVO: Lower top ramp on mode complete
 
   # Mission Failed (timer runs out)
   timer_rise_of_phoenix_timer_complete:
@@ -518,6 +546,8 @@ event_player:
   # Mode cleanup (turn off all coils at end)
   rise_of_phoenix_failed:
     - rise_of_phoenix_cleanup
+    - right_ramp_down             # SERVO: Lower right ramp on mode fail
+    - top_ramp_down               # SERVO: Lower top ramp on mode fail
 
 ##############################################
 ## Slide Player - Videos & Instructions
@@ -916,6 +946,79 @@ shows:
       lights:
         (led): off
 
+  # GI yellow flash - quick flash on shot hits (2 flashes over 500ms)
+  # NOTE: GI lights require hex codes, not color names (MPF bug workaround)
+  # Includes apron lights which may not be in gi_lights tag
+  rise_of_phoenix_gi_flash:
+    - duration: 125ms
+      lights:
+        (led):
+          color: FFFF00
+          fade: 0ms
+        l_apron_light_1:
+          color: FFFF00
+          fade: 0ms
+        l_apron_light_2:
+          color: FFFF00
+          fade: 0ms
+        l_apron_light_3:
+          color: FFFF00
+          fade: 0ms
+        l_apron_light_4:
+          color: FFFF00
+          fade: 0ms
+    - duration: 125ms
+      lights:
+        (led):
+          color: off
+          fade: 0ms
+        l_apron_light_1:
+          color: off
+          fade: 0ms
+        l_apron_light_2:
+          color: off
+          fade: 0ms
+        l_apron_light_3:
+          color: off
+          fade: 0ms
+        l_apron_light_4:
+          color: off
+          fade: 0ms
+    - duration: 125ms
+      lights:
+        (led):
+          color: FFFF00
+          fade: 0ms
+        l_apron_light_1:
+          color: FFFF00
+          fade: 0ms
+        l_apron_light_2:
+          color: FFFF00
+          fade: 0ms
+        l_apron_light_3:
+          color: FFFF00
+          fade: 0ms
+        l_apron_light_4:
+          color: FFFF00
+          fade: 0ms
+    - duration: 125ms
+      lights:
+        (led):
+          color: off
+          fade: 0ms
+        l_apron_light_1:
+          color: off
+          fade: 0ms
+        l_apron_light_2:
+          color: off
+          fade: 0ms
+        l_apron_light_3:
+          color: off
+          fade: 0ms
+        l_apron_light_4:
+          color: off
+          fade: 0ms
+
 ##############################################
 ## Show Player - Animated Lights
 ##############################################
@@ -1084,37 +1187,90 @@ show_player:
       action: stop
       key: final_pulse
 
+  ##############################################
+  ## GI FLASH - Flash GI yellow on each shot hit
+  ##############################################
+  rise_of_phoenix_step_1_shot_hit:
+    gi_flash:
+      show: rise_of_phoenix_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
+  rise_of_phoenix_step_2_shot_hit:
+    gi_flash:
+      show: rise_of_phoenix_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
+  rise_of_phoenix_step_3_shot_hit:
+    gi_flash:
+      show: rise_of_phoenix_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
+  rise_of_phoenix_step_4_shot_hit:
+    gi_flash:
+      show: rise_of_phoenix_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
+  rise_of_phoenix_step_5_shot_hit:
+    gi_flash:
+      show: rise_of_phoenix_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
+  rise_of_phoenix_step_6_shot_hit:
+    gi_flash:
+      show: rise_of_phoenix_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
+  rise_of_phoenix_step_7_shot_hit:
+    gi_flash:
+      show: rise_of_phoenix_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
+  rise_of_phoenix_step_8_shot_hit:
+    gi_flash:
+      show: rise_of_phoenix_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
+  rise_of_phoenix_step_9_shot_hit:
+    gi_flash:
+      show: rise_of_phoenix_gi_flash
+      key: gi_effect
+      loops: 0
+      show_tokens:
+        led: gi_lights
+
 ##############################################
 ## Coil Player - Ramp Lifters & Barrier
 ##############################################
 
 coil_player:
-  # Step 5: Raise right ramp lifter (stays up until shot made or mode ends)
-  rise_of_phoenix_setup_step_5:
-    c_right_ramp_lifter:
-      action: enable
-
-  # Step 5 complete: Lower right ramp lifter
-  rise_of_phoenix_step_5_complete:
-    c_right_ramp_lifter:
-      action: disable
-
-  # Step 6: Raise middle ramp lifter (stays up until shot made or mode ends)
-  rise_of_phoenix_setup_step_6:
-    c_top_ramp_lifter:
-      action: enable
-
-  # Step 6 complete: Lower middle ramp lifter
-  rise_of_phoenix_step_6_complete:
-    c_top_ramp_lifter:
-      action: disable
-
-  # NOTE: Barrier is controlled via standardized events (barrier_drop/barrier_raise)
+  # NOTE: Right ramp and top ramp lifters are now controlled by servos via event_player
+  # Servo events: right_ramp_up, right_ramp_down, top_ramp_up, top_ramp_down
+  # Barrier is controlled via standardized events (barrier_drop/barrier_raise)
   # handled centrally by pilot_mission_qualifier.yaml
 
-  # Mode cleanup - Turn off all coils (barrier handled by pilot_mission_qualifier)
-  rise_of_phoenix_cleanup:
-    c_right_ramp_lifter:
-      action: disable
-    c_top_ramp_lifter:
-      action: disable
+  # No coils needed for this mode - all mechanical actions use servos or barrier events
+  mode_rise_of_phoenix_started: {}
