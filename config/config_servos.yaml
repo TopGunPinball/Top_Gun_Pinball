@@ -20,7 +20,7 @@ servos:
     number: light_expansion_board-1      # Servo port 1 on expansion board
     servo_min: 0.0                        # Minimum position limit
     servo_max: 1.0                        # Maximum position limit
-    reset_position: 0.0                   # Position when game resets (ramp down)
+    reset_position: 0.05                   # Position when game resets (ramp down)
     reset_events: 
       - machine_reset_phase_3
       - ball_will_end
@@ -29,8 +29,8 @@ servos:
       # SAFETY: Starting with ~10% travel (~18 degrees)
       # Increase the "up" value gradually until ramp lifts properly
       # 0.1 = 10%, 0.15 = 15%, 0.2 = 20%, etc.
-      0.0: right_ramp_down                # Ramp down position
-      0.25: right_ramp_up                  # Ramp up position (START SMALL!)
+      0.05: right_ramp_down                # Ramp down position
+      0.21: right_ramp_up                  # Ramp up position (START SMALL!)
     platform_settings:
       min_us: 500                         # Minimum pulse width in microseconds
       home_us: 1500                       # Home/center pulse width
@@ -39,24 +39,22 @@ servos:
 
   # Top/Inner Ramp Lifter Servo  
   servo_top_ramp_lifter:
-    number: light_expansion_board-2      # Servo port 2 on expansion board
+    number: light_expansion_board-2      # Servo port 2
     servo_min: 0.0                        # Minimum position limit
     servo_max: 1.0                        # Maximum position limit
-    reset_position: 0.1                   # Position when game resets (ramp down)
-    reset_events:
+    reset_position: 0.21                  # Position when game resets (ramp down)
+    reset_events: 
       - machine_reset_phase_3
       - ball_will_end
       - service_mode_entered
     positions:
-      # SAFETY: Starting with ~10% travel (~18 degrees)
-      # Increase the "up" value gradually until ramp lifts properly
-      0.1: top_ramp_down                  # Ramp down position (matches reset_position)
-      0.35: top_ramp_up                   # Ramp up position
+      0.21: top_ramp_down                 # Ramp down position
+      0.7: top_ramp_up                   # Ramp up position
     platform_settings:
       min_us: 500                         # Minimum pulse width in microseconds
       home_us: 1500                       # Home/center pulse width
       max_us: 2500                        # Maximum pulse width in microseconds
-      max_runtime: 1s                     # Max time for servo to move
+      # NO max_runtime - servo needs continuous PWM to hold position
 
 ####################################################################################
 # TUNING GUIDE:

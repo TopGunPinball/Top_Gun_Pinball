@@ -1,0 +1,58 @@
+#config_version=6
+
+##############################################################################
+# BALL SAVE CONFIGURATION - Top Gun Pinball
+##############################################################################
+#
+# This file defines two ball save devices:
+#   1. new_ball_save - 10-second save at start of each ball (single use)
+#   2. mode_ball_save - Variable duration save triggered by modes
+#
+# ADD THIS FILE TO config.yaml:
+#   config:
+#     - config_ball_saves.yaml
+#
+# ALSO ADD ball_save to modes list in config.yaml:
+#   modes:
+#     - ball_save
+#
+##############################################################################
+
+ball_saves:
+  ##############################################################################
+  # NEW BALL BALL SAVE
+  # - Activates at start of each ball
+  # - 10 second duration
+  # - Single use (ends after first save)
+  # - Plays "ball_saved" Godot scene when triggered
+  ##############################################################################
+  new_ball_save:
+    active_time: 10s
+    hurry_up_time: 2s             # Last 2 seconds = grace period (light off)
+    grace_period: 500ms           # Brief window after drain detection
+    auto_launch: true             # Auto-plunger fires the saved ball
+    balls_to_save: 1              # Only save one ball per activation
+    early_ball_save_events: s_outlane_left_active, s_outlane_right_active
+    enable_events: ball_save_new_ball_enable
+    disable_events: ball_save_new_ball_disable, ball_save_new_ball_save_used
+    timer_start_events: ball_save_new_ball_timer_start
+    debug: true
+
+  ##############################################################################
+  # MODE BALL SAVE
+  # - Variable duration (controlled by separate timer in ball_save mode)
+  # - Can be triggered by any mode (multiball, mode start fairness, etc.)
+  # - No scene played (silent save)
+  # - UNLIMITED saves during active time (good for multiball)
+  # - Max active_time is 60s, actual duration controlled by mode timer
+  ##############################################################################
+  mode_ball_save:
+    active_time: 60s              # Maximum duration - actual controlled by timer
+    hurry_up_time: 2s             # Last 2 seconds = grace period (light off)
+    grace_period: 500ms           # Brief window after drain detection
+    auto_launch: true             # Auto-plunger fires the saved ball
+    balls_to_save: -1             # UNLIMITED saves during active time
+    early_ball_save_events: s_outlane_left_active, s_outlane_right_active
+    enable_events: ball_save_mode_timer_start
+    disable_events: ball_save_mode_disable, timer_mode_ball_save_countdown_complete
+    debug: true

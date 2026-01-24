@@ -25,7 +25,7 @@ coils:
     number: playfield_board_upper-0
     allow_enable: true
     default_pulse_ms: 40         # duration the coil is activated
-    default_pulse_power: 0.625     # percentage of coil power during initial pulse (0 - 1), factor of 1/8
+    default_pulse_power: 0.75     # percentage of coil power during initial pulse (0 - 1), factor of 1/8
     default_hold_power: 0.125     # factor of 1/8
     max_pulse_ms: none
     max_pulse_power: 1.0
@@ -169,7 +169,7 @@ coils:
     allow_enable: true            # REQUIRED for action: enable in coil_player
     default_pulse_ms: 50          # duration the coil is activated
     default_pulse_power: 1     # percentage of coil power during initial pulse (0 - 1), factor of 1/8
-    default_hold_power: 0.5     # factor of 1/8
+    default_hold_power: 0.375     # factor of 1/8
     max_pulse_ms: none
     max_pulse_power: 1.0
     max_hold_duration: none
@@ -183,7 +183,7 @@ coils:
     allow_enable: true            # REQUIRED for action: enable in coil_player
     default_pulse_ms: 50          # duration the coil is activated
     default_pulse_power: 1     # percentage of coil power during initial pulse (0 - 1), factor of 1/8
-    default_hold_power: 0.5     # factor of 1/8
+    default_hold_power: 0.375     # factor of 1/8
     max_pulse_ms: none
     max_pulse_power: 1.0
     max_hold_duration: none
@@ -192,6 +192,25 @@ coils:
       recycle_ms: 30              # suggested to start at about 2x the ms power
     label: "Right Orbit Diverter"
     tags: [lane diverter, playfield]
+
+# Ejection Seat Magnet
+# Coil: 511-5065-ND (4.3 ohms, 22 AWG, 650 turns)
+# SAFETY: Multiple layers of protection against stuck-on condition
+  c_ejection_seat_magnet:
+    number: playfield_board_mags_diverter_mechs-2
+    allow_enable: true                # REQUIRED for magnet hold
+    default_pulse_ms: 100             # TUNABLE: Fling pulse duration (ms) - increased from 50
+    default_pulse_power: 1.0          # TUNABLE: Fling pulse strength (0-1) - increased from 0.75
+    default_hold_power: 0.375         # TUNABLE: Hold strength - MPF recommended for 511-5065-ND
+    max_pulse_ms: 100                 # Safety limit on pulse duration
+    max_pulse_power: 1.0
+    max_hold_duration: 8s             # CRITICAL SAFETY: Software auto-disable after 8 seconds
+    max_hold_power: 0.75              # Safety limit on hold power - increased to allow fling tuning
+    platform_settings:
+      recycle_ms: 100                 # Minimum time between activations
+      pwm2_ms: 8000                   # CRITICAL SAFETY: FAST hardware auto-cutoff at 8 seconds
+    label: "Ejection Seat Magnet"
+    tags: [magnet, playfield, ejection]
 
 # Mode Coils
   c_mode_barrier:
@@ -219,35 +238,8 @@ coils:
     label: "Mode Outkicker"
     tags: [mode outkicker, playfield]
 
-# Ramp Lift Coils
-  c_right_ramp_lifter: 
-    number: playfield_board_lock_ramps_mechs-2
-    allow_enable: true            # REQUIRED for action: enable in coil_player
-    default_pulse_ms: 15          # duration the coil is activated
-    default_pulse_power: 0.75     # percentage of coil power during initial pulse (0 - 1), factor of 1/8
-    default_hold_power: 0.125     # factor of 1/8
-    max_pulse_ms: none
-    max_pulse_power: 1.0
-    max_hold_duration: none
-    max_hold_power: 1.0
-    platform_settings:            # minimum time between pulses for this coil (coil cool down time)       
-      recycle_ms: 30              # suggested to start at about 2x the ms power
-    label: "Right Ramp Lifter"
-    tags: [Ramp Lift]
-  c_top_ramp_lifter: 
-    number: playfield_board_lock_ramps_mechs-3 
-    allow_enable: true            # REQUIRED for action: enable in coil_player
-    default_pulse_ms: 15          # duration the coil is activated
-    default_pulse_power: 0.75     # percentage of coil power during initial pulse (0 - 1), factor of 1/8
-    default_hold_power: 0.125     # factor of 1/8
-    max_pulse_ms: none
-    max_pulse_power: 1.0
-    max_hold_duration: none
-    max_hold_power: 1.0
-    platform_settings:            # minimum time between pulses for this coil (coil cool down time)       
-      recycle_ms: 30              # suggested to start at about 2x the ms power
-    label: "Top Ramp Lifter"
-    tags: [Ramp Lift]
+# Ramp Lift Coils - REMOVED (now using servos in config_servos.yaml)
+# c_right_ramp_lifter and c_top_ramp_lifter deleted
 
 # Lock Coils
   c_lock_release:

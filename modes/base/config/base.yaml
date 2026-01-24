@@ -3,11 +3,6 @@
 # Base mode that starts at the beginning of each ball
 # and stops at the end of each ball.
 # Slides at 50(Video Background) and 0 (no video Playing)
-#
-# IMPORTANT: This mode stops on ball_ending. When pilot mission modes are active
-# during a drain, they use queue_relay_player with high priority (1000) to hold
-# ball_ending until cleanup is complete, so this mode stays alive long enough
-# for pilot_mission_qualifier to properly clear pause flags when pilot modes stop.
 
 mode:
   start_events: ball_starting
@@ -74,6 +69,9 @@ variable_player:
     bonus_multiplier:
       action: set
       int: 1
+    ball_tilted:
+      action: set
+      int: 0
 
   # Recalculate whenever mach_level changes
   player_mach_level:
@@ -461,6 +459,27 @@ variable_player:
   ## - Cabinet switches (coin door, service, tilt)
   ##############################################
 
+  ##############################################
+  ## TILT WARNING TRACKING
+  ## Tracks warnings so bonus mode knows when to skip
+  ##############################################
+  
+  # Track tilt warnings - MPF's tilt_warning event includes 'warnings' count
+  tilt_warning:
+    tilt_warnings:
+      action: set
+      int: warnings
+  
+  # On tilt, ensure tilt_warnings is set to 3 (so bonus checks correctly)
+  # ALSO set ball_tilted flag which persists (tilt_warnings gets reset by MPF)
+  tilt:
+    tilt_warnings:
+      action: set
+      int: 3
+    ball_tilted:
+      action: set
+      int: 1
+
 ##############################################
 ## SERVO-LINKED COIL CONTROL
 ## When servos move, automatically control linked coils
@@ -494,10 +513,7 @@ coil_player:
       action: disable
     c_mode_barrier:
       action: disable
-    c_right_ramp_lifter:
-      action: disable
-    c_top_ramp_lifter:
-      action: disable
+    # c_right_ramp_lifter and c_top_ramp_lifter removed - now using servos
     c_coin_door_led:
       action: disable
     c_start_button_led:

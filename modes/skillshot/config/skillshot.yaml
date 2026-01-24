@@ -1,6 +1,8 @@
 #config_version=6
 mode:
-  start_events: s_shooter_lane_active
+  # Only start skillshot when ball enters shooter lane AND it wasn't just saved
+  # ball_just_saved flag is set by ball_save mode and cleared when ball leaves shooter lane
+  start_events: s_shooter_lane_active{current_player.ball_just_saved==0}
   priority: 300  # Higher than mig_letters (200) to ensure skillshot lights show
   stop_events:
     timer_skillshot_complete: 0s

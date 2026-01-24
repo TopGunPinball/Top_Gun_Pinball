@@ -1,0 +1,164 @@
+#config_version=6
+
+##############################################################################
+# TILT MODE - Top Gun Pinball
+##############################################################################
+#
+# Handles tilt warning and tilt visual/audio effects:
+# - single_danger scene on 1st warning
+# - double_danger scene on 2nd warning  
+# - tilted scene on tilt
+# - GI flicker effect on warnings
+#
+# MPF automatically disables flippers on tilt.
+# Autofires (bumpers, slings) are disabled via updated config_autofire_coils.yaml
+#
+##############################################################################
+
+mode:
+  start_events: ball_starting
+  stop_events: 
+    - ball_will_end{current_player.ball_tilted==0}
+    - timer_tilt_video_delay_complete
+  priority: 10000                 # Very high to ensure tilt effects work
+  game_mode: false                # Tilt mode must be non-game mode
+
+##############################################################################
+# TILT DEVICE SETTINGS
+# In MPF 0.80, tilt settings go in the mode config, not machine config
+##############################################################################
+tilt:
+  warnings_to_tilt: 3
+  # Debounce to let tilt bob settle - adjust if getting rapid warnings
+  multiple_hit_window: 750ms
+  settle_time: 5s
+
+##############################################################################
+# TIMERS - Delay for tilt video to play
+##############################################################################
+timers:
+  tilt_video_delay:
+    start_value: 0
+    end_value: 10
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: tilt
+        action: start
+
+##############################################################################
+# QUEUE RELAY PLAYER - Hold ball_ending until tilt video finishes
+##############################################################################
+queue_relay_player:
+  ball_ending{current_player.ball_tilted==1}:
+    post: tilt_ball_ending_hold
+    wait_for: tilt_video_complete
+
+##############################################################################
+# EVENT PLAYER
+##############################################################################
+event_player:
+  # When tilt happens, post event for other modes to stop
+  # Add "tilt" to stop_events in any mode that should end on tilt
+  tilt:
+    - tilt_all_modes_stop
+    - tilt_kill_music
+  
+  # When tilt video timer completes, release the ball_ending hold
+  timer_tilt_video_delay_complete:
+    - tilt_video_complete
+
+##############################################################################
+# SLIDE PLAYER - Danger and Tilt Scenes
+##############################################################################
+slide_player:
+  # First warning - single danger
+  # MPF posts tilt_warning with 'warnings' arg indicating count
+  tilt_warning{warnings==1}:
+    double_danger:
+      action: remove
+    single_danger:
+      action: play
+      expire: 12s
+      priority: 50000             # Very high to show over other slides
+      
+  # Second warning - double danger (remove single_danger first)
+  tilt_warning{warnings==2}:
+    single_danger:
+      action: remove
+    double_danger:
+      action: play
+      expire: 8s
+      priority: 50000
+      
+  # On tilt, show ball_tilted full screen
+  tilt:
+    single_danger:
+      action: remove
+    double_danger:
+      action: remove
+    ball_tilted:
+      action: play
+      expire: 10s
+      priority: 50000
+
+##############################################################################
+# SOUND PLAYER - Silence music on tilt
+##############################################################################
+sound_player:
+  tilt_kill_music:
+    silence:
+      bus: music
+      loops: 0
+
+##############################################################################
+# SHOW PLAYER - GI Flicker on Warnings
+##############################################################################
+show_player:
+  # GI flicker on first warning (~1 second)
+  tilt_warning{warnings==1}:
+    gi_danger_flicker:
+      key: gi_tilt_flicker
+      loops: 4                    # 5 cycles × 200ms = 1 second
+      priority: 10000
+      
+  # GI flicker on second warning (~1 second)
+  tilt_warning{warnings==2}:
+    gi_danger_flicker:
+      key: gi_tilt_flicker
+      loops: 4
+      priority: 10000
+      
+  # Stop any running GI flicker when tilt mode stops
+  mode_tilt_stopped:
+    gi_danger_flicker:
+      key: gi_tilt_flicker
+      action: stop
+
+##############################################################################
+# LIGHT PLAYER - Turn off all lights on tilt
+##############################################################################
+light_player:
+  # On tilt, turn off all insert lights (GI handled by show)
+  tilt:
+    inserts:
+      color: off
+      fade: 0ms
+
+##############################################################################
+# SHOWS
+##############################################################################
+shows:
+  # GI flicker show - alternates GI lights on/off
+  # Total duration: ~1 second (5 cycles × 200ms)
+  gi_danger_flicker:
+    - duration: 100ms
+      lights:
+        gi_lights:
+          color: off
+          fade: 0ms
+    - duration: 100ms
+      lights:
+        gi_lights:
+          color: white
+          fade: 0ms

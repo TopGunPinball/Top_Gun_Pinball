@@ -167,33 +167,27 @@ slide_player:
       action: play
       priority: 300
   
-  topgun_qualified{current_player.modes_completed_count==4}:
-    topgun_letters_complete_5:
+  # For 5th+ qualification, random videos are triggered via event_player -> random_event_player
+  # See event_player and random_event_player sections below
+  
+  # Random video player entries (triggered by random_event_player)
+  play_topgun_complete_random_1:
+    topgun_letters_complete_1:
       action: play
       priority: 300
   
-  topgun_qualified{current_player.modes_completed_count==5}:
-    topgun_letters_complete_6:
+  play_topgun_complete_random_2:
+    topgun_letters_complete_2:
       action: play
       priority: 300
   
-  topgun_qualified{current_player.modes_completed_count==6}:
-    topgun_letters_complete_7:
+  play_topgun_complete_random_3:
+    topgun_letters_complete_3:
       action: play
       priority: 300
   
-  topgun_qualified{current_player.modes_completed_count==7}:
-    topgun_letters_complete_8:
-      action: play
-      priority: 300
-  
-  topgun_qualified{current_player.modes_completed_count==8}:
-    topgun_letters_complete_9:
-      action: play
-      priority: 300
-  
-  topgun_qualified{current_player.modes_completed_count==9}:
-    topgun_letters_complete_10:
+  play_topgun_complete_random_4:
+    topgun_letters_complete_4:
       action: play
       priority: 300
   
@@ -1269,6 +1263,14 @@ coil_player:
 ##############################################
 
 event_player:
+  ##############################################
+  ## 5th+ QUALIFICATION - RANDOM VIDEO SELECTION
+  ## For modes_completed_count >= 4, trigger random video selection
+  ##############################################
+  
+  topgun_qualified{current_player.modes_completed_count>=4}:
+    - play_random_topgun_complete
+
   ##############################################
   ## SPINNER SHOT DETECTION
   ## Fire spinner_shot_made when 3+ spins occur within 2 seconds
@@ -2490,6 +2492,20 @@ light_player:
 ##############################################
 ## Sound Player (Optional - Uncomment when sounds are ready)
 ##############################################
+
+##############################################
+## RANDOM EVENT PLAYER
+## For 5th+ qualification, randomly select one of 4 completion videos
+##############################################
+
+random_event_player:
+  play_random_topgun_complete:
+    force_all: false
+    events:
+      - play_topgun_complete_random_1
+      - play_topgun_complete_random_2
+      - play_topgun_complete_random_3
+      - play_topgun_complete_random_4
 
 # sound_player:
 #   s_lane_left_active:

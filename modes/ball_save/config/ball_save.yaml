@@ -1,0 +1,342 @@
+#config_version=6
+
+##############################################################################
+# BALL SAVE MODE - Top Gun Pinball
+##############################################################################
+#
+# This mode manages ball save functionality with:
+#   - Accelerating "shoot again" light flash as timer decreases
+#   - Two types of ball saves: new_ball and mode
+#   - Auto-plunger for saved balls
+#   - Godot scene "ball_saved" for new ball saves
+#
+# LIGHT PATTERN:
+#   - Flash speed = time_remaining * 100ms (faster as time runs out)
+#   - Last 2 seconds: light OFF (grace period feel)
+#
+##############################################################################
+
+mode:
+  start_events: ball_starting
+  stop_events: ball_ending
+  priority: 150                   # Above base (100), below most modes
+
+##############################################################################
+# TIMERS
+##############################################################################
+timers:
+  # Main ball save countdown timer (10 seconds for new ball save)
+  # IMPORTANT: MPF ball_saves device event format is ball_save_<device_name>_<event>
+  # So for device "new_ball_save", events are ball_save_new_ball_save_enabled, etc.
+  ball_save_countdown:
+    start_value: 10
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    control_events:
+      - event: ball_save_new_ball_save_timer_start
+        action: restart
+      - event: ball_save_new_ball_save_disabled
+        action: stop
+
+  # Mode ball save countdown timer
+  # Duration is set via the 'time' parameter in ball_save_mode_timer_start event
+  # Example: ball_save_mode_timer_start with time: 15 sets 15 second save
+  # NOTE: Timer does NOT stop when ball is saved - continues for full duration
+  mode_ball_save_countdown:
+    start_value: 10               # Default, overridden by event parameter
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    control_events:
+      - event: ball_save_mode_timer_start
+        action: restart
+        value: time               # Uses 'time' parameter from event
+      - event: ball_save_mode_save_disabled
+        action: stop
+
+##############################################################################
+# EVENT PLAYER
+##############################################################################
+event_player:
+  ##############################################################################
+  # NEW BALL SAVE - Enable at start of ball
+  # The ball save device handles timing automatically via its own timer
+  # Our timer is just for the light show
+  ##############################################################################
+  mode_ball_save_started:
+    - ball_save_new_ball_enable
+  
+  # Start the ball save timer when ball leaves shooter lane
+  # This triggers the ball_save device's timer_start_events, which posts
+  # ball_save_new_ball_save_timer_start (used by our light show timer)
+  s_shooter_lane_inactive{device.ball_saves.new_ball_save.enabled==True}:
+    - ball_save_new_ball_timer_start
+  
+  # When new ball save is triggered, play the scene
+  # MPF's auto_launch: true handles the plunger automatically now that
+  # bd_plunger has eject_coil: c_plunger enabled
+  # MPF event: ball_save_<device_name>_saving_ball
+  ball_save_new_ball_save_saving_ball:
+    - ball_saved_scene_play
+
+  ##############################################################################
+  # MODE BALL SAVE - Events for modes to use
+  ##############################################################################
+  # Mode ball save is enabled automatically when ball_save_mode_timer_start event is posted
+  # (see ball_saves config - enable_events: ball_save_mode_timer_start)
+  
+  # When mode ball save is triggered - ball is auto-launched by MPF
+  # ball_save_mode_save_saving_ball event fires but ball save stays active
+
+  ##############################################################################
+  # NEW BALL SAVE LIGHT FLASH - Based on timer value (10 second duration)
+  ##############################################################################
+  # Timer ticks - update flash speed based on remaining time
+  # 10-9 seconds: Slow flash
+  timer_ball_save_countdown_tick{ticks>=9}:
+    - ball_save_flash_slow
+  
+  # 8-7 seconds: Medium-slow flash
+  timer_ball_save_countdown_tick{ticks>=7 and ticks<9}:
+    - ball_save_flash_medium_slow
+  
+  # 6-5 seconds: Medium flash  
+  timer_ball_save_countdown_tick{ticks>=5 and ticks<7}:
+    - ball_save_flash_medium
+  
+  # 4-3 seconds: Fast flash
+  timer_ball_save_countdown_tick{ticks>=3 and ticks<5}:
+    - ball_save_flash_fast
+  
+  # 2-0 seconds: Light OFF (grace period)
+  timer_ball_save_countdown_tick{ticks<3}:
+    - ball_save_flash_off
+  
+  # Timer complete - ensure light is off
+  timer_ball_save_countdown_complete:
+    - ball_save_flash_stop
+
+  ##############################################################################
+  # MODE BALL SAVE LIGHT FLASH - Variable duration
+  # Uses same speed tiers but adapts to any duration
+  ##############################################################################
+  # Slow flash when plenty of time remains (9+ seconds)
+  timer_mode_ball_save_countdown_tick{ticks>=9}:
+    - ball_save_flash_slow
+  
+  # Medium-slow flash (7-8 seconds)
+  timer_mode_ball_save_countdown_tick{ticks>=7 and ticks<9}:
+    - ball_save_flash_medium_slow
+  
+  # Medium flash (5-6 seconds)
+  timer_mode_ball_save_countdown_tick{ticks>=5 and ticks<7}:
+    - ball_save_flash_medium
+  
+  # Fast flash (3-4 seconds)
+  timer_mode_ball_save_countdown_tick{ticks>=3 and ticks<5}:
+    - ball_save_flash_fast
+  
+  # Grace period (0-2 seconds) - Light OFF
+  timer_mode_ball_save_countdown_tick{ticks<3}:
+    - ball_save_flash_off
+  
+  # Timer complete - stop light
+  timer_mode_ball_save_countdown_complete:
+    - ball_save_flash_stop
+
+##############################################################################
+# VARIABLE PLAYER
+##############################################################################
+variable_player:
+  # Track ball save state for debugging/display
+  player_added:
+    ball_save_active:
+      action: set
+      int: 0
+    ball_save_time_remaining:
+      action: set
+      int: 0
+    ball_just_saved:
+      action: set
+      int: 0
+  
+  # MPF event format: ball_save_<device_name>_enabled/disabled
+  ball_save_new_ball_save_enabled:
+    ball_save_active:
+      action: set
+      int: 1
+  
+  ball_save_new_ball_save_disabled:
+    ball_save_active:
+      action: set
+      int: 0
+  
+  ball_save_mode_save_enabled:
+    ball_save_active:
+      action: set
+      int: 1
+  
+  ball_save_mode_save_disabled:
+    ball_save_active:
+      action: set
+      int: 0
+  
+  # Set flag when ball is saved (for skillshot mode to check)
+  # This prevents skillshot from showing when a saved ball returns to shooter lane
+  ball_save_new_ball_save_saving_ball:
+    ball_just_saved:
+      action: set
+      int: 1
+  
+  ball_save_mode_save_saving_ball:
+    ball_just_saved:
+      action: set
+      int: 1
+  
+  # Clear the flag when ball leaves shooter lane (ball is back in play)
+  s_shooter_lane_inactive{current_player.ball_just_saved==1}:
+    ball_just_saved:
+      action: set
+      int: 0
+  
+  # Track remaining time for display
+  timer_ball_save_countdown_tick:
+    ball_save_time_remaining:
+      action: set
+      int: device.timers.ball_save_countdown.ticks
+  
+  timer_mode_ball_save_countdown_tick:
+    ball_save_time_remaining:
+      action: set
+      int: device.timers.mode_ball_save_countdown.ticks
+
+##############################################################################
+# SHOW PLAYER - Accelerating light flash
+##############################################################################
+show_player:
+  # Initial flash when NEW ball save timer starts (slow)
+  # MPF event format: ball_save_<device_name>_timer_start
+  ball_save_new_ball_save_timer_start:
+    ball_save_flash_show:
+      key: ball_save_flash
+      speed: 1                    # 1000ms cycle (slow)
+      loops: -1
+      show_tokens:
+        light: l_shoot_again
+        color: white
+  
+  # Initial flash when MODE ball save timer starts
+  # Modes post ball_save_mode_timer_start with time: X parameter
+  ball_save_mode_timer_start:
+    ball_save_flash_show:
+      key: ball_save_flash
+      speed: 1                    # Start slow, timer ticks will adjust
+      loops: -1
+      show_tokens:
+        light: l_shoot_again
+        color: white
+  
+  # Slow flash (9+ seconds) - 1000ms cycle
+  ball_save_flash_slow:
+    ball_save_flash_show:
+      key: ball_save_flash
+      speed: 1
+      loops: -1
+      show_tokens:
+        light: l_shoot_again
+        color: white
+  
+  # Medium-slow flash (7-8 seconds) - 750ms cycle
+  ball_save_flash_medium_slow:
+    ball_save_flash_show:
+      key: ball_save_flash
+      speed: 1.33
+      loops: -1
+      show_tokens:
+        light: l_shoot_again
+        color: white
+  
+  # Medium flash (5-6 seconds) - 500ms cycle
+  ball_save_flash_medium:
+    ball_save_flash_show:
+      key: ball_save_flash
+      speed: 2
+      loops: -1
+      show_tokens:
+        light: l_shoot_again
+        color: white
+  
+  # Fast flash (3-4 seconds) - 350ms cycle
+  ball_save_flash_fast:
+    ball_save_flash_show:
+      key: ball_save_flash
+      speed: 2.86
+      loops: -1
+      show_tokens:
+        light: l_shoot_again
+        color: white
+  
+  # Grace period (0-2 seconds) - Light OFF
+  ball_save_flash_off:
+    ball_save_flash_show:
+      key: ball_save_flash
+      action: stop
+  
+  # Stop flash completely
+  ball_save_flash_stop:
+    ball_save_flash_show:
+      key: ball_save_flash
+      action: stop
+  
+  # Ball saved - stop flash for NEW ball save only
+  ball_save_new_ball_save_saving_ball:
+    ball_save_flash_show:
+      key: ball_save_flash
+      action: stop
+  
+  # Mode ball save continues - flash keeps going (don't stop on save)
+
+##############################################################################
+# LIGHT PLAYER - Ensure light is off when mode stops
+##############################################################################
+light_player:
+  ball_save_flash_off:
+    l_shoot_again:
+      color: off
+      fade: 0ms
+  
+  ball_save_flash_stop:
+    l_shoot_again:
+      color: off
+      fade: 0ms
+  
+  mode_ball_save_stopped:
+    l_shoot_again:
+      color: off
+      fade: 0ms
+
+##############################################################################
+# SLIDE PLAYER - Ball saved scene for new ball saves
+##############################################################################
+slide_player:
+  ball_saved_scene_play:
+    ball_saved:
+      action: play
+      expire: 3s
+
+##############################################################################
+# SHOWS
+##############################################################################
+shows:
+  ball_save_flash_show:
+    - duration: 500ms
+      lights:
+        (light):
+          color: (color)
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (light):
+          color: off
+          fade: 0ms
