@@ -9,6 +9,7 @@ config:
   - config_hardware_fast.yaml
   - config_lights.yaml
   - config_switches.yaml
+  - config_service.yaml
   - config_servos.yaml
   - variable_player.yaml
   - config_videos.yaml
@@ -28,6 +29,7 @@ modes:
   - mig_letters
   - rescue_cougar
   - rise_of_phoenix
+  - service
   - skillshot
   - tilt 
   - pilot_mission_qualifier
@@ -94,8 +96,7 @@ event_player:
   player_turn_started{number==3}: ui_player_3_up
   player_turn_started{number==4}: ui_player_4_up
 
-# Volume Control - Coin Door Service Buttons (works in attract and game)
-# Uses variable_player to modify machine variable directly - FAST audio listens for changes
+# Volume Control - ORIGINAL WORKING VERSION
 variable_player:
   s_coin_door_service_3_active:
     fast_audio_main_volume:
@@ -130,3 +131,46 @@ logging:
     mpf.core.assets: debug
     mpf.core.asset_manager: debug
     mpf.plugins.sound: debug
+
+settings:
+  balls_per_game:
+    label: Balls Per Game
+    values:
+      3: "3 Balls (Default)"
+      5: "5 Balls"
+    default: 3
+    key_type: int
+    sort: 100
+    
+  replay_score:
+    label: Replay Score
+    values:
+      0: "Disabled"
+      5000000: "5,000,000"
+      10000000: "10,000,000"
+      15000000: "15,000,000"
+      20000000: "20,000,000"
+    default: 0
+    key_type: int
+    sort: 200
+    
+  free_play:
+    label: Free Play
+    values:
+      1: "Yes - Free Play"
+      0: "No - Coins Required"
+    default: 1
+    key_type: int
+    sort: 300
+    
+  volume_level:
+    label: Master Volume
+    values:
+      5: "5 (Quiet)"
+      10: "10"
+      15: "15 (Default)"
+      20: "20"
+      25: "25 (Loud)"
+    default: 15
+    key_type: int
+    sort: 400
