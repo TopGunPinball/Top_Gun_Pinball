@@ -9,7 +9,6 @@ config:
   - config_hardware_fast.yaml
   - config_lights.yaml
   - config_switches.yaml
-  - config_service.yaml
   - config_servos.yaml
   - variable_player.yaml
   - config_videos.yaml
@@ -29,7 +28,7 @@ modes:
   - mig_letters
   - rescue_cougar
   - rise_of_phoenix
-  - service
+  - top_gun_service
   - skillshot
   - tilt 
   - pilot_mission_qualifier
@@ -47,6 +46,143 @@ player_vars:
   ball_tilted:
     initial_value: 0
     value_type: int
+
+##############################################################################
+# MACHINE VARIABLES - Service mode tracking and audits
+##############################################################################
+machine_vars:
+  # Service mode menu state - integers for logic
+  service_menu_level:
+    initial_value: 0
+    value_type: int
+    persist: false
+  service_main_index:
+    initial_value: 0
+    value_type: int
+    persist: false
+  service_switch_index:
+    initial_value: 0
+    value_type: int
+    persist: false
+  service_coil_index:
+    initial_value: 0
+    value_type: int
+    persist: false
+  service_light_index:
+    initial_value: 0
+    value_type: int
+    persist: false
+  service_light_color_index:
+    initial_value: 0
+    value_type: int
+    persist: false
+  service_adjustment_index:
+    initial_value: 0
+    value_type: int
+    persist: false
+  service_audit_index:
+    initial_value: 0
+    value_type: int
+    persist: false
+  service_feature_index:
+    initial_value: 0
+    value_type: int
+    persist: false
+  # Service mode display text - strings for Godot MPFVariable nodes
+  service_main_text:
+    initial_value: "SWITCH TEST"
+    value_type: str
+    persist: false
+  service_switch_name:
+    initial_value: "Start Button"
+    value_type: str
+    persist: false
+  service_switch_num:
+    initial_value: "Switch 1/63"
+    value_type: str
+    persist: false
+  service_switch_state:
+    initial_value: "OPEN"
+    value_type: str
+    persist: false
+  service_coil_name:
+    initial_value: "Left Flipper"
+    value_type: str
+    persist: false
+  service_coil_num:
+    initial_value: "Coil 1/22"
+    value_type: str
+    persist: false
+  service_light_name:
+    initial_value: "Eject Insert"
+    value_type: str
+    persist: false
+  service_light_num:
+    initial_value: "Light 1/91"
+    value_type: str
+    persist: false
+  # Servo calibration display
+  service_servo_index:
+    initial_value: 0
+    value_type: int
+    persist: false
+  service_servo_name:
+    initial_value: "Right Ramp"
+    value_type: str
+    persist: false
+  service_servo_num:
+    initial_value: "Servo 1/4"
+    value_type: str
+    persist: false
+  service_servo_position:
+    initial_value: "DOWN: 0.05"
+    value_type: str
+    persist: false
+  service_adjustment_name:
+    initial_value: "Balls Per Game"
+    value_type: str
+    persist: false
+  service_adjustment_num:
+    initial_value: "Setting 1/15"
+    value_type: str
+    persist: false
+  service_audit_name:
+    initial_value: "Games Played"
+    value_type: str
+    persist: false
+  service_audit_num:
+    initial_value: "Audit 1/10"
+    value_type: str
+    persist: false
+  service_feature_name:
+    initial_value: "Pilot Mode Timer"
+    value_type: str
+    persist: false
+  service_feature_num:
+    initial_value: "Feature 1/10"
+    value_type: str
+    persist: false
+  # Audit counters (persistent)
+  audit_games_played:
+    initial_value: 0
+    value_type: int
+    persist: true
+  audit_balls_played:
+    initial_value: 0
+    value_type: int
+    persist: true
+  audit_total_plays:
+    initial_value: 0
+    value_type: int
+    persist: true
+  audit_high_score:
+    initial_value: 0
+    value_type: int
+    persist: true
+  audit_total_game_time:
+    initial_value: 0
+    value_type: int
+    persist: true
 
 playfields:
   playfield:
@@ -95,14 +231,25 @@ event_player:
   player_turn_started{number==2}: ui_player_2_up
   player_turn_started{number==3}: ui_player_3_up
   player_turn_started{number==4}: ui_player_4_up
+  
+  ##############################################################################
+  # SERVICE MODE ENTRY
+  # Door must be open (s_coin_door active) AND press ENTER button
+  # Only when service mode is not already running
+  ##############################################################################
+  s_coin_door_service_4_active{device.switches.s_coin_door.state==1 and mode.top_gun_service.active==False}:
+    - service_mode_request
 
-# Volume Control - ORIGINAL WORKING VERSION
+##############################################################################
+# VOLUME CONTROL
+# Only active when NOT in service mode
+##############################################################################
 variable_player:
-  s_coin_door_service_3_active:
+  s_coin_door_service_3_active{mode.top_gun_service.active==False}:
     fast_audio_main_volume:
       action: add_machine
       int: 1
-  s_coin_door_service_2_active:
+  s_coin_door_service_2_active{mode.top_gun_service.active==False}:
     fast_audio_main_volume:
       action: add_machine
       int: -1

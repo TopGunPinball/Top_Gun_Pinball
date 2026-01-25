@@ -1,0 +1,4071 @@
+#config_version=6
+#show_version=6
+
+mode:
+  start_events: service_mode_request
+  stop_events: service_mode_exit
+  game_mode: false
+  priority: 900
+
+##############################################################################
+# EVENT PLAYER
+##############################################################################
+
+event_player:
+  # MODE ENTRY
+  mode_top_gun_service_started:
+    - service_enter_main_menu
+    - service_mode_entered
+
+  # MAIN MENU NAVIGATION
+  service_enter_main_menu:
+    - service_update_main_menu_text
+    - service_main_menu_update
+
+  # SERVICE BUTTON HANDLERS - MAIN MENU (level 0)
+  s_coin_door_service_2_active{machine.service_menu_level==0}: service_main_menu_next
+  s_coin_door_service_3_active{machine.service_menu_level==0}: service_main_menu_prev
+  s_coin_door_service_4_active{machine.service_menu_level==0}: service_main_menu_select
+  s_coin_door_service_1_active{machine.service_menu_level==0}: service_mode_exit
+
+  # MAIN MENU NEXT/PREV
+  service_main_menu_next:
+    - service_update_main_menu_text
+  service_main_menu_prev:
+    - service_update_main_menu_text
+
+  # MAIN MENU SELECT - Route to sub-menus
+  service_main_menu_select{machine.service_main_index==0}: service_enter_switch_test
+  service_main_menu_select{machine.service_main_index==1}: service_enter_coil_test
+  service_main_menu_select{machine.service_main_index==2}: service_enter_light_test
+  service_main_menu_select{machine.service_main_index==3}: service_enter_servo_adjust
+  service_main_menu_select{machine.service_main_index==4}: service_enter_adjustments
+  service_main_menu_select{machine.service_main_index==5}: service_enter_audits
+  service_main_menu_select{machine.service_main_index==6}: service_enter_feature_adjustments
+  service_main_menu_select{machine.service_main_index==7}: service_mode_exit
+
+  # SWITCH TEST NAVIGATION
+  service_enter_switch_test:
+    - service_update_switch_text
+    - service_switch_test_update
+
+  s_coin_door_service_2_active{machine.service_menu_level==1}: service_switch_next
+  s_coin_door_service_3_active{machine.service_menu_level==1}: service_switch_prev
+  s_coin_door_service_1_active{machine.service_menu_level==1}: service_enter_main_menu
+
+  service_switch_next:
+    - service_update_switch_text
+  service_switch_prev:
+    - service_update_switch_text
+
+  # COIL TEST NAVIGATION
+  service_enter_coil_test:
+    - service_update_coil_text
+    - service_coil_test_update
+
+  s_coin_door_service_2_active{machine.service_menu_level==2}: service_coil_next
+  s_coin_door_service_3_active{machine.service_menu_level==2}: service_coil_prev
+  s_coin_door_service_4_active{machine.service_menu_level==2}: service_coil_fire
+  s_coin_door_service_1_active{machine.service_menu_level==2}: service_enter_main_menu
+
+  service_coil_next:
+    - service_update_coil_text
+  service_coil_prev:
+    - service_update_coil_text
+
+  # LIGHT TEST NAVIGATION
+  service_enter_light_test:
+    - service_update_light_text
+    - service_light_color_reset
+    - service_apply_light_color
+
+  s_coin_door_service_2_active{machine.service_menu_level==3}: service_light_next
+  s_coin_door_service_3_active{machine.service_menu_level==3}: service_light_prev
+  s_coin_door_service_1_active{machine.service_menu_level==3}: service_enter_main_menu
+  s_coin_door_service_4_active{machine.service_menu_level==3}: service_light_color_cycle
+
+  service_light_next:
+    - service_update_light_text
+    - service_light_color_reset
+    - service_apply_light_color
+  service_light_prev:
+    - service_update_light_text
+    - service_light_color_reset
+    - service_apply_light_color
+  
+  # Color cycle triggers apply
+  service_light_color_cycle:
+    - service_apply_light_color
+
+  # ADJUSTMENTS NAVIGATION
+  service_enter_adjustments:
+    - service_update_adjustment_text
+    - service_adjustments_update
+
+  s_coin_door_service_2_active{machine.service_menu_level==4}: service_adjustment_next
+  s_coin_door_service_3_active{machine.service_menu_level==4}: service_adjustment_prev
+  s_coin_door_service_1_active{machine.service_menu_level==4}: service_enter_main_menu
+
+  service_adjustment_next:
+    - service_update_adjustment_text
+  service_adjustment_prev:
+    - service_update_adjustment_text
+
+  # AUDITS NAVIGATION
+  service_enter_audits:
+    - service_update_audit_text
+    - service_audits_update
+
+  s_coin_door_service_2_active{machine.service_menu_level==5}: service_audit_next
+  s_coin_door_service_3_active{machine.service_menu_level==5}: service_audit_prev
+  s_coin_door_service_1_active{machine.service_menu_level==5}: service_enter_main_menu
+
+  service_audit_next:
+    - service_update_audit_text
+  service_audit_prev:
+    - service_update_audit_text
+
+  # FEATURE ADJUSTMENTS NAVIGATION
+  service_enter_feature_adjustments:
+    - service_update_feature_text
+    - service_feature_adjustments_update
+
+  s_coin_door_service_2_active{machine.service_menu_level==6}: service_feature_next
+  s_coin_door_service_3_active{machine.service_menu_level==6}: service_feature_prev
+  s_coin_door_service_1_active{machine.service_menu_level==6}: service_enter_main_menu
+
+  service_feature_next:
+    - service_update_feature_text
+  service_feature_prev:
+    - service_update_feature_text
+
+  # SERVO ADJUST NAVIGATION
+  service_enter_servo_adjust:
+    - service_update_servo_text
+    - service_servo_adjust_update
+
+  s_coin_door_service_2_active{machine.service_menu_level==7}: service_servo_next
+  s_coin_door_service_3_active{machine.service_menu_level==7}: service_servo_prev
+  s_coin_door_service_1_active{machine.service_menu_level==7}: service_enter_main_menu
+
+  service_servo_next:
+    - service_update_servo_text
+  service_servo_prev:
+    - service_update_servo_text
+
+  # MAIN MENU TEXT MAPPING (8 items)
+  service_update_main_menu_text{machine.service_main_index==0}: set_main_menu_switch_test
+  service_update_main_menu_text{machine.service_main_index==1}: set_main_menu_coil_test
+  service_update_main_menu_text{machine.service_main_index==2}: set_main_menu_light_test
+  service_update_main_menu_text{machine.service_main_index==3}: set_main_menu_servo_adjust
+  service_update_main_menu_text{machine.service_main_index==4}: set_main_menu_adjustments
+  service_update_main_menu_text{machine.service_main_index==5}: set_main_menu_audits
+  service_update_main_menu_text{machine.service_main_index==6}: set_main_menu_feature_adj
+  service_update_main_menu_text{machine.service_main_index==7}: set_main_menu_exit
+
+  # SWITCH TEXT MAPPING (63 switches)
+  service_update_switch_text{machine.service_switch_index==0}: set_switch_0
+  service_update_switch_text{machine.service_switch_index==1}: set_switch_1
+  service_update_switch_text{machine.service_switch_index==2}: set_switch_2
+  service_update_switch_text{machine.service_switch_index==3}: set_switch_3
+  service_update_switch_text{machine.service_switch_index==4}: set_switch_4
+  service_update_switch_text{machine.service_switch_index==5}: set_switch_5
+  service_update_switch_text{machine.service_switch_index==6}: set_switch_6
+  service_update_switch_text{machine.service_switch_index==7}: set_switch_7
+  service_update_switch_text{machine.service_switch_index==8}: set_switch_8
+  service_update_switch_text{machine.service_switch_index==9}: set_switch_9
+  service_update_switch_text{machine.service_switch_index==10}: set_switch_10
+  service_update_switch_text{machine.service_switch_index==11}: set_switch_11
+  service_update_switch_text{machine.service_switch_index==12}: set_switch_12
+  service_update_switch_text{machine.service_switch_index==13}: set_switch_13
+  service_update_switch_text{machine.service_switch_index==14}: set_switch_14
+  service_update_switch_text{machine.service_switch_index==15}: set_switch_15
+  service_update_switch_text{machine.service_switch_index==16}: set_switch_16
+  service_update_switch_text{machine.service_switch_index==17}: set_switch_17
+  service_update_switch_text{machine.service_switch_index==18}: set_switch_18
+  service_update_switch_text{machine.service_switch_index==19}: set_switch_19
+  service_update_switch_text{machine.service_switch_index==20}: set_switch_20
+  service_update_switch_text{machine.service_switch_index==21}: set_switch_21
+  service_update_switch_text{machine.service_switch_index==22}: set_switch_22
+  service_update_switch_text{machine.service_switch_index==23}: set_switch_23
+  service_update_switch_text{machine.service_switch_index==24}: set_switch_24
+  service_update_switch_text{machine.service_switch_index==25}: set_switch_25
+  service_update_switch_text{machine.service_switch_index==26}: set_switch_26
+  service_update_switch_text{machine.service_switch_index==27}: set_switch_27
+  service_update_switch_text{machine.service_switch_index==28}: set_switch_28
+  service_update_switch_text{machine.service_switch_index==29}: set_switch_29
+  service_update_switch_text{machine.service_switch_index==30}: set_switch_30
+  service_update_switch_text{machine.service_switch_index==31}: set_switch_31
+  service_update_switch_text{machine.service_switch_index==32}: set_switch_32
+  service_update_switch_text{machine.service_switch_index==33}: set_switch_33
+  service_update_switch_text{machine.service_switch_index==34}: set_switch_34
+  service_update_switch_text{machine.service_switch_index==35}: set_switch_35
+  service_update_switch_text{machine.service_switch_index==36}: set_switch_36
+  service_update_switch_text{machine.service_switch_index==37}: set_switch_37
+  service_update_switch_text{machine.service_switch_index==38}: set_switch_38
+  service_update_switch_text{machine.service_switch_index==39}: set_switch_39
+  service_update_switch_text{machine.service_switch_index==40}: set_switch_40
+  service_update_switch_text{machine.service_switch_index==41}: set_switch_41
+  service_update_switch_text{machine.service_switch_index==42}: set_switch_42
+  service_update_switch_text{machine.service_switch_index==43}: set_switch_43
+  service_update_switch_text{machine.service_switch_index==44}: set_switch_44
+  service_update_switch_text{machine.service_switch_index==45}: set_switch_45
+  service_update_switch_text{machine.service_switch_index==46}: set_switch_46
+  service_update_switch_text{machine.service_switch_index==47}: set_switch_47
+  service_update_switch_text{machine.service_switch_index==48}: set_switch_48
+  service_update_switch_text{machine.service_switch_index==49}: set_switch_49
+  service_update_switch_text{machine.service_switch_index==50}: set_switch_50
+  service_update_switch_text{machine.service_switch_index==51}: set_switch_51
+  service_update_switch_text{machine.service_switch_index==52}: set_switch_52
+  service_update_switch_text{machine.service_switch_index==53}: set_switch_53
+  service_update_switch_text{machine.service_switch_index==54}: set_switch_54
+  service_update_switch_text{machine.service_switch_index==55}: set_switch_55
+  service_update_switch_text{machine.service_switch_index==56}: set_switch_56
+  service_update_switch_text{machine.service_switch_index==57}: set_switch_57
+  service_update_switch_text{machine.service_switch_index==58}: set_switch_58
+  service_update_switch_text{machine.service_switch_index==59}: set_switch_59
+  service_update_switch_text{machine.service_switch_index==60}: set_switch_60
+  service_update_switch_text{machine.service_switch_index==61}: set_switch_61
+  service_update_switch_text{machine.service_switch_index==62}: set_switch_62
+
+  # REAL-TIME SWITCH STATE MONITORING (63 switches x 2 events = 126 handlers)
+  s_start_active{machine.service_menu_level==1 and machine.service_switch_index==0}: set_state_closed
+  s_start_inactive{machine.service_menu_level==1 and machine.service_switch_index==0}: set_state_open
+  s_tilt_active{machine.service_menu_level==1 and machine.service_switch_index==1}: set_state_closed
+  s_tilt_inactive{machine.service_menu_level==1 and machine.service_switch_index==1}: set_state_open
+  s_48v_disable_active{machine.service_menu_level==1 and machine.service_switch_index==2}: set_state_closed
+  s_48v_disable_inactive{machine.service_menu_level==1 and machine.service_switch_index==2}: set_state_open
+  s_coin_door_active{machine.service_menu_level==1 and machine.service_switch_index==3}: set_state_closed
+  s_coin_door_inactive{machine.service_menu_level==1 and machine.service_switch_index==3}: set_state_open
+  s_coin_door_service_1_active{machine.service_menu_level==1 and machine.service_switch_index==4}: set_state_closed
+  s_coin_door_service_1_inactive{machine.service_menu_level==1 and machine.service_switch_index==4}: set_state_open
+  s_coin_door_service_2_active{machine.service_menu_level==1 and machine.service_switch_index==5}: set_state_closed
+  s_coin_door_service_2_inactive{machine.service_menu_level==1 and machine.service_switch_index==5}: set_state_open
+  s_coin_door_service_3_active{machine.service_menu_level==1 and machine.service_switch_index==6}: set_state_closed
+  s_coin_door_service_3_inactive{machine.service_menu_level==1 and machine.service_switch_index==6}: set_state_open
+  s_coin_door_service_4_active{machine.service_menu_level==1 and machine.service_switch_index==7}: set_state_closed
+  s_coin_door_service_4_inactive{machine.service_menu_level==1 and machine.service_switch_index==7}: set_state_open
+  s_coin_door_credit_right_active{machine.service_menu_level==1 and machine.service_switch_index==8}: set_state_closed
+  s_coin_door_credit_right_inactive{machine.service_menu_level==1 and machine.service_switch_index==8}: set_state_open
+  s_coin_door_credit_left_active{machine.service_menu_level==1 and machine.service_switch_index==9}: set_state_closed
+  s_coin_door_credit_left_inactive{machine.service_menu_level==1 and machine.service_switch_index==9}: set_state_open
+  s_flipper_left_active{machine.service_menu_level==1 and machine.service_switch_index==10}: set_state_closed
+  s_flipper_left_inactive{machine.service_menu_level==1 and machine.service_switch_index==10}: set_state_open
+  s_flipper_left_eos_active{machine.service_menu_level==1 and machine.service_switch_index==11}: set_state_closed
+  s_flipper_left_eos_inactive{machine.service_menu_level==1 and machine.service_switch_index==11}: set_state_open
+  s_flipper_left_upper_active{machine.service_menu_level==1 and machine.service_switch_index==12}: set_state_closed
+  s_flipper_left_upper_inactive{machine.service_menu_level==1 and machine.service_switch_index==12}: set_state_open
+  s_flipper_left_upper_eos_active{machine.service_menu_level==1 and machine.service_switch_index==13}: set_state_closed
+  s_flipper_left_upper_eos_inactive{machine.service_menu_level==1 and machine.service_switch_index==13}: set_state_open
+  s_flipper_right_active{machine.service_menu_level==1 and machine.service_switch_index==14}: set_state_closed
+  s_flipper_right_inactive{machine.service_menu_level==1 and machine.service_switch_index==14}: set_state_open
+  s_flipper_right_eos_active{machine.service_menu_level==1 and machine.service_switch_index==15}: set_state_closed
+  s_flipper_right_eos_inactive{machine.service_menu_level==1 and machine.service_switch_index==15}: set_state_open
+  s_trough_1_active{machine.service_menu_level==1 and machine.service_switch_index==16}: set_state_closed
+  s_trough_1_inactive{machine.service_menu_level==1 and machine.service_switch_index==16}: set_state_open
+  s_trough_2_active{machine.service_menu_level==1 and machine.service_switch_index==17}: set_state_closed
+  s_trough_2_inactive{machine.service_menu_level==1 and machine.service_switch_index==17}: set_state_open
+  s_trough_3_active{machine.service_menu_level==1 and machine.service_switch_index==18}: set_state_closed
+  s_trough_3_inactive{machine.service_menu_level==1 and machine.service_switch_index==18}: set_state_open
+  s_trough_4_active{machine.service_menu_level==1 and machine.service_switch_index==19}: set_state_closed
+  s_trough_4_inactive{machine.service_menu_level==1 and machine.service_switch_index==19}: set_state_open
+  s_trough_5_active{machine.service_menu_level==1 and machine.service_switch_index==20}: set_state_closed
+  s_trough_5_inactive{machine.service_menu_level==1 and machine.service_switch_index==20}: set_state_open
+  s_trough_6_active{machine.service_menu_level==1 and machine.service_switch_index==21}: set_state_closed
+  s_trough_6_inactive{machine.service_menu_level==1 and machine.service_switch_index==21}: set_state_open
+  s_jam_active{machine.service_menu_level==1 and machine.service_switch_index==22}: set_state_closed
+  s_jam_inactive{machine.service_menu_level==1 and machine.service_switch_index==22}: set_state_open
+  s_shooter_lane_active{machine.service_menu_level==1 and machine.service_switch_index==23}: set_state_closed
+  s_shooter_lane_inactive{machine.service_menu_level==1 and machine.service_switch_index==23}: set_state_open
+  s_bumper_left_active{machine.service_menu_level==1 and machine.service_switch_index==24}: set_state_closed
+  s_bumper_left_inactive{machine.service_menu_level==1 and machine.service_switch_index==24}: set_state_open
+  s_bumper_center_active{machine.service_menu_level==1 and machine.service_switch_index==25}: set_state_closed
+  s_bumper_center_inactive{machine.service_menu_level==1 and machine.service_switch_index==25}: set_state_open
+  s_bumper_right_active{machine.service_menu_level==1 and machine.service_switch_index==26}: set_state_closed
+  s_bumper_right_inactive{machine.service_menu_level==1 and machine.service_switch_index==26}: set_state_open
+  s_slingshot_left_active{machine.service_menu_level==1 and machine.service_switch_index==27}: set_state_closed
+  s_slingshot_left_inactive{machine.service_menu_level==1 and machine.service_switch_index==27}: set_state_open
+  s_slingshot_right_active{machine.service_menu_level==1 and machine.service_switch_index==28}: set_state_closed
+  s_slingshot_right_inactive{machine.service_menu_level==1 and machine.service_switch_index==28}: set_state_open
+  s_outlane_left_active{machine.service_menu_level==1 and machine.service_switch_index==29}: set_state_closed
+  s_outlane_left_inactive{machine.service_menu_level==1 and machine.service_switch_index==29}: set_state_open
+  s_inlane_left_active{machine.service_menu_level==1 and machine.service_switch_index==30}: set_state_closed
+  s_inlane_left_inactive{machine.service_menu_level==1 and machine.service_switch_index==30}: set_state_open
+  s_inner_inlane_right_active{machine.service_menu_level==1 and machine.service_switch_index==31}: set_state_closed
+  s_inner_inlane_right_inactive{machine.service_menu_level==1 and machine.service_switch_index==31}: set_state_open
+  s_outer_inlane_right_active{machine.service_menu_level==1 and machine.service_switch_index==32}: set_state_closed
+  s_outer_inlane_right_inactive{machine.service_menu_level==1 and machine.service_switch_index==32}: set_state_open
+  s_outlane_right_active{machine.service_menu_level==1 and machine.service_switch_index==33}: set_state_closed
+  s_outlane_right_inactive{machine.service_menu_level==1 and machine.service_switch_index==33}: set_state_open
+  s_mig_lane_left_active{machine.service_menu_level==1 and machine.service_switch_index==34}: set_state_closed
+  s_mig_lane_left_inactive{machine.service_menu_level==1 and machine.service_switch_index==34}: set_state_open
+  s_mig_lane_right_active{machine.service_menu_level==1 and machine.service_switch_index==35}: set_state_closed
+  s_mig_lane_right_inactive{machine.service_menu_level==1 and machine.service_switch_index==35}: set_state_open
+  s_lane_left_active{machine.service_menu_level==1 and machine.service_switch_index==36}: set_state_closed
+  s_lane_left_inactive{machine.service_menu_level==1 and machine.service_switch_index==36}: set_state_open
+  s_orbit_left_active{machine.service_menu_level==1 and machine.service_switch_index==37}: set_state_closed
+  s_orbit_left_inactive{machine.service_menu_level==1 and machine.service_switch_index==37}: set_state_open
+  s_orbit_upper_active{machine.service_menu_level==1 and machine.service_switch_index==38}: set_state_closed
+  s_orbit_upper_inactive{machine.service_menu_level==1 and machine.service_switch_index==38}: set_state_open
+  s_orbit_lower_active{machine.service_menu_level==1 and machine.service_switch_index==39}: set_state_closed
+  s_orbit_lower_inactive{machine.service_menu_level==1 and machine.service_switch_index==39}: set_state_open
+  s_orbit_right_active{machine.service_menu_level==1 and machine.service_switch_index==40}: set_state_closed
+  s_orbit_right_inactive{machine.service_menu_level==1 and machine.service_switch_index==40}: set_state_open
+  s_lane_right_active{machine.service_menu_level==1 and machine.service_switch_index==41}: set_state_closed
+  s_lane_right_inactive{machine.service_menu_level==1 and machine.service_switch_index==41}: set_state_open
+  s_i_iceman_target_active{machine.service_menu_level==1 and machine.service_switch_index==42}: set_state_closed
+  s_i_iceman_target_inactive{machine.service_menu_level==1 and machine.service_switch_index==42}: set_state_open
+  s_c_iceman_target_active{machine.service_menu_level==1 and machine.service_switch_index==43}: set_state_closed
+  s_c_iceman_target_inactive{machine.service_menu_level==1 and machine.service_switch_index==43}: set_state_open
+  s_e_iceman_target_active{machine.service_menu_level==1 and machine.service_switch_index==44}: set_state_closed
+  s_e_iceman_target_inactive{machine.service_menu_level==1 and machine.service_switch_index==44}: set_state_open
+  s_m_iceman_target_active{machine.service_menu_level==1 and machine.service_switch_index==45}: set_state_closed
+  s_m_iceman_target_inactive{machine.service_menu_level==1 and machine.service_switch_index==45}: set_state_open
+  s_a_iceman_target_active{machine.service_menu_level==1 and machine.service_switch_index==46}: set_state_closed
+  s_a_iceman_target_inactive{machine.service_menu_level==1 and machine.service_switch_index==46}: set_state_open
+  s_n_iceman_target_active{machine.service_menu_level==1 and machine.service_switch_index==47}: set_state_closed
+  s_n_iceman_target_inactive{machine.service_menu_level==1 and machine.service_switch_index==47}: set_state_open
+  s_l_lock_target_active{machine.service_menu_level==1 and machine.service_switch_index==48}: set_state_closed
+  s_l_lock_target_inactive{machine.service_menu_level==1 and machine.service_switch_index==48}: set_state_open
+  s_o_lock_target_active{machine.service_menu_level==1 and machine.service_switch_index==49}: set_state_closed
+  s_o_lock_target_inactive{machine.service_menu_level==1 and machine.service_switch_index==49}: set_state_open
+  s_c_lock_target_active{machine.service_menu_level==1 and machine.service_switch_index==50}: set_state_closed
+  s_c_lock_target_inactive{machine.service_menu_level==1 and machine.service_switch_index==50}: set_state_open
+  s_k_lock_target_active{machine.service_menu_level==1 and machine.service_switch_index==51}: set_state_closed
+  s_k_lock_target_inactive{machine.service_menu_level==1 and machine.service_switch_index==51}: set_state_open
+  s_barrier_target_active{machine.service_menu_level==1 and machine.service_switch_index==52}: set_state_closed
+  s_barrier_target_inactive{machine.service_menu_level==1 and machine.service_switch_index==52}: set_state_open
+  s_flight_gear_target_active{machine.service_menu_level==1 and machine.service_switch_index==53}: set_state_closed
+  s_flight_gear_target_inactive{machine.service_menu_level==1 and machine.service_switch_index==53}: set_state_open
+  s_spinner_active{machine.service_menu_level==1 and machine.service_switch_index==54}: set_state_closed
+  s_spinner_inactive{machine.service_menu_level==1 and machine.service_switch_index==54}: set_state_open
+  s_ramp_left_exit_active{machine.service_menu_level==1 and machine.service_switch_index==55}: set_state_closed
+  s_ramp_left_exit_inactive{machine.service_menu_level==1 and machine.service_switch_index==55}: set_state_open
+  s_ramp_right_exit_active{machine.service_menu_level==1 and machine.service_switch_index==56}: set_state_closed
+  s_ramp_right_exit_inactive{machine.service_menu_level==1 and machine.service_switch_index==56}: set_state_open
+  s_ramp_inner_exit_active{machine.service_menu_level==1 and machine.service_switch_index==57}: set_state_closed
+  s_ramp_inner_exit_inactive{machine.service_menu_level==1 and machine.service_switch_index==57}: set_state_open
+  s_ramp_tower_exit_active{machine.service_menu_level==1 and machine.service_switch_index==58}: set_state_closed
+  s_ramp_tower_exit_inactive{machine.service_menu_level==1 and machine.service_switch_index==58}: set_state_open
+  s_lock_plunger_active{machine.service_menu_level==1 and machine.service_switch_index==59}: set_state_closed
+  s_lock_plunger_inactive{machine.service_menu_level==1 and machine.service_switch_index==59}: set_state_open
+  s_lock_mav_active{machine.service_menu_level==1 and machine.service_switch_index==60}: set_state_closed
+  s_lock_mav_inactive{machine.service_menu_level==1 and machine.service_switch_index==60}: set_state_open
+  s_lock_goose_active{machine.service_menu_level==1 and machine.service_switch_index==61}: set_state_closed
+  s_lock_goose_inactive{machine.service_menu_level==1 and machine.service_switch_index==61}: set_state_open
+  s_mode_start_active{machine.service_menu_level==1 and machine.service_switch_index==62}: set_state_closed
+  s_mode_start_inactive{machine.service_menu_level==1 and machine.service_switch_index==62}: set_state_open
+
+  # COIL TEXT MAPPING (22 coils)
+  service_update_coil_text{machine.service_coil_index==0}: set_coil_0
+  service_update_coil_text{machine.service_coil_index==1}: set_coil_1
+  service_update_coil_text{machine.service_coil_index==2}: set_coil_2
+  service_update_coil_text{machine.service_coil_index==3}: set_coil_3
+  service_update_coil_text{machine.service_coil_index==4}: set_coil_4
+  service_update_coil_text{machine.service_coil_index==5}: set_coil_5
+  service_update_coil_text{machine.service_coil_index==6}: set_coil_6
+  service_update_coil_text{machine.service_coil_index==7}: set_coil_7
+  service_update_coil_text{machine.service_coil_index==8}: set_coil_8
+  service_update_coil_text{machine.service_coil_index==9}: set_coil_9
+  service_update_coil_text{machine.service_coil_index==10}: set_coil_10
+  service_update_coil_text{machine.service_coil_index==11}: set_coil_11
+  service_update_coil_text{machine.service_coil_index==12}: set_coil_12
+  service_update_coil_text{machine.service_coil_index==13}: set_coil_13
+  service_update_coil_text{machine.service_coil_index==14}: set_coil_14
+  service_update_coil_text{machine.service_coil_index==15}: set_coil_15
+  service_update_coil_text{machine.service_coil_index==16}: set_coil_16
+  service_update_coil_text{machine.service_coil_index==17}: set_coil_17
+  service_update_coil_text{machine.service_coil_index==18}: set_coil_18
+  service_update_coil_text{machine.service_coil_index==19}: set_coil_19
+  service_update_coil_text{machine.service_coil_index==20}: set_coil_20
+  service_update_coil_text{machine.service_coil_index==21}: set_coil_21
+
+  # COIL FIRE MAPPING (22 coils)
+  service_coil_fire{machine.service_coil_index==0}: fire_coil_0
+  service_coil_fire{machine.service_coil_index==1}: fire_coil_1
+  service_coil_fire{machine.service_coil_index==2}: fire_coil_2
+  service_coil_fire{machine.service_coil_index==3}: fire_coil_3
+  service_coil_fire{machine.service_coil_index==4}: fire_coil_4
+  service_coil_fire{machine.service_coil_index==5}: fire_coil_5
+  service_coil_fire{machine.service_coil_index==6}: fire_coil_6
+  service_coil_fire{machine.service_coil_index==7}: fire_coil_7
+  service_coil_fire{machine.service_coil_index==8}: fire_coil_8
+  service_coil_fire{machine.service_coil_index==9}: fire_coil_9
+  service_coil_fire{machine.service_coil_index==10}: fire_coil_10
+  service_coil_fire{machine.service_coil_index==11}: fire_coil_11
+  service_coil_fire{machine.service_coil_index==12}: fire_coil_12
+  service_coil_fire{machine.service_coil_index==13}: fire_coil_13
+  service_coil_fire{machine.service_coil_index==14}: fire_coil_14
+  service_coil_fire{machine.service_coil_index==15}: fire_coil_15
+  service_coil_fire{machine.service_coil_index==16}: fire_coil_16
+  service_coil_fire{machine.service_coil_index==17}: fire_coil_17
+  service_coil_fire{machine.service_coil_index==18}: fire_coil_18
+  service_coil_fire{machine.service_coil_index==19}: fire_coil_19
+  service_coil_fire{machine.service_coil_index==20}: fire_coil_20
+  service_coil_fire{machine.service_coil_index==21}: fire_coil_21
+
+  # LIGHT TEXT MAPPING (91 lights)
+  service_update_light_text{machine.service_light_index==0}: set_light_0
+  service_update_light_text{machine.service_light_index==1}: set_light_1
+  service_update_light_text{machine.service_light_index==2}: set_light_2
+  service_update_light_text{machine.service_light_index==3}: set_light_3
+  service_update_light_text{machine.service_light_index==4}: set_light_4
+  service_update_light_text{machine.service_light_index==5}: set_light_5
+  service_update_light_text{machine.service_light_index==6}: set_light_6
+  service_update_light_text{machine.service_light_index==7}: set_light_7
+  service_update_light_text{machine.service_light_index==8}: set_light_8
+  service_update_light_text{machine.service_light_index==9}: set_light_9
+  service_update_light_text{machine.service_light_index==10}: set_light_10
+  service_update_light_text{machine.service_light_index==11}: set_light_11
+  service_update_light_text{machine.service_light_index==12}: set_light_12
+  service_update_light_text{machine.service_light_index==13}: set_light_13
+  service_update_light_text{machine.service_light_index==14}: set_light_14
+  service_update_light_text{machine.service_light_index==15}: set_light_15
+  service_update_light_text{machine.service_light_index==16}: set_light_16
+  service_update_light_text{machine.service_light_index==17}: set_light_17
+  service_update_light_text{machine.service_light_index==18}: set_light_18
+  service_update_light_text{machine.service_light_index==19}: set_light_19
+  service_update_light_text{machine.service_light_index==20}: set_light_20
+  service_update_light_text{machine.service_light_index==21}: set_light_21
+  service_update_light_text{machine.service_light_index==22}: set_light_22
+  service_update_light_text{machine.service_light_index==23}: set_light_23
+  service_update_light_text{machine.service_light_index==24}: set_light_24
+  service_update_light_text{machine.service_light_index==25}: set_light_25
+  service_update_light_text{machine.service_light_index==26}: set_light_26
+  service_update_light_text{machine.service_light_index==27}: set_light_27
+  service_update_light_text{machine.service_light_index==28}: set_light_28
+  service_update_light_text{machine.service_light_index==29}: set_light_29
+  service_update_light_text{machine.service_light_index==30}: set_light_30
+  service_update_light_text{machine.service_light_index==31}: set_light_31
+  service_update_light_text{machine.service_light_index==32}: set_light_32
+  service_update_light_text{machine.service_light_index==33}: set_light_33
+  service_update_light_text{machine.service_light_index==34}: set_light_34
+  service_update_light_text{machine.service_light_index==35}: set_light_35
+  service_update_light_text{machine.service_light_index==36}: set_light_36
+  service_update_light_text{machine.service_light_index==37}: set_light_37
+  service_update_light_text{machine.service_light_index==38}: set_light_38
+  service_update_light_text{machine.service_light_index==39}: set_light_39
+  service_update_light_text{machine.service_light_index==40}: set_light_40
+  service_update_light_text{machine.service_light_index==41}: set_light_41
+  service_update_light_text{machine.service_light_index==42}: set_light_42
+  service_update_light_text{machine.service_light_index==43}: set_light_43
+  service_update_light_text{machine.service_light_index==44}: set_light_44
+  service_update_light_text{machine.service_light_index==45}: set_light_45
+  service_update_light_text{machine.service_light_index==46}: set_light_46
+  service_update_light_text{machine.service_light_index==47}: set_light_47
+  service_update_light_text{machine.service_light_index==48}: set_light_48
+  service_update_light_text{machine.service_light_index==49}: set_light_49
+  service_update_light_text{machine.service_light_index==50}: set_light_50
+  service_update_light_text{machine.service_light_index==51}: set_light_51
+  service_update_light_text{machine.service_light_index==52}: set_light_52
+  service_update_light_text{machine.service_light_index==53}: set_light_53
+  service_update_light_text{machine.service_light_index==54}: set_light_54
+  service_update_light_text{machine.service_light_index==55}: set_light_55
+  service_update_light_text{machine.service_light_index==56}: set_light_56
+  service_update_light_text{machine.service_light_index==57}: set_light_57
+  service_update_light_text{machine.service_light_index==58}: set_light_58
+  service_update_light_text{machine.service_light_index==59}: set_light_59
+  service_update_light_text{machine.service_light_index==60}: set_light_60
+  service_update_light_text{machine.service_light_index==61}: set_light_61
+  service_update_light_text{machine.service_light_index==62}: set_light_62
+  service_update_light_text{machine.service_light_index==63}: set_light_63
+  service_update_light_text{machine.service_light_index==64}: set_light_64
+  service_update_light_text{machine.service_light_index==65}: set_light_65
+  service_update_light_text{machine.service_light_index==66}: set_light_66
+  service_update_light_text{machine.service_light_index==67}: set_light_67
+  service_update_light_text{machine.service_light_index==68}: set_light_68
+  service_update_light_text{machine.service_light_index==69}: set_light_69
+  service_update_light_text{machine.service_light_index==70}: set_light_70
+  service_update_light_text{machine.service_light_index==71}: set_light_71
+  service_update_light_text{machine.service_light_index==72}: set_light_72
+  service_update_light_text{machine.service_light_index==73}: set_light_73
+  service_update_light_text{machine.service_light_index==74}: set_light_74
+  service_update_light_text{machine.service_light_index==75}: set_light_75
+  service_update_light_text{machine.service_light_index==76}: set_light_76
+  service_update_light_text{machine.service_light_index==77}: set_light_77
+  service_update_light_text{machine.service_light_index==78}: set_light_78
+  service_update_light_text{machine.service_light_index==79}: set_light_79
+  service_update_light_text{machine.service_light_index==80}: set_light_80
+  service_update_light_text{machine.service_light_index==81}: set_light_81
+  service_update_light_text{machine.service_light_index==82}: set_light_82
+  service_update_light_text{machine.service_light_index==83}: set_light_83
+  service_update_light_text{machine.service_light_index==84}: set_light_84
+  service_update_light_text{machine.service_light_index==85}: set_light_85
+  service_update_light_text{machine.service_light_index==86}: set_light_86
+  service_update_light_text{machine.service_light_index==87}: set_light_87
+  service_update_light_text{machine.service_light_index==88}: set_light_88
+  service_update_light_text{machine.service_light_index==89}: set_light_89
+  service_update_light_text{machine.service_light_index==90}: set_light_90
+
+  # SERVICE APPLY LIGHT COLOR MAPPING (triggers set_light_N for current light)
+  service_apply_light_color{machine.service_light_index==0}: set_light_0
+  service_apply_light_color{machine.service_light_index==1}: set_light_1
+  service_apply_light_color{machine.service_light_index==2}: set_light_2
+  service_apply_light_color{machine.service_light_index==3}: set_light_3
+  service_apply_light_color{machine.service_light_index==4}: set_light_4
+  service_apply_light_color{machine.service_light_index==5}: set_light_5
+  service_apply_light_color{machine.service_light_index==6}: set_light_6
+  service_apply_light_color{machine.service_light_index==7}: set_light_7
+  service_apply_light_color{machine.service_light_index==8}: set_light_8
+  service_apply_light_color{machine.service_light_index==9}: set_light_9
+  service_apply_light_color{machine.service_light_index==10}: set_light_10
+  service_apply_light_color{machine.service_light_index==11}: set_light_11
+  service_apply_light_color{machine.service_light_index==12}: set_light_12
+  service_apply_light_color{machine.service_light_index==13}: set_light_13
+  service_apply_light_color{machine.service_light_index==14}: set_light_14
+  service_apply_light_color{machine.service_light_index==15}: set_light_15
+  service_apply_light_color{machine.service_light_index==16}: set_light_16
+  service_apply_light_color{machine.service_light_index==17}: set_light_17
+  service_apply_light_color{machine.service_light_index==18}: set_light_18
+  service_apply_light_color{machine.service_light_index==19}: set_light_19
+  service_apply_light_color{machine.service_light_index==20}: set_light_20
+  service_apply_light_color{machine.service_light_index==21}: set_light_21
+  service_apply_light_color{machine.service_light_index==22}: set_light_22
+  service_apply_light_color{machine.service_light_index==23}: set_light_23
+  service_apply_light_color{machine.service_light_index==24}: set_light_24
+  service_apply_light_color{machine.service_light_index==25}: set_light_25
+  service_apply_light_color{machine.service_light_index==26}: set_light_26
+  service_apply_light_color{machine.service_light_index==27}: set_light_27
+  service_apply_light_color{machine.service_light_index==28}: set_light_28
+  service_apply_light_color{machine.service_light_index==29}: set_light_29
+  service_apply_light_color{machine.service_light_index==30}: set_light_30
+  service_apply_light_color{machine.service_light_index==31}: set_light_31
+  service_apply_light_color{machine.service_light_index==32}: set_light_32
+  service_apply_light_color{machine.service_light_index==33}: set_light_33
+  service_apply_light_color{machine.service_light_index==34}: set_light_34
+  service_apply_light_color{machine.service_light_index==35}: set_light_35
+  service_apply_light_color{machine.service_light_index==36}: set_light_36
+  service_apply_light_color{machine.service_light_index==37}: set_light_37
+  service_apply_light_color{machine.service_light_index==38}: set_light_38
+  service_apply_light_color{machine.service_light_index==39}: set_light_39
+  service_apply_light_color{machine.service_light_index==40}: set_light_40
+  service_apply_light_color{machine.service_light_index==41}: set_light_41
+  service_apply_light_color{machine.service_light_index==42}: set_light_42
+  service_apply_light_color{machine.service_light_index==43}: set_light_43
+  service_apply_light_color{machine.service_light_index==44}: set_light_44
+  service_apply_light_color{machine.service_light_index==45}: set_light_45
+  service_apply_light_color{machine.service_light_index==46}: set_light_46
+  service_apply_light_color{machine.service_light_index==47}: set_light_47
+  service_apply_light_color{machine.service_light_index==48}: set_light_48
+  service_apply_light_color{machine.service_light_index==49}: set_light_49
+  service_apply_light_color{machine.service_light_index==50}: set_light_50
+  service_apply_light_color{machine.service_light_index==51}: set_light_51
+  service_apply_light_color{machine.service_light_index==52}: set_light_52
+  service_apply_light_color{machine.service_light_index==53}: set_light_53
+  service_apply_light_color{machine.service_light_index==54}: set_light_54
+  service_apply_light_color{machine.service_light_index==55}: set_light_55
+  service_apply_light_color{machine.service_light_index==56}: set_light_56
+  service_apply_light_color{machine.service_light_index==57}: set_light_57
+  service_apply_light_color{machine.service_light_index==58}: set_light_58
+  service_apply_light_color{machine.service_light_index==59}: set_light_59
+  service_apply_light_color{machine.service_light_index==60}: set_light_60
+  service_apply_light_color{machine.service_light_index==61}: set_light_61
+  service_apply_light_color{machine.service_light_index==62}: set_light_62
+  service_apply_light_color{machine.service_light_index==63}: set_light_63
+  service_apply_light_color{machine.service_light_index==64}: set_light_64
+  service_apply_light_color{machine.service_light_index==65}: set_light_65
+  service_apply_light_color{machine.service_light_index==66}: set_light_66
+  service_apply_light_color{machine.service_light_index==67}: set_light_67
+  service_apply_light_color{machine.service_light_index==68}: set_light_68
+  service_apply_light_color{machine.service_light_index==69}: set_light_69
+  service_apply_light_color{machine.service_light_index==70}: set_light_70
+  service_apply_light_color{machine.service_light_index==71}: set_light_71
+  service_apply_light_color{machine.service_light_index==72}: set_light_72
+  service_apply_light_color{machine.service_light_index==73}: set_light_73
+  service_apply_light_color{machine.service_light_index==74}: set_light_74
+  service_apply_light_color{machine.service_light_index==75}: set_light_75
+  service_apply_light_color{machine.service_light_index==76}: set_light_76
+  service_apply_light_color{machine.service_light_index==77}: set_light_77
+  service_apply_light_color{machine.service_light_index==78}: set_light_78
+  service_apply_light_color{machine.service_light_index==79}: set_light_79
+  service_apply_light_color{machine.service_light_index==80}: set_light_80
+  service_apply_light_color{machine.service_light_index==81}: set_light_81
+  service_apply_light_color{machine.service_light_index==82}: set_light_82
+  service_apply_light_color{machine.service_light_index==83}: set_light_83
+  service_apply_light_color{machine.service_light_index==84}: set_light_84
+  service_apply_light_color{machine.service_light_index==85}: set_light_85
+  service_apply_light_color{machine.service_light_index==86}: set_light_86
+  service_apply_light_color{machine.service_light_index==87}: set_light_87
+  service_apply_light_color{machine.service_light_index==88}: set_light_88
+  service_apply_light_color{machine.service_light_index==89}: set_light_89
+  service_apply_light_color{machine.service_light_index==90}: set_light_90
+
+  # SERVO TEXT MAPPING (4 positions: 2 servos x 2 positions each)
+  service_update_servo_text{machine.service_servo_index==0}: set_servo_0
+  service_update_servo_text{machine.service_servo_index==1}: set_servo_1
+  service_update_servo_text{machine.service_servo_index==2}: set_servo_2
+  service_update_servo_text{machine.service_servo_index==3}: set_servo_3
+
+  # SERVO POSITION EVENTS - post events defined in config_servos.yaml positions
+  set_servo_0: right_ramp_down
+  set_servo_1: right_ramp_up
+  set_servo_2: top_ramp_down
+  set_servo_3: top_ramp_up
+
+##############################################################################
+# VARIABLE PLAYER
+##############################################################################
+
+variable_player:
+  # MENU LEVEL TRACKING
+  service_enter_main_menu:
+    service_menu_level:
+      action: set_machine
+      int: 0
+  service_enter_switch_test:
+    service_menu_level:
+      action: set_machine
+      int: 1
+  service_enter_coil_test:
+    service_menu_level:
+      action: set_machine
+      int: 2
+  service_enter_light_test:
+    service_menu_level:
+      action: set_machine
+      int: 3
+  service_enter_adjustments:
+    service_menu_level:
+      action: set_machine
+      int: 4
+  service_enter_audits:
+    service_menu_level:
+      action: set_machine
+      int: 5
+  service_enter_feature_adjustments:
+    service_menu_level:
+      action: set_machine
+      int: 6
+  service_enter_servo_adjust:
+    service_menu_level:
+      action: set_machine
+      int: 7
+
+  # SERVO INDEX NAVIGATION (4 positions: 0-3)
+  service_servo_next:
+    service_servo_index:
+      action: set_machine
+      int: (machine.service_servo_index + 1) % 4
+  service_servo_prev:
+    service_servo_index:
+      action: set_machine
+      int: (machine.service_servo_index - 1) % 4
+
+  # MAIN MENU INDEX NAVIGATION (8 items: 0-7)
+  service_main_menu_next:
+    service_main_index:
+      action: set_machine
+      int: (machine.service_main_index + 1) % 8
+  service_main_menu_prev:
+    service_main_index:
+      action: set_machine
+      int: (machine.service_main_index - 1) % 8
+
+  # SWITCH INDEX NAVIGATION (63 switches: 0-62)
+  service_switch_next:
+    service_switch_index:
+      action: set_machine
+      int: (machine.service_switch_index + 1) % 63
+  service_switch_prev:
+    service_switch_index:
+      action: set_machine
+      int: (machine.service_switch_index - 1) % 63
+
+  # COIL INDEX NAVIGATION (22 coils: 0-21)
+  service_coil_next:
+    service_coil_index:
+      action: set_machine
+      int: (machine.service_coil_index + 1) % 22
+  service_coil_prev:
+    service_coil_index:
+      action: set_machine
+      int: (machine.service_coil_index - 1) % 22
+
+  # LIGHT INDEX NAVIGATION (91 lights: 0-90)
+  service_light_next:
+    service_light_index:
+      action: set_machine
+      int: (machine.service_light_index + 1) % 91
+  service_light_prev:
+    service_light_index:
+      action: set_machine
+      int: (machine.service_light_index - 1) % 91
+
+  # LIGHT COLOR CYCLING (0=white, 1=red, 2=blue, 3=green)
+  service_light_color_cycle:
+    service_light_color_index:
+      action: set_machine
+      int: (machine.service_light_color_index + 1) % 4
+  service_light_color_reset:
+    service_light_color_index:
+      action: set_machine
+      int: 0
+
+  # ADJUSTMENT INDEX NAVIGATION (placeholder - 5 adjustments)
+  service_adjustment_next:
+    service_adjustment_index:
+      action: set_machine
+      int: (machine.service_adjustment_index + 1) % 5
+  service_adjustment_prev:
+    service_adjustment_index:
+      action: set_machine
+      int: (machine.service_adjustment_index - 1) % 5
+
+  # AUDIT INDEX NAVIGATION (placeholder - 5 audits)
+  service_audit_next:
+    service_audit_index:
+      action: set_machine
+      int: (machine.service_audit_index + 1) % 5
+  service_audit_prev:
+    service_audit_index:
+      action: set_machine
+      int: (machine.service_audit_index - 1) % 5
+
+  # FEATURE INDEX NAVIGATION (placeholder - 5 features)
+  service_feature_next:
+    service_feature_index:
+      action: set_machine
+      int: (machine.service_feature_index + 1) % 5
+  service_feature_prev:
+    service_feature_index:
+      action: set_machine
+      int: (machine.service_feature_index - 1) % 5
+
+  # SWITCH STATE SETTERS
+  set_state_closed:
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_state_open:
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+
+  # MAIN MENU TEXT SETTERS
+  set_main_menu_switch_test:
+    service_main_text:
+      action: set_machine
+      string: "SWITCH TEST"
+  set_main_menu_coil_test:
+    service_main_text:
+      action: set_machine
+      string: "COIL TEST"
+  set_main_menu_light_test:
+    service_main_text:
+      action: set_machine
+      string: "LIGHT TEST"
+  set_main_menu_adjustments:
+    service_main_text:
+      action: set_machine
+      string: "ADJUSTMENTS"
+  set_main_menu_audits:
+    service_main_text:
+      action: set_machine
+      string: "AUDITS"
+  set_main_menu_feature_adj:
+    service_main_text:
+      action: set_machine
+      string: "FEATURE ADJUST"
+  set_main_menu_servo_adjust:
+    service_main_text:
+      action: set_machine
+      string: "SERVO ADJUST"
+  set_main_menu_exit:
+    service_main_text:
+      action: set_machine
+      string: "EXIT"
+
+  # SWITCH TEXT SETTERS (63 switches with state check)
+  set_switch_0{device.switches.s_start.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Start Button"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 1/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_0{device.switches.s_start.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Start Button"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 1/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_1{device.switches.s_tilt.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Tilt"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 2/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_1{device.switches.s_tilt.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Tilt"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 2/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_2{device.switches.s_48v_disable.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "48V Disable Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 3/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_2{device.switches.s_48v_disable.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "48V Disable Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 3/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_3{device.switches.s_coin_door.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Coin Door Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 4/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_3{device.switches.s_coin_door.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Coin Door Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 4/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_4{device.switches.s_coin_door_service_1.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Service Escape Button"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 5/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_4{device.switches.s_coin_door_service_1.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Service Escape Button"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 5/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_5{device.switches.s_coin_door_service_2.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Service Down Button"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 6/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_5{device.switches.s_coin_door_service_2.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Service Down Button"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 6/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_6{device.switches.s_coin_door_service_3.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Service Up Button"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 7/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_6{device.switches.s_coin_door_service_3.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Service Up Button"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 7/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_7{device.switches.s_coin_door_service_4.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Service Enter Button"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 8/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_7{device.switches.s_coin_door_service_4.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Service Enter Button"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 8/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_8{device.switches.s_coin_door_credit_right.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Coin Door Credit Right"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 9/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_8{device.switches.s_coin_door_credit_right.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Coin Door Credit Right"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 9/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_9{device.switches.s_coin_door_credit_left.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Coin Door Credit Left"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 10/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_9{device.switches.s_coin_door_credit_left.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Coin Door Credit Left"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 10/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_10{device.switches.s_flipper_left.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Left Flipper Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 11/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_10{device.switches.s_flipper_left.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Left Flipper Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 11/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_11{device.switches.s_flipper_left_eos.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Left Flipper EOS"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 12/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_11{device.switches.s_flipper_left_eos.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Left Flipper EOS"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 12/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_12{device.switches.s_flipper_left_upper.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Upper Left Flipper Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 13/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_12{device.switches.s_flipper_left_upper.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Upper Left Flipper Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 13/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_13{device.switches.s_flipper_left_upper_eos.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Upper Left Flipper EOS"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 14/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_13{device.switches.s_flipper_left_upper_eos.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Upper Left Flipper EOS"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 14/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_14{device.switches.s_flipper_right.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Flipper Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 15/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_14{device.switches.s_flipper_right.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Flipper Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 15/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_15{device.switches.s_flipper_right_eos.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Flipper EOS"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 16/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_15{device.switches.s_flipper_right_eos.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Flipper EOS"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 16/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_16{device.switches.s_trough_1.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Trough 1 Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 17/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_16{device.switches.s_trough_1.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Trough 1 Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 17/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_17{device.switches.s_trough_2.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Trough 2 Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 18/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_17{device.switches.s_trough_2.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Trough 2 Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 18/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_18{device.switches.s_trough_3.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Trough 3 Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 19/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_18{device.switches.s_trough_3.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Trough 3 Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 19/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_19{device.switches.s_trough_4.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Trough 4 Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 20/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_19{device.switches.s_trough_4.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Trough 4 Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 20/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_20{device.switches.s_trough_5.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Trough 5 Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 21/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_20{device.switches.s_trough_5.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Trough 5 Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 21/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_21{device.switches.s_trough_6.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Trough 6 Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 22/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_21{device.switches.s_trough_6.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Trough 6 Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 22/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_22{device.switches.s_jam.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Jam Trough Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 23/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_22{device.switches.s_jam.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Jam Trough Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 23/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_23{device.switches.s_shooter_lane.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Shooter Lane Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 24/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_23{device.switches.s_shooter_lane.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Shooter Lane Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 24/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_24{device.switches.s_bumper_left.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Left Pop Spoon"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 25/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_24{device.switches.s_bumper_left.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Left Pop Spoon"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 25/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_25{device.switches.s_bumper_center.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Center Pop Spoon"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 26/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_25{device.switches.s_bumper_center.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Center Pop Spoon"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 26/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_26{device.switches.s_bumper_right.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Pop Spoon"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 27/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_26{device.switches.s_bumper_right.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Pop Spoon"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 27/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_27{device.switches.s_slingshot_left.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Left Sling Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 28/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_27{device.switches.s_slingshot_left.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Left Sling Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 28/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_28{device.switches.s_slingshot_right.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Sling Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 29/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_28{device.switches.s_slingshot_right.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Sling Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 29/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_29{device.switches.s_outlane_left.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Left Outlane Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 30/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_29{device.switches.s_outlane_left.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Left Outlane Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 30/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_30{device.switches.s_inlane_left.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Left Inlane Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 31/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_30{device.switches.s_inlane_left.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Left Inlane Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 31/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_31{device.switches.s_inner_inlane_right.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Inner Inlane"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 32/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_31{device.switches.s_inner_inlane_right.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Inner Inlane"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 32/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_32{device.switches.s_outer_inlane_right.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Outer Inlane"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 33/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_32{device.switches.s_outer_inlane_right.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Outer Inlane"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 33/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_33{device.switches.s_outlane_right.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Outlane Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 34/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_33{device.switches.s_outlane_right.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Outlane Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 34/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_34{device.switches.s_mig_lane_left.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "MIG Left Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 35/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_34{device.switches.s_mig_lane_left.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "MIG Left Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 35/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_35{device.switches.s_mig_lane_right.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "MIG Right Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 36/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_35{device.switches.s_mig_lane_right.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "MIG Right Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 36/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_36{device.switches.s_lane_left.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Left Lane Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 37/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_36{device.switches.s_lane_left.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Left Lane Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 37/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_37{device.switches.s_orbit_left.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Left Orbit Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 38/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_37{device.switches.s_orbit_left.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Left Orbit Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 38/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_38{device.switches.s_orbit_upper.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Upper Orbit Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 39/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_38{device.switches.s_orbit_upper.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Upper Orbit Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 39/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_39{device.switches.s_orbit_lower.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Lower Orbit Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 40/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_39{device.switches.s_orbit_lower.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Lower Orbit Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 40/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_40{device.switches.s_orbit_right.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Orbit Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 41/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_40{device.switches.s_orbit_right.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Orbit Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 41/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_41{device.switches.s_lane_right.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Lane Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 42/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_41{device.switches.s_lane_right.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Lane Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 42/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_42{device.switches.s_i_iceman_target.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Iceman I Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 43/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_42{device.switches.s_i_iceman_target.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Iceman I Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 43/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_43{device.switches.s_c_iceman_target.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Iceman C Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 44/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_43{device.switches.s_c_iceman_target.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Iceman C Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 44/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_44{device.switches.s_e_iceman_target.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Iceman E Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 45/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_44{device.switches.s_e_iceman_target.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Iceman E Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 45/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_45{device.switches.s_m_iceman_target.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Iceman M Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 46/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_45{device.switches.s_m_iceman_target.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Iceman M Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 46/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_46{device.switches.s_a_iceman_target.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Iceman A Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 47/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_46{device.switches.s_a_iceman_target.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Iceman A Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 47/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_47{device.switches.s_n_iceman_target.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Iceman N Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 48/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_47{device.switches.s_n_iceman_target.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Iceman N Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 48/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_48{device.switches.s_l_lock_target.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Lock L Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 49/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_48{device.switches.s_l_lock_target.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Lock L Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 49/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_49{device.switches.s_o_lock_target.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Lock O Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 50/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_49{device.switches.s_o_lock_target.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Lock O Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 50/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_50{device.switches.s_c_lock_target.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Lock C Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 51/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_50{device.switches.s_c_lock_target.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Lock C Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 51/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_51{device.switches.s_k_lock_target.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Lock K Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 52/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_51{device.switches.s_k_lock_target.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Lock K Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 52/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_52{device.switches.s_barrier_target.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Barrier Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 53/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_52{device.switches.s_barrier_target.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Barrier Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 53/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_53{device.switches.s_flight_gear_target.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Flight Gear Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 54/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_53{device.switches.s_flight_gear_target.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Flight Gear Target"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 54/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_54{device.switches.s_spinner.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Spinner"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 55/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_54{device.switches.s_spinner.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Spinner"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 55/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_55{device.switches.s_ramp_left_exit.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Left Ramp Exit"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 56/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_55{device.switches.s_ramp_left_exit.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Left Ramp Exit"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 56/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_56{device.switches.s_ramp_right_exit.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Ramp Exit"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 57/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_56{device.switches.s_ramp_right_exit.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Right Ramp Exit"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 57/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_57{device.switches.s_ramp_inner_exit.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Inner Ramp Exit"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 58/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_57{device.switches.s_ramp_inner_exit.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Inner Ramp Exit"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 58/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_58{device.switches.s_ramp_tower_exit.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Tower Ramp Exit"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 59/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_58{device.switches.s_ramp_tower_exit.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Tower Ramp Exit"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 59/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_59{device.switches.s_lock_plunger.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Lock Elevator Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 60/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_59{device.switches.s_lock_plunger.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Lock Elevator Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 60/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_60{device.switches.s_lock_mav.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Mav Lock Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 61/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_60{device.switches.s_lock_mav.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Mav Lock Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 61/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_61{device.switches.s_lock_goose.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Goose Lock Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 62/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_61{device.switches.s_lock_goose.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Goose Lock Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 62/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_62{device.switches.s_mode_start.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Mode Start Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 63/63"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_62{device.switches.s_mode_start.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Mode Start Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 63/63"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+
+  # COIL TEXT SETTERS (22 coils)
+  set_coil_0:
+    service_coil_name:
+      action: set_machine
+      string: "Left Flipper"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 1/22"
+  set_coil_1:
+    service_coil_name:
+      action: set_machine
+      string: "Upper Left Flipper"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 2/22"
+  set_coil_2:
+    service_coil_name:
+      action: set_machine
+      string: "Right Flipper"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 3/22"
+  set_coil_3:
+    service_coil_name:
+      action: set_machine
+      string: "Trough Eject"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 4/22"
+  set_coil_4:
+    service_coil_name:
+      action: set_machine
+      string: "Auto Plunger"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 5/22"
+  set_coil_5:
+    service_coil_name:
+      action: set_machine
+      string: "Left Slingshot"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 6/22"
+  set_coil_6:
+    service_coil_name:
+      action: set_machine
+      string: "Right Slingshot"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 7/22"
+  set_coil_7:
+    service_coil_name:
+      action: set_machine
+      string: "Left Pop Bumper"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 8/22"
+  set_coil_8:
+    service_coil_name:
+      action: set_machine
+      string: "Right Pop Bumper"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 9/22"
+  set_coil_9:
+    service_coil_name:
+      action: set_machine
+      string: "Center Pop Bumper"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 10/22"
+  set_coil_10:
+    service_coil_name:
+      action: set_machine
+      string: "Left Lane Up Post"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 11/22"
+  set_coil_11:
+    service_coil_name:
+      action: set_machine
+      string: "Left MIG Up Post"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 12/22"
+  set_coil_12:
+    service_coil_name:
+      action: set_machine
+      string: "Right MIG Up Post"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 13/22"
+  set_coil_13:
+    service_coil_name:
+      action: set_machine
+      string: "Left Orbit Diverter"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 14/22"
+  set_coil_14:
+    service_coil_name:
+      action: set_machine
+      string: "Right Orbit Diverter"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 15/22"
+  set_coil_15:
+    service_coil_name:
+      action: set_machine
+      string: "Ejection Seat Magnet"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 16/22"
+  set_coil_16:
+    service_coil_name:
+      action: set_machine
+      string: "Mode Barrier"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 17/22"
+  set_coil_17:
+    service_coil_name:
+      action: set_machine
+      string: "Mode Outkicker"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 18/22"
+  set_coil_18:
+    service_coil_name:
+      action: set_machine
+      string: "Lock Release"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 19/22"
+  set_coil_19:
+    service_coil_name:
+      action: set_machine
+      string: "Lock Upkicker"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 20/22"
+  set_coil_20:
+    service_coil_name:
+      action: set_machine
+      string: "Start Button LED"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 21/22"
+  set_coil_21:
+    service_coil_name:
+      action: set_machine
+      string: "Coin Door LED"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 22/22"
+
+  # LIGHT TEXT SETTERS (91 lights)
+  set_light_0:
+    service_light_name:
+      action: set_machine
+      string: "Eject Insert"
+    service_light_num:
+      action: set_machine
+      string: "Light 1/91"
+  set_light_1:
+    service_light_name:
+      action: set_machine
+      string: "Shoot Again Insert"
+    service_light_num:
+      action: set_machine
+      string: "Light 2/91"
+  set_light_2:
+    service_light_name:
+      action: set_machine
+      string: "GOOSE - G"
+    service_light_num:
+      action: set_machine
+      string: "Light 3/91"
+  set_light_3:
+    service_light_name:
+      action: set_machine
+      string: "GOOSE - O Left"
+    service_light_num:
+      action: set_machine
+      string: "Light 4/91"
+  set_light_4:
+    service_light_name:
+      action: set_machine
+      string: "GOOSE - O Right"
+    service_light_num:
+      action: set_machine
+      string: "Light 5/91"
+  set_light_5:
+    service_light_name:
+      action: set_machine
+      string: "GOOSE - S"
+    service_light_num:
+      action: set_machine
+      string: "Light 6/91"
+  set_light_6:
+    service_light_name:
+      action: set_machine
+      string: "GOOSE - E"
+    service_light_num:
+      action: set_machine
+      string: "Light 7/91"
+  set_light_7:
+    service_light_name:
+      action: set_machine
+      string: "MIG - M"
+    service_light_num:
+      action: set_machine
+      string: "Light 8/91"
+  set_light_8:
+    service_light_name:
+      action: set_machine
+      string: "MIG - I"
+    service_light_num:
+      action: set_machine
+      string: "Light 9/91"
+  set_light_9:
+    service_light_name:
+      action: set_machine
+      string: "MIG - G"
+    service_light_num:
+      action: set_machine
+      string: "Light 10/91"
+  set_light_10:
+    service_light_name:
+      action: set_machine
+      string: "ICEMAN - I"
+    service_light_num:
+      action: set_machine
+      string: "Light 11/91"
+  set_light_11:
+    service_light_name:
+      action: set_machine
+      string: "ICEMAN - C"
+    service_light_num:
+      action: set_machine
+      string: "Light 12/91"
+  set_light_12:
+    service_light_name:
+      action: set_machine
+      string: "ICEMAN - E"
+    service_light_num:
+      action: set_machine
+      string: "Light 13/91"
+  set_light_13:
+    service_light_name:
+      action: set_machine
+      string: "ICEMAN - M"
+    service_light_num:
+      action: set_machine
+      string: "Light 14/91"
+  set_light_14:
+    service_light_name:
+      action: set_machine
+      string: "ICEMAN - A"
+    service_light_num:
+      action: set_machine
+      string: "Light 15/91"
+  set_light_15:
+    service_light_name:
+      action: set_machine
+      string: "ICEMAN - N"
+    service_light_num:
+      action: set_machine
+      string: "Light 16/91"
+  set_light_16:
+    service_light_name:
+      action: set_machine
+      string: "LOCK - L"
+    service_light_num:
+      action: set_machine
+      string: "Light 17/91"
+  set_light_17:
+    service_light_name:
+      action: set_machine
+      string: "LOCK - O"
+    service_light_num:
+      action: set_machine
+      string: "Light 18/91"
+  set_light_18:
+    service_light_name:
+      action: set_machine
+      string: "LOCK - C"
+    service_light_num:
+      action: set_machine
+      string: "Light 19/91"
+  set_light_19:
+    service_light_name:
+      action: set_machine
+      string: "LOCK - K"
+    service_light_num:
+      action: set_machine
+      string: "Light 20/91"
+  set_light_20:
+    service_light_name:
+      action: set_machine
+      string: "LOCK Lit"
+    service_light_num:
+      action: set_machine
+      string: "Light 21/91"
+  set_light_21:
+    service_light_name:
+      action: set_machine
+      string: "Mode: Rescue Cougar"
+    service_light_num:
+      action: set_machine
+      string: "Light 22/91"
+  set_light_22:
+    service_light_name:
+      action: set_machine
+      string: "Mode: Balls of Fire"
+    service_light_num:
+      action: set_machine
+      string: "Light 23/91"
+  set_light_23:
+    service_light_name:
+      action: set_machine
+      string: "Mode: Cool Under Pressure"
+    service_light_num:
+      action: set_machine
+      string: "Light 24/91"
+  set_light_24:
+    service_light_name:
+      action: set_machine
+      string: "Mode: Battle Jester"
+    service_light_num:
+      action: set_machine
+      string: "Light 25/91"
+  set_light_25:
+    service_light_name:
+      action: set_machine
+      string: "Mode: No Points 2nd"
+    service_light_num:
+      action: set_machine
+      string: "Light 26/91"
+  set_light_26:
+    service_light_name:
+      action: set_machine
+      string: "Mode: Edge of Space"
+    service_light_num:
+      action: set_machine
+      string: "Light 27/91"
+  set_light_27:
+    service_light_name:
+      action: set_machine
+      string: "Mode: Below Hard Deck"
+    service_light_num:
+      action: set_machine
+      string: "Light 28/91"
+  set_light_28:
+    service_light_name:
+      action: set_machine
+      string: "Mode: Canyon Run"
+    service_light_num:
+      action: set_machine
+      string: "Light 29/91"
+  set_light_29:
+    service_light_name:
+      action: set_machine
+      string: "Mode: Rise of Phoenix"
+    service_light_num:
+      action: set_machine
+      string: "Light 30/91"
+  set_light_30:
+    service_light_name:
+      action: set_machine
+      string: "Mode: No Margin Error"
+    service_light_num:
+      action: set_machine
+      string: "Light 31/91"
+  set_light_31:
+    service_light_name:
+      action: set_machine
+      string: "Mode: Inverted"
+    service_light_num:
+      action: set_machine
+      string: "Light 32/91"
+  set_light_32:
+    service_light_name:
+      action: set_machine
+      string: "Mode: Missiles"
+    service_light_num:
+      action: set_machine
+      string: "Light 33/91"
+  set_light_33:
+    service_light_name:
+      action: set_machine
+      string: "Mode: Afterburner"
+    service_light_num:
+      action: set_machine
+      string: "Light 34/91"
+  set_light_34:
+    service_light_name:
+      action: set_machine
+      string: "Mode: Wingman"
+    service_light_num:
+      action: set_machine
+      string: "Light 35/91"
+  set_light_35:
+    service_light_name:
+      action: set_machine
+      string: "Mode: Dogfight"
+    service_light_num:
+      action: set_machine
+      string: "Light 36/91"
+  set_light_36:
+    service_light_name:
+      action: set_machine
+      string: "Mode: TOP Top Gun"
+    service_light_num:
+      action: set_machine
+      string: "Light 37/91"
+  set_light_37:
+    service_light_name:
+      action: set_machine
+      string: "Mode: GUN Top Gun"
+    service_light_num:
+      action: set_machine
+      string: "Light 38/91"
+  set_light_38:
+    service_light_name:
+      action: set_machine
+      string: "Shot: Left Lane"
+    service_light_num:
+      action: set_machine
+      string: "Light 39/91"
+  set_light_39:
+    service_light_name:
+      action: set_machine
+      string: "Shot: Left Orbit"
+    service_light_num:
+      action: set_machine
+      string: "Light 40/91"
+  set_light_40:
+    service_light_name:
+      action: set_machine
+      string: "Shot: Left Ramp"
+    service_light_num:
+      action: set_machine
+      string: "Light 41/91"
+  set_light_41:
+    service_light_name:
+      action: set_machine
+      string: "Shot: Spinner"
+    service_light_num:
+      action: set_machine
+      string: "Light 42/91"
+  set_light_42:
+    service_light_name:
+      action: set_machine
+      string: "Shot: Barrier"
+    service_light_num:
+      action: set_machine
+      string: "Light 43/91"
+  set_light_43:
+    service_light_name:
+      action: set_machine
+      string: "Shot: Tower Ramp"
+    service_light_num:
+      action: set_machine
+      string: "Light 44/91"
+  set_light_44:
+    service_light_name:
+      action: set_machine
+      string: "Shot: Upper Orbit"
+    service_light_num:
+      action: set_machine
+      string: "Light 45/91"
+  set_light_45:
+    service_light_name:
+      action: set_machine
+      string: "Shot: Middle Ramp"
+    service_light_num:
+      action: set_machine
+      string: "Light 46/91"
+  set_light_46:
+    service_light_name:
+      action: set_machine
+      string: "Shot: Right Orbit"
+    service_light_num:
+      action: set_machine
+      string: "Light 47/91"
+  set_light_47:
+    service_light_name:
+      action: set_machine
+      string: "Shot: Pilot Gear"
+    service_light_num:
+      action: set_machine
+      string: "Light 48/91"
+  set_light_48:
+    service_light_name:
+      action: set_machine
+      string: "GI: Right Return Left"
+    service_light_num:
+      action: set_machine
+      string: "Light 49/91"
+  set_light_49:
+    service_light_name:
+      action: set_machine
+      string: "GI: Right Return Right"
+    service_light_num:
+      action: set_machine
+      string: "Light 50/91"
+  set_light_50:
+    service_light_name:
+      action: set_machine
+      string: "GI: Left Return Left"
+    service_light_num:
+      action: set_machine
+      string: "Light 51/91"
+  set_light_51:
+    service_light_name:
+      action: set_machine
+      string: "GI: Left Return Right"
+    service_light_num:
+      action: set_machine
+      string: "Light 52/91"
+  set_light_52:
+    service_light_name:
+      action: set_machine
+      string: "GI: Left Sling 1"
+    service_light_num:
+      action: set_machine
+      string: "Light 53/91"
+  set_light_53:
+    service_light_name:
+      action: set_machine
+      string: "GI: Left Sling 2"
+    service_light_num:
+      action: set_machine
+      string: "Light 54/91"
+  set_light_54:
+    service_light_name:
+      action: set_machine
+      string: "GI: Right Sling 1"
+    service_light_num:
+      action: set_machine
+      string: "Light 55/91"
+  set_light_55:
+    service_light_name:
+      action: set_machine
+      string: "GI: Right Sling 2"
+    service_light_num:
+      action: set_machine
+      string: "Light 56/91"
+  set_light_56:
+    service_light_name:
+      action: set_machine
+      string: "GI: Left Outlane"
+    service_light_num:
+      action: set_machine
+      string: "Light 57/91"
+  set_light_57:
+    service_light_name:
+      action: set_machine
+      string: "GI: Right Outlane"
+    service_light_num:
+      action: set_machine
+      string: "Light 58/91"
+  set_light_58:
+    service_light_name:
+      action: set_machine
+      string: "GI: Pop Area 1"
+    service_light_num:
+      action: set_machine
+      string: "Light 59/91"
+  set_light_59:
+    service_light_name:
+      action: set_machine
+      string: "GI: Pop Area 2"
+    service_light_num:
+      action: set_machine
+      string: "Light 60/91"
+  set_light_60:
+    service_light_name:
+      action: set_machine
+      string: "GI: Left MIG Lane"
+    service_light_num:
+      action: set_machine
+      string: "Light 61/91"
+  set_light_61:
+    service_light_name:
+      action: set_machine
+      string: "GI: Middle MIG Lane"
+    service_light_num:
+      action: set_machine
+      string: "Light 62/91"
+  set_light_62:
+    service_light_name:
+      action: set_machine
+      string: "GI: Right MIG Lane"
+    service_light_num:
+      action: set_machine
+      string: "Light 63/91"
+  set_light_63:
+    service_light_name:
+      action: set_machine
+      string: "GI: Left Orbit"
+    service_light_num:
+      action: set_machine
+      string: "Light 64/91"
+  set_light_64:
+    service_light_name:
+      action: set_machine
+      string: "GI: Right Orbit 1"
+    service_light_num:
+      action: set_machine
+      string: "Light 65/91"
+  set_light_65:
+    service_light_name:
+      action: set_machine
+      string: "GI: Right Orbit 2"
+    service_light_num:
+      action: set_machine
+      string: "Light 66/91"
+  set_light_66:
+    service_light_name:
+      action: set_machine
+      string: "GI: Middle Orbit"
+    service_light_num:
+      action: set_machine
+      string: "Light 67/91"
+  set_light_67:
+    service_light_name:
+      action: set_machine
+      string: "GI: Back Board 1"
+    service_light_num:
+      action: set_machine
+      string: "Light 68/91"
+  set_light_68:
+    service_light_name:
+      action: set_machine
+      string: "GI: Back Board 2"
+    service_light_num:
+      action: set_machine
+      string: "Light 69/91"
+  set_light_69:
+    service_light_name:
+      action: set_machine
+      string: "Pop Bumper: Left"
+    service_light_num:
+      action: set_machine
+      string: "Light 70/91"
+  set_light_70:
+    service_light_name:
+      action: set_machine
+      string: "Pop Bumper: Right"
+    service_light_num:
+      action: set_machine
+      string: "Light 71/91"
+  set_light_71:
+    service_light_name:
+      action: set_machine
+      string: "Pop Bumper: Bottom"
+    service_light_num:
+      action: set_machine
+      string: "Light 72/91"
+  set_light_72:
+    service_light_name:
+      action: set_machine
+      string: "GI: Back Board 3"
+    service_light_num:
+      action: set_machine
+      string: "Light 73/91"
+  set_light_73:
+    service_light_name:
+      action: set_machine
+      string: "GI: Back Board 4"
+    service_light_num:
+      action: set_machine
+      string: "Light 74/91"
+  set_light_74:
+    service_light_name:
+      action: set_machine
+      string: "GI: Back Board 5"
+    service_light_num:
+      action: set_machine
+      string: "Light 75/91"
+  set_light_75:
+    service_light_name:
+      action: set_machine
+      string: "GI: Back Board 6"
+    service_light_num:
+      action: set_machine
+      string: "Light 76/91"
+  set_light_76:
+    service_light_name:
+      action: set_machine
+      string: "GI: Back Board 7"
+    service_light_num:
+      action: set_machine
+      string: "Light 77/91"
+  set_light_77:
+    service_light_name:
+      action: set_machine
+      string: "GI: Back Board 8"
+    service_light_num:
+      action: set_machine
+      string: "Light 78/91"
+  set_light_78:
+    service_light_name:
+      action: set_machine
+      string: "Apron GI 1"
+    service_light_num:
+      action: set_machine
+      string: "Light 79/91"
+  set_light_79:
+    service_light_name:
+      action: set_machine
+      string: "Apron GI 2"
+    service_light_num:
+      action: set_machine
+      string: "Light 80/91"
+  set_light_80:
+    service_light_name:
+      action: set_machine
+      string: "Apron GI 3"
+    service_light_num:
+      action: set_machine
+      string: "Light 81/91"
+  set_light_81:
+    service_light_name:
+      action: set_machine
+      string: "Apron GI 4"
+    service_light_num:
+      action: set_machine
+      string: "Light 82/91"
+  set_light_82:
+    service_light_name:
+      action: set_machine
+      string: "Lock: Maverick"
+    service_light_num:
+      action: set_machine
+      string: "Light 83/91"
+  set_light_83:
+    service_light_name:
+      action: set_machine
+      string: "Lock: Goose"
+    service_light_num:
+      action: set_machine
+      string: "Light 84/91"
+  set_light_84:
+    service_light_name:
+      action: set_machine
+      string: "Pilot Mission Lit"
+    service_light_num:
+      action: set_machine
+      string: "Light 85/91"
+  set_light_85:
+    service_light_name:
+      action: set_machine
+      string: "Pilot Training Lit"
+    service_light_num:
+      action: set_machine
+      string: "Light 86/91"
+  set_light_86:
+    service_light_name:
+      action: set_machine
+      string: "Multiball Lit"
+    service_light_num:
+      action: set_machine
+      string: "Light 87/91"
+  set_light_87:
+    service_light_name:
+      action: set_machine
+      string: "Final Battle Lit"
+    service_light_num:
+      action: set_machine
+      string: "Light 88/91"
+  set_light_88:
+    service_light_name:
+      action: set_machine
+      string: "Extra Ball Lit"
+    service_light_num:
+      action: set_machine
+      string: "Light 89/91"
+  set_light_89:
+    service_light_name:
+      action: set_machine
+      string: "Hard Deck Lit"
+    service_light_num:
+      action: set_machine
+      string: "Light 90/91"
+  set_light_90:
+    service_light_name:
+      action: set_machine
+      string: "Mystery Lit"
+    service_light_num:
+      action: set_machine
+      string: "Light 91/91"
+
+  # ADJUSTMENT TEXT SETTERS (placeholder)
+  set_adjustment_0:
+    service_adjustment_name:
+      action: set_machine
+      string: "adjustment_placeholder"
+    service_adjustment_num:
+      action: set_machine
+      string: "Adj 1/5"
+
+  # AUDIT TEXT SETTERS (placeholder)
+  set_audit_0:
+    service_audit_name:
+      action: set_machine
+      string: "audit_placeholder"
+    service_audit_num:
+      action: set_machine
+      string: "Audit 1/5"
+
+  # FEATURE TEXT SETTERS (placeholder)
+  set_feature_0:
+    service_feature_name:
+      action: set_machine
+      string: "feature_placeholder"
+    service_feature_num:
+      action: set_machine
+      string: "Feature 1/5"
+
+  # SERVO TEXT SETTERS (4 positions)
+  set_servo_0:
+    service_servo_name:
+      action: set_machine
+      string: "Right Ramp DOWN"
+    service_servo_num:
+      action: set_machine
+      string: "Servo 1/4"
+    service_servo_position:
+      action: set_machine
+      string: "DOWN: 0.05"
+  set_servo_1:
+    service_servo_name:
+      action: set_machine
+      string: "Right Ramp UP"
+    service_servo_num:
+      action: set_machine
+      string: "Servo 2/4"
+    service_servo_position:
+      action: set_machine
+      string: "UP: 0.21"
+  set_servo_2:
+    service_servo_name:
+      action: set_machine
+      string: "Top Ramp DOWN"
+    service_servo_num:
+      action: set_machine
+      string: "Servo 3/4"
+    service_servo_position:
+      action: set_machine
+      string: "DOWN: 0.05"
+  set_servo_3:
+    service_servo_name:
+      action: set_machine
+      string: "Top Ramp UP"
+    service_servo_num:
+      action: set_machine
+      string: "Servo 4/4"
+    service_servo_position:
+      action: set_machine
+      string: "UP: 0.25"
+
+##############################################################################
+# COIL PLAYER - Fire coils in service mode
+##############################################################################
+
+coil_player:
+  fire_coil_0:
+    c_flipper_left:
+      action: pulse
+  fire_coil_1:
+    c_flipper_left_upper:
+      action: pulse
+  fire_coil_2:
+    c_flipper_right:
+      action: pulse
+  fire_coil_3:
+    c_trough_eject:
+      action: pulse
+  fire_coil_4:
+    c_plunger:
+      action: pulse
+  fire_coil_5:
+    c_sling_left:
+      action: pulse
+  fire_coil_6:
+    c_sling_right:
+      action: pulse
+  fire_coil_7:
+    c_bumper_left:
+      action: pulse
+  fire_coil_8:
+    c_bumper_right:
+      action: pulse
+  fire_coil_9:
+    c_bumper_center:
+      action: pulse
+  fire_coil_10:
+    c_left_lane_up_post:
+      action: pulse
+  fire_coil_11:
+    c_left_mig_up_post:
+      action: pulse
+  fire_coil_12:
+    c_right_mig_up_post:
+      action: pulse
+  fire_coil_13:
+    c_left_orbit_diverter:
+      action: pulse
+  fire_coil_14:
+    c_right_orbit_diverter:
+      action: pulse
+  fire_coil_15:
+    c_ejection_seat_magnet:
+      action: pulse
+  fire_coil_16:
+    c_mode_barrier:
+      action: pulse
+  fire_coil_17:
+    c_mode_outkicker:
+      action: pulse
+  fire_coil_18:
+    c_lock_release:
+      action: pulse
+  fire_coil_19:
+    c_lock_upkicker:
+      action: pulse
+  fire_coil_20:
+    c_start_button_led:
+      action: pulse
+  fire_coil_21:
+    c_coin_door_led:
+      action: pulse
+
+##############################################################################
+# LIGHT PLAYER - Turn off lights and set colors during light test
+##############################################################################
+
+light_player:
+  # Turn off all lights when entering light test or navigating
+  service_enter_light_test:
+    inserts:
+      color: off
+    gi_lights:
+      color: off
+    above_playfield_lights:
+      color: off
+    left_pop_bumper:
+      color: off
+    right_pop_bumper:
+      color: off
+    bottom_pop_bumper:
+      color: off
+      
+  service_light_next:
+    inserts:
+      color: off
+    gi_lights:
+      color: off
+    above_playfield_lights:
+      color: off
+    left_pop_bumper:
+      color: off
+    right_pop_bumper:
+      color: off
+    bottom_pop_bumper:
+      color: off
+      
+  service_light_prev:
+    inserts:
+      color: off
+    gi_lights:
+      color: off
+    above_playfield_lights:
+      color: off
+    left_pop_bumper:
+      color: off
+    right_pop_bumper:
+      color: off
+    bottom_pop_bumper:
+      color: off
+
+  # Turn off all lights when exiting to main menu  
+  service_enter_main_menu:
+    inserts:
+      color: off
+    gi_lights:
+      color: off
+    above_playfield_lights:
+      color: off
+    left_pop_bumper:
+      color: off
+    right_pop_bumper:
+      color: off
+    bottom_pop_bumper:
+      color: off
+
+  # Each light with 4 color conditions (0=white, 1=red, 2=blue, 3=green)
+  set_light_0{machine.service_light_color_index==0}:
+    l_eject: white
+  set_light_0{machine.service_light_color_index==1}:
+    l_eject: red
+  set_light_0{machine.service_light_color_index==2}:
+    l_eject: blue
+  set_light_0{machine.service_light_color_index==3}:
+    l_eject: green
+  set_light_1{machine.service_light_color_index==0}:
+    l_shoot_again: white
+  set_light_1{machine.service_light_color_index==1}:
+    l_shoot_again: red
+  set_light_1{machine.service_light_color_index==2}:
+    l_shoot_again: blue
+  set_light_1{machine.service_light_color_index==3}:
+    l_shoot_again: green
+  set_light_2{machine.service_light_color_index==0}:
+    l_goose_g: white
+  set_light_2{machine.service_light_color_index==1}:
+    l_goose_g: red
+  set_light_2{machine.service_light_color_index==2}:
+    l_goose_g: blue
+  set_light_2{machine.service_light_color_index==3}:
+    l_goose_g: green
+  set_light_3{machine.service_light_color_index==0}:
+    l_goose_o_left: white
+  set_light_3{machine.service_light_color_index==1}:
+    l_goose_o_left: red
+  set_light_3{machine.service_light_color_index==2}:
+    l_goose_o_left: blue
+  set_light_3{machine.service_light_color_index==3}:
+    l_goose_o_left: green
+  set_light_4{machine.service_light_color_index==0}:
+    l_goose_o_right: white
+  set_light_4{machine.service_light_color_index==1}:
+    l_goose_o_right: red
+  set_light_4{machine.service_light_color_index==2}:
+    l_goose_o_right: blue
+  set_light_4{machine.service_light_color_index==3}:
+    l_goose_o_right: green
+  set_light_5{machine.service_light_color_index==0}:
+    l_goose_s: white
+  set_light_5{machine.service_light_color_index==1}:
+    l_goose_s: red
+  set_light_5{machine.service_light_color_index==2}:
+    l_goose_s: blue
+  set_light_5{machine.service_light_color_index==3}:
+    l_goose_s: green
+  set_light_6{machine.service_light_color_index==0}:
+    l_goose_e: white
+  set_light_6{machine.service_light_color_index==1}:
+    l_goose_e: red
+  set_light_6{machine.service_light_color_index==2}:
+    l_goose_e: blue
+  set_light_6{machine.service_light_color_index==3}:
+    l_goose_e: green
+  set_light_7{machine.service_light_color_index==0}:
+    l_mig_m: white
+  set_light_7{machine.service_light_color_index==1}:
+    l_mig_m: red
+  set_light_7{machine.service_light_color_index==2}:
+    l_mig_m: blue
+  set_light_7{machine.service_light_color_index==3}:
+    l_mig_m: green
+  set_light_8{machine.service_light_color_index==0}:
+    l_mig_i: white
+  set_light_8{machine.service_light_color_index==1}:
+    l_mig_i: red
+  set_light_8{machine.service_light_color_index==2}:
+    l_mig_i: blue
+  set_light_8{machine.service_light_color_index==3}:
+    l_mig_i: green
+  set_light_9{machine.service_light_color_index==0}:
+    l_mig_g: white
+  set_light_9{machine.service_light_color_index==1}:
+    l_mig_g: red
+  set_light_9{machine.service_light_color_index==2}:
+    l_mig_g: blue
+  set_light_9{machine.service_light_color_index==3}:
+    l_mig_g: green
+  set_light_10{machine.service_light_color_index==0}:
+    l_iceman_i: white
+  set_light_10{machine.service_light_color_index==1}:
+    l_iceman_i: red
+  set_light_10{machine.service_light_color_index==2}:
+    l_iceman_i: blue
+  set_light_10{machine.service_light_color_index==3}:
+    l_iceman_i: green
+  set_light_11{machine.service_light_color_index==0}:
+    l_iceman_c: white
+  set_light_11{machine.service_light_color_index==1}:
+    l_iceman_c: red
+  set_light_11{machine.service_light_color_index==2}:
+    l_iceman_c: blue
+  set_light_11{machine.service_light_color_index==3}:
+    l_iceman_c: green
+  set_light_12{machine.service_light_color_index==0}:
+    l_iceman_e: white
+  set_light_12{machine.service_light_color_index==1}:
+    l_iceman_e: red
+  set_light_12{machine.service_light_color_index==2}:
+    l_iceman_e: blue
+  set_light_12{machine.service_light_color_index==3}:
+    l_iceman_e: green
+  set_light_13{machine.service_light_color_index==0}:
+    l_iceman_m: white
+  set_light_13{machine.service_light_color_index==1}:
+    l_iceman_m: red
+  set_light_13{machine.service_light_color_index==2}:
+    l_iceman_m: blue
+  set_light_13{machine.service_light_color_index==3}:
+    l_iceman_m: green
+  set_light_14{machine.service_light_color_index==0}:
+    l_iceman_a: white
+  set_light_14{machine.service_light_color_index==1}:
+    l_iceman_a: red
+  set_light_14{machine.service_light_color_index==2}:
+    l_iceman_a: blue
+  set_light_14{machine.service_light_color_index==3}:
+    l_iceman_a: green
+  set_light_15{machine.service_light_color_index==0}:
+    l_iceman_n: white
+  set_light_15{machine.service_light_color_index==1}:
+    l_iceman_n: red
+  set_light_15{machine.service_light_color_index==2}:
+    l_iceman_n: blue
+  set_light_15{machine.service_light_color_index==3}:
+    l_iceman_n: green
+  set_light_16{machine.service_light_color_index==0}:
+    l_lock_l: white
+  set_light_16{machine.service_light_color_index==1}:
+    l_lock_l: red
+  set_light_16{machine.service_light_color_index==2}:
+    l_lock_l: blue
+  set_light_16{machine.service_light_color_index==3}:
+    l_lock_l: green
+  set_light_17{machine.service_light_color_index==0}:
+    l_lock_o: white
+  set_light_17{machine.service_light_color_index==1}:
+    l_lock_o: red
+  set_light_17{machine.service_light_color_index==2}:
+    l_lock_o: blue
+  set_light_17{machine.service_light_color_index==3}:
+    l_lock_o: green
+  set_light_18{machine.service_light_color_index==0}:
+    l_lock_c: white
+  set_light_18{machine.service_light_color_index==1}:
+    l_lock_c: red
+  set_light_18{machine.service_light_color_index==2}:
+    l_lock_c: blue
+  set_light_18{machine.service_light_color_index==3}:
+    l_lock_c: green
+  set_light_19{machine.service_light_color_index==0}:
+    l_lock_k: white
+  set_light_19{machine.service_light_color_index==1}:
+    l_lock_k: red
+  set_light_19{machine.service_light_color_index==2}:
+    l_lock_k: blue
+  set_light_19{machine.service_light_color_index==3}:
+    l_lock_k: green
+  set_light_20{machine.service_light_color_index==0}:
+    l_lock_lit: white
+  set_light_20{machine.service_light_color_index==1}:
+    l_lock_lit: red
+  set_light_20{machine.service_light_color_index==2}:
+    l_lock_lit: blue
+  set_light_20{machine.service_light_color_index==3}:
+    l_lock_lit: green
+  set_light_21{machine.service_light_color_index==0}:
+    l_mode_rescue_cougar: white
+  set_light_21{machine.service_light_color_index==1}:
+    l_mode_rescue_cougar: red
+  set_light_21{machine.service_light_color_index==2}:
+    l_mode_rescue_cougar: blue
+  set_light_21{machine.service_light_color_index==3}:
+    l_mode_rescue_cougar: green
+  set_light_22{machine.service_light_color_index==0}:
+    l_mode_balls_of_fire: white
+  set_light_22{machine.service_light_color_index==1}:
+    l_mode_balls_of_fire: red
+  set_light_22{machine.service_light_color_index==2}:
+    l_mode_balls_of_fire: blue
+  set_light_22{machine.service_light_color_index==3}:
+    l_mode_balls_of_fire: green
+  set_light_23{machine.service_light_color_index==0}:
+    l_mode_cool_under_pressure: white
+  set_light_23{machine.service_light_color_index==1}:
+    l_mode_cool_under_pressure: red
+  set_light_23{machine.service_light_color_index==2}:
+    l_mode_cool_under_pressure: blue
+  set_light_23{machine.service_light_color_index==3}:
+    l_mode_cool_under_pressure: green
+  set_light_24{machine.service_light_color_index==0}:
+    l_mode_battle_jester: white
+  set_light_24{machine.service_light_color_index==1}:
+    l_mode_battle_jester: red
+  set_light_24{machine.service_light_color_index==2}:
+    l_mode_battle_jester: blue
+  set_light_24{machine.service_light_color_index==3}:
+    l_mode_battle_jester: green
+  set_light_25{machine.service_light_color_index==0}:
+    l_mode_no_points_for_second_place: white
+  set_light_25{machine.service_light_color_index==1}:
+    l_mode_no_points_for_second_place: red
+  set_light_25{machine.service_light_color_index==2}:
+    l_mode_no_points_for_second_place: blue
+  set_light_25{machine.service_light_color_index==3}:
+    l_mode_no_points_for_second_place: green
+  set_light_26{machine.service_light_color_index==0}:
+    l_mode_edge_of_space: white
+  set_light_26{machine.service_light_color_index==1}:
+    l_mode_edge_of_space: red
+  set_light_26{machine.service_light_color_index==2}:
+    l_mode_edge_of_space: blue
+  set_light_26{machine.service_light_color_index==3}:
+    l_mode_edge_of_space: green
+  set_light_27{machine.service_light_color_index==0}:
+    l_mode_below_the_hard_deck: white
+  set_light_27{machine.service_light_color_index==1}:
+    l_mode_below_the_hard_deck: red
+  set_light_27{machine.service_light_color_index==2}:
+    l_mode_below_the_hard_deck: blue
+  set_light_27{machine.service_light_color_index==3}:
+    l_mode_below_the_hard_deck: green
+  set_light_28{machine.service_light_color_index==0}:
+    l_mode_canyon_run: white
+  set_light_28{machine.service_light_color_index==1}:
+    l_mode_canyon_run: red
+  set_light_28{machine.service_light_color_index==2}:
+    l_mode_canyon_run: blue
+  set_light_28{machine.service_light_color_index==3}:
+    l_mode_canyon_run: green
+  set_light_29{machine.service_light_color_index==0}:
+    l_mode_rise_of_phoenix: white
+  set_light_29{machine.service_light_color_index==1}:
+    l_mode_rise_of_phoenix: red
+  set_light_29{machine.service_light_color_index==2}:
+    l_mode_rise_of_phoenix: blue
+  set_light_29{machine.service_light_color_index==3}:
+    l_mode_rise_of_phoenix: green
+  set_light_30{machine.service_light_color_index==0}:
+    l_mode_no_margin_for_error: white
+  set_light_30{machine.service_light_color_index==1}:
+    l_mode_no_margin_for_error: red
+  set_light_30{machine.service_light_color_index==2}:
+    l_mode_no_margin_for_error: blue
+  set_light_30{machine.service_light_color_index==3}:
+    l_mode_no_margin_for_error: green
+  set_light_31{machine.service_light_color_index==0}:
+    l_mode_inverted: white
+  set_light_31{machine.service_light_color_index==1}:
+    l_mode_inverted: red
+  set_light_31{machine.service_light_color_index==2}:
+    l_mode_inverted: blue
+  set_light_31{machine.service_light_color_index==3}:
+    l_mode_inverted: green
+  set_light_32{machine.service_light_color_index==0}:
+    l_mode_missles: white
+  set_light_32{machine.service_light_color_index==1}:
+    l_mode_missles: red
+  set_light_32{machine.service_light_color_index==2}:
+    l_mode_missles: blue
+  set_light_32{machine.service_light_color_index==3}:
+    l_mode_missles: green
+  set_light_33{machine.service_light_color_index==0}:
+    l_mode_afterburner: white
+  set_light_33{machine.service_light_color_index==1}:
+    l_mode_afterburner: red
+  set_light_33{machine.service_light_color_index==2}:
+    l_mode_afterburner: blue
+  set_light_33{machine.service_light_color_index==3}:
+    l_mode_afterburner: green
+  set_light_34{machine.service_light_color_index==0}:
+    l_mode_wingman: white
+  set_light_34{machine.service_light_color_index==1}:
+    l_mode_wingman: red
+  set_light_34{machine.service_light_color_index==2}:
+    l_mode_wingman: blue
+  set_light_34{machine.service_light_color_index==3}:
+    l_mode_wingman: green
+  set_light_35{machine.service_light_color_index==0}:
+    l_mode_dogfight: white
+  set_light_35{machine.service_light_color_index==1}:
+    l_mode_dogfight: red
+  set_light_35{machine.service_light_color_index==2}:
+    l_mode_dogfight: blue
+  set_light_35{machine.service_light_color_index==3}:
+    l_mode_dogfight: green
+  set_light_36{machine.service_light_color_index==0}:
+    l_mode_top_top_gun: white
+  set_light_36{machine.service_light_color_index==1}:
+    l_mode_top_top_gun: red
+  set_light_36{machine.service_light_color_index==2}:
+    l_mode_top_top_gun: blue
+  set_light_36{machine.service_light_color_index==3}:
+    l_mode_top_top_gun: green
+  set_light_37{machine.service_light_color_index==0}:
+    l_mode_gun_top_gun: white
+  set_light_37{machine.service_light_color_index==1}:
+    l_mode_gun_top_gun: red
+  set_light_37{machine.service_light_color_index==2}:
+    l_mode_gun_top_gun: blue
+  set_light_37{machine.service_light_color_index==3}:
+    l_mode_gun_top_gun: green
+  set_light_38{machine.service_light_color_index==0}:
+    l_shot_left_lane: white
+  set_light_38{machine.service_light_color_index==1}:
+    l_shot_left_lane: red
+  set_light_38{machine.service_light_color_index==2}:
+    l_shot_left_lane: blue
+  set_light_38{machine.service_light_color_index==3}:
+    l_shot_left_lane: green
+  set_light_39{machine.service_light_color_index==0}:
+    l_shot_left_orbit: white
+  set_light_39{machine.service_light_color_index==1}:
+    l_shot_left_orbit: red
+  set_light_39{machine.service_light_color_index==2}:
+    l_shot_left_orbit: blue
+  set_light_39{machine.service_light_color_index==3}:
+    l_shot_left_orbit: green
+  set_light_40{machine.service_light_color_index==0}:
+    l_shot_left_ramp: white
+  set_light_40{machine.service_light_color_index==1}:
+    l_shot_left_ramp: red
+  set_light_40{machine.service_light_color_index==2}:
+    l_shot_left_ramp: blue
+  set_light_40{machine.service_light_color_index==3}:
+    l_shot_left_ramp: green
+  set_light_41{machine.service_light_color_index==0}:
+    l_shot_spinner: white
+  set_light_41{machine.service_light_color_index==1}:
+    l_shot_spinner: red
+  set_light_41{machine.service_light_color_index==2}:
+    l_shot_spinner: blue
+  set_light_41{machine.service_light_color_index==3}:
+    l_shot_spinner: green
+  set_light_42{machine.service_light_color_index==0}:
+    l_shot_barrier: white
+  set_light_42{machine.service_light_color_index==1}:
+    l_shot_barrier: red
+  set_light_42{machine.service_light_color_index==2}:
+    l_shot_barrier: blue
+  set_light_42{machine.service_light_color_index==3}:
+    l_shot_barrier: green
+  set_light_43{machine.service_light_color_index==0}:
+    l_shot_tower_ramp: white
+  set_light_43{machine.service_light_color_index==1}:
+    l_shot_tower_ramp: red
+  set_light_43{machine.service_light_color_index==2}:
+    l_shot_tower_ramp: blue
+  set_light_43{machine.service_light_color_index==3}:
+    l_shot_tower_ramp: green
+  set_light_44{machine.service_light_color_index==0}:
+    l_shot_upper_orbit: white
+  set_light_44{machine.service_light_color_index==1}:
+    l_shot_upper_orbit: red
+  set_light_44{machine.service_light_color_index==2}:
+    l_shot_upper_orbit: blue
+  set_light_44{machine.service_light_color_index==3}:
+    l_shot_upper_orbit: green
+  set_light_45{machine.service_light_color_index==0}:
+    l_shot_middle_ramp: white
+  set_light_45{machine.service_light_color_index==1}:
+    l_shot_middle_ramp: red
+  set_light_45{machine.service_light_color_index==2}:
+    l_shot_middle_ramp: blue
+  set_light_45{machine.service_light_color_index==3}:
+    l_shot_middle_ramp: green
+  set_light_46{machine.service_light_color_index==0}:
+    l_shot_right_orbit: white
+  set_light_46{machine.service_light_color_index==1}:
+    l_shot_right_orbit: red
+  set_light_46{machine.service_light_color_index==2}:
+    l_shot_right_orbit: blue
+  set_light_46{machine.service_light_color_index==3}:
+    l_shot_right_orbit: green
+  set_light_47{machine.service_light_color_index==0}:
+    l_shot_pilot_gear: white
+  set_light_47{machine.service_light_color_index==1}:
+    l_shot_pilot_gear: red
+  set_light_47{machine.service_light_color_index==2}:
+    l_shot_pilot_gear: blue
+  set_light_47{machine.service_light_color_index==3}:
+    l_shot_pilot_gear: green
+  set_light_48{machine.service_light_color_index==0}:
+    l_gi_light_1: white
+  set_light_48{machine.service_light_color_index==1}:
+    l_gi_light_1: red
+  set_light_48{machine.service_light_color_index==2}:
+    l_gi_light_1: blue
+  set_light_48{machine.service_light_color_index==3}:
+    l_gi_light_1: green
+  set_light_49{machine.service_light_color_index==0}:
+    l_gi_light_2: white
+  set_light_49{machine.service_light_color_index==1}:
+    l_gi_light_2: red
+  set_light_49{machine.service_light_color_index==2}:
+    l_gi_light_2: blue
+  set_light_49{machine.service_light_color_index==3}:
+    l_gi_light_2: green
+  set_light_50{machine.service_light_color_index==0}:
+    l_gi_light_3: white
+  set_light_50{machine.service_light_color_index==1}:
+    l_gi_light_3: red
+  set_light_50{machine.service_light_color_index==2}:
+    l_gi_light_3: blue
+  set_light_50{machine.service_light_color_index==3}:
+    l_gi_light_3: green
+  set_light_51{machine.service_light_color_index==0}:
+    l_gi_light_4: white
+  set_light_51{machine.service_light_color_index==1}:
+    l_gi_light_4: red
+  set_light_51{machine.service_light_color_index==2}:
+    l_gi_light_4: blue
+  set_light_51{machine.service_light_color_index==3}:
+    l_gi_light_4: green
+  set_light_52{machine.service_light_color_index==0}:
+    l_gi_light_5: white
+  set_light_52{machine.service_light_color_index==1}:
+    l_gi_light_5: red
+  set_light_52{machine.service_light_color_index==2}:
+    l_gi_light_5: blue
+  set_light_52{machine.service_light_color_index==3}:
+    l_gi_light_5: green
+  set_light_53{machine.service_light_color_index==0}:
+    l_gi_light_6: white
+  set_light_53{machine.service_light_color_index==1}:
+    l_gi_light_6: red
+  set_light_53{machine.service_light_color_index==2}:
+    l_gi_light_6: blue
+  set_light_53{machine.service_light_color_index==3}:
+    l_gi_light_6: green
+  set_light_54{machine.service_light_color_index==0}:
+    l_gi_light_7: white
+  set_light_54{machine.service_light_color_index==1}:
+    l_gi_light_7: red
+  set_light_54{machine.service_light_color_index==2}:
+    l_gi_light_7: blue
+  set_light_54{machine.service_light_color_index==3}:
+    l_gi_light_7: green
+  set_light_55{machine.service_light_color_index==0}:
+    l_gi_light_8: white
+  set_light_55{machine.service_light_color_index==1}:
+    l_gi_light_8: red
+  set_light_55{machine.service_light_color_index==2}:
+    l_gi_light_8: blue
+  set_light_55{machine.service_light_color_index==3}:
+    l_gi_light_8: green
+  set_light_56{machine.service_light_color_index==0}:
+    l_gi_light_9: white
+  set_light_56{machine.service_light_color_index==1}:
+    l_gi_light_9: red
+  set_light_56{machine.service_light_color_index==2}:
+    l_gi_light_9: blue
+  set_light_56{machine.service_light_color_index==3}:
+    l_gi_light_9: green
+  set_light_57{machine.service_light_color_index==0}:
+    l_gi_light_10: white
+  set_light_57{machine.service_light_color_index==1}:
+    l_gi_light_10: red
+  set_light_57{machine.service_light_color_index==2}:
+    l_gi_light_10: blue
+  set_light_57{machine.service_light_color_index==3}:
+    l_gi_light_10: green
+  set_light_58{machine.service_light_color_index==0}:
+    l_gi_light_11: white
+  set_light_58{machine.service_light_color_index==1}:
+    l_gi_light_11: red
+  set_light_58{machine.service_light_color_index==2}:
+    l_gi_light_11: blue
+  set_light_58{machine.service_light_color_index==3}:
+    l_gi_light_11: green
+  set_light_59{machine.service_light_color_index==0}:
+    l_gi_light_12: white
+  set_light_59{machine.service_light_color_index==1}:
+    l_gi_light_12: red
+  set_light_59{machine.service_light_color_index==2}:
+    l_gi_light_12: blue
+  set_light_59{machine.service_light_color_index==3}:
+    l_gi_light_12: green
+  set_light_60{machine.service_light_color_index==0}:
+    l_gi_light_13: white
+  set_light_60{machine.service_light_color_index==1}:
+    l_gi_light_13: red
+  set_light_60{machine.service_light_color_index==2}:
+    l_gi_light_13: blue
+  set_light_60{machine.service_light_color_index==3}:
+    l_gi_light_13: green
+  set_light_61{machine.service_light_color_index==0}:
+    l_gi_light_14: white
+  set_light_61{machine.service_light_color_index==1}:
+    l_gi_light_14: red
+  set_light_61{machine.service_light_color_index==2}:
+    l_gi_light_14: blue
+  set_light_61{machine.service_light_color_index==3}:
+    l_gi_light_14: green
+  set_light_62{machine.service_light_color_index==0}:
+    l_gi_light_15: white
+  set_light_62{machine.service_light_color_index==1}:
+    l_gi_light_15: red
+  set_light_62{machine.service_light_color_index==2}:
+    l_gi_light_15: blue
+  set_light_62{machine.service_light_color_index==3}:
+    l_gi_light_15: green
+  set_light_63{machine.service_light_color_index==0}:
+    l_gi_light_16: white
+  set_light_63{machine.service_light_color_index==1}:
+    l_gi_light_16: red
+  set_light_63{machine.service_light_color_index==2}:
+    l_gi_light_16: blue
+  set_light_63{machine.service_light_color_index==3}:
+    l_gi_light_16: green
+  set_light_64{machine.service_light_color_index==0}:
+    l_gi_light_17: white
+  set_light_64{machine.service_light_color_index==1}:
+    l_gi_light_17: red
+  set_light_64{machine.service_light_color_index==2}:
+    l_gi_light_17: blue
+  set_light_64{machine.service_light_color_index==3}:
+    l_gi_light_17: green
+  set_light_65{machine.service_light_color_index==0}:
+    l_gi_light_18: white
+  set_light_65{machine.service_light_color_index==1}:
+    l_gi_light_18: red
+  set_light_65{machine.service_light_color_index==2}:
+    l_gi_light_18: blue
+  set_light_65{machine.service_light_color_index==3}:
+    l_gi_light_18: green
+  set_light_66{machine.service_light_color_index==0}:
+    l_gi_light_19: white
+  set_light_66{machine.service_light_color_index==1}:
+    l_gi_light_19: red
+  set_light_66{machine.service_light_color_index==2}:
+    l_gi_light_19: blue
+  set_light_66{machine.service_light_color_index==3}:
+    l_gi_light_19: green
+  set_light_67{machine.service_light_color_index==0}:
+    l_gi_light_20: white
+  set_light_67{machine.service_light_color_index==1}:
+    l_gi_light_20: red
+  set_light_67{machine.service_light_color_index==2}:
+    l_gi_light_20: blue
+  set_light_67{machine.service_light_color_index==3}:
+    l_gi_light_20: green
+  set_light_68{machine.service_light_color_index==0}:
+    l_gi_light_21: white
+  set_light_68{machine.service_light_color_index==1}:
+    l_gi_light_21: red
+  set_light_68{machine.service_light_color_index==2}:
+    l_gi_light_21: blue
+  set_light_68{machine.service_light_color_index==3}:
+    l_gi_light_21: green
+  set_light_69{machine.service_light_color_index==0}:
+    l_gi_light_pop_left: white
+  set_light_69{machine.service_light_color_index==1}:
+    l_gi_light_pop_left: red
+  set_light_69{machine.service_light_color_index==2}:
+    l_gi_light_pop_left: blue
+  set_light_69{machine.service_light_color_index==3}:
+    l_gi_light_pop_left: green
+  set_light_70{machine.service_light_color_index==0}:
+    l_gi_light_pop_right: white
+  set_light_70{machine.service_light_color_index==1}:
+    l_gi_light_pop_right: red
+  set_light_70{machine.service_light_color_index==2}:
+    l_gi_light_pop_right: blue
+  set_light_70{machine.service_light_color_index==3}:
+    l_gi_light_pop_right: green
+  set_light_71{machine.service_light_color_index==0}:
+    l_gi_light_pop_bottom: white
+  set_light_71{machine.service_light_color_index==1}:
+    l_gi_light_pop_bottom: red
+  set_light_71{machine.service_light_color_index==2}:
+    l_gi_light_pop_bottom: blue
+  set_light_71{machine.service_light_color_index==3}:
+    l_gi_light_pop_bottom: green
+  set_light_72{machine.service_light_color_index==0}:
+    l_gi_light_22: white
+  set_light_72{machine.service_light_color_index==1}:
+    l_gi_light_22: red
+  set_light_72{machine.service_light_color_index==2}:
+    l_gi_light_22: blue
+  set_light_72{machine.service_light_color_index==3}:
+    l_gi_light_22: green
+  set_light_73{machine.service_light_color_index==0}:
+    l_gi_light_23: white
+  set_light_73{machine.service_light_color_index==1}:
+    l_gi_light_23: red
+  set_light_73{machine.service_light_color_index==2}:
+    l_gi_light_23: blue
+  set_light_73{machine.service_light_color_index==3}:
+    l_gi_light_23: green
+  set_light_74{machine.service_light_color_index==0}:
+    l_gi_light_24: white
+  set_light_74{machine.service_light_color_index==1}:
+    l_gi_light_24: red
+  set_light_74{machine.service_light_color_index==2}:
+    l_gi_light_24: blue
+  set_light_74{machine.service_light_color_index==3}:
+    l_gi_light_24: green
+  set_light_75{machine.service_light_color_index==0}:
+    l_gi_light_25: white
+  set_light_75{machine.service_light_color_index==1}:
+    l_gi_light_25: red
+  set_light_75{machine.service_light_color_index==2}:
+    l_gi_light_25: blue
+  set_light_75{machine.service_light_color_index==3}:
+    l_gi_light_25: green
+  set_light_76{machine.service_light_color_index==0}:
+    l_gi_light_26: white
+  set_light_76{machine.service_light_color_index==1}:
+    l_gi_light_26: red
+  set_light_76{machine.service_light_color_index==2}:
+    l_gi_light_26: blue
+  set_light_76{machine.service_light_color_index==3}:
+    l_gi_light_26: green
+  set_light_77{machine.service_light_color_index==0}:
+    l_gi_light_27: white
+  set_light_77{machine.service_light_color_index==1}:
+    l_gi_light_27: red
+  set_light_77{machine.service_light_color_index==2}:
+    l_gi_light_27: blue
+  set_light_77{machine.service_light_color_index==3}:
+    l_gi_light_27: green
+  set_light_78{machine.service_light_color_index==0}:
+    l_apron_light_1: white
+  set_light_78{machine.service_light_color_index==1}:
+    l_apron_light_1: red
+  set_light_78{machine.service_light_color_index==2}:
+    l_apron_light_1: blue
+  set_light_78{machine.service_light_color_index==3}:
+    l_apron_light_1: green
+  set_light_79{machine.service_light_color_index==0}:
+    l_apron_light_2: white
+  set_light_79{machine.service_light_color_index==1}:
+    l_apron_light_2: red
+  set_light_79{machine.service_light_color_index==2}:
+    l_apron_light_2: blue
+  set_light_79{machine.service_light_color_index==3}:
+    l_apron_light_2: green
+  set_light_80{machine.service_light_color_index==0}:
+    l_apron_light_3: white
+  set_light_80{machine.service_light_color_index==1}:
+    l_apron_light_3: red
+  set_light_80{machine.service_light_color_index==2}:
+    l_apron_light_3: blue
+  set_light_80{machine.service_light_color_index==3}:
+    l_apron_light_3: green
+  set_light_81{machine.service_light_color_index==0}:
+    l_apron_light_4: white
+  set_light_81{machine.service_light_color_index==1}:
+    l_apron_light_4: red
+  set_light_81{machine.service_light_color_index==2}:
+    l_apron_light_4: blue
+  set_light_81{machine.service_light_color_index==3}:
+    l_apron_light_4: green
+  set_light_82{machine.service_light_color_index==0}:
+    l_lock_mav: white
+  set_light_82{machine.service_light_color_index==1}:
+    l_lock_mav: red
+  set_light_82{machine.service_light_color_index==2}:
+    l_lock_mav: blue
+  set_light_82{machine.service_light_color_index==3}:
+    l_lock_mav: green
+  set_light_83{machine.service_light_color_index==0}:
+    l_lock_goose: white
+  set_light_83{machine.service_light_color_index==1}:
+    l_lock_goose: red
+  set_light_83{machine.service_light_color_index==2}:
+    l_lock_goose: blue
+  set_light_83{machine.service_light_color_index==3}:
+    l_lock_goose: green
+  set_light_84{machine.service_light_color_index==0}:
+    l_pilot_mission_lit: white
+  set_light_84{machine.service_light_color_index==1}:
+    l_pilot_mission_lit: red
+  set_light_84{machine.service_light_color_index==2}:
+    l_pilot_mission_lit: blue
+  set_light_84{machine.service_light_color_index==3}:
+    l_pilot_mission_lit: green
+  set_light_85{machine.service_light_color_index==0}:
+    l_pilot_training_lit: white
+  set_light_85{machine.service_light_color_index==1}:
+    l_pilot_training_lit: red
+  set_light_85{machine.service_light_color_index==2}:
+    l_pilot_training_lit: blue
+  set_light_85{machine.service_light_color_index==3}:
+    l_pilot_training_lit: green
+  set_light_86{machine.service_light_color_index==0}:
+    l_multiball_lit: white
+  set_light_86{machine.service_light_color_index==1}:
+    l_multiball_lit: red
+  set_light_86{machine.service_light_color_index==2}:
+    l_multiball_lit: blue
+  set_light_86{machine.service_light_color_index==3}:
+    l_multiball_lit: green
+  set_light_87{machine.service_light_color_index==0}:
+    l_final_battle_lit: white
+  set_light_87{machine.service_light_color_index==1}:
+    l_final_battle_lit: red
+  set_light_87{machine.service_light_color_index==2}:
+    l_final_battle_lit: blue
+  set_light_87{machine.service_light_color_index==3}:
+    l_final_battle_lit: green
+  set_light_88{machine.service_light_color_index==0}:
+    l_extra_ball_lit: white
+  set_light_88{machine.service_light_color_index==1}:
+    l_extra_ball_lit: red
+  set_light_88{machine.service_light_color_index==2}:
+    l_extra_ball_lit: blue
+  set_light_88{machine.service_light_color_index==3}:
+    l_extra_ball_lit: green
+  set_light_89{machine.service_light_color_index==0}:
+    l_hard_deck_lit: white
+  set_light_89{machine.service_light_color_index==1}:
+    l_hard_deck_lit: red
+  set_light_89{machine.service_light_color_index==2}:
+    l_hard_deck_lit: blue
+  set_light_89{machine.service_light_color_index==3}:
+    l_hard_deck_lit: green
+  set_light_90{machine.service_light_color_index==0}:
+    l_mystery_lit: white
+  set_light_90{machine.service_light_color_index==1}:
+    l_mystery_lit: red
+  set_light_90{machine.service_light_color_index==2}:
+    l_mystery_lit: blue
+  set_light_90{machine.service_light_color_index==3}:
+    l_mystery_lit: green
+
+##############################################################################
+# SOUND PLAYER - Service mode sounds
+##############################################################################
+
+sound_player:
+  # Service mode music - starts when mode starts, loops until mode stops
+  mode_top_gun_service_started:
+    music_service_mode:
+      bus: music
+      loops: -1
+  
+  # Stop music when exiting service mode
+  mode_top_gun_service_stopped:
+    music_service_mode:
+      action: stop
+  
+  # Coin door open sound when entering service mode
+  service_mode_entered:
+    soundfx_service_mode_coin_door_open:
+      bus: effects
+  
+  # Button sounds - these will only fire while mode is active
+  # EXIT/BACK button (service button 1)
+  s_coin_door_service_1_active:
+    soundfx_service_mode_exit_button:
+      bus: effects
+  
+  # UP/NEXT button (service button 2)
+  s_coin_door_service_2_active:
+    soundfx_service_mode_up_button:
+      bus: effects
+      
+  # DOWN/PREV button (service button 3)
+  s_coin_door_service_3_active:
+    soundfx_service_mode_down_button:
+      bus: effects
+      
+  # ENTER button (service button 4)
+  s_coin_door_service_4_active:
+    soundfx_service_mode_enter_button:
+      bus: effects
+
+  # Switch active beep - plays when ANY switch activates during switch test (menu_level==1)
+  s_start_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_tilt_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_48v_disable_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_coin_door_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_coin_door_credit_left_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_coin_door_credit_right_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_flipper_left_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_flipper_left_eos_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_flipper_left_upper_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_flipper_left_upper_eos_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_flipper_right_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_flipper_right_eos_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_trough_1_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_trough_2_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_trough_3_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_trough_4_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_trough_5_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_trough_6_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_jam_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_shooter_lane_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_bumper_left_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_bumper_center_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_bumper_right_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_slingshot_left_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_slingshot_right_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_outlane_left_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_outlane_right_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_inlane_left_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_inner_inlane_right_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_outer_inlane_right_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_mig_lane_left_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_mig_lane_right_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_lane_left_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_lane_right_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_orbit_left_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_orbit_upper_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_orbit_lower_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_orbit_right_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_i_iceman_target_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_c_iceman_target_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_e_iceman_target_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_m_iceman_target_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_a_iceman_target_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_n_iceman_target_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_l_lock_target_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_o_lock_target_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_c_lock_target_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_k_lock_target_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_barrier_target_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_flight_gear_target_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_spinner_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_ramp_left_exit_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_ramp_right_exit_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_ramp_inner_exit_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_ramp_tower_exit_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_lock_plunger_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_lock_mav_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_lock_goose_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+  s_mode_start_active{machine.service_menu_level==1}:
+    soundfx_service_mode_switch_active:
+      bus: effects
+
+##############################################################################
+# SLIDE PLAYER
+##############################################################################
+
+slide_player:
+  service_main_menu_update:
+    service_menu:
+      action: play
+    service_switch_test:
+      action: remove
+    service_coil_test:
+      action: remove
+    service_light_test:
+      action: remove
+    service_adjustments:
+      action: remove
+    service_audits:
+      action: remove
+    service_feature_adjustments:
+      action: remove
+    service_servo_adjust:
+      action: remove
+
+  service_switch_test_update:
+    service_switch_test:
+      action: play
+    service_menu:
+      action: remove
+
+  service_coil_test_update:
+    service_coil_test:
+      action: play
+    service_menu:
+      action: remove
+
+  service_light_test_update:
+    service_light_test:
+      action: play
+    service_menu:
+      action: remove
+
+  service_adjustments_update:
+    service_adjustments:
+      action: play
+    service_menu:
+      action: remove
+
+  service_audits_update:
+    service_audits:
+      action: play
+    service_menu:
+      action: remove
+
+  service_feature_adjustments_update:
+    service_feature_adjustments:
+      action: play
+    service_menu:
+      action: remove
+
+  service_servo_adjust_update:
+    service_servo_adjust:
+      action: play
+    service_menu:
+      action: remove
+
+  service_mode_exit:
+    service_menu:
+      action: remove
+    service_switch_test:
+      action: remove
+    service_coil_test:
+      action: remove
+    service_light_test:
+      action: remove
+    service_adjustments:
+      action: remove
+    service_audits:
+      action: remove
+    service_feature_adjustments:
+      action: remove
+    service_servo_adjust:
+      action: remove

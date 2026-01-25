@@ -9,9 +9,10 @@
 ####################################################################################
 # FIRST POWER ON PROCEDURE:
 # 1. Do NOT attach servo arms yet (or remove them if attached)
-# 2. Power on machine - servos will move to reset_position (0.0)
+# 2. Power on machine - servos will move to reset_position (0.05)
 # 3. Once servos have settled, attach arms in the "ramp down" position
 # 4. Test with small movements first, then adjust positions as needed
+# 5. Use SERVICE MODE -> SERVO ADJUST to fine-tune positions!
 ####################################################################################
 
 servos:
@@ -20,36 +21,38 @@ servos:
     number: light_expansion_board-1      # Servo port 1 on expansion board
     servo_min: 0.0                        # Minimum position limit
     servo_max: 1.0                        # Maximum position limit
-    reset_position: 0.05                   # Position when game resets (ramp down)
+    reset_position: 0.05                  # Position when game resets (ramp down)
     reset_events: 
       - machine_reset_phase_3
       - ball_will_end
       - service_mode_entered
     positions:
-      # SAFETY: Starting with ~10% travel (~18 degrees)
-      # Increase the "up" value gradually until ramp lifts properly
-      # 0.1 = 10%, 0.15 = 15%, 0.2 = 20%, etc.
-      0.05: right_ramp_down                # Ramp down position
-      0.21: right_ramp_up                  # Ramp up position (START SMALL!)
+      # Use service mode SERVO ADJUST to calibrate these values!
+      # The machine variables servo_right_ramp_down_pos and servo_right_ramp_up_pos
+      # are used at runtime and persist between restarts.
+      0.05: right_ramp_down               # Ramp down position
+      0.21: right_ramp_up                 # Ramp up position
     platform_settings:
       min_us: 500                         # Minimum pulse width in microseconds
       home_us: 1500                       # Home/center pulse width
       max_us: 2500                        # Maximum pulse width in microseconds
       max_runtime: 1s                     # Max time for servo to move
 
-  # Top/Inner Ramp Lifter Servo  
+  # Top/Inner Ramp Lifter Servo (NEW SERVO - no longer flipped!)
   servo_top_ramp_lifter:
     number: light_expansion_board-2      # Servo port 2
     servo_min: 0.0                        # Minimum position limit
     servo_max: 1.0                        # Maximum position limit
-    reset_position: 0.21                  # Position when game resets (ramp down)
+    reset_position: 0.05                  # Position when game resets (ramp down)
     reset_events: 
       - machine_reset_phase_3
       - ball_will_end
       - service_mode_entered
     positions:
-      0.21: top_ramp_down                 # Ramp down position
-      0.7: top_ramp_up                   # Ramp up position
+      # NEW VALUES for non-flipped servo orientation
+      # Use service mode SERVO ADJUST to calibrate these values!
+      0.05: top_ramp_down                 # Ramp down position
+      0.25: top_ramp_up                   # Ramp up position (start small, adjust up)
     platform_settings:
       min_us: 500                         # Minimum pulse width in microseconds
       home_us: 1500                       # Home/center pulse width
@@ -59,22 +62,18 @@ servos:
 ####################################################################################
 # TUNING GUIDE:
 # 
+# Use SERVICE MODE -> SERVO ADJUST for real-time calibration!
+# Values are saved and persist between restarts.
+#
 # To increase ramp lift height, change the "up" position value:
 #   0.1 = ~18 degrees  (safe starting point)
 #   0.15 = ~27 degrees
-#   0.17 = ~30 degrees (your target)
 #   0.2 = ~36 degrees
-#
-# Example - if 0.1 isn't enough lift:
-#   positions:
-#     0.0: right_ramp_down
-#     0.15: right_ramp_up    # Increased from 0.1 to 0.15
+#   0.25 = ~45 degrees
 #
 # If servo moves WRONG DIRECTION (ramp goes down when it should go up):
-#   Swap the position values:
-#   positions:
-#     0.1: right_ramp_down   # Was 0.0
-#     0.0: right_ramp_up     # Was 0.1
+#   - In SERVO ADJUST, set DOWN to a higher value than UP
+#   - Or physically flip the servo arm 180 degrees
 #
 # If servo doesn't move full range even at 1.0:
 #   Adjust min_us/max_us in platform_settings
