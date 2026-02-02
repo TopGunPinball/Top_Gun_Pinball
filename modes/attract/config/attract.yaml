@@ -5,8 +5,8 @@
 # Added stop/start events for custom service mode
 ##############################################################################
 mode:
-  start_events: game_ended, machine_reset_phase_3, mode_top_gun_service_stopped
-  stop_events: game_starting, mode_top_gun_service_started
+  start_events: mode_end_of_game_attract_stopped, machine_reset_phase_3, mode_top_gun_service_stopped
+  stop_events: game_starting, mode_top_gun_service_started, mode_end_of_game_attract_started
   priority: 10
 
 mode_settings:
@@ -32,9 +32,13 @@ sound_player:
       bus: music
       loops: -1
 
-# Kick off the chained cycle
+# Kick off the chained cycle and home all servos
 event_player:
-  mode_attract_started: attract_cycle_step1
+  mode_attract_started:
+    - attract_cycle_step1
+    - right_ramp_down
+    - top_ramp_down
+    - lock_released
 
 ##############################################
 ## Start Button LED - Slow flash in attract mode

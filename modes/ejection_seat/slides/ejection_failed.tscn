@@ -1,37 +1,56 @@
-[gd_scene load_steps=4 format=3 uid="uid://546qvg3xsf4h"]
+[gd_scene load_steps=6 format=3 uid="uid://546qvg3xsf4h"]
 
-[ext_resource type="Script" uid="uid://b6ivjr1y66vcc" path="res://addons/mpf-gmc/classes/mpf_slide.gd" id="1_74mpk"]
-[ext_resource type="FontFile" uid="uid://bmeoubu4ga0gt" path="res://fonts/ITCMachine-Medium Medium.ttf" id="2_21n0o"]
-
-[sub_resource type="FontVariation" id="FontVariation_07pum"]
-base_font = ExtResource("2_21n0o")
-spacing_space = -2
+[ext_resource type="Script" uid="uid://dru3usokwlhd3" path="res://addons/mpf-gmc/classes/mpf_slide.gd" id="1_74mpk"]
+[ext_resource type="VideoStream" uid="uid://bj03qivy721qw" path="res://addons/artwork/videos/ejection_seat/Videos/eject_seat_failed.ogv" id="2_21n0o"]
+[ext_resource type="Script" uid="uid://bov7mrgxslshq" path="res://addons/mpf-gmc/classes/mpf_video_player.gd" id="3_l4cmv"]
+[ext_resource type="FontFile" uid="uid://bmeoubu4ga0gt" path="res://fonts/ITCMachine-Medium Medium.ttf" id="4_aa1vr"]
+[ext_resource type="Texture2D" uid="uid://blwtf62oda21i" path="res://addons/artwork/images/scoreboard_background_with_video.png" id="5_rirrn"]
 
 [node name="eject" type="Control"]
 process_priority = 200
 layout_mode = 3
 anchors_preset = 0
 script = ExtResource("1_74mpk")
-metadata/_custom_type_script = "uid://b6ivjr1y66vcc"
 
-[node name="shots_remaining" type="Label" parent="."]
-self_modulate = Color(1, 1, 1, 0.921569)
-z_index = 51
+[node name="eject success" type="VideoStreamPlayer" parent="."]
+z_index = 49
 layout_mode = 1
-anchors_preset = -1
-anchor_left = 1.0
-anchor_top = 0.5
+anchors_preset = 15
 anchor_right = 1.0
-anchor_bottom = 0.5
-offset_left = 150.0
-offset_top = 164.0
-offset_right = 1179.0
-offset_bottom = 654.0
-grow_horizontal = 0
+anchor_bottom = 1.0
+offset_left = 3.0
+offset_top = 2.0
+offset_right = 1281.0
+offset_bottom = 724.0
+grow_horizontal = 2
 grow_vertical = 2
-theme_override_colors/font_color = Color(0.898039, 0.894118, 0.823529, 0.921569)
-theme_override_fonts/font = SubResource("FontVariation_07pum")
-theme_override_font_sizes/font_size = 25
-text = "Eject Failed Placeholder"
+stream = ExtResource("2_21n0o")
+volume_db = -1.5399997
+autoplay = true
+expand = true
+script = ExtResource("3_l4cmv")
+end_behavior = 1
+preview_in_editor = true
+
+[node name="screen label" type="Label" parent="."]
+z_index = 52
+layout_mode = 0
+offset_left = 318.0
+offset_top = 473.0
+offset_right = 701.0
+offset_bottom = 530.0
+theme_override_colors/font_color = Color(0.776471, 0.772549, 0.709804, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
+theme_override_constants/line_spacing = -9
+theme_override_constants/shadow_outline_size = 3
+theme_override_fonts/font = ExtResource("4_aa1vr")
+theme_override_font_sizes/font_size = 50
+text = "Failed Ejection "
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="background_video_opening" type="Sprite2D" parent="."]
+visible = false
+z_index = 50
+texture = ExtResource("5_rirrn")
+centered = false

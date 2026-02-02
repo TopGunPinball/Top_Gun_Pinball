@@ -12,6 +12,9 @@ mode:
 event_player:
   mode_base_started:
     - start_mode_bumpers
+    - right_ramp_down
+    - top_ramp_down
+    - lock_released
   mode_base_will_stop:
     - stop_mode_bumpers
   
@@ -21,6 +24,7 @@ event_player:
   shutdown:
     - right_ramp_down
     - top_ramp_down
+    - lock_released
 
 variable_player:
   ##############################################
@@ -683,8 +687,8 @@ sound_player:
       bus: music
       loops: -1
   
-  # Restart base music after bonus mode completes
-  mode_bonus_stopped:
+  # Restart base music after bonus mode completes (but not when game is ending)
+  mode_bonus_stopped{mode.game.active==True}:
     music_danger_zone:
       bus: music
       loops: -1
@@ -821,3 +825,57 @@ sound_player:
     music_danger_zone:
       bus: music
       loops: -1
+
+#################################################################################### 
+  # Ejection Seat Mode Music Handler
+  # Silence music when ejection fails (ball drains)
+####################################################################################
+
+  # Silence music when ejection fails (failed video plays for 13 seconds)
+  ejection_failed:
+    silence:
+      bus: music
+      loops: 0
+
+####################################################################################
+  # PLAYFIELD SOUND EFFECTS - Default sounds for shots
+  # These play in base mode but can be overridden by higher priority modes
+####################################################################################
+
+  # Ramp Sound Effects - Jet fly-bys
+  s_ramp_left_exit_active:
+    soundfx_jet_fly_by_left_ramp:
+      bus: effects
+      loops: 0
+
+  s_ramp_right_exit_active:
+    soundfx_jet_fly_by_right_ramp:
+      bus: effects
+      loops: 0
+
+  s_ramp_inner_exit_active:
+    soundfx_jet_fly_by_top_ramp:
+      bus: effects
+      loops: 0
+
+  # Spinner Sound Effect - Gun fire
+  s_spinner_active:
+    soundfx_bullet1:
+      bus: effects
+      loops: 0
+
+  # Pop Bumper Sound Effects - Volleyball hits
+  s_bumper_left_active:
+    soundfx_volleyball1:
+      bus: effects
+      loops: 0
+
+  s_bumper_right_active:
+    soundfx_volleyball2:
+      bus: effects
+      loops: 0
+
+  s_bumper_center_active:
+    soundfx_volleyball3:
+      bus: effects
+      loops: 0

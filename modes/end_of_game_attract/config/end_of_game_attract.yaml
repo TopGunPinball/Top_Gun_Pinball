@@ -3,13 +3,13 @@
 ##############################################################################
 # END OF GAME ATTRACT MODE
 # 
-# Plays after a game ends with a 10-slide carousel (plays once).
-# After completion, transitions to main attract mode.
+# Plays after bonus completes when the game ends.
+# Shows a single slide for 2 minutes 11 seconds (131 seconds).
+# Both flippers pressed = skip to main attract mode.
+# Light shows cycle in sequence until mode ends.
 #
-# Features:
-# - 10 slides with individually adjustable timing
-# - Both flippers pressed shows player scores overlay
-# - Carousel plays once then stops mode (triggers main attract)
+# After completion, transitions to main attract mode via
+# mode_end_of_game_attract_stopped event.
 ##############################################################################
 
 mode:
@@ -17,224 +17,105 @@ mode:
   stop_events: 
     - game_starting
     - end_of_game_carousel_complete
-  priority: 10
+    - end_of_game_skip
+  priority: 20
+  game_mode: false
 
 ##############################################################################
-# SLIDE TIMING CONFIGURATION
-# Adjust end_value for each timer to change how long each slide displays
-# Values are in seconds
+# TIMER - 2 minutes 11 seconds = 131 seconds
 ##############################################################################
 
 timers:
-  # Slide 1: Player Scores - displays for 10 seconds
-  end_of_game_slide_1_timer:
+  end_of_game_timer:
     start_value: 0
-    end_value: 10
+    end_value: 131
     direction: up
     tick_interval: 1s
     control_events:
       - event: mode_end_of_game_attract_started
         action: start
 
-  # Slide 2: Montage 1 - displays for 15 seconds
-  end_of_game_slide_2_timer:
-    start_value: 0
-    end_value: 15
-    direction: up
-    tick_interval: 1s
-    control_events:
-      - event: end_of_game_show_slide_2
-        action: start
-
-  # Slide 3: Montage 2 - displays for 15 seconds
-  end_of_game_slide_3_timer:
-    start_value: 0
-    end_value: 15
-    direction: up
-    tick_interval: 1s
-    control_events:
-      - event: end_of_game_show_slide_3
-        action: start
-
-  # Slide 4: Montage 3 - displays for 15 seconds
-  end_of_game_slide_4_timer:
-    start_value: 0
-    end_value: 15
-    direction: up
-    tick_interval: 1s
-    control_events:
-      - event: end_of_game_show_slide_4
-        action: start
-
-  # Slide 5: Montage 4 - displays for 15 seconds
-  end_of_game_slide_5_timer:
-    start_value: 0
-    end_value: 15
-    direction: up
-    tick_interval: 1s
-    control_events:
-      - event: end_of_game_show_slide_5
-        action: start
-
-  # Slide 6: Montage 5 - displays for 15 seconds
-  end_of_game_slide_6_timer:
-    start_value: 0
-    end_value: 15
-    direction: up
-    tick_interval: 1s
-    control_events:
-      - event: end_of_game_show_slide_6
-        action: start
-
-  # Slide 7: Montage 6 - displays for 15 seconds
-  end_of_game_slide_7_timer:
-    start_value: 0
-    end_value: 15
-    direction: up
-    tick_interval: 1s
-    control_events:
-      - event: end_of_game_show_slide_7
-        action: start
-
-  # Slide 8: Montage 7 - displays for 15 seconds
-  end_of_game_slide_8_timer:
-    start_value: 0
-    end_value: 15
-    direction: up
-    tick_interval: 1s
-    control_events:
-      - event: end_of_game_show_slide_8
-        action: start
-
-  # Slide 9: Montage 8 - displays for 15 seconds
-  end_of_game_slide_9_timer:
-    start_value: 0
-    end_value: 15
-    direction: up
-    tick_interval: 1s
-    control_events:
-      - event: end_of_game_show_slide_9
-        action: start
-
-  # Slide 10: The End - displays for 15 seconds
-  end_of_game_slide_10_timer:
-    start_value: 0
-    end_value: 15
-    direction: up
-    tick_interval: 1s
-    control_events:
-      - event: end_of_game_show_slide_10
-        action: start
-
 ##############################################################################
-# EVENT PLAYER - Carousel progression and flipper detection
+# EVENT PLAYER
 ##############################################################################
 
 event_player:
-  # Timer completions trigger next slide
-  timer_end_of_game_slide_1_timer_complete: end_of_game_show_slide_2
-  timer_end_of_game_slide_2_timer_complete: end_of_game_show_slide_3
-  timer_end_of_game_slide_3_timer_complete: end_of_game_show_slide_4
-  timer_end_of_game_slide_4_timer_complete: end_of_game_show_slide_5
-  timer_end_of_game_slide_5_timer_complete: end_of_game_show_slide_6
-  timer_end_of_game_slide_6_timer_complete: end_of_game_show_slide_7
-  timer_end_of_game_slide_7_timer_complete: end_of_game_show_slide_8
-  timer_end_of_game_slide_8_timer_complete: end_of_game_show_slide_9
-  timer_end_of_game_slide_9_timer_complete: end_of_game_show_slide_10
-  timer_end_of_game_slide_10_timer_complete: end_of_game_carousel_complete
+  # Timer complete → end mode
+  timer_end_of_game_timer_complete: end_of_game_carousel_complete
 
-  # Both flippers detection - check if both are held
+  # Both flippers detection
   s_flipper_left_active: end_of_game_check_both_flippers
   s_flipper_right_active: end_of_game_check_both_flippers
-  
-  # If both flippers held, show scores overlay
   end_of_game_check_both_flippers{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
-    - end_of_game_show_scores_overlay
-  
-  # Either flipper released, hide scores overlay
-  s_flipper_left_inactive: end_of_game_hide_scores_overlay
-  s_flipper_right_inactive: end_of_game_hide_scores_overlay
+    - end_of_game_skip
+
+  # Kick off the light show chain
+  mode_end_of_game_attract_started: end_of_game_light_step_1
 
 ##############################################################################
-# SLIDE PLAYER - Display slides
-# Priority 100 for main slides, Priority 200 for scores overlay
+# SLIDE PLAYER - Single slide for the entire mode
 ##############################################################################
 
 slide_player:
-  # Slide 1: Player Scores (shown at mode start)
   mode_end_of_game_attract_started:
-    end_of_game_player_scores:
+    end_of_game_attract:
       priority: 100
-
-  # Slide 2: Montage 1
-  end_of_game_show_slide_2:
-    end_of_game_montage_1:
-      priority: 100
-
-  # Slide 3: Montage 2
-  end_of_game_show_slide_3:
-    end_of_game_montage_2:
-      priority: 100
-
-  # Slide 4: Montage 3
-  end_of_game_show_slide_4:
-    end_of_game_montage_3:
-      priority: 100
-
-  # Slide 5: Montage 4
-  end_of_game_show_slide_5:
-    end_of_game_montage_4:
-      priority: 100
-
-  # Slide 6: Montage 5
-  end_of_game_show_slide_6:
-    end_of_game_montage_5:
-      priority: 100
-
-  # Slide 7: Montage 6
-  end_of_game_show_slide_7:
-    end_of_game_montage_6:
-      priority: 100
-
-  # Slide 8: Montage 7
-  end_of_game_show_slide_8:
-    end_of_game_montage_7:
-      priority: 100
-
-  # Slide 9: Montage 8
-  end_of_game_show_slide_9:
-    end_of_game_montage_8:
-      priority: 100
-
-  # Slide 10: The End
-  end_of_game_show_slide_10:
-    end_of_game_the_end:
-      priority: 100
-
-  # Scores overlay - higher priority so it appears on top
-  end_of_game_show_scores_overlay:
-    end_of_game_player_scores:
-      priority: 200
-      key: scores_overlay
-
-  # Hide scores overlay
-  end_of_game_hide_scores_overlay:
-    end_of_game_player_scores:
-      action: remove
-      key: scores_overlay
 
 ##############################################################################
-# SOUND PLAYER - Optional: Add music for end of game attract
-# Uncomment and customize as needed
+# SOUND PLAYER
 ##############################################################################
 
 sound_player:
+  # Silence music bus so the video audio plays cleanly
   mode_end_of_game_attract_started:
-    top_gun_pinball_attract_scene_music:
+    silence:
       bus: music
-      loops: -1
-      
-  # Stop music when mode ends (main attract will start its own music)
+      loops: 0
+
+##############################################################################
+# SHOW PLAYER - Chained light shows
+#
+# ADJUSTING LOOP COUNT:
+#   Change the 'loops' value for each show to control how many times
+#   it plays before moving to the next show.
+#   loops: 1 = play once, loops: 2 = play twice, etc.
+#
+# ADJUSTING SPEED:
+#   Change the 'speed' value (higher = faster).
+##############################################################################
+
+show_player:
+  end_of_game_light_step_1:
+    end_of_game_1:
+      loops: 1
+      speed: 40
+      priority: 200
+      events_when_completed: end_of_game_light_step_2
+
+  end_of_game_light_step_2:
+    end_of_game_2:
+      loops: 1
+      speed: 40
+      priority: 200
+      events_when_completed: end_of_game_light_step_3
+
+  end_of_game_light_step_3:
+    end_of_game_3:
+      loops: 1
+      speed: 40
+      priority: 200
+      events_when_completed: end_of_game_light_step_4
+
+  end_of_game_light_step_4:
+    end_of_game_4:
+      loops: 1
+      speed: 40
+      priority: 200
+      events_when_completed: end_of_game_light_step_1
+
+  # Clean stop all shows when mode ends
   mode_end_of_game_attract_stopping:
-    top_gun_pinball_attract_scene_music:
-      action: stop
+    end_of_game_1: stop
+    end_of_game_2: stop
+    end_of_game_3: stop
+    end_of_game_4: stop

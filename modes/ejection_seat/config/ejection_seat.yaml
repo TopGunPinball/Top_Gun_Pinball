@@ -15,7 +15,7 @@
 ## 1. Disable magnet (ball starts to drop)
 ## 2. Wait 200ms (ball drops away from magnet)
 ## 3. Enable magnet at 0.75 power (pulls ball, gives momentum)
-## 4. Wait 75ms (turns off before ball reaches magnet center)
+## 4. Wait 125ms (turns off before ball reaches magnet center)
 ## 5. Disable magnet (ball continues with momentum)
 ## 6. Success!
 ##
@@ -27,7 +27,7 @@
 ##   - ejection_activation_delay: end_value = 750ms (time for ball to reach magnet)
 ##   - ejection_flipper_window: end_value = 5 seconds
 ##   - ejection_fling_drop_delay: end_value = 200ms (time for ball to drop)
-##   - ejection_fling_pull_duration: end_value = 75ms (brief magnet pull)
+##   - ejection_fling_pull_duration: end_value = 125ms (brief magnet pull)
 ##
 ## POWER (in coil_player section):
 ##   - ejection_fling_pull: hold_power = 0.75 (pull strength)
@@ -38,8 +38,36 @@ mode:
   start_events: start_mode_ejection_seat
   stop_events: 
     - ejection_seat_cleanup_complete
+    - ejection_seat_drain_cleanup_complete
   priority: 600
   game_mode: true
+
+##############################################################################
+## QUEUE RELAY PLAYER - Hold ball_ending until failed video completes
+##############################################################################
+# When ejection fails and ball drains, we need time to play the failure video
+# BEFORE bonus starts. This intercepts ball_ending and holds it until the
+# 13 second video finishes playing.
+
+queue_relay_player:
+  ball_ending{mode.ejection_seat.active==True}:
+    post: ejection_seat_ball_ending_hold
+    wait_for: ejection_seat_drain_cleanup_complete
+    priority: 1000
+
+##############################################################################
+## BALL SAVES - 3 second ball save on successful ejection
+##############################################################################
+
+ball_saves:
+  ejection_seat_ball_save:
+    active_time: 3s
+    grace_period: 0
+    hurry_up_time: 0
+    enable_events: ejection_success
+    disable_events: mode_ejection_seat_stopped
+    auto_launch: true
+    balls_to_save: 1
 
 ##############################################################################
 ## TIMERS
@@ -99,7 +127,7 @@ timers:
   # TUNABLE: Increase for stronger fling, decrease if ball gets stuck
   ejection_fling_pull_duration:
     start_value: 0
-    end_value: 30
+    end_value: 15
     direction: up
     tick_interval: 1ms
     control_events:
@@ -118,11 +146,21 @@ timers:
 
   ejection_failed_cleanup_delay:
     start_value: 0
-    end_value: 3
+    end_value: 13
     direction: up
     tick_interval: 1s
     control_events:
       - event: ejection_failed
+        action: start
+
+  # Drain delay timer - holds ball_ending until failed video plays
+  ejection_seat_drain_delay:
+    start_value: 0
+    end_value: 13
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: ejection_seat_drain_detected
         action: start
 
 ##############################################################################
@@ -176,20 +214,36 @@ event_player:
     - ejection_seat_cleanup_complete
     - ball_search_unblock
 
+  # DRAIN HANDLING - when ball_ending is held by queue_relay_player
+  # This triggers when ball drains during ejection seat mode
+  ejection_seat_ball_ending_hold:
+    - ejection_failed
+    - ejection_seat_drain_detected
+
+  # When drain delay timer completes, signal cleanup complete to release queue
+  timer_ejection_seat_drain_delay_complete:
+    - ejection_seat_drain_cleanup_complete
+
 ##############################################################################
 ## VARIABLE PLAYER
 ##############################################################################
 
 variable_player:
-  # Reset qualification when mode completes (success or failure)
+  # Reset qualification and award points on success
   ejection_success:
     eject_mode_qualified:
       action: set
       int: 0
+    # Calculate score for display BEFORE adding to total
+    ejection_seat_points_awarded:
+      action: set
+      int: 500000 * current_player.total_scoring_multiplier
+    # Award 500,000 points (adjusted by multiplier)
     score:
       action: add
-      int: 250000 * current_player.total_scoring_multiplier
+      int: 500000 * current_player.total_scoring_multiplier
 
+  # Reset qualification on failure (no points awarded)
   ejection_failed:
     eject_mode_qualified:
       action: set
@@ -215,7 +269,7 @@ coil_player:
   ejection_fling_pull:
     c_ejection_seat_magnet:
       action: enable
-      hold_power: 0.75
+      hold_power: 0.9
 
   # FLING STEP 3: Disable magnet (ball continues with momentum)
   ejection_fling_release:
@@ -287,6 +341,55 @@ light_player:
   mode_ejection_seat_started:
     l_eject:
       color: off
+
+  # Turn off shoot_again when ball save ends or mode stops
+  ball_save_ejection_seat_ball_save_disabled:
+    l_shoot_again:
+      color: off
+
+  mode_ejection_seat_stopped:
+    l_shoot_again:
+      color: off
+
+##############################################################################
+## SHOW PLAYER - Flash shoot_again light during ball save
+##############################################################################
+
+show_player:
+  # Start flashing shoot_again on success (ball save active)
+  ejection_success:
+    flash_shoot_again:
+      loops: -1
+      speed: 4
+      show_tokens:
+        led: l_shoot_again
+        color: yellow
+    eject_successfull:
+      loops: 1
+      speed: 40
+      priority: 200
+
+  # Stop flashing when ball save ends
+  ball_save_ejection_seat_ball_save_disabled:
+    flash_shoot_again:
+      action: stop
+
+  mode_ejection_seat_stopped:
+    flash_shoot_again:
+      action: stop
+
+##############################################################################
+## SHOWS
+##############################################################################
+
+shows:
+  flash_shoot_again:
+    - duration: 0.25s
+      lights:
+        (led): (color)
+    - duration: 0.25s
+      lights:
+        (led): off
 
 ##############################################################################
 ## SOUND PLAYER (Optional - uncomment and customize)

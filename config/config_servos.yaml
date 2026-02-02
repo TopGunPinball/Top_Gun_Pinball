@@ -1,82 +1,107 @@
 #config_version=6
 
 ####################################################################################
-# SERVO CONFIGURATION
-# Using Eco Power ECP-1205 servos on FAST FP-EXP-0071 expansion board
-# Servo ports: light_expansion_board-1 through light_expansion_board-4
-####################################################################################
-
-####################################################################################
-# FIRST POWER ON PROCEDURE:
-# 1. Do NOT attach servo arms yet (or remove them if attached)
-# 2. Power on machine - servos will move to reset_position (0.05)
-# 3. Once servos have settled, attach arms in the "ramp down" position
-# 4. Test with small movements first, then adjust positions as needed
-# 5. Use SERVICE MODE -> SERVO ADJUST to fine-tune positions!
+# SERVO CONFIGURATION - DS3218 Digital Servos
+# FAST FP-EXP-0071 expansion board (6V servo power)
+#
+# DS3218 Specs:
+#   - Operating frequency: 50-330Hz (FAST board uses 50Hz) ✔
+#   - Pulse width: 500-2500µs
+#   - Neutral: 1500µs
+#   - Travel: 180° over full pulse range
+#
+# Port Assignments:
+#   Port 1: Right Ramp Lifter
+#   Port 2: Top/Inner Ramp Lifter (REVERSED direction)
+#   Port 4: Lock Release Servo (REVERSED - 0.28=held, 0.51=released)
+#
+# POSITION MATH:
+#   180° over 0.0-1.0 range = 180° per 1.0 position change
+#   For 20° of travel: 20/180 = 0.111 position difference
+#   Using ~0.1 difference between down and up positions
 ####################################################################################
 
 servos:
-  # Right Ramp Lifter Servo
+  ##############################################
+  # RIGHT RAMP LIFTER SERVO - Port 1
+  # Travel: ~25 degrees (0.42 to 0.56)
+  # Reverted to initial + slightly more travel
+  ##############################################
   servo_right_ramp_lifter:
-    number: light_expansion_board-1      # Servo port 1 on expansion board
-    servo_min: 0.0                        # Minimum position limit
-    servo_max: 1.0                        # Maximum position limit
-    reset_position: 0.05                  # Position when game resets (ramp down)
-    reset_events: 
-      - machine_reset_phase_3
-      - ball_will_end
-      - service_mode_entered
+    number: light_expansion_board-1
+    servo_min: 0.0
+    servo_max: 1.0
+    reset_position: 0.40
+    reset_events: machine_reset_phase_3
     positions:
-      # Use service mode SERVO ADJUST to calibrate these values!
-      # The machine variables servo_right_ramp_down_pos and servo_right_ramp_up_pos
-      # are used at runtime and persist between restarts.
-      0.05: right_ramp_down               # Ramp down position
-      0.21: right_ramp_up                 # Ramp up position
+      0.40: right_ramp_down
+      0.60: right_ramp_up
     platform_settings:
-      min_us: 500                         # Minimum pulse width in microseconds
-      home_us: 1500                       # Home/center pulse width
-      max_us: 2500                        # Maximum pulse width in microseconds
-      max_runtime: 1s                     # Max time for servo to move
+      min_us: 500
+      home_us: 1500
+      max_us: 2500
 
-  # Top/Inner Ramp Lifter Servo (NEW SERVO - no longer flipped!)
+  ##############################################
+  # TOP/INNER RAMP LIFTER SERVO - Port 2
+  # REVERSED: Higher value = down, Lower value = up
+  # Travel: ~16 degrees (0.6 to 0.51)
+  ##############################################
   servo_top_ramp_lifter:
-    number: light_expansion_board-2      # Servo port 2
-    servo_min: 0.0                        # Minimum position limit
-    servo_max: 1.0                        # Maximum position limit
-    reset_position: 0.05                  # Position when game resets (ramp down)
-    reset_events: 
-      - machine_reset_phase_3
-      - ball_will_end
-      - service_mode_entered
+    number: light_expansion_board-2
+    servo_min: 0.0
+    servo_max: 1.0
+    reset_position: 0.59
+    reset_events: machine_reset_phase_3
     positions:
-      # NEW VALUES for non-flipped servo orientation
-      # Use service mode SERVO ADJUST to calibrate these values!
-      0.05: top_ramp_down                 # Ramp down position
-      0.25: top_ramp_up                   # Ramp up position (start small, adjust up)
+      0.59: top_ramp_down
+      0.5: top_ramp_up
     platform_settings:
-      min_us: 500                         # Minimum pulse width in microseconds
-      home_us: 1500                       # Home/center pulse width
-      max_us: 2500                        # Maximum pulse width in microseconds
-      # NO max_runtime - servo needs continuous PWM to hold position
+      min_us: 500
+      home_us: 1500
+      max_us: 2500
+
+  ##############################################
+  # LOCK RELEASE SERVO - Port 4
+  # Travel: ~42 degrees (0.28 to 0.51)
+  ##############################################
+  servo_lock_release:
+    number: light_expansion_board-4
+    servo_min: 0.0
+    servo_max: 1.0
+    reset_position: 0.51
+    reset_events: machine_reset_phase_3
+    positions:
+      0.28: lock_held
+      0.51: lock_released
+    platform_settings:
+      min_us: 500
+      home_us: 1500
+      max_us: 2500
 
 ####################################################################################
-# TUNING GUIDE:
+# CALIBRATION GUIDE:
+#
+# Current settings give ~20° of travel (0.11 position difference)
 # 
-# Use SERVICE MODE -> SERVO ADJUST for real-time calibration!
-# Values are saved and persist between restarts.
+# To INCREASE travel (more lift):
+#   - Increase the "up" value: 0.51 -> 0.62 (30°) -> 0.73 (40°)
+#   - Or decrease the "down" value
 #
-# To increase ramp lift height, change the "up" position value:
-#   0.1 = ~18 degrees  (safe starting point)
-#   0.15 = ~27 degrees
-#   0.2 = ~36 degrees
-#   0.25 = ~45 degrees
+# To DECREASE travel (less lift):
+#   - Decrease the "up" value: 0.51 -> 0.46 (10°)
 #
-# If servo moves WRONG DIRECTION (ramp goes down when it should go up):
-#   - In SERVO ADJUST, set DOWN to a higher value than UP
-#   - Or physically flip the servo arm 180 degrees
+# To SHIFT the range (if hitting mechanical limits):
+#   - Move both values together: 0.4/0.51 -> 0.3/0.41 or 0.5/0.61
 #
-# If servo doesn't move full range even at 1.0:
-#   Adjust min_us/max_us in platform_settings
-#   Try: min_us: 600, max_us: 2400 (narrower range)
-#   Or:  min_us: 400, max_us: 2600 (wider range)
+# POSITION REFERENCE (degrees from center):
+#   0.0 = -90° (full one direction)
+#   0.25 = -45°
+#   0.4 = -18° (current down)
+#   0.5 = 0° (center)
+#   0.51 = +2° (current up, ~20° from down)
+#   0.6 = +18°
+#   0.75 = +45°
+#   1.0 = +90° (full other direction)
+#
+# Quick adjustment: Each 0.055 = ~10° of travel
 ####################################################################################

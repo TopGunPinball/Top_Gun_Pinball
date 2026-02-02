@@ -78,6 +78,7 @@ event_player:
     - service_update_light_text
     - service_light_color_reset
     - service_apply_light_color
+    - service_light_test_update
 
   s_coin_door_service_2_active{machine.service_menu_level==3}: service_light_next
   s_coin_door_service_3_active{machine.service_menu_level==3}: service_light_prev
@@ -139,19 +140,32 @@ event_player:
   service_feature_prev:
     - service_update_feature_text
 
-  # SERVO ADJUST NAVIGATION
+  # SERVO ADJUST NAVIGATION (menu level 7) - Simple browse and test mode
   service_enter_servo_adjust:
     - service_update_servo_text
     - service_servo_adjust_update
 
+  # Navigation: UP/DOWN to browse, EXIT to return, START to test
   s_coin_door_service_2_active{machine.service_menu_level==7}: service_servo_next
   s_coin_door_service_3_active{machine.service_menu_level==7}: service_servo_prev
   s_coin_door_service_1_active{machine.service_menu_level==7}: service_enter_main_menu
+  
+  # START BUTTON (s_start) to test servo position
+  s_start_active{machine.service_menu_level==7}: service_servo_test_move
 
   service_servo_next:
     - service_update_servo_text
   service_servo_prev:
     - service_update_servo_text
+
+  # Route servo test to fire standard servo events
+  # These use hardcoded positions from config_servos.yaml
+  service_servo_test_move{machine.service_servo_index==0}: right_ramp_down
+  service_servo_test_move{machine.service_servo_index==1}: right_ramp_up
+  service_servo_test_move{machine.service_servo_index==2}: top_ramp_down
+  service_servo_test_move{machine.service_servo_index==3}: top_ramp_up
+  service_servo_test_move{machine.service_servo_index==4}: lock_held
+  service_servo_test_move{machine.service_servo_index==5}: lock_released
 
   # MAIN MENU TEXT MAPPING (8 items)
   service_update_main_menu_text{machine.service_main_index==0}: set_main_menu_switch_test
@@ -590,17 +604,16 @@ event_player:
   service_apply_light_color{machine.service_light_index==89}: set_light_89
   service_apply_light_color{machine.service_light_index==90}: set_light_90
 
-  # SERVO TEXT MAPPING (4 positions: 2 servos x 2 positions each)
+  # SERVO TEXT MAPPING (6 positions: 3 servos x 2 positions each)
   service_update_servo_text{machine.service_servo_index==0}: set_servo_0
   service_update_servo_text{machine.service_servo_index==1}: set_servo_1
   service_update_servo_text{machine.service_servo_index==2}: set_servo_2
   service_update_servo_text{machine.service_servo_index==3}: set_servo_3
+  service_update_servo_text{machine.service_servo_index==4}: set_servo_4
+  service_update_servo_text{machine.service_servo_index==5}: set_servo_5
 
-  # SERVO POSITION EVENTS - post events defined in config_servos.yaml positions
-  set_servo_0: right_ramp_down
-  set_servo_1: right_ramp_up
-  set_servo_2: top_ramp_down
-  set_servo_3: top_ramp_up
+  # NOTE: Servos do NOT auto-move when navigating menu
+  # Press START button (s_start) to test move servo to current position
 
 ##############################################################################
 # VARIABLE PLAYER
@@ -640,16 +653,19 @@ variable_player:
     service_menu_level:
       action: set_machine
       int: 7
+    service_servo_edit_mode:
+      action: set_machine
+      int: 0
 
-  # SERVO INDEX NAVIGATION (4 positions: 0-3)
+  # SERVO INDEX NAVIGATION (6 positions: 0-5 for 3 servos x 2 positions each)
   service_servo_next:
     service_servo_index:
       action: set_machine
-      int: (machine.service_servo_index + 1) % 4
+      int: (machine.service_servo_index + 1) % 6
   service_servo_prev:
     service_servo_index:
       action: set_machine
-      int: (machine.service_servo_index - 1) % 4
+      int: (machine.service_servo_index - 1) % 6
 
   # MAIN MENU INDEX NAVIGATION (8 items: 0-7)
   service_main_menu_next:
@@ -700,6 +716,27 @@ variable_player:
     service_light_color_index:
       action: set_machine
       int: 0
+    service_light_color_text:
+      action: set_machine
+      string: "WHITE"
+
+  # COLOR TEXT SETTERS (set after color cycle completes)
+  service_apply_light_color{machine.service_light_color_index==0}:
+    service_light_color_text:
+      action: set_machine
+      string: "WHITE"
+  service_apply_light_color{machine.service_light_color_index==1}:
+    service_light_color_text:
+      action: set_machine
+      string: "RED"
+  service_apply_light_color{machine.service_light_color_index==2}:
+    service_light_color_text:
+      action: set_machine
+      string: "BLUE"
+  service_apply_light_color{machine.service_light_color_index==3}:
+    service_light_color_text:
+      action: set_machine
+      string: "GREEN"
 
   # ADJUSTMENT INDEX NAVIGATION (placeholder - 5 adjustments)
   service_adjustment_next:
@@ -2200,637 +2237,637 @@ variable_player:
       string: "Eject Insert"
     service_light_num:
       action: set_machine
-      string: "Light 1/91"
+      string: "Eject Insert - 1 / 91"
   set_light_1:
     service_light_name:
       action: set_machine
       string: "Shoot Again Insert"
     service_light_num:
       action: set_machine
-      string: "Light 2/91"
+      string: "Shoot Again Insert - 2 / 91"
   set_light_2:
     service_light_name:
       action: set_machine
       string: "GOOSE - G"
     service_light_num:
       action: set_machine
-      string: "Light 3/91"
+      string: "GOOSE - G - 3 / 91"
   set_light_3:
     service_light_name:
       action: set_machine
       string: "GOOSE - O Left"
     service_light_num:
       action: set_machine
-      string: "Light 4/91"
+      string: "GOOSE - O Left - 4 / 91"
   set_light_4:
     service_light_name:
       action: set_machine
       string: "GOOSE - O Right"
     service_light_num:
       action: set_machine
-      string: "Light 5/91"
+      string: "GOOSE - O Right - 5 / 91"
   set_light_5:
     service_light_name:
       action: set_machine
       string: "GOOSE - S"
     service_light_num:
       action: set_machine
-      string: "Light 6/91"
+      string: "GOOSE - S - 6 / 91"
   set_light_6:
     service_light_name:
       action: set_machine
       string: "GOOSE - E"
     service_light_num:
       action: set_machine
-      string: "Light 7/91"
+      string: "GOOSE - E - 7 / 91"
   set_light_7:
     service_light_name:
       action: set_machine
       string: "MIG - M"
     service_light_num:
       action: set_machine
-      string: "Light 8/91"
+      string: "MIG - M - 8 / 91"
   set_light_8:
     service_light_name:
       action: set_machine
       string: "MIG - I"
     service_light_num:
       action: set_machine
-      string: "Light 9/91"
+      string: "MIG - I - 9 / 91"
   set_light_9:
     service_light_name:
       action: set_machine
       string: "MIG - G"
     service_light_num:
       action: set_machine
-      string: "Light 10/91"
+      string: "MIG - G - 10 / 91"
   set_light_10:
     service_light_name:
       action: set_machine
       string: "ICEMAN - I"
     service_light_num:
       action: set_machine
-      string: "Light 11/91"
+      string: "ICEMAN - I - 11 / 91"
   set_light_11:
     service_light_name:
       action: set_machine
       string: "ICEMAN - C"
     service_light_num:
       action: set_machine
-      string: "Light 12/91"
+      string: "ICEMAN - C - 12 / 91"
   set_light_12:
     service_light_name:
       action: set_machine
       string: "ICEMAN - E"
     service_light_num:
       action: set_machine
-      string: "Light 13/91"
+      string: "ICEMAN - E - 13 / 91"
   set_light_13:
     service_light_name:
       action: set_machine
       string: "ICEMAN - M"
     service_light_num:
       action: set_machine
-      string: "Light 14/91"
+      string: "ICEMAN - M - 14 / 91"
   set_light_14:
     service_light_name:
       action: set_machine
       string: "ICEMAN - A"
     service_light_num:
       action: set_machine
-      string: "Light 15/91"
+      string: "ICEMAN - A - 15 / 91"
   set_light_15:
     service_light_name:
       action: set_machine
       string: "ICEMAN - N"
     service_light_num:
       action: set_machine
-      string: "Light 16/91"
+      string: "ICEMAN - N - 16 / 91"
   set_light_16:
     service_light_name:
       action: set_machine
       string: "LOCK - L"
     service_light_num:
       action: set_machine
-      string: "Light 17/91"
+      string: "LOCK - L - 17 / 91"
   set_light_17:
     service_light_name:
       action: set_machine
       string: "LOCK - O"
     service_light_num:
       action: set_machine
-      string: "Light 18/91"
+      string: "LOCK - O - 18 / 91"
   set_light_18:
     service_light_name:
       action: set_machine
       string: "LOCK - C"
     service_light_num:
       action: set_machine
-      string: "Light 19/91"
+      string: "LOCK - C - 19 / 91"
   set_light_19:
     service_light_name:
       action: set_machine
       string: "LOCK - K"
     service_light_num:
       action: set_machine
-      string: "Light 20/91"
+      string: "LOCK - K - 20 / 91"
   set_light_20:
     service_light_name:
       action: set_machine
       string: "LOCK Lit"
     service_light_num:
       action: set_machine
-      string: "Light 21/91"
+      string: "LOCK Lit - 21 / 91"
   set_light_21:
     service_light_name:
       action: set_machine
       string: "Mode: Rescue Cougar"
     service_light_num:
       action: set_machine
-      string: "Light 22/91"
+      string: "Mode: Rescue Cougar - 22 / 91"
   set_light_22:
     service_light_name:
       action: set_machine
       string: "Mode: Balls of Fire"
     service_light_num:
       action: set_machine
-      string: "Light 23/91"
+      string: "Mode: Balls of Fire - 23 / 91"
   set_light_23:
     service_light_name:
       action: set_machine
       string: "Mode: Cool Under Pressure"
     service_light_num:
       action: set_machine
-      string: "Light 24/91"
+      string: "Mode: Cool Under Pressure - 24 / 91"
   set_light_24:
     service_light_name:
       action: set_machine
       string: "Mode: Battle Jester"
     service_light_num:
       action: set_machine
-      string: "Light 25/91"
+      string: "Mode: Battle Jester - 25 / 91"
   set_light_25:
     service_light_name:
       action: set_machine
       string: "Mode: No Points 2nd"
     service_light_num:
       action: set_machine
-      string: "Light 26/91"
+      string: "Mode: No Points 2nd - 26 / 91"
   set_light_26:
     service_light_name:
       action: set_machine
       string: "Mode: Edge of Space"
     service_light_num:
       action: set_machine
-      string: "Light 27/91"
+      string: "Mode: Edge of Space - 27 / 91"
   set_light_27:
     service_light_name:
       action: set_machine
       string: "Mode: Below Hard Deck"
     service_light_num:
       action: set_machine
-      string: "Light 28/91"
+      string: "Mode: Below Hard Deck - 28 / 91"
   set_light_28:
     service_light_name:
       action: set_machine
       string: "Mode: Canyon Run"
     service_light_num:
       action: set_machine
-      string: "Light 29/91"
+      string: "Mode: Canyon Run - 29 / 91"
   set_light_29:
     service_light_name:
       action: set_machine
       string: "Mode: Rise of Phoenix"
     service_light_num:
       action: set_machine
-      string: "Light 30/91"
+      string: "Mode: Rise of Phoenix - 30 / 91"
   set_light_30:
     service_light_name:
       action: set_machine
       string: "Mode: No Margin Error"
     service_light_num:
       action: set_machine
-      string: "Light 31/91"
+      string: "Mode: No Margin Error - 31 / 91"
   set_light_31:
     service_light_name:
       action: set_machine
       string: "Mode: Inverted"
     service_light_num:
       action: set_machine
-      string: "Light 32/91"
+      string: "Mode: Inverted - 32 / 91"
   set_light_32:
     service_light_name:
       action: set_machine
       string: "Mode: Missiles"
     service_light_num:
       action: set_machine
-      string: "Light 33/91"
+      string: "Mode: Missiles - 33 / 91"
   set_light_33:
     service_light_name:
       action: set_machine
       string: "Mode: Afterburner"
     service_light_num:
       action: set_machine
-      string: "Light 34/91"
+      string: "Mode: Afterburner - 34 / 91"
   set_light_34:
     service_light_name:
       action: set_machine
       string: "Mode: Wingman"
     service_light_num:
       action: set_machine
-      string: "Light 35/91"
+      string: "Mode: Wingman - 35 / 91"
   set_light_35:
     service_light_name:
       action: set_machine
       string: "Mode: Dogfight"
     service_light_num:
       action: set_machine
-      string: "Light 36/91"
+      string: "Mode: Dogfight - 36 / 91"
   set_light_36:
     service_light_name:
       action: set_machine
       string: "Mode: TOP Top Gun"
     service_light_num:
       action: set_machine
-      string: "Light 37/91"
+      string: "Mode: TOP Top Gun - 37 / 91"
   set_light_37:
     service_light_name:
       action: set_machine
       string: "Mode: GUN Top Gun"
     service_light_num:
       action: set_machine
-      string: "Light 38/91"
+      string: "Mode: GUN Top Gun - 38 / 91"
   set_light_38:
     service_light_name:
       action: set_machine
       string: "Shot: Left Lane"
     service_light_num:
       action: set_machine
-      string: "Light 39/91"
+      string: "Shot: Left Lane - 39 / 91"
   set_light_39:
     service_light_name:
       action: set_machine
       string: "Shot: Left Orbit"
     service_light_num:
       action: set_machine
-      string: "Light 40/91"
+      string: "Shot: Left Orbit - 40 / 91"
   set_light_40:
     service_light_name:
       action: set_machine
       string: "Shot: Left Ramp"
     service_light_num:
       action: set_machine
-      string: "Light 41/91"
+      string: "Shot: Left Ramp - 41 / 91"
   set_light_41:
     service_light_name:
       action: set_machine
       string: "Shot: Spinner"
     service_light_num:
       action: set_machine
-      string: "Light 42/91"
+      string: "Shot: Spinner - 42 / 91"
   set_light_42:
     service_light_name:
       action: set_machine
       string: "Shot: Barrier"
     service_light_num:
       action: set_machine
-      string: "Light 43/91"
+      string: "Shot: Barrier - 43 / 91"
   set_light_43:
     service_light_name:
       action: set_machine
       string: "Shot: Tower Ramp"
     service_light_num:
       action: set_machine
-      string: "Light 44/91"
+      string: "Shot: Tower Ramp - 44 / 91"
   set_light_44:
     service_light_name:
       action: set_machine
       string: "Shot: Upper Orbit"
     service_light_num:
       action: set_machine
-      string: "Light 45/91"
+      string: "Shot: Upper Orbit - 45 / 91"
   set_light_45:
     service_light_name:
       action: set_machine
       string: "Shot: Middle Ramp"
     service_light_num:
       action: set_machine
-      string: "Light 46/91"
+      string: "Shot: Middle Ramp - 46 / 91"
   set_light_46:
     service_light_name:
       action: set_machine
       string: "Shot: Right Orbit"
     service_light_num:
       action: set_machine
-      string: "Light 47/91"
+      string: "Shot: Right Orbit - 47 / 91"
   set_light_47:
     service_light_name:
       action: set_machine
       string: "Shot: Pilot Gear"
     service_light_num:
       action: set_machine
-      string: "Light 48/91"
+      string: "Shot: Pilot Gear - 48 / 91"
   set_light_48:
     service_light_name:
       action: set_machine
       string: "GI: Right Return Left"
     service_light_num:
       action: set_machine
-      string: "Light 49/91"
+      string: "GI: Right Return Left - 49 / 91"
   set_light_49:
     service_light_name:
       action: set_machine
       string: "GI: Right Return Right"
     service_light_num:
       action: set_machine
-      string: "Light 50/91"
+      string: "GI: Right Return Right - 50 / 91"
   set_light_50:
     service_light_name:
       action: set_machine
       string: "GI: Left Return Left"
     service_light_num:
       action: set_machine
-      string: "Light 51/91"
+      string: "GI: Left Return Left - 51 / 91"
   set_light_51:
     service_light_name:
       action: set_machine
       string: "GI: Left Return Right"
     service_light_num:
       action: set_machine
-      string: "Light 52/91"
+      string: "GI: Left Return Right - 52 / 91"
   set_light_52:
     service_light_name:
       action: set_machine
       string: "GI: Left Sling 1"
     service_light_num:
       action: set_machine
-      string: "Light 53/91"
+      string: "GI: Left Sling 1 - 53 / 91"
   set_light_53:
     service_light_name:
       action: set_machine
       string: "GI: Left Sling 2"
     service_light_num:
       action: set_machine
-      string: "Light 54/91"
+      string: "GI: Left Sling 2 - 54 / 91"
   set_light_54:
     service_light_name:
       action: set_machine
       string: "GI: Right Sling 1"
     service_light_num:
       action: set_machine
-      string: "Light 55/91"
+      string: "GI: Right Sling 1 - 55 / 91"
   set_light_55:
     service_light_name:
       action: set_machine
       string: "GI: Right Sling 2"
     service_light_num:
       action: set_machine
-      string: "Light 56/91"
+      string: "GI: Right Sling 2 - 56 / 91"
   set_light_56:
     service_light_name:
       action: set_machine
       string: "GI: Left Outlane"
     service_light_num:
       action: set_machine
-      string: "Light 57/91"
+      string: "GI: Left Outlane - 57 / 91"
   set_light_57:
     service_light_name:
       action: set_machine
       string: "GI: Right Outlane"
     service_light_num:
       action: set_machine
-      string: "Light 58/91"
+      string: "GI: Right Outlane - 58 / 91"
   set_light_58:
     service_light_name:
       action: set_machine
       string: "GI: Pop Area 1"
     service_light_num:
       action: set_machine
-      string: "Light 59/91"
+      string: "GI: Pop Area 1 - 59 / 91"
   set_light_59:
     service_light_name:
       action: set_machine
       string: "GI: Pop Area 2"
     service_light_num:
       action: set_machine
-      string: "Light 60/91"
+      string: "GI: Pop Area 2 - 60 / 91"
   set_light_60:
     service_light_name:
       action: set_machine
       string: "GI: Left MIG Lane"
     service_light_num:
       action: set_machine
-      string: "Light 61/91"
+      string: "GI: Left MIG Lane - 61 / 91"
   set_light_61:
     service_light_name:
       action: set_machine
       string: "GI: Middle MIG Lane"
     service_light_num:
       action: set_machine
-      string: "Light 62/91"
+      string: "GI: Middle MIG Lane - 62 / 91"
   set_light_62:
     service_light_name:
       action: set_machine
       string: "GI: Right MIG Lane"
     service_light_num:
       action: set_machine
-      string: "Light 63/91"
+      string: "GI: Right MIG Lane - 63 / 91"
   set_light_63:
     service_light_name:
       action: set_machine
       string: "GI: Left Orbit"
     service_light_num:
       action: set_machine
-      string: "Light 64/91"
+      string: "GI: Left Orbit - 64 / 91"
   set_light_64:
     service_light_name:
       action: set_machine
       string: "GI: Right Orbit 1"
     service_light_num:
       action: set_machine
-      string: "Light 65/91"
+      string: "GI: Right Orbit 1 - 65 / 91"
   set_light_65:
     service_light_name:
       action: set_machine
       string: "GI: Right Orbit 2"
     service_light_num:
       action: set_machine
-      string: "Light 66/91"
+      string: "GI: Right Orbit 2 - 66 / 91"
   set_light_66:
     service_light_name:
       action: set_machine
       string: "GI: Middle Orbit"
     service_light_num:
       action: set_machine
-      string: "Light 67/91"
+      string: "GI: Middle Orbit - 67 / 91"
   set_light_67:
     service_light_name:
       action: set_machine
       string: "GI: Back Board 1"
     service_light_num:
       action: set_machine
-      string: "Light 68/91"
+      string: "GI: Back Board 1 - 68 / 91"
   set_light_68:
     service_light_name:
       action: set_machine
       string: "GI: Back Board 2"
     service_light_num:
       action: set_machine
-      string: "Light 69/91"
+      string: "GI: Back Board 2 - 69 / 91"
   set_light_69:
     service_light_name:
       action: set_machine
       string: "Pop Bumper: Left"
     service_light_num:
       action: set_machine
-      string: "Light 70/91"
+      string: "Pop Bumper: Left - 70 / 91"
   set_light_70:
     service_light_name:
       action: set_machine
       string: "Pop Bumper: Right"
     service_light_num:
       action: set_machine
-      string: "Light 71/91"
+      string: "Pop Bumper: Right - 71 / 91"
   set_light_71:
     service_light_name:
       action: set_machine
       string: "Pop Bumper: Bottom"
     service_light_num:
       action: set_machine
-      string: "Light 72/91"
+      string: "Pop Bumper: Bottom - 72 / 91"
   set_light_72:
     service_light_name:
       action: set_machine
       string: "GI: Back Board 3"
     service_light_num:
       action: set_machine
-      string: "Light 73/91"
+      string: "GI: Back Board 3 - 73 / 91"
   set_light_73:
     service_light_name:
       action: set_machine
       string: "GI: Back Board 4"
     service_light_num:
       action: set_machine
-      string: "Light 74/91"
+      string: "GI: Back Board 4 - 74 / 91"
   set_light_74:
     service_light_name:
       action: set_machine
       string: "GI: Back Board 5"
     service_light_num:
       action: set_machine
-      string: "Light 75/91"
+      string: "GI: Back Board 5 - 75 / 91"
   set_light_75:
     service_light_name:
       action: set_machine
       string: "GI: Back Board 6"
     service_light_num:
       action: set_machine
-      string: "Light 76/91"
+      string: "GI: Back Board 6 - 76 / 91"
   set_light_76:
     service_light_name:
       action: set_machine
       string: "GI: Back Board 7"
     service_light_num:
       action: set_machine
-      string: "Light 77/91"
+      string: "GI: Back Board 7 - 77 / 91"
   set_light_77:
     service_light_name:
       action: set_machine
       string: "GI: Back Board 8"
     service_light_num:
       action: set_machine
-      string: "Light 78/91"
+      string: "GI: Back Board 8 - 78 / 91"
   set_light_78:
     service_light_name:
       action: set_machine
       string: "Apron GI 1"
     service_light_num:
       action: set_machine
-      string: "Light 79/91"
+      string: "Apron GI 1 - 79 / 91"
   set_light_79:
     service_light_name:
       action: set_machine
       string: "Apron GI 2"
     service_light_num:
       action: set_machine
-      string: "Light 80/91"
+      string: "Apron GI 2 - 80 / 91"
   set_light_80:
     service_light_name:
       action: set_machine
       string: "Apron GI 3"
     service_light_num:
       action: set_machine
-      string: "Light 81/91"
+      string: "Apron GI 3 - 81 / 91"
   set_light_81:
     service_light_name:
       action: set_machine
       string: "Apron GI 4"
     service_light_num:
       action: set_machine
-      string: "Light 82/91"
+      string: "Apron GI 4 - 82 / 91"
   set_light_82:
     service_light_name:
       action: set_machine
       string: "Lock: Maverick"
     service_light_num:
       action: set_machine
-      string: "Light 83/91"
+      string: "Lock: Maverick - 83 / 91"
   set_light_83:
     service_light_name:
       action: set_machine
       string: "Lock: Goose"
     service_light_num:
       action: set_machine
-      string: "Light 84/91"
+      string: "Lock: Goose - 84 / 91"
   set_light_84:
     service_light_name:
       action: set_machine
       string: "Pilot Mission Lit"
     service_light_num:
       action: set_machine
-      string: "Light 85/91"
+      string: "Pilot Mission Lit - 85 / 91"
   set_light_85:
     service_light_name:
       action: set_machine
       string: "Pilot Training Lit"
     service_light_num:
       action: set_machine
-      string: "Light 86/91"
+      string: "Pilot Training Lit - 86 / 91"
   set_light_86:
     service_light_name:
       action: set_machine
       string: "Multiball Lit"
     service_light_num:
       action: set_machine
-      string: "Light 87/91"
+      string: "Multiball Lit - 87 / 91"
   set_light_87:
     service_light_name:
       action: set_machine
       string: "Final Battle Lit"
     service_light_num:
       action: set_machine
-      string: "Light 88/91"
+      string: "Final Battle Lit - 88 / 91"
   set_light_88:
     service_light_name:
       action: set_machine
       string: "Extra Ball Lit"
     service_light_num:
       action: set_machine
-      string: "Light 89/91"
+      string: "Extra Ball Lit - 89 / 91"
   set_light_89:
     service_light_name:
       action: set_machine
       string: "Hard Deck Lit"
     service_light_num:
       action: set_machine
-      string: "Light 90/91"
+      string: "Hard Deck Lit - 90 / 91"
   set_light_90:
     service_light_name:
       action: set_machine
       string: "Mystery Lit"
     service_light_num:
       action: set_machine
-      string: "Light 91/91"
+      string: "Mystery Lit - 91 / 91"
 
   # ADJUSTMENT TEXT SETTERS (placeholder)
   set_adjustment_0:
@@ -2859,47 +2896,80 @@ variable_player:
       action: set_machine
       string: "Feature 1/5"
 
-  # SERVO TEXT SETTERS (4 positions)
+  # SERVO TEXT SETTERS (6 positions for 3 servos)
+  # Simple browse mode - START to test servo position
+  
+  # Right Ramp DOWN (index 0)
   set_servo_0:
     service_servo_name:
       action: set_machine
       string: "Right Ramp DOWN"
     service_servo_num:
       action: set_machine
-      string: "Servo 1/4"
+      string: "Servo 1/6"
     service_servo_position:
       action: set_machine
-      string: "DOWN: 0.05"
+      string: "Pos: 0.40 - START=Test"
+
+  # Right Ramp UP (index 1)
   set_servo_1:
     service_servo_name:
       action: set_machine
       string: "Right Ramp UP"
     service_servo_num:
       action: set_machine
-      string: "Servo 2/4"
+      string: "Servo 2/6"
     service_servo_position:
       action: set_machine
-      string: "UP: 0.21"
+      string: "Pos: 0.60 - START=Test"
+
+  # Top Ramp DOWN (index 2)
   set_servo_2:
     service_servo_name:
       action: set_machine
       string: "Top Ramp DOWN"
     service_servo_num:
       action: set_machine
-      string: "Servo 3/4"
+      string: "Servo 3/6"
     service_servo_position:
       action: set_machine
-      string: "DOWN: 0.05"
+      string: "Pos: 0.59 - START=Test"
+
+  # Top Ramp UP (index 3)
   set_servo_3:
     service_servo_name:
       action: set_machine
       string: "Top Ramp UP"
     service_servo_num:
       action: set_machine
-      string: "Servo 4/4"
+      string: "Servo 4/6"
     service_servo_position:
       action: set_machine
-      string: "UP: 0.25"
+      string: "Pos: 0.50 - START=Test"
+
+  # Lock HELD (index 4)
+  set_servo_4:
+    service_servo_name:
+      action: set_machine
+      string: "Lock HELD"
+    service_servo_num:
+      action: set_machine
+      string: "Servo 5/6"
+    service_servo_position:
+      action: set_machine
+      string: "Pos: 0.28 - START=Test"
+
+  # Lock RELEASED (index 5)
+  set_servo_5:
+    service_servo_name:
+      action: set_machine
+      string: "Lock RELEASED"
+    service_servo_num:
+      action: set_machine
+      string: "Servo 6/6"
+    service_servo_position:
+      action: set_machine
+      string: "Pos: 0.51 - START=Test"
 
 ##############################################################################
 # COIL PLAYER - Fire coils in service mode

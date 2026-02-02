@@ -65,40 +65,59 @@ variable_player:
     goose_completing:
       action: set
       int: 0
+    # Track which letter was last collected (1=G, 2=O_left, 3=E, 4=O_right, 5=S)
+    goose_last_letter_collected:
+      action: set
+      int: 0
 
   ##############################################
   ## Light Letters When Lane Switches Hit
   ##############################################
 
-  # G - Left outlane
+  # G - Left outlane (goose_last_letter_collected = 1)
   s_outlane_left_active{current_player.goose_letter_g==0 and current_player.goose_completing==0}:
     goose_letter_g:
       action: set
       int: 1
+    goose_last_letter_collected:
+      action: set
+      int: 1
 
-  # Left O - Left inlane
+  # Left O - Left inlane (goose_last_letter_collected = 2)
   s_inlane_left_active{current_player.goose_letter_o_left==0 and current_player.goose_completing==0}:
     goose_letter_o_left:
       action: set
       int: 1
+    goose_last_letter_collected:
+      action: set
+      int: 2
 
-  # E - Right outlane
+  # E - Right outlane (goose_last_letter_collected = 3)
   s_outlane_right_active{current_player.goose_letter_e==0 and current_player.goose_completing==0}:
     goose_letter_e:
       action: set
       int: 1
+    goose_last_letter_collected:
+      action: set
+      int: 3
 
-  # Right O - Inner right inlane
+  # Right O - Inner right inlane (goose_last_letter_collected = 4)
   s_inner_inlane_right_active{current_player.goose_letter_o_right==0 and current_player.goose_completing==0}:
     goose_letter_o_right:
       action: set
       int: 1
+    goose_last_letter_collected:
+      action: set
+      int: 4
 
-  # S - Outer right inlane
+  # S - Outer right inlane (goose_last_letter_collected = 5)
   s_outer_inlane_right_active{current_player.goose_letter_s==0 and current_player.goose_completing==0}:
     goose_letter_s:
       action: set
       int: 1
+    goose_last_letter_collected:
+      action: set
+      int: 5
 
   ##############################################
   ## Completion Tracking - Increment completed counter
@@ -235,9 +254,6 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 5
-    ejection_shots_completed:
-      action: set
-      int: 0
 
   # 5 completions - Light mystery
   goose_milestone_5:
@@ -247,9 +263,6 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 10
-    ejection_shots_completed:
-      action: set
-      int: 0
 
   # 10 completions - Qualify eject or mystery
   goose_milestone_10_eject:
@@ -262,9 +275,6 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 15
-    ejection_shots_completed:
-      action: set
-      int: 0
 
   goose_milestone_10_mystery:
     goose_milestone:
@@ -273,9 +283,6 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 15
-    ejection_shots_completed:
-      action: set
-      int: 0
 
   # 15 completions - Light mystery
   goose_milestone_15:
@@ -285,9 +292,6 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 20
-    ejection_shots_completed:
-      action: set
-      int: 0
 
   # 20 completions - Light extra ball and qualify eject (or mystery if already qualified)
   goose_milestone_20_eject:
@@ -300,9 +304,6 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 30
-    ejection_shots_completed:
-      action: set
-      int: 0
 
   goose_milestone_20_mystery:
     goose_milestone:
@@ -311,9 +312,6 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 30
-    ejection_shots_completed:
-      action: set
-      int: 0
 
   # 30 completions - Light goose mode
   goose_milestone_30:
@@ -323,9 +321,6 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 50
-    ejection_shots_completed:
-      action: set
-      int: 0
 
   # 50 completions - Qualify eject or mystery
   goose_milestone_50_eject:
@@ -338,9 +333,6 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 100
-    ejection_shots_completed:
-      action: set
-      int: 0
 
   goose_milestone_50_mystery:
     goose_milestone:
@@ -349,9 +341,6 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 100
-    ejection_shots_completed:
-      action: set
-      int: 0
 
   # 100 completions - Qualify eject or mystery
   goose_milestone_100_eject:
@@ -429,6 +418,11 @@ event_player:
   s_outlane_left_active{current_player.eject_mode_qualified==1}:
     - start_mode_ejection_seat
 
+  # Also start ejection seat if G was the letter that completed GOOSE and qualified eject
+  # (The ball is already in the outlane, so we need to start immediately)
+  eject_mode_qualified_event{current_player.goose_last_letter_collected==1}:
+    - start_mode_ejection_seat
+
   # Check if GOOSE is complete after each lane hit
   s_outlane_left_active{current_player.goose_letter_g==0 and current_player.goose_completing==0}: check_goose_complete
   s_inlane_left_active{current_player.goose_letter_o_left==0 and current_player.goose_completing==0}: check_goose_complete
@@ -442,7 +436,7 @@ event_player:
       priority: 100
 
   ##############################################
-  ## Milestone Events - Check completion count reaching milestone
+  ## Milestone Events - Check total completion count
   ##############################################
 
   # When completions reach milestone, trigger award
@@ -532,7 +526,9 @@ slide_player:
       priority: 210
 
   # When eject mode qualifies, remove progress slides and show active slide
-  eject_mode_qualified_event:
+  # EXCEPTION: If G was the qualifying letter (goose_last_letter_collected==1),
+  # skip the qualified scene since ejection seat mode starts immediately
+  eject_mode_qualified_event{current_player.goose_last_letter_collected!=1}:
     ejection_shots_completed:
       action: remove
     ejection_shots_needed:
@@ -543,6 +539,13 @@ slide_player:
     ejection_seat_qualified:
       action: play
       priority: 220
+
+  # When G qualifies eject, just remove progress slides (mode starts immediately)
+  eject_mode_qualified_event{current_player.goose_last_letter_collected==1}:
+    ejection_shots_completed:
+      action: remove
+    ejection_shots_needed:
+      action: remove
 
   # When eject mode starts, remove active slide and restore progress tracking
   mode_ejection_seat_started:

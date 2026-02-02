@@ -169,7 +169,7 @@ variable_player:
       action: add
       int: -1
 
-  # Step 6: Never Back Down - Middle Ramp (lifter raised)
+  # Step 6: Never Back Down - Lower Orbit (through raised top ramp)
   rise_of_phoenix_step_6_complete:
     rise_of_phoenix_step:
       action: set
@@ -377,6 +377,17 @@ timers:
       - event: rise_of_phoenix_victory_ball_released
         action: restart
 
+  # SERVO STAGGER DELAY - Prevents power contention when both servos move at once
+  # After top_ramp goes up, wait 2 seconds before lowering right_ramp
+  rise_of_phoenix_right_ramp_delay:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: rise_of_phoenix_step_5_complete
+        action: restart
+
 ##############################################
 ## Event Player - Shot Detection & Flow
 ##############################################
@@ -469,16 +480,21 @@ event_player:
     - right_ramp_up               # SERVO: Raise right ramp for step 5
 
   # Step 5: Right Orbit (lifter raised until shot made)
+  # NOTE: right_ramp_down is delayed 2 seconds via timer to prevent servo power contention
   right_orbit_shot_hit{current_player.rise_of_phoenix_step==4 and device.timers.shot_lockout.running==False}:
     - rise_of_phoenix_step_5_complete
     - rise_of_phoenix_step_5_shot_hit
     - timer_shot_lockout_start
     - rise_of_phoenix_setup_step_6
-    - right_ramp_down             # SERVO: Lower right ramp after step 5
-    - top_ramp_up                 # SERVO: Raise top ramp for step 6
+    - top_ramp_up                 # SERVO: Raise top ramp for step 6 (immediate)
+    # right_ramp_down fires after 2 second delay via timer_rise_of_phoenix_right_ramp_delay_complete
 
-  # Step 6: Middle Ramp (lifter raised until shot made)
-  s_ramp_inner_exit_active{current_player.rise_of_phoenix_step==5 and device.timers.shot_lockout.running==False}:
+  # SERVO STAGGER: After 2 seconds, lower the right ramp (prevents power contention)
+  timer_rise_of_phoenix_right_ramp_delay_complete:
+    - right_ramp_down
+
+  # Step 6: Lower Orbit (ball goes through raised top ramp, exits via lower orbit)
+  s_orbit_lower_active{current_player.rise_of_phoenix_step==5 and device.timers.shot_lockout.running==False}:
     - rise_of_phoenix_step_6_complete
     - rise_of_phoenix_step_6_shot_hit
     - timer_shot_lockout_start
@@ -1089,7 +1105,7 @@ show_player:
       action: stop
       key: step_5_flash
 
-  # Step 6: Middle ramp flashes
+  # Step 6: Lower orbit flashes (through raised top ramp)
   rise_of_phoenix_setup_step_6:
     phoenix_shot_flash:
       show_tokens:
