@@ -530,39 +530,111 @@ coil_player:
 ##############################################
 light_player:
   mode_base_started:
-    # GI Lights - set to white
-    l_gi_light_1: white
-    l_gi_light_2: white
-    l_gi_light_3: white
-    l_gi_light_4: white
-    l_gi_light_5: white
-    l_gi_light_6: white
-    l_gi_light_7: white
-    l_gi_light_8: white
-    l_gi_light_9: white
-    l_gi_light_10: white
-    l_gi_light_11: white
-    l_gi_light_12: white
-    l_gi_light_13: white
-    l_gi_light_14: white
-    l_gi_light_15: white
-    l_gi_light_16: white
-    l_gi_light_17: white
-    l_gi_light_18: white
-    l_gi_light_19: white
-    l_gi_light_20: white
-    l_gi_light_21: white
-    l_gi_light_22: white
-    l_gi_light_23: white
-    l_gi_light_24: white
-    l_gi_light_25: white
+    # GI Lights - set to white with fade: 0ms to prevent FAST LED overflow crash
+    l_gi_light_1:
+      color: white
+      fade: 0ms
+    l_gi_light_2:
+      color: white
+      fade: 0ms
+    l_gi_light_3:
+      color: white
+      fade: 0ms
+    l_gi_light_4:
+      color: white
+      fade: 0ms
+    l_gi_light_5:
+      color: white
+      fade: 0ms
+    l_gi_light_6:
+      color: white
+      fade: 0ms
+    l_gi_light_7:
+      color: white
+      fade: 0ms
+    l_gi_light_8:
+      color: white
+      fade: 0ms
+    l_gi_light_9:
+      color: white
+      fade: 0ms
+    l_gi_light_10:
+      color: white
+      fade: 0ms
+    l_gi_light_11:
+      color: white
+      fade: 0ms
+    l_gi_light_12:
+      color: white
+      fade: 0ms
+    l_gi_light_13:
+      color: white
+      fade: 0ms
+    l_gi_light_14:
+      color: white
+      fade: 0ms
+    l_gi_light_15:
+      color: white
+      fade: 0ms
+    l_gi_light_16:
+      color: white
+      fade: 0ms
+    l_gi_light_17:
+      color: white
+      fade: 0ms
+    l_gi_light_18:
+      color: white
+      fade: 0ms
+    l_gi_light_19:
+      color: white
+      fade: 0ms
+    l_gi_light_20:
+      color: white
+      fade: 0ms
+    l_gi_light_21:
+      color: white
+      fade: 0ms
+    l_gi_light_22:
+      color: white
+      fade: 0ms
+    l_gi_light_23:
+      color: white
+      fade: 0ms
+    l_gi_light_24:
+      color: white
+      fade: 0ms
+    l_gi_light_25:
+      color: white
+      fade: 0ms
+    l_gi_light_26:
+      color: white
+      fade: 0ms
+    l_gi_light_27:
+      color: white
+      fade: 0ms
     # Apron GI Lights - set to white
-    l_apron_light_1: white
-    l_apron_light_2: white
+    l_apron_light_1:
+      color: white
+      fade: 0ms
+    l_apron_light_2:
+      color: white
+      fade: 0ms
+    l_apron_light_3:
+      color: white
+      fade: 0ms
+    l_apron_light_4:
+      color: white
+      fade: 0ms
     # Pop Bumper Lights - set to white
-    l_gi_light_pop_left: white
-    l_gi_light_pop_right: white
-    l_gi_light_pop_bottom: white
+    l_gi_light_pop_left:
+      color: white
+      fade: 0ms
+    l_gi_light_pop_right:
+      color: white
+      fade: 0ms
+    l_gi_light_pop_bottom:
+      color: white
+      fade: 0ms
 
   ##############################################
   ## SHUTDOWN CLEANUP - Turn off all lights when MPF exits
@@ -595,8 +667,12 @@ light_player:
     l_gi_light_23: off
     l_gi_light_24: off
     l_gi_light_25: off
+    l_gi_light_26: off
+    l_gi_light_27: off
     l_apron_light_1: off
     l_apron_light_2: off
+    l_apron_light_3: off
+    l_apron_light_4: off
     l_gi_light_pop_left: off
     l_gi_light_pop_right: off
     l_gi_light_pop_bottom: off
@@ -827,6 +903,50 @@ sound_player:
       loops: -1
 
 #################################################################################### 
+  # Inverted Mode Music Handler
+####################################################################################
+
+  # Start mode music immediately when mode starts (during intro hold)
+  mode_pilot_training_mission_inverted_started:
+    pilot_training_mission_inverted:
+      bus: music
+      loops: -1
+
+  # Restart base music when mode stops
+  mode_pilot_training_mission_inverted_stopped:
+    music_danger_zone:
+      bus: music
+      loops: -1
+
+#################################################################################### 
+  # Missiles Training Mission Music Handler
+####################################################################################
+
+  # Start mode music immediately when mode starts (during intro hold)
+  mode_pilot_training_mission_missiles_started:
+    pilot_training_mission_missiles:
+      bus: music
+      loops: -1
+
+  # Restart base music when mode stops (but NOT if drain pending - bonus will handle it)
+  mode_pilot_training_mission_missiles_stopped{current_player.pilot_mode_drain_pending==0}:
+    music_danger_zone:
+      bus: music
+      loops: -1
+
+  # Silence music when mode completes (victory video plays)
+  missiles_complete:
+    silence:
+      bus: music
+      loops: 0
+
+  # Silence music when mode fails (failure video plays)
+  missiles_failed:
+    silence:
+      bus: music
+      loops: 0
+
+#################################################################################### 
   # Ejection Seat Mode Music Handler
   # Silence music when ejection fails (ball drains)
 ####################################################################################
@@ -838,44 +958,46 @@ sound_player:
       loops: 0
 
 ####################################################################################
-  # PLAYFIELD SOUND EFFECTS - Default sounds for shots
-  # These play in base mode but can be overridden by higher priority modes
+# SYNCHRONIZED FLASH SHOWS - For Mode/Multiball Stacking
+####################################################################################
+# These shows provide synchronized flashing for mode shots and future multiball shots.
+# Using sync_ms: 1000 in show_player ensures all shows align to the same global clock.
+#
+# When a mode shot AND multiball shot light the same insert:
+# - First 500ms: Mode color shows (multiball is OFF)
+# - Second 500ms: Multiball color shows (mode is OFF)
+# This creates a clean alternating pattern so players know BOTH are active.
 ####################################################################################
 
-  # Ramp Sound Effects - Jet fly-bys
-  s_ramp_left_exit_active:
-    soundfx_jet_fly_by_left_ramp:
-      bus: effects
-      loops: 0
+shows:
+  ##############################################
+  ## MODE SHOT FLASH - ON first half of 1-second cycle
+  ## Use for ALL pilot mission mode shots
+  ##############################################
+  sync_flash_mode:
+    - duration: 500ms
+      lights:
+        (led):
+          color: (color)
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: off
+          fade: 0ms
 
-  s_ramp_right_exit_active:
-    soundfx_jet_fly_by_right_ramp:
-      bus: effects
-      loops: 0
-
-  s_ramp_inner_exit_active:
-    soundfx_jet_fly_by_top_ramp:
-      bus: effects
-      loops: 0
-
-  # Spinner Sound Effect - Gun fire
-  s_spinner_active:
-    soundfx_bullet1:
-      bus: effects
-      loops: 0
-
-  # Pop Bumper Sound Effects - Volleyball hits
-  s_bumper_left_active:
-    soundfx_volleyball1:
-      bus: effects
-      loops: 0
-
-  s_bumper_right_active:
-    soundfx_volleyball2:
-      bus: effects
-      loops: 0
-
-  s_bumper_center_active:
-    soundfx_volleyball3:
-      bus: effects
-      loops: 0
+  ##############################################
+  ## MULTIBALL SHOT FLASH - ON second half of 1-second cycle
+  ## Use for ALL multiball shots (creates alternating effect when stacked)
+  ##############################################
+  sync_flash_mb:
+    - duration: 500ms
+      lights:
+        (led):
+          color: off
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: (color)
+          fade: 0ms

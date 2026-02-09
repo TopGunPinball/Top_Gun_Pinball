@@ -541,6 +541,28 @@ event_player:
   rise_of_phoenix_setup_step_9:
     - barrier_drop
 
+  ##############################################
+  ## Voice Callout - Random shot made callout
+  ##############################################
+  rise_of_phoenix_step_1_shot_hit:
+    - play_shot_made_callout
+  rise_of_phoenix_step_2_shot_hit:
+    - play_shot_made_callout
+  rise_of_phoenix_step_3_shot_hit:
+    - play_shot_made_callout
+  rise_of_phoenix_step_4_shot_hit:
+    - play_shot_made_callout
+  rise_of_phoenix_step_5_shot_hit:
+    - play_shot_made_callout
+  rise_of_phoenix_step_6_shot_hit:
+    - play_shot_made_callout
+  rise_of_phoenix_step_7_shot_hit:
+    - play_shot_made_callout
+  rise_of_phoenix_step_8_shot_hit:
+    - play_shot_made_callout
+  rise_of_phoenix_step_9_shot_hit:
+    - play_shot_made_callout
+
   # Victory flow - after ball is kicked out, raise barrier and complete mode
   timer_rise_of_phoenix_victory_barrier_delay_complete:
     - barrier_raise
@@ -893,75 +915,11 @@ light_player:
       fade: 0ms
 
 ##############################################
-## Shows - Flashing/Animated Lights
-## NOTE: Fades removed to prevent MPF 0.80.dev9 FAST EXP crash (odd-length hex string bug)
+## Shows - GI Flash Only
+## NOTE: Shot flash shows removed - now using sync_flash_mode from base.yaml
 ##############################################
 
 shows:
-  phoenix_shot_flash:
-    - duration: 400ms
-      lights:
-        (led): orange
-    - duration: 400ms
-      lights:
-        (led): off
-
-  phoenix_spinner_flash:
-    - duration: 300ms
-      lights:
-        (led): orange
-    - duration: 300ms
-      lights:
-        (led): off
-
-  phoenix_lock_targets_flash:
-    - duration: 400ms
-      lights:
-        (led): orange
-    - duration: 400ms
-      lights:
-        (led): off
-
-  phoenix_lock_l_flash:
-    - duration: 400ms
-      lights:
-        (led): orange
-    - duration: 400ms
-      lights:
-        (led): off
-
-  phoenix_lock_o_flash:
-    - duration: 400ms
-      lights:
-        (led): orange
-    - duration: 400ms
-      lights:
-        (led): off
-
-  phoenix_lock_c_flash:
-    - duration: 400ms
-      lights:
-        (led): orange
-    - duration: 400ms
-      lights:
-        (led): off
-
-  phoenix_lock_k_flash:
-    - duration: 400ms
-      lights:
-        (led): orange
-    - duration: 400ms
-      lights:
-        (led): off
-
-  phoenix_final_shot_pulse:
-    - duration: 500ms
-      lights:
-        (led): orange
-    - duration: 500ms
-      lights:
-        (led): off
-
   # GI yellow flash - quick flash on shot hits (2 flashes over 500ms)
   # NOTE: GI lights require hex codes, not color names (MPF bug workaround)
   # Includes apron lights which may not be in gi_lights tag
@@ -1037,171 +995,224 @@ shows:
 
 ##############################################
 ## Show Player - Animated Lights
+## Uses sync_flash_mode from base.yaml with sync_ms for multiball stacking
 ##############################################
 
 show_player:
-  # Step 1: Left orbit flashes
+  # Step 1: Left orbit flashes (ORANGE)
   rise_of_phoenix_setup_step_1:
-    phoenix_shot_flash:
+    left_orbit_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_left_orbit
+      sync_ms: 1000
+      loops: -1
       show_tokens:
         led: l_shot_left_orbit
-      loops: -1
-      key: step_1_flash
+        color: FFA500
 
   rise_of_phoenix_step_1_complete:
-    phoenix_shot_flash:
+    stop_left_orbit:
+      show: sync_flash_mode
       action: stop
-      key: step_1_flash
+      key: mode_l_shot_left_orbit
 
-  # Step 2: Spinner flash during step 2
+  # Step 2: Spinner flash during step 2 (ORANGE)
   rise_of_phoenix_setup_step_2:
-    phoenix_spinner_flash:
+    spinner_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_spinner
+      sync_ms: 1000
+      loops: -1
       show_tokens:
         led: l_shot_spinner
-      loops: -1
-      key: spinner_flash
+        color: FFA500
 
   rise_of_phoenix_step_2_complete:
-    phoenix_spinner_flash:
+    stop_spinner:
+      show: sync_flash_mode
       action: stop
-      key: spinner_flash
+      key: mode_l_shot_spinner
 
-  # Step 3: Barrier target flashes
+  # Step 3: Barrier target flashes (ORANGE)
   rise_of_phoenix_setup_step_3:
-    phoenix_shot_flash:
+    barrier_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_barrier
+      sync_ms: 1000
+      loops: -1
       show_tokens:
         led: l_shot_barrier
-      loops: -1
-      key: step_3_flash
+        color: FFA500
 
   rise_of_phoenix_step_3_complete:
-    phoenix_shot_flash:
+    stop_barrier:
+      show: sync_flash_mode
       action: stop
-      key: step_3_flash
+      key: mode_l_shot_barrier
 
-  # Step 4: Tower ramp flashes
+  # Step 4: Tower ramp flashes (ORANGE)
   rise_of_phoenix_setup_step_4:
-    phoenix_shot_flash:
+    tower_ramp_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_tower_ramp
+      sync_ms: 1000
+      loops: -1
       show_tokens:
         led: l_shot_tower_ramp
-      loops: -1
-      key: step_4_flash
+        color: FFA500
 
   rise_of_phoenix_step_4_complete:
-    phoenix_shot_flash:
+    stop_tower_ramp:
+      show: sync_flash_mode
       action: stop
-      key: step_4_flash
+      key: mode_l_shot_tower_ramp
 
-  # Step 5: Right orbit flashes
+  # Step 5: Right orbit flashes (ORANGE)
   rise_of_phoenix_setup_step_5:
-    phoenix_shot_flash:
+    right_orbit_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_right_orbit
+      sync_ms: 1000
+      loops: -1
       show_tokens:
         led: l_shot_right_orbit
-      loops: -1
-      key: step_5_flash
+        color: FFA500
 
   rise_of_phoenix_step_5_complete:
-    phoenix_shot_flash:
+    stop_right_orbit:
+      show: sync_flash_mode
       action: stop
-      key: step_5_flash
+      key: mode_l_shot_right_orbit
 
-  # Step 6: Lower orbit flashes (through raised top ramp)
+  # Step 6: Middle ramp flashes (ORANGE)
   rise_of_phoenix_setup_step_6:
-    phoenix_shot_flash:
+    middle_ramp_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_middle_ramp
+      sync_ms: 1000
+      loops: -1
       show_tokens:
         led: l_shot_middle_ramp
-      loops: -1
-      key: step_6_flash
+        color: FFA500
 
   rise_of_phoenix_step_6_complete:
-    phoenix_shot_flash:
+    stop_middle_ramp:
+      show: sync_flash_mode
       action: stop
-      key: step_6_flash
+      key: mode_l_shot_middle_ramp
 
-  # LOCK targets flash during step 7 - start shows for each
+  # LOCK targets flash during step 7 (ORANGE)
   rise_of_phoenix_setup_step_7:
-    phoenix_lock_l_flash:
+    lock_l_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_lock_l
+      sync_ms: 1000
+      loops: -1
       show_tokens:
         led: l_lock_l
+        color: FFA500
+    lock_o_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_lock_o
+      sync_ms: 1000
       loops: -1
-      key: lock_l
-    phoenix_lock_o_flash:
       show_tokens:
         led: l_lock_o
+        color: FFA500
+    lock_c_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_lock_c
+      sync_ms: 1000
       loops: -1
-      key: lock_o
-    phoenix_lock_c_flash:
       show_tokens:
         led: l_lock_c
+        color: FFA500
+    lock_k_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_lock_k
+      sync_ms: 1000
       loops: -1
-      key: lock_c
-    phoenix_lock_k_flash:
       show_tokens:
         led: l_lock_k
-      loops: -1
-      key: lock_k
+        color: FFA500
 
   # Stop individual shows when targets are hit
   rise_of_phoenix_lock_l_hit:
-    phoenix_lock_l_flash:
+    stop_lock_l:
+      show: sync_flash_mode
       action: stop
-      key: lock_l
+      key: mode_l_lock_l
 
   rise_of_phoenix_lock_o_hit:
-    phoenix_lock_o_flash:
+    stop_lock_o:
+      show: sync_flash_mode
       action: stop
-      key: lock_o
+      key: mode_l_lock_o
 
   rise_of_phoenix_lock_c_hit:
-    phoenix_lock_c_flash:
+    stop_lock_c:
+      show: sync_flash_mode
       action: stop
-      key: lock_c
+      key: mode_l_lock_c
 
   rise_of_phoenix_lock_k_hit:
-    phoenix_lock_k_flash:
+    stop_lock_k:
+      show: sync_flash_mode
       action: stop
-      key: lock_k
+      key: mode_l_lock_k
 
   # Stop all remaining shows at step complete
   rise_of_phoenix_step_7_complete:
-    phoenix_lock_l_flash:
+    stop_lock_l_complete:
+      show: sync_flash_mode
       action: stop
-      key: lock_l
-    phoenix_lock_o_flash:
+      key: mode_l_lock_l
+    stop_lock_o_complete:
+      show: sync_flash_mode
       action: stop
-      key: lock_o
-    phoenix_lock_c_flash:
+      key: mode_l_lock_o
+    stop_lock_c_complete:
+      show: sync_flash_mode
       action: stop
-      key: lock_c
-    phoenix_lock_k_flash:
+      key: mode_l_lock_c
+    stop_lock_k_complete:
+      show: sync_flash_mode
       action: stop
-      key: lock_k
+      key: mode_l_lock_k
 
-  # Step 8: Upper orbit flashes
+  # Step 8: Upper orbit flashes (ORANGE)
   rise_of_phoenix_setup_step_8:
-    phoenix_shot_flash:
+    upper_orbit_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_upper_orbit
+      sync_ms: 1000
+      loops: -1
       show_tokens:
         led: l_shot_upper_orbit
-      loops: -1
-      key: step_8_flash
+        color: FFA500
 
   rise_of_phoenix_step_8_complete:
-    phoenix_shot_flash:
+    stop_upper_orbit:
+      show: sync_flash_mode
       action: stop
-      key: step_8_flash
+      key: mode_l_shot_upper_orbit
 
-  # Mode scoop pulse during step 9
+  # Mode scoop pulse during step 9 (ORANGE)
   rise_of_phoenix_setup_step_9:
-    phoenix_final_shot_pulse:
+    barrier_final_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_barrier
+      sync_ms: 1000
+      loops: -1
       show_tokens:
         led: l_shot_barrier
-      loops: -1
-      key: final_pulse
+        color: FFA500
 
   rise_of_phoenix_step_9_complete:
-    phoenix_final_shot_pulse:
+    stop_barrier_final:
+      show: sync_flash_mode
       action: stop
-      key: final_pulse
+      key: mode_l_shot_barrier
 
   ##############################################
   ## GI FLASH - Flash GI yellow on each shot hit

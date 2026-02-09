@@ -1,0 +1,4815 @@
+#config_version=6
+
+####################################################################################
+# PILOT TRAINING MISSION: INVERTED
+# 
+# A multiball training mission with reversed flipper controls.
+# 
+# THEME: Reversed flippers (left button = right flipper, right button = left flippers)
+# BALLS: 2 balls at start, up to 4 with add-a-balls
+# GI: Red (even lights) and White (odd lights), flickers on switch hits during collection
+# INSERT COLOR: Red (l_mode_inverted)
+# PERK: Earned when step 6 jackpot collected, stays active for rest of ball
+#
+# MODE PROGRESSION:
+# Step 1: Collect 50 switches (2,500 pts each to bank)
+# Step 2: Jackpot at CNT target (collects bank)
+# Step 3: Collect 100 switches (3,000 pts each)
+# Step 4: Jackpot at CNT target
+# Step 5: Collect 150 switches (3,500 pts each)
+# Step 6: Jackpot at CNT target - MODE WON, perk active
+# Step 7: Collect 200 switches (5,000 pts each)
+# Step 8: Jackpot at CNT target
+# Step 9: Super jackpot at LL (sum of 4 jackpots), then restart at step 1
+#
+# MODE SHOTS: Bouncing shot (LO→LR→SP→TWR→TL→TR→RR→back)
+# - Only active during switch collection steps (1, 3, 5, 7)
+# - Moves every 10 seconds
+# - Progressive scoring: starts at 150,000, +50,000 per hit
+#
+# ADD-A-BALL: ICEMAN letters (cleared at mode start/end)
+# - 1st completion: Add a ball
+# - 3rd completion: Add another ball
+# - Max 4 balls in play
+#
+# BALL SAVE: 15 seconds for initial launch and all add-a-balls
+#
+# Adjustable Timing Values:
+# - Intro video delay: 5 seconds (line ~135)
+# - Ball save duration: 15 seconds (line ~80)
+# - Mode shot timer: 10 seconds (line ~145)
+# - Barrier raise delay: 2 seconds (line ~155)
+####################################################################################
+
+mode:
+  start_events: start_mode_pilot_training_mission_inverted
+  stop_events: 
+    - pilot_training_mission_inverted_mode_ended
+  priority: 600
+  game_mode: true
+  use_wait_queue: true
+
+mode_settings:
+  can_stack_with_multiball: false
+
+####################################################################################
+# BALL HOLD NOTE
+####################################################################################
+# Ball hold during intro is handled via coil_player (c_left_lane_up_post)
+# The post is enabled on mode start and disabled on ball_released event
+
+####################################################################################
+# MULTIBALL DEVICE - Manages multiple balls in play
+####################################################################################
+
+multiballs:
+  inverted_multiball:
+    ball_count: 2
+    ball_count_type: total
+    shoot_again: 15s
+    start_events: pilot_training_mission_inverted_start_multiball
+    stop_events: mode_pilot_training_mission_inverted_will_stop
+    add_a_ball_events: pilot_training_mission_inverted_add_a_ball
+    ball_locks: 
+    source_playfield: playfield
+
+####################################################################################
+# BALL SAVES - 15 second multiball ball save
+####################################################################################
+
+ball_saves:
+  inverted_multiball_ball_save:
+    active_time: 15s
+    hurry_up_time: 2s
+    grace_period: 500ms
+    auto_launch: true
+    balls_to_save: -1
+    early_ball_save_events: s_outlane_left_active, s_outlane_right_active
+    enable_events: 
+      - pilot_training_mission_inverted_start_multiball
+      - pilot_training_mission_inverted_add_a_ball
+    disable_events: 
+      - pilot_training_mission_inverted_mode_ended
+      - ball_will_end
+    debug: true
+
+####################################################################################
+# TIMERS
+####################################################################################
+
+timers:
+  # Intro video delay - 8 seconds
+  inverted_intro_delay:
+    start_value: 0
+    end_value: 10
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: mode_pilot_training_mission_inverted_started
+        action: start
+      - event: pilot_training_mission_inverted_skip_intro
+        action: stop
+
+  # Ball release delay - flippers reverse and shots setup, then 1 second later ball releases
+  # ADJUSTABLE: Change end_value to adjust delay between flippers/shots and ball release
+  inverted_ball_release_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: pilot_training_mission_inverted_pre_release_setup
+        action: restart
+
+  # Mode shot movement timer - 10 seconds
+  inverted_mode_shot_timer:
+    start_value: 0
+    end_value: 10
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: pilot_training_mission_inverted_start_mode_shot_timer
+        action: restart
+      - event: pilot_training_mission_inverted_stop_mode_shot_timer
+        action: stop
+
+  # Barrier raise delay - 2 seconds after ball eject
+  inverted_barrier_delay:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: pilot_training_mission_inverted_barrier_delay_start
+        action: restart
+
+  # Super jackpot video delay - 5 seconds
+  inverted_super_jackpot_delay:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: pilot_training_mission_inverted_super_jackpot_collected
+        action: start
+
+  # ICEMAN completion celebration - 1 second delay before resetting lights
+  inverted_iceman_celebration_timer:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: pilot_training_mission_inverted_iceman_complete
+        action: restart
+
+####################################################################################
+# VARIABLE PLAYER - Initialize and track mode variables
+####################################################################################
+
+variable_player:
+  ##############################################
+  ## MODE INITIALIZATION
+  ##############################################
+  mode_pilot_training_mission_inverted_started:
+    # Training mission tracking
+    training_mission_active:
+      action: set
+      int: 1
+    multiball_active:
+      action: set
+      int: 1
+    letter_collection_paused:
+      action: set
+      int: 1
+    
+    # Step tracking
+    pilot_training_mission_inverted_step:
+      action: set
+      int: 0
+    
+    # Switch counting
+    pilot_training_mission_inverted_switches_hit:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_switches_needed:
+      action: set
+      int: 50
+    pilot_training_mission_inverted_current_switch_value:
+      action: set
+      int: 10000
+    
+    # Jackpot bank
+    pilot_training_mission_inverted_jackpot_value:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_switch_bank_value:
+      action: set
+      int: 0
+    
+    # Individual jackpot tracking (for super jackpot calculation)
+    pilot_training_mission_inverted_jackpot_1:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_jackpot_2:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_jackpot_3:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_jackpot_4:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_super_jackpot_value:
+      action: set
+      int: 0
+    
+    # Mode shot tracking
+    pilot_training_mission_inverted_mode_shot_value:
+      action: set
+      int: 150000
+    pilot_training_mission_inverted_mode_shot_index:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_mode_shot_direction:
+      action: set
+      int: 1
+    
+    # ICEMAN add-a-ball tracking (separate from main ICEMAN progress)
+    pilot_training_mission_inverted_iceman_i:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_iceman_c:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_iceman_e:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_iceman_m:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_iceman_a:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_iceman_n:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_iceman_completions:
+      action: set
+      int: 0
+    
+    # Mode won/perk tracking
+    pilot_training_mission_inverted_won:
+      action: set
+      int: 0
+    
+    # Ball tracking
+    pilot_training_mission_inverted_balls_in_play:
+      action: set
+      int: 2
+    
+    # Mode points display variable
+    mode_points_scored:
+      action: set
+      int: 0
+    
+    # Training mission played count
+    training_missions_played:
+      action: add
+      int: 1
+
+  ##############################################
+  ## SWITCH COUNTING - All playfield switches
+  ## During switch collection steps (1, 3, 5, 7)
+  ##############################################
+  
+  # Step 1: 2,500 points per switch
+  s_bumper_left_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_bumper_center_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_bumper_right_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_slingshot_left_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_slingshot_right_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_spinner_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_inlane_left_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_inner_inlane_right_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_outer_inlane_right_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_outlane_left_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_outlane_right_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_mig_lane_left_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_mig_lane_right_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_lane_left_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_orbit_left_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_orbit_upper_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_orbit_lower_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_orbit_right_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_i_iceman_target_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_c_iceman_target_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_e_iceman_target_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_m_iceman_target_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_a_iceman_target_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_n_iceman_target_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_l_lock_target_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_o_lock_target_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_c_lock_target_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_k_lock_target_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_flight_gear_target_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_ramp_left_exit_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_ramp_right_exit_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_ramp_inner_exit_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_ramp_tower_exit_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_lock_mav_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_lock_goose_active{current_player.pilot_training_mission_inverted_step==1}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  ##############################################
+  ## Step 2: Jackpot Lit - Continue adding to jackpot value (2,500 pts each)
+  ## Only adds to jackpot_value, not switch counting
+  ##############################################
+
+  s_bumper_left_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_bumper_center_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_bumper_right_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_slingshot_left_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_slingshot_right_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_spinner_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_inlane_left_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_inner_inlane_right_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_outer_inlane_right_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_outlane_left_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_outlane_right_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_mig_lane_left_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_mig_lane_right_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_lane_left_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_orbit_left_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_orbit_upper_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_orbit_lower_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_orbit_right_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_i_iceman_target_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_c_iceman_target_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_e_iceman_target_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_m_iceman_target_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_a_iceman_target_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_n_iceman_target_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_l_lock_target_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_o_lock_target_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_c_lock_target_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_k_lock_target_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_flight_gear_target_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_ramp_left_exit_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_ramp_right_exit_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_ramp_inner_exit_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_ramp_tower_exit_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_lock_mav_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  s_lock_goose_active{current_player.pilot_training_mission_inverted_step==2}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 10000 * current_player.total_scoring_multiplier
+
+  ##############################################
+  ## Step 3: 3,000 points per switch (100 switches needed)
+  ##############################################
+  
+  s_bumper_left_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_bumper_center_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_bumper_right_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_slingshot_left_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_slingshot_right_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_spinner_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_inlane_left_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_inner_inlane_right_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_outer_inlane_right_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_outlane_left_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_outlane_right_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_mig_lane_left_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_mig_lane_right_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_lane_left_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_orbit_left_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_orbit_upper_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_orbit_lower_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_orbit_right_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_i_iceman_target_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_c_iceman_target_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_e_iceman_target_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_m_iceman_target_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_a_iceman_target_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_n_iceman_target_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_l_lock_target_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_o_lock_target_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_c_lock_target_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_k_lock_target_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_flight_gear_target_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_ramp_left_exit_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_ramp_right_exit_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_ramp_inner_exit_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_ramp_tower_exit_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_lock_mav_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_lock_goose_active{current_player.pilot_training_mission_inverted_step==3}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  ##############################################
+  ## Step 4: Jackpot Lit - Continue adding to jackpot value (3,000 pts each)
+  ## Only adds to jackpot_value, not switch counting
+  ##############################################
+
+  s_bumper_left_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_bumper_center_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_bumper_right_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_slingshot_left_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_slingshot_right_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_spinner_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_inlane_left_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_inner_inlane_right_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_outer_inlane_right_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_outlane_left_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_outlane_right_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_mig_lane_left_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_mig_lane_right_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_lane_left_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_orbit_left_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_orbit_upper_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_orbit_lower_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_orbit_right_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_i_iceman_target_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_c_iceman_target_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_e_iceman_target_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_m_iceman_target_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_a_iceman_target_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_n_iceman_target_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_l_lock_target_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_o_lock_target_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_c_lock_target_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_k_lock_target_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_flight_gear_target_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_ramp_left_exit_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_ramp_right_exit_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_ramp_inner_exit_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_ramp_tower_exit_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_lock_mav_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  s_lock_goose_active{current_player.pilot_training_mission_inverted_step==4}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 12500 * current_player.total_scoring_multiplier
+
+  ##############################################
+  ## Step 5: 3,500 points per switch (150 switches needed)
+  ##############################################
+  
+  s_bumper_left_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_bumper_center_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_bumper_right_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_slingshot_left_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_slingshot_right_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_spinner_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_inlane_left_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_inner_inlane_right_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_outer_inlane_right_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_outlane_left_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_outlane_right_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_mig_lane_left_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_mig_lane_right_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_lane_left_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_orbit_left_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_orbit_upper_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_orbit_lower_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_orbit_right_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_i_iceman_target_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_c_iceman_target_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_e_iceman_target_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_m_iceman_target_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_a_iceman_target_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_n_iceman_target_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_l_lock_target_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_o_lock_target_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_c_lock_target_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_k_lock_target_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_flight_gear_target_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_ramp_left_exit_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_ramp_right_exit_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_ramp_inner_exit_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_ramp_tower_exit_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_lock_mav_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_lock_goose_active{current_player.pilot_training_mission_inverted_step==5}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  ##############################################
+  ## Step 6: Jackpot Lit - Continue adding to jackpot value (3,500 pts each)
+  ## Only adds to jackpot_value, not switch counting
+  ##############################################
+
+  s_bumper_left_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_bumper_center_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_bumper_right_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_slingshot_left_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_slingshot_right_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_spinner_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_inlane_left_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_inner_inlane_right_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_outer_inlane_right_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_outlane_left_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_outlane_right_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_mig_lane_left_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_mig_lane_right_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_lane_left_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_orbit_left_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_orbit_upper_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_orbit_lower_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_orbit_right_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_i_iceman_target_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_c_iceman_target_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_e_iceman_target_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_m_iceman_target_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_a_iceman_target_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_n_iceman_target_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_l_lock_target_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_o_lock_target_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_c_lock_target_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_k_lock_target_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_flight_gear_target_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_ramp_left_exit_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_ramp_right_exit_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_ramp_inner_exit_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_ramp_tower_exit_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_lock_mav_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  s_lock_goose_active{current_player.pilot_training_mission_inverted_step==6}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 15000 * current_player.total_scoring_multiplier
+
+  ##############################################
+  ## Step 7: 5,000 points per switch (200 switches needed)
+  ##############################################
+  
+  s_bumper_left_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_bumper_center_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_bumper_right_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_slingshot_left_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_slingshot_right_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_spinner_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_inlane_left_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_inner_inlane_right_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_outer_inlane_right_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_outlane_left_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_outlane_right_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_mig_lane_left_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_mig_lane_right_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_lane_left_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_orbit_left_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_orbit_upper_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_orbit_lower_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_orbit_right_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_i_iceman_target_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_c_iceman_target_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_e_iceman_target_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_m_iceman_target_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_a_iceman_target_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_n_iceman_target_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_l_lock_target_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_o_lock_target_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_c_lock_target_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_k_lock_target_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_flight_gear_target_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_ramp_left_exit_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_ramp_right_exit_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_ramp_inner_exit_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_ramp_tower_exit_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_lock_mav_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_lock_goose_active{current_player.pilot_training_mission_inverted_step==7}:
+    pilot_training_mission_inverted_switches_hit:
+      action: add
+      int: 1
+    pilot_training_mission_inverted_switches_needed:
+      action: add
+      int: -1
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+    pilot_training_mission_inverted_switch_bank_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  ##############################################
+  ## Step 8: Jackpot Lit - Continue adding to jackpot value (5,000 pts each)
+  ## Only adds to jackpot_value, not switch counting
+  ##############################################
+
+  s_bumper_left_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_bumper_center_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_bumper_right_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_slingshot_left_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_slingshot_right_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_spinner_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_inlane_left_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_inner_inlane_right_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_outer_inlane_right_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_outlane_left_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_outlane_right_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_mig_lane_left_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_mig_lane_right_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_lane_left_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_orbit_left_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_orbit_upper_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_orbit_lower_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_orbit_right_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_i_iceman_target_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_c_iceman_target_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_e_iceman_target_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_m_iceman_target_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_a_iceman_target_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_n_iceman_target_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_l_lock_target_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_o_lock_target_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_c_lock_target_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_k_lock_target_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_flight_gear_target_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_ramp_left_exit_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_ramp_right_exit_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_ramp_inner_exit_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_ramp_tower_exit_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_lock_mav_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  s_lock_goose_active{current_player.pilot_training_mission_inverted_step==8}:
+    pilot_training_mission_inverted_jackpot_value:
+      action: add
+      int: 17500 * current_player.total_scoring_multiplier
+
+  ##############################################
+  ## JACKPOT COLLECTION SCORING
+  ##############################################
+  
+  # Jackpot 1 collected (step 2)
+  pilot_training_mission_inverted_jackpot_1_collected:
+    score:
+      action: add
+      int: current_player.pilot_training_mission_inverted_jackpot_value
+    mode_points_scored:
+      action: set
+      int: current_player.pilot_training_mission_inverted_jackpot_value
+    pilot_training_mission_inverted_jackpot_1:
+      action: set
+      int: current_player.pilot_training_mission_inverted_jackpot_value
+
+  # Jackpot 2 collected (step 4)
+  pilot_training_mission_inverted_jackpot_2_collected:
+    score:
+      action: add
+      int: current_player.pilot_training_mission_inverted_jackpot_value
+    mode_points_scored:
+      action: set
+      int: current_player.pilot_training_mission_inverted_jackpot_value
+    pilot_training_mission_inverted_jackpot_2:
+      action: set
+      int: current_player.pilot_training_mission_inverted_jackpot_value
+
+  # Jackpot 3 collected (step 6) - MODE WON
+  pilot_training_mission_inverted_jackpot_3_collected:
+    score:
+      action: add
+      int: current_player.pilot_training_mission_inverted_jackpot_value
+    mode_points_scored:
+      action: set
+      int: current_player.pilot_training_mission_inverted_jackpot_value
+    pilot_training_mission_inverted_jackpot_3:
+      action: set
+      int: current_player.pilot_training_mission_inverted_jackpot_value
+    pilot_training_mission_inverted_won:
+      action: set
+      int: 1
+    training_mission_inverted_perk_active:
+      action: set
+      int: 1
+
+  # Jackpot 4 collected (step 8)
+  pilot_training_mission_inverted_jackpot_4_collected:
+    score:
+      action: add
+      int: current_player.pilot_training_mission_inverted_jackpot_value
+    mode_points_scored:
+      action: set
+      int: current_player.pilot_training_mission_inverted_jackpot_value
+    pilot_training_mission_inverted_jackpot_4:
+      action: set
+      int: current_player.pilot_training_mission_inverted_jackpot_value
+
+  # Reset jackpot value after collection (runs after the above)
+  pilot_training_mission_inverted_jackpot_reset:
+    pilot_training_mission_inverted_jackpot_value:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_switch_bank_value:
+      action: set
+      int: 0
+
+  # Super jackpot calculation (step 9 setup)
+  pilot_training_mission_inverted_setup_super_jackpot:
+    pilot_training_mission_inverted_super_jackpot_value:
+      action: set
+      int: current_player.pilot_training_mission_inverted_jackpot_1 + current_player.pilot_training_mission_inverted_jackpot_2 + current_player.pilot_training_mission_inverted_jackpot_3 + current_player.pilot_training_mission_inverted_jackpot_4
+    pilot_training_mission_inverted_switch_bank_value:
+      action: set
+      int: current_player.pilot_training_mission_inverted_jackpot_1 + current_player.pilot_training_mission_inverted_jackpot_2 + current_player.pilot_training_mission_inverted_jackpot_3 + current_player.pilot_training_mission_inverted_jackpot_4
+
+  # Super jackpot collected (step 9)
+  pilot_training_mission_inverted_super_jackpot_collected:
+    score:
+      action: add
+      int: current_player.pilot_training_mission_inverted_super_jackpot_value
+    mode_points_scored:
+      action: set
+      int: current_player.pilot_training_mission_inverted_super_jackpot_value
+
+  # Reset all jackpot tracking after super jackpot
+  pilot_training_mission_inverted_reset_all_jackpots:
+    pilot_training_mission_inverted_jackpot_1:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_jackpot_2:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_jackpot_3:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_jackpot_4:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_super_jackpot_value:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_jackpot_value:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_switch_bank_value:
+      action: set
+      int: 0
+
+  ##############################################
+  ## MODE SHOT SCORING (scores immediately)
+  ##############################################
+  
+  pilot_training_mission_inverted_mode_shot_hit:
+    score:
+      action: add
+      int: current_player.pilot_training_mission_inverted_mode_shot_value
+    mode_points_scored:
+      action: set
+      int: current_player.pilot_training_mission_inverted_mode_shot_value
+    pilot_training_mission_inverted_mode_shot_value:
+      action: add
+      int: 50000
+
+  ##############################################
+  ## ICEMAN ADD-A-BALL TRACKING
+  ##############################################
+  
+  # ICEMAN letter collection (only during this mode)
+  s_i_iceman_target_active{current_player.pilot_training_mission_inverted_iceman_i==0}:
+    pilot_training_mission_inverted_iceman_i:
+      action: set
+      int: 1
+
+  s_c_iceman_target_active{current_player.pilot_training_mission_inverted_iceman_c==0}:
+    pilot_training_mission_inverted_iceman_c:
+      action: set
+      int: 1
+
+  s_e_iceman_target_active{current_player.pilot_training_mission_inverted_iceman_e==0}:
+    pilot_training_mission_inverted_iceman_e:
+      action: set
+      int: 1
+
+  s_m_iceman_target_active{current_player.pilot_training_mission_inverted_iceman_m==0}:
+    pilot_training_mission_inverted_iceman_m:
+      action: set
+      int: 1
+
+  s_a_iceman_target_active{current_player.pilot_training_mission_inverted_iceman_a==0}:
+    pilot_training_mission_inverted_iceman_a:
+      action: set
+      int: 1
+
+  s_n_iceman_target_active{current_player.pilot_training_mission_inverted_iceman_n==0}:
+    pilot_training_mission_inverted_iceman_n:
+      action: set
+      int: 1
+
+  # ICEMAN completion tracking
+  pilot_training_mission_inverted_iceman_complete:
+    pilot_training_mission_inverted_iceman_completions:
+      action: add
+      int: 1
+    # Reset ICEMAN letters for next completion
+    pilot_training_mission_inverted_iceman_i:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_iceman_c:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_iceman_e:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_iceman_m:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_iceman_a:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_iceman_n:
+      action: set
+      int: 0
+
+  ##############################################
+  ## STEP TRANSITIONS
+  ##############################################
+  
+  # Step 1 start - set step to 1 when switch collection begins
+  pilot_training_mission_inverted_step_1_start:
+    pilot_training_mission_inverted_step:
+      action: set
+      int: 1
+    pilot_training_mission_inverted_current_switch_value:
+      action: set
+      int: 10000
+
+  # Step 1 → Step 2 (50 switches hit, jackpot lit)
+  pilot_training_mission_inverted_step_1_complete:
+    pilot_training_mission_inverted_step:
+      action: set
+      int: 2
+
+  # Step 2 → Step 3 (jackpot collected)
+  pilot_training_mission_inverted_step_2_complete:
+    pilot_training_mission_inverted_step:
+      action: set
+      int: 3
+    pilot_training_mission_inverted_switches_hit:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_switches_needed:
+      action: set
+      int: 100
+    pilot_training_mission_inverted_current_switch_value:
+      action: set
+      int: 12500
+
+  # Step 3 start - set step to 3 when returning from step 9 restart
+  pilot_training_mission_inverted_step_3_start:
+    pilot_training_mission_inverted_step:
+      action: set
+      int: 3
+    pilot_training_mission_inverted_current_switch_value:
+      action: set
+      int: 12500
+    pilot_training_mission_inverted_switches_needed:
+      action: set
+      int: 100
+
+  # Step 3 → Step 4 (100 switches hit, jackpot lit)
+  pilot_training_mission_inverted_step_3_complete:
+    pilot_training_mission_inverted_step:
+      action: set
+      int: 4
+
+  # Step 4 → Step 5 (jackpot collected)
+  pilot_training_mission_inverted_step_4_complete:
+    pilot_training_mission_inverted_step:
+      action: set
+      int: 5
+    pilot_training_mission_inverted_switches_hit:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_switches_needed:
+      action: set
+      int: 150
+    pilot_training_mission_inverted_current_switch_value:
+      action: set
+      int: 15000
+
+  # Step 5 start - set step to 5
+  pilot_training_mission_inverted_step_5_start:
+    pilot_training_mission_inverted_step:
+      action: set
+      int: 5
+    pilot_training_mission_inverted_current_switch_value:
+      action: set
+      int: 15000
+    pilot_training_mission_inverted_switches_needed:
+      action: set
+      int: 150
+
+  # Step 5 → Step 6 (150 switches hit, jackpot lit)
+  pilot_training_mission_inverted_step_5_complete:
+    pilot_training_mission_inverted_step:
+      action: set
+      int: 6
+
+  # Step 6 → Step 7 (jackpot collected - MODE WON)
+  pilot_training_mission_inverted_step_6_complete:
+    pilot_training_mission_inverted_step:
+      action: set
+      int: 7
+    pilot_training_mission_inverted_switches_hit:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_switches_needed:
+      action: set
+      int: 200
+    pilot_training_mission_inverted_current_switch_value:
+      action: set
+      int: 17500
+
+  # Step 7 start - set step to 7
+  pilot_training_mission_inverted_step_7_start:
+    pilot_training_mission_inverted_step:
+      action: set
+      int: 7
+    pilot_training_mission_inverted_current_switch_value:
+      action: set
+      int: 17500
+    pilot_training_mission_inverted_switches_needed:
+      action: set
+      int: 200
+
+  # Step 7 → Step 8 (200 switches hit, jackpot lit)
+  pilot_training_mission_inverted_step_7_complete:
+    pilot_training_mission_inverted_step:
+      action: set
+      int: 8
+
+  # Step 8 → Step 9 (jackpot collected)
+  pilot_training_mission_inverted_step_8_complete:
+    pilot_training_mission_inverted_step:
+      action: set
+      int: 9
+
+  # Step 9 → Step 1 (super jackpot collected, restart)
+  pilot_training_mission_inverted_step_9_complete:
+    pilot_training_mission_inverted_step:
+      action: set
+      int: 1
+    pilot_training_mission_inverted_switches_hit:
+      action: set
+      int: 0
+    pilot_training_mission_inverted_switches_needed:
+      action: set
+      int: 50
+    pilot_training_mission_inverted_current_switch_value:
+      action: set
+      int: 10000
+
+  ##############################################
+  ## MODE SHOT INDEX MOVEMENT
+  ##############################################
+  
+  # Move shot forward (direction = 1)
+  pilot_training_mission_inverted_move_shot_forward{current_player.pilot_training_mission_inverted_mode_shot_index < 6}:
+    pilot_training_mission_inverted_mode_shot_index:
+      action: add
+      int: 1
+
+  # Hit end, reverse direction
+  pilot_training_mission_inverted_move_shot_forward{current_player.pilot_training_mission_inverted_mode_shot_index == 6}:
+    pilot_training_mission_inverted_mode_shot_direction:
+      action: set
+      int: -1
+    pilot_training_mission_inverted_mode_shot_index:
+      action: add
+      int: -1
+
+  # Move shot backward (direction = -1)
+  pilot_training_mission_inverted_move_shot_backward{current_player.pilot_training_mission_inverted_mode_shot_index > 0}:
+    pilot_training_mission_inverted_mode_shot_index:
+      action: add
+      int: -1
+
+  # Hit start, reverse direction
+  pilot_training_mission_inverted_move_shot_backward{current_player.pilot_training_mission_inverted_mode_shot_index == 0}:
+    pilot_training_mission_inverted_mode_shot_direction:
+      action: set
+      int: 1
+    pilot_training_mission_inverted_mode_shot_index:
+      action: add
+      int: 1
+
+  ##############################################
+  ## MODE COMPLETION TRACKING
+  ##############################################
+  
+  # Set training_inverted_complete when mode ends (win or lose)
+  # This tells iceman_letters to leave the insert light alone
+  pilot_training_mission_inverted_mode_ended:
+    training_inverted_complete:
+      action: set
+      int: 1
+
+####################################################################################
+# EVENT PLAYER - Mode flow and shot detection
+####################################################################################
+
+event_player:
+  ##############################################
+  ## MODE START SEQUENCE
+  ##############################################
+  
+  # Delayed GI reset - ensures GI colors are set AFTER any other modes finish their light setup
+  # Also play mode instructions voice during ball hold
+  mode_pilot_training_mission_inverted_started:
+    - pilot_training_mission_inverted_set_gi|200ms
+    - pilot_training_mission_inverted_play_instructions_voice
+  
+  # Skip intro with both flippers
+  s_flipper_left_active{current_player.pilot_training_mission_inverted_step==0 and device.timers.inverted_intro_delay.running}:
+    - pilot_training_mission_inverted_check_skip_intro
+  s_flipper_right_active{current_player.pilot_training_mission_inverted_step==0 and device.timers.inverted_intro_delay.running}:
+    - pilot_training_mission_inverted_check_skip_intro
+    
+  pilot_training_mission_inverted_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - pilot_training_mission_inverted_skip_intro
+    
+  # SKIP PATH: Setup shots and reverse flippers (ball releases 1 second later via delay timer)
+  pilot_training_mission_inverted_skip_intro:
+    - pilot_training_mission_inverted_pre_release_setup
+
+  # Intro timer complete - setup shots and reverse flippers (ball releases 1 second later)
+  timer_inverted_intro_delay_complete:
+    - pilot_training_mission_inverted_pre_release_setup
+
+  # Pre-release: Reverse flippers and setup shots BEFORE ball releases
+  # This gives player 1 second to see shots and adjust to reversed flippers
+  pilot_training_mission_inverted_pre_release_setup:
+    - disable_normal_flippers
+    - enable_reversed_flippers
+    - pilot_training_mission_inverted_setup_step_1
+
+  # Ball release delay complete - now release ball and start multiball
+  timer_inverted_ball_release_delay_complete:
+    - pilot_training_mission_inverted_ball_released
+
+  # Ball released - start multiball (flippers already reversed)
+  pilot_training_mission_inverted_ball_released:
+    - pilot_training_mission_inverted_start_multiball
+
+  ##############################################
+  ## STEP SETUP EVENTS
+  ##############################################
+  
+  # Setup Step 1 - Start switch collection
+  pilot_training_mission_inverted_setup_step_1:
+    - pilot_training_mission_inverted_step_1_start
+    - pilot_training_mission_inverted_start_mode_shot_timer
+    - pilot_training_mission_inverted_setup_mode_shot
+
+  # Step 1 complete check (50 switches)
+  player_pilot_training_mission_inverted_switches_hit{value>=50 and current_player.pilot_training_mission_inverted_step==1}:
+    - pilot_training_mission_inverted_step_1_complete
+    - pilot_training_mission_inverted_setup_step_2
+    - pilot_training_mission_inverted_stop_mode_shot_timer
+
+  # Setup Step 2 - Jackpot at CNT
+  pilot_training_mission_inverted_setup_step_2:
+    - barrier_raise
+    - pilot_training_mission_inverted_jackpot_lit
+
+  # Jackpot 1 hit (step 2)
+  s_barrier_target_active{current_player.pilot_training_mission_inverted_step==2}:
+    - pilot_training_mission_inverted_jackpot_1_collected
+    - pilot_training_mission_inverted_jackpot_reset
+    - pilot_training_mission_inverted_step_2_complete
+    - pilot_training_mission_inverted_setup_step_3
+
+  # Setup Step 3 - Switch collection (150)
+  pilot_training_mission_inverted_setup_step_3:
+    - pilot_training_mission_inverted_step_3_start
+    - pilot_training_mission_inverted_start_mode_shot_timer
+    - pilot_training_mission_inverted_setup_mode_shot
+
+  # Step 3 complete check (100 switches)
+  player_pilot_training_mission_inverted_switches_hit{value>=100 and current_player.pilot_training_mission_inverted_step==3}:
+    - pilot_training_mission_inverted_step_3_complete
+    - pilot_training_mission_inverted_setup_step_4
+    - pilot_training_mission_inverted_stop_mode_shot_timer
+
+  # Setup Step 4 - Jackpot at CNT
+  pilot_training_mission_inverted_setup_step_4:
+    - barrier_raise
+    - pilot_training_mission_inverted_jackpot_lit
+
+  # Jackpot 2 hit (step 4)
+  s_barrier_target_active{current_player.pilot_training_mission_inverted_step==4}:
+    - pilot_training_mission_inverted_jackpot_2_collected
+    - pilot_training_mission_inverted_jackpot_reset
+    - pilot_training_mission_inverted_step_4_complete
+    - pilot_training_mission_inverted_setup_step_5
+
+  # Setup Step 5 - Switch collection (300)
+  pilot_training_mission_inverted_setup_step_5:
+    - pilot_training_mission_inverted_step_5_start
+    - pilot_training_mission_inverted_start_mode_shot_timer
+    - pilot_training_mission_inverted_setup_mode_shot
+
+  # Step 5 complete check (150 switches)
+  player_pilot_training_mission_inverted_switches_hit{value>=150 and current_player.pilot_training_mission_inverted_step==5}:
+    - pilot_training_mission_inverted_step_5_complete
+    - pilot_training_mission_inverted_setup_step_6
+    - pilot_training_mission_inverted_stop_mode_shot_timer
+
+  # Setup Step 6 - Jackpot at CNT (MODE WIN)
+  pilot_training_mission_inverted_setup_step_6:
+    - barrier_raise
+    - pilot_training_mission_inverted_jackpot_lit
+
+  # Jackpot 3 hit (step 6) - MODE WON
+  s_barrier_target_active{current_player.pilot_training_mission_inverted_step==6}:
+    - pilot_training_mission_inverted_jackpot_3_collected
+    - pilot_training_mission_inverted_jackpot_reset
+    - pilot_training_mission_inverted_step_6_complete
+    - pilot_training_mission_inverted_mode_won
+    - pilot_training_mission_inverted_setup_step_7
+
+  # Setup Step 7 - Switch collection (500)
+  pilot_training_mission_inverted_setup_step_7:
+    - pilot_training_mission_inverted_step_7_start
+    - pilot_training_mission_inverted_start_mode_shot_timer
+    - pilot_training_mission_inverted_setup_mode_shot
+
+  # Step 7 complete check (200 switches)
+  player_pilot_training_mission_inverted_switches_hit{value>=200 and current_player.pilot_training_mission_inverted_step==7}:
+    - pilot_training_mission_inverted_step_7_complete
+    - pilot_training_mission_inverted_setup_step_8
+    - pilot_training_mission_inverted_stop_mode_shot_timer
+
+  # Setup Step 8 - Jackpot at CNT
+  pilot_training_mission_inverted_setup_step_8:
+    - barrier_raise
+    - pilot_training_mission_inverted_jackpot_lit
+
+  # Jackpot 4 hit (step 8)
+  s_barrier_target_active{current_player.pilot_training_mission_inverted_step==8}:
+    - pilot_training_mission_inverted_jackpot_4_collected
+    - pilot_training_mission_inverted_jackpot_reset
+    - pilot_training_mission_inverted_step_8_complete
+    - pilot_training_mission_inverted_setup_step_9
+
+  # Setup Step 9 - Super jackpot at LL
+  pilot_training_mission_inverted_setup_step_9:
+    - pilot_training_mission_inverted_setup_super_jackpot
+    - pilot_training_mission_inverted_super_jackpot_lit
+    - right_ramp_up
+    - left_orbit_diverter_enable
+
+  # Super jackpot hit (step 9)
+  s_lane_left_active{current_player.pilot_training_mission_inverted_step==9}:
+    - pilot_training_mission_inverted_super_jackpot_collected
+    - pilot_training_mission_inverted_reset_all_jackpots
+    - pilot_training_mission_inverted_step_9_complete
+    - right_ramp_down
+    - left_orbit_diverter_disable
+    - pilot_training_mission_inverted_setup_step_1
+
+  ##############################################
+  ## MODE SHOT TIMER
+  ##############################################
+  
+  timer_inverted_mode_shot_timer_complete{current_player.pilot_training_mission_inverted_mode_shot_direction==1}:
+    - pilot_training_mission_inverted_move_shot_forward
+    - pilot_training_mission_inverted_setup_mode_shot
+    - pilot_training_mission_inverted_start_mode_shot_timer
+
+  timer_inverted_mode_shot_timer_complete{current_player.pilot_training_mission_inverted_mode_shot_direction==-1}:
+    - pilot_training_mission_inverted_move_shot_backward
+    - pilot_training_mission_inverted_setup_mode_shot
+    - pilot_training_mission_inverted_start_mode_shot_timer
+
+  ##############################################
+  ## MODE SHOT HITS (only during collection steps 1, 3, 5, 7)
+  ##############################################
+  
+  # Shot 0: LO (Left Orbit)
+  s_orbit_left_active{current_player.pilot_training_mission_inverted_mode_shot_index==0 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
+    - pilot_training_mission_inverted_mode_shot_hit
+    - pilot_training_mission_inverted_advance_mode_shot
+
+  # Shot 1: LR (Left Ramp)
+  s_ramp_left_exit_active{current_player.pilot_training_mission_inverted_mode_shot_index==1 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
+    - pilot_training_mission_inverted_mode_shot_hit
+    - pilot_training_mission_inverted_advance_mode_shot
+
+  # Shot 2: SP (Spinner)
+  spinner_shot_made{current_player.pilot_training_mission_inverted_mode_shot_index==2 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
+    - pilot_training_mission_inverted_mode_shot_hit
+    - pilot_training_mission_inverted_advance_mode_shot
+
+  # Shot 3: TWR (Tower)
+  s_ramp_tower_exit_active{current_player.pilot_training_mission_inverted_mode_shot_index==3 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
+    - pilot_training_mission_inverted_mode_shot_hit
+    - pilot_training_mission_inverted_advance_mode_shot
+
+  # Shot 4: TL (Top Loop)
+  s_orbit_upper_active{current_player.pilot_training_mission_inverted_mode_shot_index==4 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
+    - pilot_training_mission_inverted_mode_shot_hit
+    - pilot_training_mission_inverted_advance_mode_shot
+
+  # Shot 5: TR (Top Ramp)
+  s_ramp_inner_exit_active{current_player.pilot_training_mission_inverted_mode_shot_index==5 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
+    - pilot_training_mission_inverted_mode_shot_hit
+    - pilot_training_mission_inverted_advance_mode_shot
+
+  # Shot 6: RR (Right Ramp)
+  s_ramp_right_exit_active{current_player.pilot_training_mission_inverted_mode_shot_index==6 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
+    - pilot_training_mission_inverted_mode_shot_hit
+    - pilot_training_mission_inverted_advance_mode_shot
+
+  # Advance mode shot after hit
+  pilot_training_mission_inverted_advance_mode_shot{current_player.pilot_training_mission_inverted_mode_shot_direction==1}:
+    - pilot_training_mission_inverted_move_shot_forward
+    - pilot_training_mission_inverted_setup_mode_shot
+    - pilot_training_mission_inverted_start_mode_shot_timer
+
+  pilot_training_mission_inverted_advance_mode_shot{current_player.pilot_training_mission_inverted_mode_shot_direction==-1}:
+    - pilot_training_mission_inverted_move_shot_backward
+    - pilot_training_mission_inverted_setup_mode_shot
+    - pilot_training_mission_inverted_start_mode_shot_timer
+
+  ##############################################
+  ## ICEMAN ADD-A-BALL CHECK
+  ##############################################
+  
+  # Check for ICEMAN completion after any letter hit
+  # The letter being hit was 0 (just about to be set to 1), other 5 must be 1
+  s_i_iceman_target_active{current_player.pilot_training_mission_inverted_iceman_i==0 and current_player.pilot_training_mission_inverted_iceman_c==1 and current_player.pilot_training_mission_inverted_iceman_e==1 and current_player.pilot_training_mission_inverted_iceman_m==1 and current_player.pilot_training_mission_inverted_iceman_a==1 and current_player.pilot_training_mission_inverted_iceman_n==1}:
+    - pilot_training_mission_inverted_iceman_complete
+  s_c_iceman_target_active{current_player.pilot_training_mission_inverted_iceman_i==1 and current_player.pilot_training_mission_inverted_iceman_c==0 and current_player.pilot_training_mission_inverted_iceman_e==1 and current_player.pilot_training_mission_inverted_iceman_m==1 and current_player.pilot_training_mission_inverted_iceman_a==1 and current_player.pilot_training_mission_inverted_iceman_n==1}:
+    - pilot_training_mission_inverted_iceman_complete
+  s_e_iceman_target_active{current_player.pilot_training_mission_inverted_iceman_i==1 and current_player.pilot_training_mission_inverted_iceman_c==1 and current_player.pilot_training_mission_inverted_iceman_e==0 and current_player.pilot_training_mission_inverted_iceman_m==1 and current_player.pilot_training_mission_inverted_iceman_a==1 and current_player.pilot_training_mission_inverted_iceman_n==1}:
+    - pilot_training_mission_inverted_iceman_complete
+  s_m_iceman_target_active{current_player.pilot_training_mission_inverted_iceman_i==1 and current_player.pilot_training_mission_inverted_iceman_c==1 and current_player.pilot_training_mission_inverted_iceman_e==1 and current_player.pilot_training_mission_inverted_iceman_m==0 and current_player.pilot_training_mission_inverted_iceman_a==1 and current_player.pilot_training_mission_inverted_iceman_n==1}:
+    - pilot_training_mission_inverted_iceman_complete
+  s_a_iceman_target_active{current_player.pilot_training_mission_inverted_iceman_i==1 and current_player.pilot_training_mission_inverted_iceman_c==1 and current_player.pilot_training_mission_inverted_iceman_e==1 and current_player.pilot_training_mission_inverted_iceman_m==1 and current_player.pilot_training_mission_inverted_iceman_a==0 and current_player.pilot_training_mission_inverted_iceman_n==1}:
+    - pilot_training_mission_inverted_iceman_complete
+  s_n_iceman_target_active{current_player.pilot_training_mission_inverted_iceman_i==1 and current_player.pilot_training_mission_inverted_iceman_c==1 and current_player.pilot_training_mission_inverted_iceman_e==1 and current_player.pilot_training_mission_inverted_iceman_m==1 and current_player.pilot_training_mission_inverted_iceman_a==1 and current_player.pilot_training_mission_inverted_iceman_n==0}:
+    - pilot_training_mission_inverted_iceman_complete
+
+  # Add-a-ball on 1st and 3rd ICEMAN completion (max 4 balls)
+  # Use player variable change event which fires AFTER the increment
+  player_pilot_training_mission_inverted_iceman_completions{value==1 and current_player.pilot_training_mission_inverted_balls_in_play<4}:
+    - pilot_training_mission_inverted_add_a_ball
+  player_pilot_training_mission_inverted_iceman_completions{value==3 and current_player.pilot_training_mission_inverted_balls_in_play<4}:
+    - pilot_training_mission_inverted_add_a_ball
+
+  ##############################################
+  ## GI ANIMATIONS ON HITS
+  ##############################################
+  
+  # Switch hits - trigger double flash (all steps during mode)
+  s_bumper_left_active{current_player.pilot_training_mission_inverted_step>=1}:
+    - pilot_training_mission_inverted_switch_gi_flash
+  s_bumper_center_active{current_player.pilot_training_mission_inverted_step>=1}:
+    - pilot_training_mission_inverted_switch_gi_flash
+  s_bumper_right_active{current_player.pilot_training_mission_inverted_step>=1}:
+    - pilot_training_mission_inverted_switch_gi_flash
+  s_slingshot_left_active{current_player.pilot_training_mission_inverted_step>=1}:
+    - pilot_training_mission_inverted_switch_gi_flash
+  s_slingshot_right_active{current_player.pilot_training_mission_inverted_step>=1}:
+    - pilot_training_mission_inverted_switch_gi_flash
+
+  # Spinner - trigger continuous flash (starts on first spin)
+  s_spinner_active{current_player.pilot_training_mission_inverted_step>=1}:
+    - pilot_training_mission_inverted_spinner_gi_flash
+  
+  # Mode shot hit - trigger 1-second rapid flash + random voice callout
+  pilot_training_mission_inverted_mode_shot_hit:
+    - pilot_training_mission_inverted_mode_shot_gi_flash
+    - play_shot_made_callout
+
+  ##############################################
+  ## MULTIBALL END CHECK
+  ##############################################
+  
+  # Check for single ball (multiball ended)
+  multiball_inverted_multiball_ball_lost:
+    - pilot_training_mission_inverted_check_single_ball
+  
+  # Also check when multiball device reports ended
+  multiball_inverted_multiball_ended:
+    - pilot_training_mission_inverted_mode_ended
+
+  pilot_training_mission_inverted_check_single_ball{device.multiballs.inverted_multiball.balls_live_target==1}:
+    - pilot_training_mission_inverted_mode_ended
+
+  ##############################################
+  ## MODE CLEANUP
+  ##############################################
+  
+  pilot_training_mission_inverted_mode_ended:
+    - disable_reversed_flippers
+    - enable_normal_flippers
+    - pilot_training_mission_inverted_cleanup
+
+  # Fire mode_failed if mode ended without winning
+  pilot_training_mission_inverted_mode_ended{current_player.pilot_training_mission_inverted_won==0}:
+    - pilot_training_mission_inverted_mode_failed
+
+  pilot_training_mission_inverted_cleanup:
+    - right_ramp_down
+    - left_orbit_diverter_disable
+    - barrier_raise
+
+####################################################################################
+# SOUND PLAYER - Mode Voice Callouts
+####################################################################################
+# Instructions voice plays when ball is released (after intro hold)
+# Jackpot callout plays when jackpot is lit (steps 2, 4, 6, 8)
+#
+# Sound files located in:
+#   modes/pilot_training_mission_inverted/sounds/voice/
+####################################################################################
+
+sound_player:
+  # Mode instructions voice - plays when ball releases after intro
+  pilot_training_mission_inverted_play_instructions_voice:
+    voice_inverted_training_mission_instructions:
+      bus: voice
+      loops: 0
+
+  # Jackpot callout - plays when jackpot is lit at CNT (steps 2, 4, 6, 8)
+  pilot_training_mission_inverted_jackpot_lit:
+    voice_shoot_center_target_for_jackpot:
+      bus: voice
+      loops: 0
+
+####################################################################################
+# SLIDE PLAYER
+####################################################################################
+
+slide_player:
+  # Show instructions immediately at mode start (5 second hold lets player read)
+  mode_pilot_training_mission_inverted_started:
+    inverted_instructions:
+      action: play
+      priority: 800
+
+  # Step 2 (jackpot 1 lit) - show jackpot instructions
+  pilot_training_mission_inverted_setup_step_2:
+    inverted_instructions:
+      action: remove
+    inverted_instructions_jackpot:
+      action: play
+      priority: 800
+
+  # Step 3 (back to switch collecting) - show normal instructions
+  pilot_training_mission_inverted_setup_step_3:
+    inverted_instructions_jackpot:
+      action: remove
+    inverted_instructions:
+      action: play
+      priority: 800
+
+  # Step 4 (jackpot 2 lit) - show jackpot instructions
+  pilot_training_mission_inverted_setup_step_4:
+    inverted_instructions:
+      action: remove
+    inverted_instructions_jackpot:
+      action: play
+      priority: 800
+
+  # Step 5 (back to switch collecting) - show normal instructions
+  pilot_training_mission_inverted_setup_step_5:
+    inverted_instructions_jackpot:
+      action: remove
+    inverted_instructions:
+      action: play
+      priority: 800
+
+  # Step 6 (jackpot 3 lit) - show jackpot instructions
+  pilot_training_mission_inverted_setup_step_6:
+    inverted_instructions:
+      action: remove
+    inverted_instructions_jackpot:
+      action: play
+      priority: 800
+
+  # Step 7 (back to switch collecting) - show normal instructions
+  pilot_training_mission_inverted_setup_step_7:
+    inverted_instructions_jackpot:
+      action: remove
+    inverted_instructions:
+      action: play
+      priority: 800
+
+  # Step 8 (jackpot 4 lit) - show jackpot instructions
+  pilot_training_mission_inverted_setup_step_8:
+    inverted_instructions:
+      action: remove
+    inverted_instructions_jackpot:
+      action: play
+      priority: 800
+
+  # Step 9 (super jackpot lit) - show super jackpot instructions
+  pilot_training_mission_inverted_setup_step_9:
+    inverted_instructions_jackpot:
+      action: remove
+    inverted_instructions_super_jackpot:
+      action: play
+      priority: 800
+
+  # Mode shot hit - show points scored
+  pilot_training_mission_inverted_mode_shot_hit:
+    mode_points_scored:
+      action: play
+      priority: 850
+      expire: 2s
+
+  pilot_training_mission_inverted_jackpot_1_collected:
+    inverted_jackpot_1:
+      action: play
+      priority: 850
+      expire: 12s
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 3s
+
+  pilot_training_mission_inverted_jackpot_2_collected:
+    inverted_jackpot_1:
+      action: remove
+    inverted_jackpot_2:
+      action: play
+      priority: 850
+      expire: 9s
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 3s
+
+  pilot_training_mission_inverted_jackpot_3_collected:
+    inverted_jackpot_2:
+      action: remove
+    inverted_jackpot_3:
+      action: play
+      priority: 850
+      expire: 21s
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 3s
+
+  # Jackpot 4 collected - just show video and points (slide switching handled by setup_step_9)
+  pilot_training_mission_inverted_jackpot_4_collected:
+    inverted_jackpot_3:
+      action: remove
+    inverted_jackpot_4:
+      action: play
+      priority: 850
+      expire: 65s
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 3s
+
+  pilot_training_mission_inverted_super_jackpot_collected:
+    inverted_jackpot_4:
+      action: remove
+    inverted_super_jackpot:
+      action: play
+      priority: 900
+      expire: 21s
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 5s
+
+  # After super jackpot collected (step 9 complete), remove super jackpot instructions
+  # and show normal instructions again (loop restarts)
+  pilot_training_mission_inverted_step_9_complete:
+    inverted_instructions_super_jackpot:
+      action: remove
+    inverted_instructions:
+      action: play
+      priority: 800
+
+  pilot_training_mission_inverted_add_a_ball:
+    multiball_add_a_ball:
+      action: play
+      priority: 850
+      expire: 3s
+
+  pilot_training_mission_inverted_mode_won:
+    inverted_mode_won:
+      action: play
+      priority: 900
+      expire: 3s
+    # inverted_perk_active slide is played by iceman_letters via training_inverted_mode_over event
+    # Do NOT play it here - mode slides get cleared when mode stops
+
+  # Cleanup - remove all instruction slides when mode ends
+  pilot_training_mission_inverted_cleanup:
+    inverted_instructions:
+      action: remove
+    inverted_instructions_jackpot:
+      action: remove
+    inverted_instructions_super_jackpot:
+      action: remove
+    mode_points_scored:
+      action: remove
+    # Note: inverted_perk_active slide should be handled by base.yaml to persist after mode ends
+    # For now, do NOT remove it here - let ball_ending in base.yaml handle removal
+
+####################################################################################
+# LIGHT PLAYER - GI and Insert Lighting
+####################################################################################
+
+light_player:
+  # Mode start - Set GI to red/white pattern (even=green in config, odd=white)
+  # NOTE: Using "green" because hardware reverses red/green - green displays as red
+  mode_pilot_training_mission_inverted_started:
+    gi_lights:
+      color: green
+      fade: 0ms
+    l_gi_light_1:
+      color: white
+      fade: 0ms
+    l_gi_light_2:
+      color: green
+      fade: 0ms
+    l_gi_light_3:
+      color: white
+      fade: 0ms
+    l_gi_light_4:
+      color: green
+      fade: 0ms
+    l_gi_light_5:
+      color: white
+      fade: 0ms
+    l_gi_light_6:
+      color: green
+      fade: 0ms
+    l_gi_light_7:
+      color: white
+      fade: 0ms
+    l_gi_light_8:
+      color: green
+      fade: 0ms
+    l_gi_light_9:
+      color: white
+      fade: 0ms
+    l_gi_light_10:
+      color: green
+      fade: 0ms
+    l_gi_light_11:
+      color: white
+      fade: 0ms
+    l_gi_light_12:
+      color: green
+      fade: 0ms
+    l_gi_light_13:
+      color: white
+      fade: 0ms
+    l_gi_light_14:
+      color: green
+      fade: 0ms
+    l_gi_light_15:
+      color: white
+      fade: 0ms
+    l_gi_light_16:
+      color: green
+      fade: 0ms
+    l_gi_light_17:
+      color: white
+      fade: 0ms
+    l_gi_light_18:
+      color: green
+      fade: 0ms
+    l_gi_light_19:
+      color: white
+      fade: 0ms
+    l_gi_light_20:
+      color: green
+      fade: 0ms
+    l_gi_light_21:
+      color: white
+      fade: 0ms
+    l_gi_light_22:
+      color: green
+      fade: 0ms
+    l_gi_light_23:
+      color: white
+      fade: 0ms
+    l_gi_light_24:
+      color: green
+      fade: 0ms
+    l_gi_light_25:
+      color: white
+      fade: 0ms
+    l_gi_light_26:
+      color: green
+      fade: 0ms
+    l_gi_light_27:
+      color: white
+      fade: 0ms
+    # Apron lights - 1,3=white, 2,4=green (displays as red)
+    l_apron_light_1:
+      color: white
+      fade: 0ms
+    l_apron_light_2:
+      color: green
+      fade: 0ms
+    l_apron_light_3:
+      color: white
+      fade: 0ms
+    l_apron_light_4:
+      color: green
+      fade: 0ms
+    # Mode insert - pulsing handled by show_player (inverted_insert_pulse)
+    # No static light needed here
+    # Clear ICEMAN lights at mode start (we use them for add-a-ball tracking)
+    l_iceman_i:
+      color: off
+      fade: 0ms
+    l_iceman_c:
+      color: off
+      fade: 0ms
+    l_iceman_e:
+      color: off
+      fade: 0ms
+    l_iceman_m:
+      color: off
+      fade: 0ms
+    l_iceman_a:
+      color: off
+      fade: 0ms
+    l_iceman_n:
+      color: off
+      fade: 0ms
+
+  # Delayed GI reset - fires 200ms after mode start to override any other mode's GI settings
+  # NOTE: Using "green" because hardware reverses red/green - green displays as red
+  pilot_training_mission_inverted_set_gi:
+    l_gi_light_1:
+      color: white
+      fade: 0ms
+    l_gi_light_2:
+      color: green
+      fade: 0ms
+    l_gi_light_3:
+      color: white
+      fade: 0ms
+    l_gi_light_4:
+      color: green
+      fade: 0ms
+    l_gi_light_5:
+      color: white
+      fade: 0ms
+    l_gi_light_6:
+      color: green
+      fade: 0ms
+    l_gi_light_7:
+      color: white
+      fade: 0ms
+    l_gi_light_8:
+      color: green
+      fade: 0ms
+    l_gi_light_9:
+      color: white
+      fade: 0ms
+    l_gi_light_10:
+      color: green
+      fade: 0ms
+    l_gi_light_11:
+      color: white
+      fade: 0ms
+    l_gi_light_12:
+      color: green
+      fade: 0ms
+    l_gi_light_13:
+      color: white
+      fade: 0ms
+    l_gi_light_14:
+      color: green
+      fade: 0ms
+    l_gi_light_15:
+      color: white
+      fade: 0ms
+    l_gi_light_16:
+      color: green
+      fade: 0ms
+    l_gi_light_17:
+      color: white
+      fade: 0ms
+    l_gi_light_18:
+      color: green
+      fade: 0ms
+    l_gi_light_19:
+      color: white
+      fade: 0ms
+    l_gi_light_20:
+      color: green
+      fade: 0ms
+    l_gi_light_21:
+      color: white
+      fade: 0ms
+    l_gi_light_22:
+      color: green
+      fade: 0ms
+    l_gi_light_23:
+      color: white
+      fade: 0ms
+    l_gi_light_24:
+      color: green
+      fade: 0ms
+    l_gi_light_25:
+      color: white
+      fade: 0ms
+    l_gi_light_26:
+      color: green
+      fade: 0ms
+    l_gi_light_27:
+      color: white
+      fade: 0ms
+    l_apron_light_1:
+      color: white
+      fade: 0ms
+    l_apron_light_2:
+      color: green
+      fade: 0ms
+    l_apron_light_3:
+      color: white
+      fade: 0ms
+    l_apron_light_4:
+      color: green
+      fade: 0ms
+
+  # Mode insert light is handled by iceman_letters after mode stops
+  # (delayed event sets white 500ms after clear event)
+
+  # Cleanup - restore GI to white and clear ICEMAN lights
+  pilot_training_mission_inverted_cleanup:
+    gi_lights:
+      color: white
+      fade: 0ms
+    l_shoot_again:
+      color: off
+      fade: 0ms
+    l_iceman_i:
+      color: off
+      fade: 0ms
+    l_iceman_c:
+      color: off
+      fade: 0ms
+    l_iceman_e:
+      color: off
+      fade: 0ms
+    l_iceman_m:
+      color: off
+      fade: 0ms
+    l_iceman_a:
+      color: off
+      fade: 0ms
+    l_iceman_n:
+      color: off
+      fade: 0ms
+
+  # ICEMAN lights for add-a-ball tracking
+  # Green when collecting (all 3 progressions until 2nd add-a-ball)
+  player_pilot_training_mission_inverted_iceman_i{value==1 and current_player.pilot_training_mission_inverted_iceman_completions<3}:
+    l_iceman_i:
+      color: green
+      fade: 0ms
+  player_pilot_training_mission_inverted_iceman_c{value==1 and current_player.pilot_training_mission_inverted_iceman_completions<3}:
+    l_iceman_c:
+      color: green
+      fade: 0ms
+  player_pilot_training_mission_inverted_iceman_e{value==1 and current_player.pilot_training_mission_inverted_iceman_completions<3}:
+    l_iceman_e:
+      color: green
+      fade: 0ms
+  player_pilot_training_mission_inverted_iceman_m{value==1 and current_player.pilot_training_mission_inverted_iceman_completions<3}:
+    l_iceman_m:
+      color: green
+      fade: 0ms
+  player_pilot_training_mission_inverted_iceman_a{value==1 and current_player.pilot_training_mission_inverted_iceman_completions<3}:
+    l_iceman_a:
+      color: green
+      fade: 0ms
+  player_pilot_training_mission_inverted_iceman_n{value==1 and current_player.pilot_training_mission_inverted_iceman_completions<3}:
+    l_iceman_n:
+      color: green
+      fade: 0ms
+
+  # After 3rd completion (2nd add-a-ball), all ICEMAN lights stay solid orange
+  player_pilot_training_mission_inverted_iceman_completions{value>=3}:
+    l_iceman_i:
+      color: orange
+      fade: 0ms
+    l_iceman_c:
+      color: orange
+      fade: 0ms
+    l_iceman_e:
+      color: orange
+      fade: 0ms
+    l_iceman_m:
+      color: orange
+      fade: 0ms
+    l_iceman_a:
+      color: orange
+      fade: 0ms
+    l_iceman_n:
+      color: orange
+      fade: 0ms
+
+  # Reset ICEMAN lights after celebration timer (only if completions < 3)
+  timer_inverted_iceman_celebration_timer_complete{current_player.pilot_training_mission_inverted_iceman_completions<3}:
+    l_iceman_i:
+      color: off
+      fade: 0ms
+    l_iceman_c:
+      color: off
+      fade: 0ms
+    l_iceman_e:
+      color: off
+      fade: 0ms
+    l_iceman_m:
+      color: off
+      fade: 0ms
+    l_iceman_a:
+      color: off
+      fade: 0ms
+    l_iceman_n:
+      color: off
+      fade: 0ms
+
+  ##############################################
+  ## SHOOT AGAIN LIGHT (Ball Save)
+  ##############################################
+  
+  # Flash shoot again when ball save is enabled
+  ball_save_inverted_multiball_ball_save_enabled:
+    l_shoot_again:
+      color: white
+      fade: 0ms
+  
+  # Turn off shoot again when ball save disabled
+  ball_save_inverted_multiball_ball_save_disabled:
+    l_shoot_again:
+      color: off
+      fade: 0ms
+
+####################################################################################
+# SHOW PLAYER - Mode shot lighting and jackpot shows
+####################################################################################
+
+show_player:
+  ##############################################
+  ## SHOOT AGAIN FLASH SHOW
+  ##############################################
+  
+  ball_save_inverted_multiball_ball_save_enabled:
+    shoot_again_flash:
+      show: sync_flash_mode
+      key: inverted_shoot_again
+      sync_ms: 500
+      loops: -1
+      show_tokens:
+        led: l_shoot_again
+        color: white
+  
+  ball_save_inverted_multiball_ball_save_disabled:
+    stop_shoot_again:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shoot_again
+
+  ##############################################
+  ## GI ANIMATION SHOWS
+  ##############################################
+  
+  # Static GI pattern - starts on mode start, loops forever to maintain red/white pattern
+  # This overrides any GI shows from lower priority modes (like iceman_letters celebration)
+  mode_pilot_training_mission_inverted_started:
+    static_gi_show:
+      show: inverted_static_gi
+      key: inverted_static_gi
+      loops: -1
+      priority: 1000
+    # Pulse the mode insert light during gameplay
+    inverted_insert_pulse:
+      show: sync_flash_mode
+      key: inverted_insert_pulse
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_mode_inverted
+        color: white
+      priority: 900
+
+  # Switch hit - double flash (plays once, loops: 0)
+  # Priority 1100 to override static GI show (priority 1000)
+  pilot_training_mission_inverted_switch_gi_flash:
+    switch_gi_animation:
+      show: inverted_switch_gi_flash
+      key: inverted_gi_animation
+      loops: 0
+      priority: 1100
+  
+  # Spinner - continuous flash while spinning (loops until stopped)
+  # Priority 1100 to override static GI show (priority 1000)
+  pilot_training_mission_inverted_spinner_gi_flash:
+    spinner_gi_animation:
+      show: inverted_spinner_gi_flash
+      key: inverted_spinner_gi
+      loops: 3
+      priority: 1100
+  
+  # Mode shot hit - 1 second rapid flash (plays once)
+  # Priority 1100 to override static GI show (priority 1000)
+  pilot_training_mission_inverted_mode_shot_gi_flash:
+    mode_shot_gi_animation:
+      show: inverted_mode_shot_gi_flash
+      key: inverted_gi_animation
+      loops: 0
+      priority: 1100
+  
+  ##############################################
+  ## ICEMAN COMPLETION CELEBRATION
+  ##############################################
+  
+  # ICEMAN complete - all letters light green for 1 second
+  pilot_training_mission_inverted_iceman_complete:
+    iceman_celebration:
+      show: inverted_iceman_complete_flash
+      key: inverted_iceman_celebration
+      loops: 0
+  
+  # After celebration timer, turn off ICEMAN lights
+  timer_inverted_iceman_celebration_timer_complete:
+    stop_iceman_celebration:
+      show: inverted_iceman_complete_flash
+      action: stop
+      key: inverted_iceman_celebration
+
+  # Mode shot - Shot 0: LO (Left Orbit)
+  pilot_training_mission_inverted_setup_mode_shot{current_player.pilot_training_mission_inverted_mode_shot_index==0}:
+    inverted_mode_shot_lo:
+      show: sync_flash_mode
+      key: inverted_mode_shot
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_orbit
+        color: red
+
+  # Mode shot - Shot 1: LR (Left Ramp)
+  pilot_training_mission_inverted_setup_mode_shot{current_player.pilot_training_mission_inverted_mode_shot_index==1}:
+    inverted_mode_shot_lr:
+      show: sync_flash_mode
+      key: inverted_mode_shot
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+        color: red
+
+  # Mode shot - Shot 2: SP (Spinner)
+  pilot_training_mission_inverted_setup_mode_shot{current_player.pilot_training_mission_inverted_mode_shot_index==2}:
+    inverted_mode_shot_sp:
+      show: sync_flash_mode
+      key: inverted_mode_shot
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_spinner
+        color: red
+
+  # Mode shot - Shot 3: TWR (Tower)
+  pilot_training_mission_inverted_setup_mode_shot{current_player.pilot_training_mission_inverted_mode_shot_index==3}:
+    inverted_mode_shot_twr:
+      show: sync_flash_mode
+      key: inverted_mode_shot
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_tower_ramp
+        color: red
+
+  # Mode shot - Shot 4: TL (Top Loop/Top Orbit)
+  pilot_training_mission_inverted_setup_mode_shot{current_player.pilot_training_mission_inverted_mode_shot_index==4}:
+    inverted_mode_shot_tl:
+      show: sync_flash_mode
+      key: inverted_mode_shot
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: red
+
+  # Mode shot - Shot 5: TR (Top Ramp)
+  pilot_training_mission_inverted_setup_mode_shot{current_player.pilot_training_mission_inverted_mode_shot_index==5}:
+    inverted_mode_shot_tr:
+      show: sync_flash_mode
+      key: inverted_mode_shot
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: red
+
+  # Mode shot - Shot 6: RR (Right Ramp)
+  pilot_training_mission_inverted_setup_mode_shot{current_player.pilot_training_mission_inverted_mode_shot_index==6}:
+    inverted_mode_shot_rr:
+      show: sync_flash_mode
+      key: inverted_mode_shot
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
+        color: red
+
+  # Stop mode shot show during jackpot steps
+  pilot_training_mission_inverted_stop_mode_shot_timer:
+    stop_mode_shot:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_mode_shot
+
+  # Jackpot lit show (CNT target) - uses show file in mode's shows folder
+  pilot_training_mission_inverted_jackpot_lit:
+    inverted_jackpot_show:
+      show: pilot_training_mission_inverted_jackpot_lit
+      key: inverted_jackpot
+      loops: -1
+      speed: 10
+
+  # Stop jackpot show after collection
+  pilot_training_mission_inverted_jackpot_reset:
+    stop_jackpot:
+      show: pilot_training_mission_inverted_jackpot_lit
+      action: stop
+      key: inverted_jackpot
+
+  # Super jackpot lit show (Left Lane) - uses show file in mode's shows folder
+  pilot_training_mission_inverted_super_jackpot_lit:
+    inverted_super_jackpot_show:
+      show: pilot_training_mission_inverted_super_jackpot_lit
+      key: inverted_super_jackpot
+      loops: -1
+      speed: 10
+
+  # Stop super jackpot show after collection
+  pilot_training_mission_inverted_super_jackpot_collected:
+    stop_super_jackpot:
+      show: pilot_training_mission_inverted_super_jackpot_lit
+      action: stop
+      key: inverted_super_jackpot
+
+  # Cleanup all shows on mode end
+  pilot_training_mission_inverted_cleanup:
+    stop_static_gi:
+      show: inverted_static_gi
+      action: stop
+      key: inverted_static_gi
+    stop_shoot_again_cleanup:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shoot_again
+    stop_jackpot_cleanup:
+      show: pilot_training_mission_inverted_jackpot_lit
+      action: stop
+      key: inverted_jackpot
+    stop_super_jackpot_cleanup:
+      show: pilot_training_mission_inverted_super_jackpot_lit
+      action: stop
+      key: inverted_super_jackpot
+
+####################################################################################
+# COIL PLAYER - Left lane post and left orbit diverter control
+####################################################################################
+
+coil_player:
+  # Left lane post - hold ball during intro video
+  mode_pilot_training_mission_inverted_started:
+    c_left_lane_up_post:
+      action: enable
+
+  # Release ball after intro (or skip)
+  pilot_training_mission_inverted_ball_released:
+    c_left_lane_up_post:
+      action: disable
+
+  # Left orbit diverter for super jackpot
+  left_orbit_diverter_enable:
+    c_left_orbit_diverter:
+      action: enable
+
+  left_orbit_diverter_disable:
+    c_left_orbit_diverter:
+      action: disable
+
+  # Mode cleanup - disable all coils
+  pilot_training_mission_inverted_cleanup:
+    c_left_orbit_diverter:
+      action: disable
+    c_left_lane_up_post:
+      action: disable
+
+  # Safety - disable post on mode stop
+  mode_pilot_training_mission_inverted_will_stop:
+    c_left_lane_up_post:
+      action: disable
+
+####################################################################################
+# SHOWS - GI Animation Definitions
+####################################################################################
+
+shows:
+  # Static GI pattern - runs continuously to override other mode GI shows
+  # Uses priority from mode (600) to override lower priority modes
+  # NOTE: Using "green" here because hardware reverses red/green
+  inverted_static_gi:
+    - duration: 1s
+      lights:
+        l_gi_light_1: white
+        l_gi_light_2: green
+        l_gi_light_3: white
+        l_gi_light_4: green
+        l_gi_light_5: white
+        l_gi_light_6: green
+        l_gi_light_7: white
+        l_gi_light_8: green
+        l_gi_light_9: white
+        l_gi_light_10: green
+        l_gi_light_11: white
+        l_gi_light_12: green
+        l_gi_light_13: white
+        l_gi_light_14: green
+        l_gi_light_15: white
+        l_gi_light_16: green
+        l_gi_light_17: white
+        l_gi_light_18: green
+        l_gi_light_19: white
+        l_gi_light_20: green
+        l_gi_light_21: white
+        l_gi_light_22: green
+        l_gi_light_23: white
+        l_gi_light_24: green
+        l_gi_light_25: white
+        l_gi_light_26: green
+        l_gi_light_27: white
+
+  # Mode shot hit - 1 second of rapid flashing ALL GI lights (3 cycles: on 166ms, off 166ms)
+  # Alternates between full GI pattern and off
+  inverted_mode_shot_gi_flash:
+    - duration: 166ms
+      lights:
+        l_gi_light_1: white
+        l_gi_light_2: green
+        l_gi_light_3: white
+        l_gi_light_4: green
+        l_gi_light_5: white
+        l_gi_light_6: green
+        l_gi_light_7: white
+        l_gi_light_8: green
+        l_gi_light_9: white
+        l_gi_light_10: green
+        l_gi_light_11: white
+        l_gi_light_12: green
+        l_gi_light_13: white
+        l_gi_light_14: green
+        l_gi_light_15: white
+        l_gi_light_16: green
+        l_gi_light_17: white
+        l_gi_light_18: green
+        l_gi_light_19: white
+        l_gi_light_20: green
+        l_gi_light_21: white
+        l_gi_light_22: green
+        l_gi_light_23: white
+        l_gi_light_24: green
+        l_gi_light_25: white
+        l_gi_light_26: green
+        l_gi_light_27: white
+    - duration: 166ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: off
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: off
+    - duration: 166ms
+      lights:
+        l_gi_light_1: white
+        l_gi_light_2: green
+        l_gi_light_3: white
+        l_gi_light_4: green
+        l_gi_light_5: white
+        l_gi_light_6: green
+        l_gi_light_7: white
+        l_gi_light_8: green
+        l_gi_light_9: white
+        l_gi_light_10: green
+        l_gi_light_11: white
+        l_gi_light_12: green
+        l_gi_light_13: white
+        l_gi_light_14: green
+        l_gi_light_15: white
+        l_gi_light_16: green
+        l_gi_light_17: white
+        l_gi_light_18: green
+        l_gi_light_19: white
+        l_gi_light_20: green
+        l_gi_light_21: white
+        l_gi_light_22: green
+        l_gi_light_23: white
+        l_gi_light_24: green
+        l_gi_light_25: white
+        l_gi_light_26: green
+        l_gi_light_27: white
+    - duration: 166ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: off
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: off
+    - duration: 166ms
+      lights:
+        l_gi_light_1: white
+        l_gi_light_2: green
+        l_gi_light_3: white
+        l_gi_light_4: green
+        l_gi_light_5: white
+        l_gi_light_6: green
+        l_gi_light_7: white
+        l_gi_light_8: green
+        l_gi_light_9: white
+        l_gi_light_10: green
+        l_gi_light_11: white
+        l_gi_light_12: green
+        l_gi_light_13: white
+        l_gi_light_14: green
+        l_gi_light_15: white
+        l_gi_light_16: green
+        l_gi_light_17: white
+        l_gi_light_18: green
+        l_gi_light_19: white
+        l_gi_light_20: green
+        l_gi_light_21: white
+        l_gi_light_22: green
+        l_gi_light_23: white
+        l_gi_light_24: green
+        l_gi_light_25: white
+        l_gi_light_26: green
+        l_gi_light_27: white
+    - duration: 166ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: off
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: off
+  
+  # Switch hit - quick double flash of RED lights only (green in code due to hardware reversal)
+  # Only flashes the red/green GI lights, white lights stay on
+  inverted_switch_gi_flash:
+    - duration: 75ms
+      lights:
+        l_gi_light_2: off
+        l_gi_light_4: off
+        l_gi_light_6: off
+        l_gi_light_8: off
+        l_gi_light_10: off
+        l_gi_light_12: off
+        l_gi_light_14: off
+        l_gi_light_16: off
+        l_gi_light_18: off
+        l_gi_light_20: off
+        l_gi_light_22: off
+        l_gi_light_24: off
+        l_gi_light_26: off
+    - duration: 75ms
+      lights:
+        l_gi_light_2: green
+        l_gi_light_4: green
+        l_gi_light_6: green
+        l_gi_light_8: green
+        l_gi_light_10: green
+        l_gi_light_12: green
+        l_gi_light_14: green
+        l_gi_light_16: green
+        l_gi_light_18: green
+        l_gi_light_20: green
+        l_gi_light_22: green
+        l_gi_light_24: green
+        l_gi_light_26: green
+    - duration: 75ms
+      lights:
+        l_gi_light_2: off
+        l_gi_light_4: off
+        l_gi_light_6: off
+        l_gi_light_8: off
+        l_gi_light_10: off
+        l_gi_light_12: off
+        l_gi_light_14: off
+        l_gi_light_16: off
+        l_gi_light_18: off
+        l_gi_light_20: off
+        l_gi_light_22: off
+        l_gi_light_24: off
+        l_gi_light_26: off
+    - duration: 75ms
+      lights:
+        l_gi_light_2: green
+        l_gi_light_4: green
+        l_gi_light_6: green
+        l_gi_light_8: green
+        l_gi_light_10: green
+        l_gi_light_12: green
+        l_gi_light_14: green
+        l_gi_light_16: green
+        l_gi_light_18: green
+        l_gi_light_20: green
+        l_gi_light_22: green
+        l_gi_light_24: green
+        l_gi_light_26: green
+  
+  # Spinner continuous flash - single cycle for looping
+  # Only flashes the red/green GI lights, white lights stay on
+  inverted_spinner_gi_flash:
+    - duration: 50ms
+      lights:
+        l_gi_light_2: off
+        l_gi_light_4: off
+        l_gi_light_6: off
+        l_gi_light_8: off
+        l_gi_light_10: off
+        l_gi_light_12: off
+        l_gi_light_14: off
+        l_gi_light_16: off
+        l_gi_light_18: off
+        l_gi_light_20: off
+        l_gi_light_22: off
+        l_gi_light_24: off
+        l_gi_light_26: off
+    - duration: 50ms
+      lights:
+        l_gi_light_2: green
+        l_gi_light_4: green
+        l_gi_light_6: green
+        l_gi_light_8: green
+        l_gi_light_10: green
+        l_gi_light_12: green
+        l_gi_light_14: green
+        l_gi_light_16: green
+        l_gi_light_18: green
+        l_gi_light_20: green
+        l_gi_light_22: green
+        l_gi_light_24: green
+        l_gi_light_26: green
+
+  # ICEMAN completion celebration - all letters solid
+  inverted_iceman_complete_flash:
+    - duration: 1s
+      lights:
+        l_iceman_i:
+          color: green
+        l_iceman_c:
+          color: green
+        l_iceman_e:
+          color: green
+        l_iceman_m:
+          color: green
+        l_iceman_a:
+          color: green
+        l_iceman_n:
+          color: green
+
+####################################################################################
+# NOTES AND GODOT SLIDES
+####################################################################################
+
+# GODOT SLIDES TO CREATE:
+# - inverted_instructions: Instructions overlay (switch collecting steps 1, 3, 5, 7)
+# - inverted_instructions_jackpot: Jackpot instructions (jackpot lit steps 2, 4, 6, 8)
+# - inverted_instructions_super_jackpot: Super jackpot instructions (step 9)
+# - inverted_jackpot_1: Jackpot 1 collected video
+# - inverted_jackpot_2: Jackpot 2 collected video
+# - inverted_jackpot_3: Jackpot 3 collected video (mode won!)
+# - inverted_jackpot_4: Jackpot 4 collected video
+# - inverted_super_jackpot: Super jackpot collected video
+# - multiball_add_a_ball: Add a ball video
+# - inverted_mode_won: Mode won celebration video
+#
+# MPF VARIABLES FOR GODOT DISPLAY:
+# - pilot_training_mission_inverted_switches_needed: Switches remaining to light jackpot
+# - pilot_training_mission_inverted_current_switch_value: Points per switch (2500/3000/3500/5000)
+# - pilot_training_mission_inverted_jackpot_value: Current jackpot bank value
+# - pilot_training_mission_inverted_switch_bank_value: Display value (bank or super jackpot)
+# - pilot_training_mission_inverted_mode_shot_value: Current mode shot value
+# - pilot_training_mission_inverted_step: Current step (1-9)
+# - mode_points_scored: Points just scored (for shot feedback)

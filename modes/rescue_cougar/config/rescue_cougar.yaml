@@ -780,6 +780,31 @@ event_player:
   timer_rescue_cougar_left_lane_lockout_complete:
     - rescue_cougar_left_lane_available
 
+  ##############################################
+  ## Voice Callout - Random shot made callout
+  ##############################################
+  rescue_cougar_step_1_shot_hit:
+    - play_shot_made_callout
+  rescue_cougar_step_2_shot_hit:
+    - play_shot_made_callout
+  rescue_cougar_step_3_shot_hit:
+    - play_shot_made_callout
+  rescue_cougar_step_4_shot_hit:
+    - play_shot_made_callout
+  rescue_cougar_step_5_shot_hit:
+    - play_shot_made_callout
+  rescue_cougar_step_6_shot_hit:
+    - play_shot_made_callout
+  # step_7 callout is added to existing entry below (has right_ramp_down)
+  rescue_cougar_step_8_shot_hit:
+    - play_shot_made_callout
+  rescue_cougar_step_9_shot_hit:
+    - play_shot_made_callout
+  rescue_cougar_step_10_shot_hit:
+    - play_shot_made_callout
+  rescue_cougar_step_11_shot_hit:
+    - play_shot_made_callout
+
   # Step completion events to set up next step
   rescue_cougar_step_1_complete:
     - rescue_cougar_setup_step_2
@@ -872,6 +897,7 @@ event_player:
   # Step 7 shot hit - lower right ramp
   rescue_cougar_step_7_shot_hit:
     - right_ramp_down
+    - play_shot_made_callout
   
   # Step 11 setup - raise top/inner ramp
   rescue_cougar_setup_step_11:
@@ -1000,26 +1026,8 @@ sound_player:
 ####################################################################################
 
 shows:
-  flash_green:
-    - duration: 500ms
-      lights:
-        (led):
-          color: green
-    - duration: 500ms
-      lights:
-        (led):
-          color: off
+  # NOTE: flash_green and flash_red removed - now using sync_flash_mode from base.yaml
   
-  flash_red:
-    - duration: 500ms
-      lights:
-        (led):
-          color: red
-    - duration: 500ms
-      lights:
-        (led):
-          color: off
-
   # GI blue flash - quick flash on shot hits (2 flashes over 500ms)
   # NOTE: GI lights require hex codes, not color names (MPF bug workaround)
   # Includes apron lights which may not be in gi_lights tag
@@ -1098,98 +1106,412 @@ shows:
 ####################################################################################
 
 show_player:
-  # Start flashing shows for each step
+  ##############################################
+  ## STEP 1-2: Left and Right Orbit (GREEN)
+  ## Uses sync_flash_mode from base.yaml with sync_ms for multiball stacking
+  ##############################################
   rescue_cougar_setup_shots:
-    flash_green:
-      show_tokens:
-        led: l_shot_left_orbit, l_shot_right_orbit
+    left_orbit_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_left_orbit
+      sync_ms: 1000
       loops: -1
-  
-  rescue_cougar_setup_step_2:
-    flash_green:
       show_tokens:
-        led: l_shot_left_orbit, l_shot_right_orbit
+        led: l_shot_left_orbit
+        color: 00FF00
+    right_orbit_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_right_orbit
+      sync_ms: 1000
       loops: -1
-  
-  rescue_cougar_setup_step_3:
-    flash_green:
-      action: stop
-    flash_red:
-      show_tokens:
-        led: l_shot_left_ramp, l_shot_upper_orbit, l_shot_middle_ramp, l_shot_right_orbit
-      loops: -1
-  
-  # Stop all flashing when shots are hit or steps change
-  left_orbit_shot_hit{current_player.rescue_cougar_step==0 or current_player.rescue_cougar_step==1}:
-    flash_green:
-      action: stop
-  
-  right_orbit_shot_hit{current_player.rescue_cougar_step==0 or current_player.rescue_cougar_step==1}:
-    flash_green:
-      action: stop
-  
-  rescue_cougar_setup_step_4:
-    flash_red:
-      show_tokens:
-        led: l_shot_left_ramp, l_shot_upper_orbit, l_shot_middle_ramp, l_shot_right_orbit
-      loops: -1
-  
-  rescue_cougar_setup_step_5:
-    flash_red:
-      show_tokens:
-        led: l_shot_left_ramp, l_shot_upper_orbit, l_shot_middle_ramp, l_shot_right_orbit
-      loops: -1
-  
-  rescue_cougar_setup_step_6:
-    flash_red:
-      action: stop
-    flash_green:
-      show_tokens:
-        led: l_shot_left_lane
-      loops: -1
-  
-  rescue_cougar_setup_step_7:
-    flash_green:
       show_tokens:
         led: l_shot_right_orbit
-      loops: -1
-  
-  rescue_cougar_setup_step_8:
-    flash_green:
-      show_tokens:
-        led: l_shot_left_orbit, l_shot_spinner
-      loops: -1
-  
-  rescue_cougar_setup_step_9:
-    flash_green:
-      show_tokens:
-        led: l_shot_upper_orbit, l_shot_pilot_gear
-      loops: -1
-  
-  rescue_cougar_setup_step_10:
-    flash_green:
-      show_tokens:
-        led: l_shot_spinner, l_shot_tower_ramp
-      loops: -1
-  
-  rescue_cougar_setup_step_11:
-    flash_green:
-      show_tokens:
-        led: l_shot_left_orbit, l_shot_middle_ramp
-      loops: -1
+        color: 00FF00
 
-  # Stop all flashing shows when mode completes or fails
+  rescue_cougar_setup_step_2:
+    left_orbit_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_left_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_orbit
+        color: 00FF00
+    right_orbit_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_right_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
+        color: 00FF00
+
+  # Stop orbit flashing when shots are hit (steps 1-2)
+  left_orbit_shot_hit{current_player.rescue_cougar_step==0 or current_player.rescue_cougar_step==1}:
+    stop_left_orbit:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_orbit
+
+  right_orbit_shot_hit{current_player.rescue_cougar_step==0 or current_player.rescue_cougar_step==1}:
+    stop_right_orbit:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_right_orbit
+
+  ##############################################
+  ## STEP 3-5: Ramps and Orbits (RED)
+  ##############################################
+  rescue_cougar_setup_step_3:
+    # Stop green flashing from previous steps
+    stop_left_orbit:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_orbit
+    stop_right_orbit:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_right_orbit
+    # Start red flashing for new shots
+    left_ramp_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_left_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+        color: FF0000
+    upper_orbit_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_upper_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: FF0000
+    middle_ramp_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_middle_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: FF0000
+    right_orbit_red_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_right_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
+        color: FF0000
+
+  rescue_cougar_setup_step_4:
+    left_ramp_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_left_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+        color: FF0000
+    upper_orbit_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_upper_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: FF0000
+    middle_ramp_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_middle_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: FF0000
+    right_orbit_red_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_right_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
+        color: FF0000
+
+  rescue_cougar_setup_step_5:
+    left_ramp_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_left_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+        color: FF0000
+    upper_orbit_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_upper_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: FF0000
+    middle_ramp_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_middle_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: FF0000
+    right_orbit_red_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_right_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
+        color: FF0000
+
+  ##############################################
+  ## STEP 6: Left Lane (GREEN)
+  ##############################################
+  rescue_cougar_setup_step_6:
+    # Stop red flashing from previous steps
+    stop_left_ramp:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_ramp
+    stop_upper_orbit:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_upper_orbit
+    stop_middle_ramp:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_middle_ramp
+    stop_right_orbit:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_right_orbit
+    # Start left lane flash
+    left_lane_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_left_lane
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_lane
+        color: 00FF00
+
+  ##############################################
+  ## STEP 7: Right Orbit (GREEN)
+  ##############################################
+  rescue_cougar_setup_step_7:
+    stop_left_lane:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_lane
+    right_orbit_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_right_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
+        color: 00FF00
+
+  ##############################################
+  ## STEP 8: Left Orbit + Spinner (GREEN)
+  ##############################################
+  rescue_cougar_setup_step_8:
+    stop_right_orbit:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_right_orbit
+    left_orbit_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_left_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_orbit
+        color: 00FF00
+    spinner_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_spinner
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_spinner
+        color: 00FF00
+
+  ##############################################
+  ## STEP 9: Upper Orbit + Pilot Gear (GREEN)
+  ##############################################
+  rescue_cougar_setup_step_9:
+    stop_left_orbit:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_orbit
+    stop_spinner:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_spinner
+    upper_orbit_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_upper_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: 00FF00
+    pilot_gear_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_pilot_gear
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_pilot_gear
+        color: 00FF00
+
+  ##############################################
+  ## STEP 10: Spinner + Tower Ramp (GREEN)
+  ##############################################
+  rescue_cougar_setup_step_10:
+    stop_upper_orbit:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_upper_orbit
+    stop_pilot_gear:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_pilot_gear
+    spinner_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_spinner
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_spinner
+        color: 00FF00
+    tower_ramp_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_tower_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_tower_ramp
+        color: 00FF00
+
+  ##############################################
+  ## STEP 11: Left Orbit + Middle Ramp (GREEN) - FINAL
+  ##############################################
+  rescue_cougar_setup_step_11:
+    stop_spinner:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_spinner
+    stop_tower_ramp:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_tower_ramp
+    left_orbit_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_left_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_orbit
+        color: 00FF00
+    middle_ramp_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_middle_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: 00FF00
+
+  ##############################################
+  ## MODE END - Stop all flashing
+  ##############################################
   rescue_cougar_complete:
-    flash_green:
+    stop_all_1:
+      show: sync_flash_mode
       action: stop
-    flash_red:
+      key: mode_l_shot_left_orbit
+    stop_all_2:
+      show: sync_flash_mode
       action: stop
-  
+      key: mode_l_shot_right_orbit
+    stop_all_3:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_ramp
+    stop_all_4:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_upper_orbit
+    stop_all_5:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_middle_ramp
+    stop_all_6:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_lane
+    stop_all_7:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_spinner
+    stop_all_8:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_pilot_gear
+    stop_all_9:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_tower_ramp
+
   rescue_cougar_failed:
-    flash_green:
+    stop_fail_1:
+      show: sync_flash_mode
       action: stop
-    flash_red:
+      key: mode_l_shot_left_orbit
+    stop_fail_2:
+      show: sync_flash_mode
       action: stop
+      key: mode_l_shot_right_orbit
+    stop_fail_3:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_ramp
+    stop_fail_4:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_upper_orbit
+    stop_fail_5:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_middle_ramp
+    stop_fail_6:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_lane
+    stop_fail_7:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_spinner
+    stop_fail_8:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_pilot_gear
+    stop_fail_9:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_tower_ramp
 
   ##############################################
   ## GI FLASH - Flash GI blue on each shot hit

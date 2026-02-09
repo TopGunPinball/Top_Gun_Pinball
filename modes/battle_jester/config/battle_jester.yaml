@@ -1155,6 +1155,7 @@ event_player:
   ##############################################
   battle_jester_add_time_green:
     - battle_jester_timer_add_5s
+    - play_shot_made_callout
 
   ##############################################
   ## RED SHOT TIME PENALTY (-5 seconds)
@@ -1669,19 +1670,24 @@ slide_player:
 ####################################################################################
 
 show_player:
-  # GI effects for green shot hit - flash green once
+  ##############################################
+  ## NOTE: For multiball stacking, add sync_ms: 1000 to each flashing entry
+  ## Shows already use 500ms timing for sync compatibility
+  ##############################################
+
+  # GI effects for green shot hit - flash RED (swapped)
   battle_jester_add_time_green:
-    gi_green_flash:
-      show: jester_gi_green_flash
+    gi_red_flicker:
+      show: jester_gi_red_flicker
       key: gi_effect
       loops: 0
       show_tokens:
         led: gi_lights
 
-  # GI effects for red shot hit - rapid red flicker
+  # GI effects for red shot hit - flash GREEN (swapped)
   battle_jester_subtract_time_red:
-    gi_red_flicker:
-      show: jester_gi_red_flicker
+    gi_green_flash:
+      show: jester_gi_green_flash
       key: gi_effect
       loops: 0
       show_tokens:
@@ -1691,28 +1697,32 @@ show_player:
   battle_jester_setup_step_1:
     flash_step1_lane_left:
       show: jester_flash_green
-      key: step1_lane_left
+      key: mode_l_shot_left_lane
+      sync_ms: 1000
       loops: -1
       show_tokens:
         led: l_shot_left_lane
         color: lime
     flash_step1_orbit_left:
       show: jester_flash_green
-      key: step1_orbit_left
+      key: mode_l_shot_left_orbit
+      sync_ms: 1000
       loops: -1
       show_tokens:
         led: l_shot_left_orbit
         color: lime
     flash_step1_ramp_left:
       show: jester_flash_green
-      key: step1_ramp_left
+      key: mode_l_shot_left_ramp
+      sync_ms: 1000
       loops: -1
       show_tokens:
         led: l_shot_left_ramp
         color: lime
     flash_step1_spinner:
       show: jester_flash_green
-      key: step1_spinner
+      key: mode_l_shot_spinner
+      sync_ms: 1000
       loops: -1
       show_tokens:
         led: l_shot_spinner
@@ -1723,7 +1733,8 @@ show_player:
   battle_jester_step_1_tick_8:
     flash_step1_spinner:
       show: jester_flash_orange
-      key: step1_spinner
+      key: mode_l_shot_spinner
+      sync_ms: 1000
       loops: -1
       show_tokens:
         led: l_shot_spinner
@@ -1731,7 +1742,7 @@ show_player:
   battle_jester_step_1_tick_10:
     flash_step1_spinner:
       show: jester_solid_red
-      key: step1_spinner
+      key: mode_l_shot_spinner
       loops: -1
       show_tokens:
         led: l_shot_spinner
@@ -1739,7 +1750,8 @@ show_player:
   battle_jester_step_1_tick_18:
     flash_step1_lane_left:
       show: jester_flash_orange
-      key: step1_lane_left
+      key: mode_l_shot_left_lane
+      sync_ms: 1000
       loops: -1
       show_tokens:
         led: l_shot_left_lane
@@ -1747,7 +1759,7 @@ show_player:
   battle_jester_step_1_tick_20:
     flash_step1_lane_left:
       show: jester_solid_red
-      key: step1_lane_left
+      key: mode_l_shot_left_lane
       loops: -1
       show_tokens:
         led: l_shot_left_lane
@@ -1755,7 +1767,8 @@ show_player:
   battle_jester_step_1_tick_28:
     flash_step1_orbit_left:
       show: jester_flash_orange
-      key: step1_orbit_left
+      sync_ms: 1000
+      key: mode_l_shot_left_orbit
       loops: -1
       show_tokens:
         led: l_shot_left_orbit
@@ -1763,7 +1776,7 @@ show_player:
   battle_jester_step_1_tick_30:
     flash_step1_orbit_left:
       show: jester_solid_red
-      key: step1_orbit_left
+      key: mode_l_shot_left_orbit
       loops: -1
       show_tokens:
         led: l_shot_left_orbit
@@ -1773,52 +1786,56 @@ show_player:
     # Set step 1 shots to solid red
     flash_step1_lane_left:
       show: jester_solid_red
-      key: step1_lane_left
+      key: mode_l_shot_left_lane
       loops: -1
       show_tokens:
         led: l_shot_left_lane
     flash_step1_orbit_left:
       show: jester_solid_red
-      key: step1_orbit_left
+      key: mode_l_shot_left_orbit
       loops: -1
       show_tokens:
         led: l_shot_left_orbit
     flash_step1_ramp_left:
       show: jester_solid_red
-      key: step1_ramp_left
+      key: mode_l_shot_left_ramp
       loops: -1
       show_tokens:
         led: l_shot_left_ramp
     flash_step1_spinner:
       show: jester_solid_red
-      key: step1_spinner
+      key: mode_l_shot_spinner
       loops: -1
       show_tokens:
         led: l_shot_spinner
     # Start step 2 green flashing
     flash_step2_upper_orbit:
       show: jester_flash_green
-      key: step2_upper_orbit
+      sync_ms: 1000
+      key: mode_l_shot_upper_orbit
       loops: -1
       show_tokens:
         led: l_shot_upper_orbit
     flash_step2_spinner:
       show: jester_flash_green
-      key: step2_spinner
+      sync_ms: 1000
+      key: mode_l_shot_spinner
       loops: -1
       show_tokens:
         led: l_shot_spinner
         color: lime
     flash_step2_barrier:
       show: jester_flash_green
-      key: step2_barrier
+      sync_ms: 1000
+      key: mode_l_shot_barrier
       loops: -1
       show_tokens:
         led: l_shot_barrier
         color: lime
     flash_step2_tower:
       show: jester_flash_green
-      key: step2_tower
+      sync_ms: 1000
+      key: mode_l_shot_tower_ramp
       loops: -1
       show_tokens:
         led: l_shot_tower_ramp
@@ -1827,7 +1844,8 @@ show_player:
   timer_battle_jester_step_2_timer_tick{ticks==8}:
     flash_step2_upper_orbit:
       show: jester_flash_orange
-      key: step2_upper_orbit
+      sync_ms: 1000
+      key: mode_l_shot_upper_orbit
       loops: -1
       show_tokens:
         led: l_shot_upper_orbit
@@ -1835,7 +1853,7 @@ show_player:
   timer_battle_jester_step_2_timer_tick{ticks==10}:
     flash_step2_upper_orbit:
       show: jester_solid_red
-      key: step2_upper_orbit
+      key: mode_l_shot_upper_orbit
       loops: -1
       show_tokens:
         led: l_shot_upper_orbit
@@ -1843,7 +1861,8 @@ show_player:
   timer_battle_jester_step_2_timer_tick{ticks==18}:
     flash_step2_spinner:
       show: jester_flash_orange
-      key: step2_spinner
+      sync_ms: 1000
+      key: mode_l_shot_spinner
       loops: -1
       show_tokens:
         led: l_shot_spinner
@@ -1851,7 +1870,7 @@ show_player:
   timer_battle_jester_step_2_timer_tick{ticks==20}:
     flash_step2_spinner:
       show: jester_solid_red
-      key: step2_spinner
+      key: mode_l_shot_spinner
       loops: -1
       show_tokens:
         led: l_shot_spinner
@@ -1859,7 +1878,8 @@ show_player:
   timer_battle_jester_step_2_timer_tick{ticks==28}:
     flash_step2_barrier:
       show: jester_flash_orange
-      key: step2_barrier
+      sync_ms: 1000
+      key: mode_l_shot_barrier
       loops: -1
       show_tokens:
         led: l_shot_barrier
@@ -1867,7 +1887,7 @@ show_player:
   timer_battle_jester_step_2_timer_tick{ticks==30}:
     flash_step2_barrier:
       show: jester_solid_red
-      key: step2_barrier
+      key: mode_l_shot_barrier
       loops: -1
       show_tokens:
         led: l_shot_barrier
@@ -1877,50 +1897,54 @@ show_player:
     # Set step 2 shots to solid red
     flash_step2_upper_orbit:
       show: jester_solid_red
-      key: step2_upper_orbit
+      key: mode_l_shot_upper_orbit
       loops: -1
       show_tokens:
         led: l_shot_upper_orbit
     flash_step2_spinner:
       show: jester_solid_red
-      key: step2_spinner
+      key: mode_l_shot_spinner
       loops: -1
       show_tokens:
         led: l_shot_spinner
     flash_step2_barrier:
       show: jester_solid_red
-      key: step2_barrier
+      key: mode_l_shot_barrier
       loops: -1
       show_tokens:
         led: l_shot_barrier
     flash_step2_tower:
       show: jester_solid_red
-      key: step2_tower
+      key: mode_l_shot_tower_ramp
       loops: -1
       show_tokens:
         led: l_shot_tower_ramp
     # Start step 3 green flashing
     flash_step3_upper_orbit:
       show: jester_flash_green
+      sync_ms: 1000
       key: step3_upper_orbit
       loops: -1
       show_tokens:
         led: l_shot_upper_orbit
     flash_step3_orbit_lower:
       show: jester_flash_green
+      sync_ms: 1000
       key: step3_orbit_lower
       loops: -1
       show_tokens:
         led: l_shot_middle_ramp
     flash_step3_pilot_gear:
       show: jester_flash_green
-      key: step3_pilot_gear
+      sync_ms: 1000
+      key: mode_l_shot_pilot_gear
       loops: -1
       show_tokens:
         led: l_shot_pilot_gear
     flash_step3_right_orbit:
       show: jester_flash_green
-      key: step3_right_orbit
+      sync_ms: 1000
+      key: mode_l_shot_right_orbit
       loops: -1
       show_tokens:
         led: l_shot_right_orbit
@@ -1928,7 +1952,8 @@ show_player:
   timer_battle_jester_step_3_timer_tick{ticks==8}:
     flash_step3_right_orbit:
       show: jester_flash_orange
-      key: step3_right_orbit
+      sync_ms: 1000
+      key: mode_l_shot_right_orbit
       loops: -1
       show_tokens:
         led: l_shot_right_orbit
@@ -1936,7 +1961,7 @@ show_player:
   timer_battle_jester_step_3_timer_tick{ticks==10}:
     flash_step3_right_orbit:
       show: jester_solid_red
-      key: step3_right_orbit
+      key: mode_l_shot_right_orbit
       loops: -1
       show_tokens:
         led: l_shot_right_orbit
@@ -1944,7 +1969,8 @@ show_player:
   timer_battle_jester_step_3_timer_tick{ticks==18}:
     flash_step3_pilot_gear:
       show: jester_flash_orange
-      key: step3_pilot_gear
+      sync_ms: 1000
+      key: mode_l_shot_pilot_gear
       loops: -1
       show_tokens:
         led: l_shot_pilot_gear
@@ -1952,7 +1978,7 @@ show_player:
   timer_battle_jester_step_3_timer_tick{ticks==20}:
     flash_step3_pilot_gear:
       show: jester_solid_red
-      key: step3_pilot_gear
+      key: mode_l_shot_pilot_gear
       loops: -1
       show_tokens:
         led: l_shot_pilot_gear
@@ -1960,6 +1986,7 @@ show_player:
   timer_battle_jester_step_3_timer_tick{ticks==28}:
     flash_step3_upper_orbit:
       show: jester_flash_orange
+      sync_ms: 1000
       key: step3_upper_orbit
       loops: -1
       show_tokens:
@@ -1990,32 +2017,35 @@ show_player:
         led: l_shot_middle_ramp
     flash_step3_pilot_gear:
       show: jester_solid_red
-      key: step3_pilot_gear
+      key: mode_l_shot_pilot_gear
       loops: -1
       show_tokens:
         led: l_shot_pilot_gear
     flash_step3_right_orbit:
       show: jester_solid_red
-      key: step3_right_orbit
+      key: mode_l_shot_right_orbit
       loops: -1
       show_tokens:
         led: l_shot_right_orbit
     # Start step 4 green flashing - ramp_left, spinner, orbit_left
     flash_step4_ramp_left:
       show: jester_flash_green
-      key: step4_ramp_left
+      sync_ms: 1000
+      key: mode_l_shot_ramp_left
       loops: -1
       show_tokens:
         led: l_shot_left_ramp
     flash_step4_spinner:
       show: jester_flash_green
-      key: step4_spinner
+      sync_ms: 1000
+      key: mode_l_shot_spinner
       loops: -1
       show_tokens:
         led: l_shot_spinner
     flash_step4_orbit_left:
       show: jester_flash_green
-      key: step4_orbit_left
+      sync_ms: 1000
+      key: mode_l_shot_orbit_left
       loops: -1
       show_tokens:
         led: l_shot_left_orbit
@@ -2023,7 +2053,8 @@ show_player:
   timer_battle_jester_step_4_timer_tick{ticks==8}:
     flash_step4_spinner:
       show: jester_flash_orange
-      key: step4_spinner
+      sync_ms: 1000
+      key: mode_l_shot_spinner
       loops: -1
       show_tokens:
         led: l_shot_spinner
@@ -2031,7 +2062,7 @@ show_player:
   timer_battle_jester_step_4_timer_tick{ticks==10}:
     flash_step4_spinner:
       show: jester_solid_red
-      key: step4_spinner
+      key: mode_l_shot_spinner
       loops: -1
       show_tokens:
         led: l_shot_spinner
@@ -2039,7 +2070,8 @@ show_player:
   timer_battle_jester_step_4_timer_tick{ticks==18}:
     flash_step4_orbit_left:
       show: jester_flash_orange
-      key: step4_orbit_left
+      sync_ms: 1000
+      key: mode_l_shot_orbit_left
       loops: -1
       show_tokens:
         led: l_shot_left_orbit
@@ -2047,7 +2079,7 @@ show_player:
   timer_battle_jester_step_4_timer_tick{ticks==20}:
     flash_step4_orbit_left:
       show: jester_solid_red
-      key: step4_orbit_left
+      key: mode_l_shot_orbit_left
       loops: -1
       show_tokens:
         led: l_shot_left_orbit
@@ -2057,38 +2089,41 @@ show_player:
     # Set step 4 shots to solid red
     flash_step4_ramp_left:
       show: jester_solid_red
-      key: step4_ramp_left
+      key: mode_l_shot_ramp_left
       loops: -1
       show_tokens:
         led: l_shot_left_ramp
     flash_step4_spinner:
       show: jester_solid_red
-      key: step4_spinner
+      key: mode_l_shot_spinner
       loops: -1
       show_tokens:
         led: l_shot_spinner
     flash_step4_orbit_left:
       show: jester_solid_red
-      key: step4_orbit_left
+      key: mode_l_shot_orbit_left
       loops: -1
       show_tokens:
         led: l_shot_left_orbit
     # Start step 5 green flashing
     flash_step5_right_orbit:
       show: jester_flash_green
-      key: step5_right_orbit
+      sync_ms: 1000
+      key: mode_l_shot_right_orbit
       loops: -1
       show_tokens:
         led: l_shot_right_orbit
     flash_step5_pilot_gear:
       show: jester_flash_green
-      key: step5_pilot_gear
+      sync_ms: 1000
+      key: mode_l_shot_pilot_gear
       loops: -1
       show_tokens:
         led: l_shot_pilot_gear
     flash_step5_middle_ramp:
       show: jester_flash_green
-      key: step5_middle_ramp
+      sync_ms: 1000
+      key: mode_l_shot_middle_ramp
       loops: -1
       show_tokens:
         led: l_shot_middle_ramp
@@ -2096,7 +2131,8 @@ show_player:
   timer_battle_jester_step_5_timer_tick{ticks==8}:
     flash_step5_middle_ramp:
       show: jester_flash_orange
-      key: step5_middle_ramp
+      sync_ms: 1000
+      key: mode_l_shot_middle_ramp
       loops: -1
       show_tokens:
         led: l_shot_middle_ramp
@@ -2104,7 +2140,7 @@ show_player:
   timer_battle_jester_step_5_timer_tick{ticks==10}:
     flash_step5_middle_ramp:
       show: jester_solid_red
-      key: step5_middle_ramp
+      key: mode_l_shot_middle_ramp
       loops: -1
       show_tokens:
         led: l_shot_middle_ramp
@@ -2112,7 +2148,8 @@ show_player:
   timer_battle_jester_step_5_timer_tick{ticks==18}:
     flash_step5_pilot_gear:
       show: jester_flash_orange
-      key: step5_pilot_gear
+      sync_ms: 1000
+      key: mode_l_shot_pilot_gear
       loops: -1
       show_tokens:
         led: l_shot_pilot_gear
@@ -2120,7 +2157,7 @@ show_player:
   timer_battle_jester_step_5_timer_tick{ticks==20}:
     flash_step5_pilot_gear:
       show: jester_solid_red
-      key: step5_pilot_gear
+      key: mode_l_shot_pilot_gear
       loops: -1
       show_tokens:
         led: l_shot_pilot_gear
@@ -2130,25 +2167,26 @@ show_player:
     # Set step 5 shots to solid red
     flash_step5_right_orbit:
       show: jester_solid_red
-      key: step5_right_orbit
+      key: mode_l_shot_right_orbit
       loops: -1
       show_tokens:
         led: l_shot_right_orbit
     flash_step5_pilot_gear:
       show: jester_solid_red
-      key: step5_pilot_gear
+      key: mode_l_shot_pilot_gear
       loops: -1
       show_tokens:
         led: l_shot_pilot_gear
     flash_step5_middle_ramp:
       show: jester_solid_red
-      key: step5_middle_ramp
+      key: mode_l_shot_middle_ramp
       loops: -1
       show_tokens:
         led: l_shot_middle_ramp
     # Start step 6 - barrier flashing green
     flash_step6_barrier:
       show: jester_flash_green
+      sync_ms: 1000
       key: step6_barrier
       loops: -1
       show_tokens:
@@ -2171,25 +2209,29 @@ show_player:
     # Flash all ramps green
     flash_step7_ramp_left:
       show: jester_flash_green
-      key: step7_ramp_left
+      sync_ms: 1000
+      key: mode_l_shot_ramp_left
       loops: -1
       show_tokens:
         led: l_shot_left_ramp
     flash_step7_ramp_middle:
       show: jester_flash_green
-      key: step7_ramp_middle
+      sync_ms: 1000
+      key: mode_l_shot_ramp_middle
       loops: -1
       show_tokens:
         led: l_shot_middle_ramp
     flash_step7_ramp_tower:
       show: jester_flash_green
-      key: step7_ramp_tower
+      sync_ms: 1000
+      key: mode_l_shot_ramp_tower
       loops: -1
       show_tokens:
         led: l_shot_tower_ramp
     flash_step7_ramp_right:
       show: jester_flash_green
-      key: step7_ramp_right
+      sync_ms: 1000
+      key: mode_l_shot_ramp_right
       loops: -1
       show_tokens:
         led: l_shot_right_orbit
@@ -2199,43 +2241,46 @@ show_player:
     # Set step 7-10 ramp shots to solid red
     flash_step7_ramp_left:
       show: jester_solid_red
-      key: step7_ramp_left
+      key: mode_l_shot_ramp_left
       loops: -1
       show_tokens:
         led: l_shot_left_ramp
     flash_step7_ramp_middle:
       show: jester_solid_red
-      key: step7_ramp_middle
+      key: mode_l_shot_ramp_middle
       loops: -1
       show_tokens:
         led: l_shot_middle_ramp
     flash_step7_ramp_tower:
       show: jester_solid_red
-      key: step7_ramp_tower
+      key: mode_l_shot_ramp_tower
       loops: -1
       show_tokens:
         led: l_shot_tower_ramp
     flash_step7_ramp_right:
       show: jester_solid_red
-      key: step7_ramp_right
+      key: mode_l_shot_ramp_right
       loops: -1
       show_tokens:
         led: l_shot_right_orbit
     # Flash step 11 shots - spinner, right_orbit, left_lane green
     flash_step11_spinner:
       show: jester_flash_green
+      sync_ms: 1000
       key: step11_spinner
       loops: -1
       show_tokens:
         led: l_shot_spinner
     flash_step11_right_orbit:
       show: jester_flash_green
+      sync_ms: 1000
       key: step11_right_orbit
       loops: -1
       show_tokens:
         led: l_shot_right_orbit
     flash_step11_left_lane:
       show: jester_flash_green
+      sync_ms: 1000
       key: step11_left_lane
       loops: -1
       show_tokens:
@@ -2268,28 +2313,28 @@ show_player:
     # Turn off step 7 ramp shows (were solid red)
     flash_step7_ramp_left:
       show: jester_off
-      key: step7_ramp_left
+      key: mode_l_shot_ramp_left
       priority: 500
       loops: -1
       show_tokens:
         led: l_shot_left_ramp
     flash_step7_ramp_middle:
       show: jester_off
-      key: step7_ramp_middle
+      key: mode_l_shot_ramp_middle
       priority: 500
       loops: -1
       show_tokens:
         led: l_shot_middle_ramp
     flash_step7_ramp_tower:
       show: jester_off
-      key: step7_ramp_tower
+      key: mode_l_shot_ramp_tower
       priority: 500
       loops: -1
       show_tokens:
         led: l_shot_tower_ramp
     flash_step7_ramp_right:
       show: jester_off
-      key: step7_ramp_right
+      key: mode_l_shot_ramp_right
       priority: 500
       loops: -1
       show_tokens:
@@ -2352,6 +2397,7 @@ show_player:
     # Start flashing tower green with high priority
     flash_tower_challenge:
       show: jester_flash_green
+      sync_ms: 1000
       key: tower_challenge
       priority: 500
       loops: -1
@@ -2405,6 +2451,12 @@ light_player:
     l_gi_light_23:
       color: white
       fade: 0ms
+    l_gi_light_25:
+      color: white
+      fade: 0ms
+    l_gi_light_27:
+      color: white
+      fade: 0ms
     # Even numbered GI lights = purple
     l_gi_light_2:
       color: purple
@@ -2437,6 +2489,12 @@ light_player:
       color: purple
       fade: 0ms
     l_gi_light_22:
+      color: purple
+      fade: 0ms
+    l_gi_light_24:
+      color: purple
+      fade: 0ms
+    l_gi_light_26:
       color: purple
       fade: 0ms
     # Pop bumper lights = purple
@@ -3105,40 +3163,41 @@ coil_player:
 ####################################################################################
 ##############################################
 ## Shows - Flashing Light Patterns
+## Updated to 500ms timing for multiball sync compatibility
 ##############################################
 
 shows:
   jester_flash_green:
-    - duration: 400ms
+    - duration: 500ms
       lights:
         (led):
           color: lime
           fade: 0ms
-    - duration: 400ms
+    - duration: 500ms
       lights:
         (led):
           color: off
           fade: 0ms
 
   jester_flash_orange:
-    - duration: 400ms
+    - duration: 500ms
       lights:
         (led):
           color: orange
           fade: 0ms
-    - duration: 400ms
+    - duration: 500ms
       lights:
         (led):
           color: off
           fade: 0ms
 
   jester_flash_red:
-    - duration: 400ms
+    - duration: 500ms
       lights:
         (led):
           color: red
           fade: 0ms
-    - duration: 400ms
+    - duration: 500ms
       lights:
         (led):
           color: off

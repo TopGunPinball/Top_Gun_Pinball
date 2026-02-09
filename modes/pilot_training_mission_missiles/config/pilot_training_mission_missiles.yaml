@@ -1,0 +1,2230 @@
+#config_version=6
+
+####################################################################################
+# PILOT TRAINING MISSION: MISSILES
+# 
+# A single-ball timed training mission with lock-on-to-MIG mechanics.
+# 
+# THEME: Missile lock-on training - hit paired shots then lock targets
+# BALLS: 1 (normal flippers)
+# TIMER: 90 seconds
+# GI: Cyan (odd lights) and White (even lights) - NOTE: FF00FF is GRB-swapped cyan for WS2812 LEDs
+# INSERT COLORS: Green (pair shots) and Red (lock shots)
+# PERK: Missiles perk earned when step 9 completed, active for rest of ball
+# CANNOT STACK WITH MULTIBALL
+#
+# MODE PROGRESSION:
+# Steps 1-2: LO and LR lit green (hit both, any order) - 500K / 550K
+# Step 3:    Random LOCK target lit white (lock on to MIG) - 750K
+# Steps 4-5: RO and TL lit green (right ramp UP, hit both, any order) - 650K / 700K
+# Step 6:    Random LOCK target lit white (lock on to MIG) - 900K
+# Steps 7-8: SP and TWR lit green (hit both, any order) - 800K / 850K
+# Step 9:    Random LOCK target lit white (lock on to MIG) -> MODE WON - 1,800K
+# TOTAL: 7,500,000 points (before multipliers)
+#
+# SHOT LIGHTS:
+#   LO  = l_shot_left_orbit      LR  = l_shot_left_ramp
+#   RO  = l_shot_right_orbit     TL  = l_shot_upper_orbit
+#   SP  = l_shot_spinner         TWR = l_shot_tower_ramp
+#   Lock L = l_lock_l  Lock O = l_lock_o  Lock C = l_lock_c  Lock K = l_lock_k
+####################################################################################
+
+mode:
+  start_events: start_mode_pilot_training_mission_missiles
+  stop_events: 
+    - missiles_video_complete
+    - timer_missiles_failed_delay_complete
+    - missiles_drain_cleanup_complete
+  priority: 600
+  game_mode: true
+  use_wait_queue: true
+
+mode_settings:
+  can_stack_with_multiball: false
+
+####################################################################################
+# BALL HOLDS - Prevent auto-eject during intro video
+####################################################################################
+
+ball_holds:
+  missiles_scoop_hold:
+    balls_to_hold: 1
+    hold_devices: bd_mode_scoop
+    enable_events: 
+      - mode_pilot_training_mission_missiles_started
+    release_one_events: 
+      - missiles_ball_released
+    release_all_events:
+      - mode_pilot_training_mission_missiles_will_stop
+
+####################################################################################
+# QUEUE RELAY PLAYER - Hold ball_ending until mode cleanup completes
+####################################################################################
+
+queue_relay_player:
+  ball_ending{mode.pilot_training_mission_missiles.active==True}:
+    post: missiles_ball_ending_hold
+    wait_for: missiles_drain_cleanup_complete
+    priority: 1000
+
+####################################################################################
+# TIMERS
+####################################################################################
+
+timers:
+  missiles_timer:
+    start_value: 90
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: missiles_ball_released
+        action: start
+      - event: missiles_complete
+        action: stop
+      - event: timer_missiles_failed_delay_start
+        action: stop
+      - event: missiles_drain_detected
+        action: stop
+
+  missiles_intro_video_delay:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: mode_pilot_training_mission_missiles_started
+        action: start
+      - event: missiles_skip_intro
+        action: stop
+
+  missiles_lock_hurry_up_timer:
+    start_value: 0
+    end_value: 15
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: missiles_setup_step_3
+        action: restart
+      - event: missiles_step_3_complete
+        action: stop
+      - event: missiles_setup_step_6
+        action: restart
+      - event: missiles_step_6_complete
+        action: stop
+      - event: missiles_setup_step_9
+        action: restart
+      - event: missiles_step_9_complete
+        action: stop
+      - event: timer_missiles_lock_hurry_up_timer_complete
+        action: restart
+      - event: missiles_failed
+        action: stop
+      - event: missiles_complete
+        action: stop
+      - event: missiles_drain_detected
+        action: stop
+
+  ##############################################
+  ## MISSILE FLYING DELAY TIMERS - GI strobe during flight
+  ##############################################
+  missiles_step_3_flying_delay:
+    start_value: 0
+    end_value: 16
+    direction: up
+    tick_interval: 250ms
+    control_events:
+      - event: missiles_step_3_flying_start
+        action: start
+      - event: missiles_cleanup
+        action: stop
+      - event: missiles_drain_detected
+        action: stop
+
+  missiles_step_6_flying_delay:
+    start_value: 0
+    end_value: 18
+    direction: up
+    tick_interval: 250ms
+    control_events:
+      - event: missiles_step_6_flying_start
+        action: start
+      - event: missiles_cleanup
+        action: stop
+      - event: missiles_drain_detected
+        action: stop
+
+  missiles_step_9_flying_delay:
+    start_value: 0
+    end_value: 16
+    direction: up
+    tick_interval: 250ms
+    control_events:
+      - event: missiles_step_9_flying_start
+        action: start
+      - event: missiles_cleanup
+        action: stop
+      - event: missiles_drain_detected
+        action: stop
+
+  ##############################################
+  ## MISSILE EXPLOSION DELAY TIMERS - Extra time for explosion animation
+  ##############################################
+  missiles_step_3_explosion_delay:
+    start_value: 0
+    end_value: 10
+    direction: up
+    tick_interval: 250ms
+    control_events:
+      - event: missiles_step_3_explosion_start
+        action: start
+      - event: missiles_cleanup
+        action: stop
+      - event: missiles_drain_detected
+        action: stop
+
+  missiles_step_6_explosion_delay:
+    start_value: 0
+    end_value: 11
+    direction: up
+    tick_interval: 250ms
+    control_events:
+      - event: missiles_step_6_explosion_start
+        action: start
+      - event: missiles_cleanup
+        action: stop
+      - event: missiles_drain_detected
+        action: stop
+
+  missiles_step_9_explosion_delay:
+    start_value: 0
+    end_value: 14
+    direction: up
+    tick_interval: 250ms
+    control_events:
+      - event: missiles_step_9_explosion_start
+        action: start
+      - event: missiles_cleanup
+        action: stop
+      - event: missiles_drain_detected
+        action: stop
+
+  missiles_complete_delay:
+    start_value: 0
+    end_value: 8
+    direction: up
+    tick_interval: 250ms
+    start_running: false
+    control_events:
+      - event: timer_missiles_complete_delay_start
+        action: start
+
+  missiles_failed_delay:
+    start_value: 5
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: timer_missiles_failed_delay_start
+        action: start
+
+  missiles_drain_delay:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: missiles_drain_detected
+        action: start
+
+####################################################################################
+# VARIABLE PLAYER
+####################################################################################
+
+variable_player:
+  mode_pilot_training_mission_missiles_started:
+    training_mission_active:
+      action: set
+      int: 1
+    letter_collection_paused:
+      action: set
+      int: 1
+    missiles_step:
+      action: set
+      int: 0
+    missiles_complete_flag:
+      action: set
+      int: 0
+    missiles_shots_remaining:
+      action: set
+      int: 9
+    missiles_lo_hit:
+      action: set
+      int: 0
+    missiles_lr_hit:
+      action: set
+      int: 0
+    missiles_ro_hit:
+      action: set
+      int: 0
+    missiles_tl_hit:
+      action: set
+      int: 0
+    missiles_sp_hit:
+      action: set
+      int: 0
+    missiles_twr_hit:
+      action: set
+      int: 0
+    missiles_step_3_lock:
+      action: set
+      int: 0
+    missiles_step_6_lock:
+      action: set
+      int: 0
+    missiles_step_9_lock:
+      action: set
+      int: 0
+    mode_points_scored:
+      action: set
+      int: 0
+    training_missions_played:
+      action: add
+      int: 1
+
+  ball_will_end{mode.pilot_training_mission_missiles.active==True}:
+    pilot_mode_drain_pending:
+      action: set
+      int: 1
+
+  ##############################################
+  ## Step scoring - 500K -> 550K -> 750K -> 650K -> 700K -> 900K -> 800K -> 850K -> 1.8M
+  ##############################################
+
+  # Step 1: 500,000
+  missiles_step_1_complete:
+    missiles_step:
+      action: set
+      int: 1
+    score: 500000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 500000 * current_player.total_scoring_multiplier
+    missiles_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 2: 550,000
+  missiles_step_2_complete:
+    missiles_step:
+      action: set
+      int: 2
+    score: 550000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 550000 * current_player.total_scoring_multiplier
+    missiles_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 3: Lock C - 750,000
+  # Lock target selection variables (set by random_event_player)
+  missiles_step_3_target_l:
+    missiles_step_3_lock:
+      action: set
+      int: 1
+  missiles_step_3_target_o:
+    missiles_step_3_lock:
+      action: set
+      int: 2
+  missiles_step_3_target_c:
+    missiles_step_3_lock:
+      action: set
+      int: 3
+  missiles_step_3_target_k:
+    missiles_step_3_lock:
+      action: set
+      int: 4
+
+  missiles_step_6_target_l:
+    missiles_step_6_lock:
+      action: set
+      int: 1
+  missiles_step_6_target_o:
+    missiles_step_6_lock:
+      action: set
+      int: 2
+  missiles_step_6_target_c:
+    missiles_step_6_lock:
+      action: set
+      int: 3
+  missiles_step_6_target_k:
+    missiles_step_6_lock:
+      action: set
+      int: 4
+
+  missiles_step_9_target_l:
+    missiles_step_9_lock:
+      action: set
+      int: 1
+  missiles_step_9_target_o:
+    missiles_step_9_lock:
+      action: set
+      int: 2
+  missiles_step_9_target_c:
+    missiles_step_9_lock:
+      action: set
+      int: 3
+  missiles_step_9_target_k:
+    missiles_step_9_lock:
+      action: set
+      int: 4
+
+  missiles_step_3_complete:
+    missiles_step:
+      action: set
+      int: 3
+    score: 750000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 750000 * current_player.total_scoring_multiplier
+    missiles_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 4: 650,000
+  missiles_step_4_complete:
+    missiles_step:
+      action: set
+      int: 4
+    score: 650000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 650000 * current_player.total_scoring_multiplier
+    missiles_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 5: 700,000
+  missiles_step_5_complete:
+    missiles_step:
+      action: set
+      int: 5
+    score: 700000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 700000 * current_player.total_scoring_multiplier
+    missiles_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 6: Lock L - 900,000
+  missiles_step_6_complete:
+    missiles_step:
+      action: set
+      int: 6
+    score: 900000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 900000 * current_player.total_scoring_multiplier
+    missiles_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 7: 800,000
+  missiles_step_7_complete:
+    missiles_step:
+      action: set
+      int: 7
+    score: 800000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 800000 * current_player.total_scoring_multiplier
+    missiles_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 8: 850,000
+  missiles_step_8_complete:
+    missiles_step:
+      action: set
+      int: 8
+    score: 850000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 850000 * current_player.total_scoring_multiplier
+    missiles_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 9: Lock K - 1,800,000 - MODE WON + perk
+  missiles_step_9_complete:
+    missiles_step:
+      action: set
+      int: 9
+    missiles_complete_flag:
+      action: set
+      int: 1
+    score: 1800000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 1800000 * current_player.total_scoring_multiplier
+    missiles_shots_remaining:
+      action: add
+      int: -1
+    pilot_missions_won:
+      action: add
+      int: 1
+    missiles_perk_active:
+      action: set
+      int: 1
+
+  ##############################################
+  ## Pair shot flag tracking
+  ##############################################
+
+  # Steps 1-2: LO flag
+  left_orbit_shot_hit{current_player.missiles_step==0 and current_player.missiles_lo_hit==0}:
+    missiles_lo_hit:
+      action: set
+      int: 1
+  left_orbit_shot_hit{current_player.missiles_step==1 and current_player.missiles_lo_hit==0}:
+    missiles_lo_hit:
+      action: set
+      int: 1
+
+  # Steps 1-2: LR flag
+  s_ramp_left_exit_active{current_player.missiles_step==0 and current_player.missiles_lr_hit==0}:
+    missiles_lr_hit:
+      action: set
+      int: 1
+  s_ramp_left_exit_active{current_player.missiles_step==1 and current_player.missiles_lr_hit==0}:
+    missiles_lr_hit:
+      action: set
+      int: 1
+
+  # Steps 4-5: RO flag
+  s_orbit_right_active{current_player.missiles_step==3 and current_player.missiles_ro_hit==0}:
+    missiles_ro_hit:
+      action: set
+      int: 1
+  s_orbit_right_active{current_player.missiles_step==4 and current_player.missiles_ro_hit==0}:
+    missiles_ro_hit:
+      action: set
+      int: 1
+
+  # Steps 4-5: TL flag
+  s_orbit_upper_active{current_player.missiles_step==3 and current_player.missiles_tl_hit==0}:
+    missiles_tl_hit:
+      action: set
+      int: 1
+  s_orbit_upper_active{current_player.missiles_step==4 and current_player.missiles_tl_hit==0}:
+    missiles_tl_hit:
+      action: set
+      int: 1
+
+  # Steps 7-8: SP flag
+  spinner_shot_made{current_player.missiles_step==6 and current_player.missiles_sp_hit==0}:
+    missiles_sp_hit:
+      action: set
+      int: 1
+  spinner_shot_made{current_player.missiles_step==7 and current_player.missiles_sp_hit==0}:
+    missiles_sp_hit:
+      action: set
+      int: 1
+
+  # Steps 7-8: TWR flag
+  s_ramp_tower_exit_active{current_player.missiles_step==6 and current_player.missiles_twr_hit==0}:
+    missiles_twr_hit:
+      action: set
+      int: 1
+  s_ramp_tower_exit_active{current_player.missiles_step==7 and current_player.missiles_twr_hit==0}:
+    missiles_twr_hit:
+      action: set
+      int: 1
+
+  missiles_mode_ended:
+    training_missles_complete:
+      action: set
+      int: 1
+
+####################################################################################
+# EVENT PLAYER - Mode flow and shot detection
+####################################################################################
+
+event_player:
+  ##############################################
+  ## MODE START SEQUENCE
+  ##############################################
+  mode_pilot_training_mission_missiles_started:
+    - missiles_set_gi|200ms
+    - missiles_play_instructions_voice
+
+  ##############################################
+  ## SKIP INTRO - Both flippers pressed during intro
+  ##############################################
+  s_flipper_left_active{current_player.missiles_step==0 and device.timers.missiles_intro_video_delay.running}:
+    - missiles_check_skip_intro
+  s_flipper_right_active{current_player.missiles_step==0 and device.timers.missiles_intro_video_delay.running}:
+    - missiles_check_skip_intro
+
+  missiles_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - missiles_skip_intro
+
+  # SKIP PATH: Stop intro timer, release ball, setup shots
+  missiles_skip_intro:
+    - missiles_ball_released
+    - missiles_setup_step_1
+
+  # NORMAL PATH: Timer completes -> release ball AND setup shots
+  timer_missiles_intro_video_delay_complete:
+    - missiles_ball_released
+    - missiles_setup_step_1
+
+  ##############################################
+  ## DRAIN HANDLING
+  ##############################################
+  missiles_ball_ending_hold:
+    - missiles_failed
+    - missiles_drain_detected
+
+  timer_missiles_drain_delay_complete:
+    - missiles_drain_cleanup_complete
+    - missiles_cleanup
+
+  ##############################################
+  ## STEPS 1-2: LO and LR PAIR (Green)
+  ## Hit both in any order. First hit = step 1, second hit = step 2
+  ##############################################
+
+  # LO hit when LO not yet hit (step 0 or 1)
+  left_orbit_shot_hit{current_player.missiles_step==0 and current_player.missiles_lo_hit==0}:
+    - missiles_step_1_complete
+    - missiles_step_1_shot_hit
+
+  left_orbit_shot_hit{current_player.missiles_step==1 and current_player.missiles_lo_hit==0}:
+    - missiles_step_2_complete
+    - missiles_step_2_shot_hit
+    - missiles_setup_step_3
+
+  # LR hit when LR not yet hit (step 0 or 1)
+  s_ramp_left_exit_active{current_player.missiles_step==0 and current_player.missiles_lr_hit==0}:
+    - missiles_step_1_complete
+    - missiles_step_1_shot_hit
+
+  s_ramp_left_exit_active{current_player.missiles_step==1 and current_player.missiles_lr_hit==0}:
+    - missiles_step_2_complete
+    - missiles_step_2_shot_hit
+    - missiles_setup_step_3
+
+  ##############################################
+  ## STEP 3: RANDOM LOCK TARGET (Red) - Lock on to MIG!
+  ## Lock target selected by random_event_player
+  ##############################################
+  s_l_lock_target_active{current_player.missiles_step==2 and current_player.missiles_step_3_lock==1}:
+    - missiles_step_3_complete
+    - missiles_step_3_shot_hit
+    - missiles_step_3_flying_start
+  s_o_lock_target_active{current_player.missiles_step==2 and current_player.missiles_step_3_lock==2}:
+    - missiles_step_3_complete
+    - missiles_step_3_shot_hit
+    - missiles_step_3_flying_start
+  s_c_lock_target_active{current_player.missiles_step==2 and current_player.missiles_step_3_lock==3}:
+    - missiles_step_3_complete
+    - missiles_step_3_shot_hit
+    - missiles_step_3_flying_start
+  s_k_lock_target_active{current_player.missiles_step==2 and current_player.missiles_step_3_lock==4}:
+    - missiles_step_3_complete
+    - missiles_step_3_shot_hit
+    - missiles_step_3_flying_start
+
+  ##############################################
+  ## STEPS 4-5: RO and TL PAIR (Green) - Right ramp UP
+  ## Hit both in any order. First hit = step 4, second hit = step 5
+  ##############################################
+
+  # RO hit when RO not yet hit (step 3 or 4)
+  s_orbit_right_active{current_player.missiles_step==3 and current_player.missiles_ro_hit==0}:
+    - missiles_step_4_complete
+    - missiles_step_4_shot_hit
+
+  s_orbit_right_active{current_player.missiles_step==4 and current_player.missiles_ro_hit==0}:
+    - missiles_step_5_complete
+    - missiles_step_5_shot_hit
+    - missiles_pair_2_complete
+    - missiles_setup_step_6
+
+  # TL hit when TL not yet hit (step 3 or 4)
+  s_orbit_upper_active{current_player.missiles_step==3 and current_player.missiles_tl_hit==0}:
+    - missiles_step_4_complete
+    - missiles_step_4_shot_hit
+
+  s_orbit_upper_active{current_player.missiles_step==4 and current_player.missiles_tl_hit==0}:
+    - missiles_step_5_complete
+    - missiles_step_5_shot_hit
+    - missiles_pair_2_complete
+    - missiles_setup_step_6
+
+  ##############################################
+  ## STEP 6: RANDOM LOCK TARGET (Red) - Lock on to MIG!
+  ## Lock target selected by random_event_player
+  ##############################################
+  s_l_lock_target_active{current_player.missiles_step==5 and current_player.missiles_step_6_lock==1}:
+    - missiles_step_6_complete
+    - missiles_step_6_shot_hit
+    - missiles_step_6_flying_start
+  s_o_lock_target_active{current_player.missiles_step==5 and current_player.missiles_step_6_lock==2}:
+    - missiles_step_6_complete
+    - missiles_step_6_shot_hit
+    - missiles_step_6_flying_start
+  s_c_lock_target_active{current_player.missiles_step==5 and current_player.missiles_step_6_lock==3}:
+    - missiles_step_6_complete
+    - missiles_step_6_shot_hit
+    - missiles_step_6_flying_start
+  s_k_lock_target_active{current_player.missiles_step==5 and current_player.missiles_step_6_lock==4}:
+    - missiles_step_6_complete
+    - missiles_step_6_shot_hit
+    - missiles_step_6_flying_start
+
+  ##############################################
+  ## STEPS 7-8: SP and TWR PAIR (Green)
+  ## Hit both in any order. First hit = step 7, second hit = step 8
+  ##############################################
+
+  # SP hit when SP not yet hit (step 6 or 7)
+  spinner_shot_made{current_player.missiles_step==6 and current_player.missiles_sp_hit==0}:
+    - missiles_step_7_complete
+    - missiles_step_7_shot_hit
+
+  spinner_shot_made{current_player.missiles_step==7 and current_player.missiles_sp_hit==0}:
+    - missiles_step_8_complete
+    - missiles_step_8_shot_hit
+    - missiles_setup_step_9
+
+  # TWR hit when TWR not yet hit (step 6 or 7)
+  s_ramp_tower_exit_active{current_player.missiles_step==6 and current_player.missiles_twr_hit==0}:
+    - missiles_step_7_complete
+    - missiles_step_7_shot_hit
+
+  s_ramp_tower_exit_active{current_player.missiles_step==7 and current_player.missiles_twr_hit==0}:
+    - missiles_step_8_complete
+    - missiles_step_8_shot_hit
+    - missiles_setup_step_9
+
+  ##############################################
+  ## STEP 9: RANDOM LOCK TARGET (Red) - FINAL LOCK!
+  ## Lock target selected by random_event_player
+  ##############################################
+  s_l_lock_target_active{current_player.missiles_step==8 and current_player.missiles_step_9_lock==1}:
+    - missiles_step_9_complete
+    - missiles_step_9_shot_hit
+    - missiles_step_9_flying_start
+  s_o_lock_target_active{current_player.missiles_step==8 and current_player.missiles_step_9_lock==2}:
+    - missiles_step_9_complete
+    - missiles_step_9_shot_hit
+    - missiles_step_9_flying_start
+  s_c_lock_target_active{current_player.missiles_step==8 and current_player.missiles_step_9_lock==3}:
+    - missiles_step_9_complete
+    - missiles_step_9_shot_hit
+    - missiles_step_9_flying_start
+  s_k_lock_target_active{current_player.missiles_step==8 and current_player.missiles_step_9_lock==4}:
+    - missiles_step_9_complete
+    - missiles_step_9_shot_hit
+    - missiles_step_9_flying_start
+
+  ##############################################
+  ## MISSILE FLYING → EXPLOSION → NEXT STEP CHAINS
+  ## Flying delay → explosion effect → explosion delay → next step
+  ##############################################
+  timer_missiles_step_3_flying_delay_complete:
+    - missiles_step_3_explosion_start
+    - missiles_explosion_effect
+
+  timer_missiles_step_3_explosion_delay_complete:
+    - missiles_setup_step_4
+    - missiles_stop_explosion_gi
+    - missiles_set_gi
+
+  timer_missiles_step_6_flying_delay_complete:
+    - missiles_step_6_explosion_start
+    - missiles_explosion_effect
+
+  timer_missiles_step_6_explosion_delay_complete:
+    - missiles_setup_step_7
+    - missiles_stop_explosion_gi
+    - missiles_set_gi
+
+  timer_missiles_step_9_flying_delay_complete:
+    - missiles_step_9_explosion_start
+    - missiles_explosion_effect
+
+  timer_missiles_step_9_explosion_delay_complete:
+    - missiles_complete
+
+  ##############################################
+  ## LOCK HURRY-UP CALLOUT (repeating every 15s during lock steps)
+  ##############################################
+  timer_missiles_lock_hurry_up_timer_complete:
+    - missiles_play_lock_hurry_up_callout
+
+  ##############################################
+  ## SERVO EVENTS - Right ramp control for steps 4-5
+  ##############################################
+  missiles_setup_step_4:
+    - right_ramp_up
+
+  missiles_pair_2_complete:
+    - right_ramp_down
+
+  ##############################################
+  ## TIMER EXPIRED - Mode failed
+  ##############################################
+  timer_missiles_timer_complete:
+    - missiles_failed
+
+  ##############################################
+  ## MODE COMPLETION AND FAILURE
+  ##############################################
+  missiles_complete:
+    - missiles_cleanup
+    - timer_missiles_complete_delay_start
+    - missiles_mode_ended
+
+  timer_missiles_complete_delay_complete:
+    - missiles_video_complete
+    - pilot_mode_cleanup_complete
+
+  missiles_failed:
+    - missiles_cleanup
+    - timer_missiles_failed_delay_start
+    - missiles_mode_ended
+
+  timer_missiles_failed_delay_complete:
+    - missiles_video_complete
+    - pilot_mode_cleanup_complete
+
+  ##############################################
+  ## MODE CLEANUP
+  ##############################################
+  missiles_cleanup:
+    - right_ramp_down
+
+####################################################################################
+# RANDOM EVENT PLAYER - Lock step hurry-up callout randomizer
+####################################################################################
+
+random_event_player:
+  missiles_play_lock_hurry_up_callout:
+    events:
+      - missiles_play_hurry_callout_1
+      - missiles_play_hurry_callout_2
+      - missiles_play_hurry_callout_3
+
+  # Randomly select which LOCK target (L, O, C, K) to use for each lock step
+  missiles_setup_step_3:
+    force_all: true
+    events:
+      - missiles_step_3_target_l
+      - missiles_step_3_target_o
+      - missiles_step_3_target_c
+      - missiles_step_3_target_k
+
+  missiles_setup_step_6:
+    force_all: true
+    events:
+      - missiles_step_6_target_l
+      - missiles_step_6_target_o
+      - missiles_step_6_target_c
+      - missiles_step_6_target_k
+
+  missiles_setup_step_9:
+    force_all: true
+    events:
+      - missiles_step_9_target_l
+      - missiles_step_9_target_o
+      - missiles_step_9_target_c
+      - missiles_step_9_target_k
+
+####################################################################################
+# SOUND PLAYER - Voice Callouts ONLY (Music handled in base.yaml)
+####################################################################################
+
+sound_player:
+  missiles_play_instructions_voice:
+    voice_missiles_training_mission_instructions:
+      bus: voice
+      loops: 0
+
+  missiles_play_hurry_callout_1:
+    voice_are_you_going_to_aim_first:
+      bus: voice
+      loops: 0
+
+  missiles_play_hurry_callout_2:
+    voice_take_the_shot_already:
+      bus: voice
+      loops: 0
+
+  missiles_play_hurry_callout_3:
+    voice_hurry_up_hes_getting_away:
+      bus: voice
+      loops: 0
+
+####################################################################################
+# SLIDE PLAYER - Mode Slides (Godot GMC)
+# missiles_instructions plays the ENTIRE mode (from start to end)
+# missiles_shots_remaining shows remaining shot count
+# missiles_perk_active shown on victory
+####################################################################################
+
+slide_player:
+  mode_pilot_training_mission_missiles_started:
+    missiles_timer:
+      action: play
+      priority: 1000
+    missiles_instructions:
+      action: play
+      priority: 850
+    missiles_shots_remaining:
+      action: play
+      priority: 800
+
+  ##############################################
+  ## Step Videos + mode_points_scored display
+  ##############################################
+  missiles_step_1_shot_hit:
+    missiles_step_1:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  missiles_step_2_shot_hit:
+    missiles_step_1:
+      action: remove
+    missiles_step_2:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  missiles_step_3_shot_hit:
+    missiles_step_2:
+      action: remove
+    missiles_step_3:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  missiles_step_4_shot_hit:
+    missiles_step_3:
+      action: remove
+    missiles_step_4:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  missiles_step_5_shot_hit:
+    missiles_step_4:
+      action: remove
+    missiles_step_5:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  missiles_step_6_shot_hit:
+    missiles_step_5:
+      action: remove
+    missiles_step_6:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  missiles_step_7_shot_hit:
+    missiles_step_6:
+      action: remove
+    missiles_step_7:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  missiles_step_8_shot_hit:
+    missiles_step_7:
+      action: remove
+    missiles_step_8:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  missiles_step_9_shot_hit:
+    missiles_step_8:
+      action: remove
+    missiles_step_9:
+      action: play
+      priority: 800
+    missiles_timer:
+      action: remove
+    missiles_instructions:
+      action: remove
+    missiles_shots_remaining:
+      action: remove
+    missiles_mode_won:
+      action: play
+      priority: 900
+    missiles_perk_active:
+      action: play
+      priority: 850
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  ##############################################
+  ## Failure - remove HUD slides (no lost slide for now)
+  ##############################################
+  missiles_failed:
+    missiles_timer:
+      action: remove
+    missiles_instructions:
+      action: remove
+    missiles_shots_remaining:
+      action: remove
+
+  # Safety cleanup on mode stop
+  mode_pilot_training_mission_missiles_stopped:
+    missiles_timer:
+      action: remove
+    missiles_instructions:
+      action: remove
+    missiles_shots_remaining:
+      action: remove
+    missiles_perk_active:
+      action: remove
+
+####################################################################################
+# SHOW PLAYER - Flashing shot lights and GI effects
+####################################################################################
+
+show_player:
+  ##############################################
+  ## STEPS 1-2: LO and LR (GREEN flash)
+  ##############################################
+  missiles_setup_step_1:
+    lo_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_left_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_orbit
+        color: 00FF00
+    lr_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_left_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+        color: 00FF00
+
+  # Stop individual shot flash when hit
+  left_orbit_shot_hit{(current_player.missiles_step==0 or current_player.missiles_step==1) and current_player.missiles_lo_hit==0}:
+    stop_lo:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_orbit
+
+  s_ramp_left_exit_active{(current_player.missiles_step==0 or current_player.missiles_step==1) and current_player.missiles_lr_hit==0}:
+    stop_lr:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_ramp
+
+  ##############################################
+  ## STEP 3: RANDOM LOCK TARGET (WHITE flash)
+  ## Target selected by random_event_player
+  ##############################################
+  missiles_setup_step_3:
+    stop_lo_cleanup:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_orbit
+    stop_lr_cleanup:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_ramp
+
+  # Flash whichever lock target was randomly selected
+  missiles_step_3_target_l:
+    lock_step_3_flash:
+      show: sync_flash_mode
+      key: mode_lock_step_3
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_lock_l
+        color: FFFFFF
+  missiles_step_3_target_o:
+    lock_step_3_flash:
+      show: sync_flash_mode
+      key: mode_lock_step_3
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_lock_o
+        color: FFFFFF
+  missiles_step_3_target_c:
+    lock_step_3_flash:
+      show: sync_flash_mode
+      key: mode_lock_step_3
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_lock_c
+        color: FFFFFF
+  missiles_step_3_target_k:
+    lock_step_3_flash:
+      show: sync_flash_mode
+      key: mode_lock_step_3
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_lock_k
+        color: FFFFFF
+
+  missiles_step_3_complete:
+    stop_lock_step_3:
+      show: sync_flash_mode
+      action: stop
+      key: mode_lock_step_3
+
+  ##############################################
+  ## STEPS 4-5: RO and TL (GREEN flash)
+  ## TL uses l_shot_upper_orbit (its own dedicated light)
+  ##############################################
+  missiles_setup_step_4:
+    ro_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_right_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
+        color: 00FF00
+    tl_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_upper_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: 00FF00
+
+  # Stop individual shot flash when hit
+  s_orbit_right_active{(current_player.missiles_step==3 or current_player.missiles_step==4) and current_player.missiles_ro_hit==0}:
+    stop_ro:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_right_orbit
+
+  s_orbit_upper_active{(current_player.missiles_step==3 or current_player.missiles_step==4) and current_player.missiles_tl_hit==0}:
+    stop_tl:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_upper_orbit
+
+  ##############################################
+  ## STEP 6: RANDOM LOCK TARGET (WHITE flash)
+  ## Target selected by random_event_player
+  ##############################################
+  missiles_setup_step_6:
+    stop_ro_cleanup:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_right_orbit
+    stop_tl_cleanup:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_upper_orbit
+
+  # Flash whichever lock target was randomly selected
+  missiles_step_6_target_l:
+    lock_step_6_flash:
+      show: sync_flash_mode
+      key: mode_lock_step_6
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_lock_l
+        color: FFFFFF
+  missiles_step_6_target_o:
+    lock_step_6_flash:
+      show: sync_flash_mode
+      key: mode_lock_step_6
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_lock_o
+        color: FFFFFF
+  missiles_step_6_target_c:
+    lock_step_6_flash:
+      show: sync_flash_mode
+      key: mode_lock_step_6
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_lock_c
+        color: FFFFFF
+  missiles_step_6_target_k:
+    lock_step_6_flash:
+      show: sync_flash_mode
+      key: mode_lock_step_6
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_lock_k
+        color: FFFFFF
+
+  missiles_step_6_complete:
+    stop_lock_step_6:
+      show: sync_flash_mode
+      action: stop
+      key: mode_lock_step_6
+
+  ##############################################
+  ## STEPS 7-8: SP and TWR (GREEN flash)
+  ##############################################
+  missiles_setup_step_7:
+    sp_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_spinner
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_spinner
+        color: 00FF00
+    twr_mode_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_tower_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_tower_ramp
+        color: 00FF00
+
+  # Stop individual shot flash when hit
+  spinner_shot_made{(current_player.missiles_step==6 or current_player.missiles_step==7) and current_player.missiles_sp_hit==0}:
+    stop_sp:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_spinner
+
+  s_ramp_tower_exit_active{(current_player.missiles_step==6 or current_player.missiles_step==7) and current_player.missiles_twr_hit==0}:
+    stop_twr:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_tower_ramp
+
+  ##############################################
+  ## STEP 9: RANDOM LOCK TARGET (WHITE flash) - FINAL!
+  ## Target selected by random_event_player
+  ##############################################
+  missiles_setup_step_9:
+    stop_sp_cleanup:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_spinner
+    stop_twr_cleanup:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_tower_ramp
+
+  # Flash whichever lock target was randomly selected
+  missiles_step_9_target_l:
+    lock_step_9_flash:
+      show: sync_flash_mode
+      key: mode_lock_step_9
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_lock_l
+        color: FFFFFF
+  missiles_step_9_target_o:
+    lock_step_9_flash:
+      show: sync_flash_mode
+      key: mode_lock_step_9
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_lock_o
+        color: FFFFFF
+  missiles_step_9_target_c:
+    lock_step_9_flash:
+      show: sync_flash_mode
+      key: mode_lock_step_9
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_lock_c
+        color: FFFFFF
+  missiles_step_9_target_k:
+    lock_step_9_flash:
+      show: sync_flash_mode
+      key: mode_lock_step_9
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_lock_k
+        color: FFFFFF
+
+  missiles_step_9_complete:
+    stop_lock_step_9:
+      show: sync_flash_mode
+      action: stop
+      key: mode_lock_step_9
+
+  ##############################################
+  ## MISSILE FLYING GI STROBE - Rapid strobe during flight (3, 6, 9)
+  ##############################################
+  missiles_step_3_flying_start:
+    flying_gi_strobe_3:
+      show: missiles_missile_flying_gi
+      key: gi_effect
+      loops: -1
+
+  missiles_step_6_flying_start:
+    flying_gi_strobe_6:
+      show: missiles_missile_flying_gi
+      key: gi_effect
+      loops: -1
+
+  missiles_step_9_flying_start:
+    flying_gi_strobe_9:
+      show: missiles_missile_flying_gi
+      key: gi_effect
+      loops: -1
+
+  ##############################################
+  ## EXPLOSION GI EFFECT - Lock step shot hits (3, 6, 9)
+  ##############################################
+  missiles_explosion_effect:
+    explosion_gi:
+      show: missiles_explosion_gi
+      key: gi_effect
+      loops: -1
+
+  ##############################################
+  ## STOP EXPLOSION GI - Restore mode GI after steps 3/6 explosion
+  ##############################################
+  missiles_stop_explosion_gi:
+    stop_explosion:
+      show: missiles_explosion_gi
+      action: stop
+      key: gi_effect
+
+  ##############################################
+  ## SHOT HIT GI FLASH - Quick flash on pair shot hits (1,2,4,5,7,8)
+  ##############################################
+  missiles_step_1_shot_hit:
+    gi_flash_1:
+      show: missiles_gi_flash
+      key: gi_effect
+      loops: 0
+  missiles_step_2_shot_hit:
+    gi_flash_2:
+      show: missiles_gi_flash
+      key: gi_effect
+      loops: 0
+  missiles_step_4_shot_hit:
+    gi_flash_4:
+      show: missiles_gi_flash
+      key: gi_effect
+      loops: 0
+  missiles_step_5_shot_hit:
+    gi_flash_5:
+      show: missiles_gi_flash
+      key: gi_effect
+      loops: 0
+  missiles_step_7_shot_hit:
+    gi_flash_7:
+      show: missiles_gi_flash
+      key: gi_effect
+      loops: 0
+  missiles_step_8_shot_hit:
+    gi_flash_8:
+      show: missiles_gi_flash
+      key: gi_effect
+      loops: 0
+
+  ##############################################
+  ## MODE CLEANUP - Stop all flashing shows
+  ##############################################
+  missiles_cleanup:
+    stop_lo_final:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_orbit
+    stop_lr_final:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_ramp
+    stop_lock_step_3_final:
+      show: sync_flash_mode
+      action: stop
+      key: mode_lock_step_3
+    stop_ro_final:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_right_orbit
+    stop_tl_final:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_upper_orbit
+    stop_lock_step_6_final:
+      show: sync_flash_mode
+      action: stop
+      key: mode_lock_step_6
+    stop_sp_final:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_spinner
+    stop_twr_final:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_tower_ramp
+    stop_lock_step_9_final:
+      show: sync_flash_mode
+      action: stop
+      key: mode_lock_step_9
+    stop_flying_gi_final:
+      show: missiles_missile_flying_gi
+      action: stop
+      key: gi_effect
+
+####################################################################################
+# LIGHT PLAYER - GI colors and static shot lights
+####################################################################################
+
+light_player:
+  ##############################################
+  ## GI Color - Cyan (odd) and White (even) - FF00FF = GRB-swapped cyan
+  ##############################################
+  missiles_set_gi:
+    l_gi_light_1:
+      color: FF00FF
+      fade: 0ms
+    l_gi_light_2:
+      color: white
+      fade: 0ms
+    l_gi_light_3:
+      color: FF00FF
+      fade: 0ms
+    l_gi_light_4:
+      color: white
+      fade: 0ms
+    l_gi_light_5:
+      color: FF00FF
+      fade: 0ms
+    l_gi_light_6:
+      color: white
+      fade: 0ms
+    l_gi_light_7:
+      color: FF00FF
+      fade: 0ms
+    l_gi_light_8:
+      color: white
+      fade: 0ms
+    l_gi_light_9:
+      color: FF00FF
+      fade: 0ms
+    l_gi_light_10:
+      color: white
+      fade: 0ms
+    l_gi_light_11:
+      color: FF00FF
+      fade: 0ms
+    l_gi_light_12:
+      color: white
+      fade: 0ms
+    l_gi_light_13:
+      color: FF00FF
+      fade: 0ms
+    l_gi_light_14:
+      color: white
+      fade: 0ms
+    l_gi_light_15:
+      color: FF00FF
+      fade: 0ms
+    l_gi_light_16:
+      color: white
+      fade: 0ms
+    l_gi_light_17:
+      color: FF00FF
+      fade: 0ms
+    l_gi_light_18:
+      color: white
+      fade: 0ms
+    l_gi_light_19:
+      color: FF00FF
+      fade: 0ms
+    l_gi_light_20:
+      color: white
+      fade: 0ms
+    l_gi_light_21:
+      color: FF00FF
+      fade: 0ms
+    l_gi_light_22:
+      color: white
+      fade: 0ms
+    l_gi_light_23:
+      color: FF00FF
+      fade: 0ms
+    l_gi_light_24:
+      color: white
+      fade: 0ms
+    l_gi_light_25:
+      color: FF00FF
+      fade: 0ms
+    l_gi_light_26:
+      color: white
+      fade: 0ms
+    l_gi_light_27:
+      color: FF00FF
+      fade: 0ms
+    l_apron_light_1:
+      color: FF00FF
+      fade: 0ms
+    l_apron_light_2:
+      color: white
+      fade: 0ms
+    l_apron_light_3:
+      color: FF00FF
+      fade: 0ms
+    l_apron_light_4:
+      color: white
+      fade: 0ms
+
+  ##############################################
+  ## Restore GI to white on cleanup
+  ##############################################
+  missiles_cleanup:
+    l_gi_light_1:
+      color: white
+      fade: 0ms
+    l_gi_light_2:
+      color: white
+      fade: 0ms
+    l_gi_light_3:
+      color: white
+      fade: 0ms
+    l_gi_light_4:
+      color: white
+      fade: 0ms
+    l_gi_light_5:
+      color: white
+      fade: 0ms
+    l_gi_light_6:
+      color: white
+      fade: 0ms
+    l_gi_light_7:
+      color: white
+      fade: 0ms
+    l_gi_light_8:
+      color: white
+      fade: 0ms
+    l_gi_light_9:
+      color: white
+      fade: 0ms
+    l_gi_light_10:
+      color: white
+      fade: 0ms
+    l_gi_light_11:
+      color: white
+      fade: 0ms
+    l_gi_light_12:
+      color: white
+      fade: 0ms
+    l_gi_light_13:
+      color: white
+      fade: 0ms
+    l_gi_light_14:
+      color: white
+      fade: 0ms
+    l_gi_light_15:
+      color: white
+      fade: 0ms
+    l_gi_light_16:
+      color: white
+      fade: 0ms
+    l_gi_light_17:
+      color: white
+      fade: 0ms
+    l_gi_light_18:
+      color: white
+      fade: 0ms
+    l_gi_light_19:
+      color: white
+      fade: 0ms
+    l_gi_light_20:
+      color: white
+      fade: 0ms
+    l_gi_light_21:
+      color: white
+      fade: 0ms
+    l_gi_light_22:
+      color: white
+      fade: 0ms
+    l_gi_light_23:
+      color: white
+      fade: 0ms
+    l_gi_light_24:
+      color: white
+      fade: 0ms
+    l_gi_light_25:
+      color: white
+      fade: 0ms
+    l_gi_light_26:
+      color: white
+      fade: 0ms
+    l_gi_light_27:
+      color: white
+      fade: 0ms
+    l_apron_light_1:
+      color: white
+      fade: 0ms
+    l_apron_light_2:
+      color: white
+      fade: 0ms
+    l_apron_light_3:
+      color: white
+      fade: 0ms
+    l_apron_light_4:
+      color: white
+      fade: 0ms
+    # Turn off all shot inserts
+    l_shot_left_orbit: off
+    l_shot_left_ramp: off
+    l_shot_right_orbit: off
+    l_shot_upper_orbit: off
+    l_shot_spinner: off
+    l_shot_tower_ramp: off
+    l_lock_c: off
+    l_lock_l: off
+    l_lock_k: off
+    l_lock_o: off
+
+  ##############################################
+  ## Static shot insert lighting (solid green for pair shots)
+  ## Flash shows override these with sync_flash_mode
+  ##############################################
+
+  # Steps 1-2: LO and LR solid green
+  missiles_setup_step_1:
+    l_shot_left_orbit:
+      color: 00FF00
+      fade: 0ms
+    l_shot_left_ramp:
+      color: 00FF00
+      fade: 0ms
+
+  # Turn off LO when hit
+  left_orbit_shot_hit{(current_player.missiles_step==0 or current_player.missiles_step==1) and current_player.missiles_lo_hit==0}:
+    l_shot_left_orbit: off
+
+  # Turn off LR when hit
+  s_ramp_left_exit_active{(current_player.missiles_step==0 or current_player.missiles_step==1) and current_player.missiles_lr_hit==0}:
+    l_shot_left_ramp: off
+
+  # Step 3: Random Lock target solid white
+  missiles_setup_step_3:
+    l_shot_left_orbit: off
+    l_shot_left_ramp: off
+
+  missiles_step_3_target_l:
+    l_lock_l:
+      color: FFFFFF
+      fade: 0ms
+  missiles_step_3_target_o:
+    l_lock_o:
+      color: FFFFFF
+      fade: 0ms
+  missiles_step_3_target_c:
+    l_lock_c:
+      color: FFFFFF
+      fade: 0ms
+  missiles_step_3_target_k:
+    l_lock_k:
+      color: FFFFFF
+      fade: 0ms
+
+  missiles_step_3_complete:
+    l_lock_l: off
+    l_lock_o: off
+    l_lock_c: off
+    l_lock_k: off
+
+  # Steps 4-5: RO and TL solid green
+  missiles_setup_step_4:
+    l_shot_right_orbit:
+      color: 00FF00
+      fade: 0ms
+    l_shot_upper_orbit:
+      color: 00FF00
+      fade: 0ms
+
+  # Turn off RO when hit
+  s_orbit_right_active{(current_player.missiles_step==3 or current_player.missiles_step==4) and current_player.missiles_ro_hit==0}:
+    l_shot_right_orbit: off
+
+  # Turn off TL when hit
+  s_orbit_upper_active{(current_player.missiles_step==3 or current_player.missiles_step==4) and current_player.missiles_tl_hit==0}:
+    l_shot_upper_orbit: off
+
+  # Step 6: Random Lock target solid white
+  missiles_setup_step_6:
+    l_shot_right_orbit: off
+    l_shot_upper_orbit: off
+
+  missiles_step_6_target_l:
+    l_lock_l:
+      color: FFFFFF
+      fade: 0ms
+  missiles_step_6_target_o:
+    l_lock_o:
+      color: FFFFFF
+      fade: 0ms
+  missiles_step_6_target_c:
+    l_lock_c:
+      color: FFFFFF
+      fade: 0ms
+  missiles_step_6_target_k:
+    l_lock_k:
+      color: FFFFFF
+      fade: 0ms
+
+  missiles_step_6_complete:
+    l_lock_l: off
+    l_lock_o: off
+    l_lock_c: off
+    l_lock_k: off
+
+  # Steps 7-8: SP and TWR solid green
+  missiles_setup_step_7:
+    l_shot_spinner:
+      color: 00FF00
+      fade: 0ms
+    l_shot_tower_ramp:
+      color: 00FF00
+      fade: 0ms
+
+  # Turn off SP when hit
+  spinner_shot_made{(current_player.missiles_step==6 or current_player.missiles_step==7) and current_player.missiles_sp_hit==0}:
+    l_shot_spinner: off
+
+  # Turn off TWR when hit
+  s_ramp_tower_exit_active{(current_player.missiles_step==6 or current_player.missiles_step==7) and current_player.missiles_twr_hit==0}:
+    l_shot_tower_ramp: off
+
+  # Step 9: Random Lock target solid white
+  missiles_setup_step_9:
+    l_shot_spinner: off
+    l_shot_tower_ramp: off
+
+  missiles_step_9_target_l:
+    l_lock_l:
+      color: FFFFFF
+      fade: 0ms
+  missiles_step_9_target_o:
+    l_lock_o:
+      color: FFFFFF
+      fade: 0ms
+  missiles_step_9_target_c:
+    l_lock_c:
+      color: FFFFFF
+      fade: 0ms
+  missiles_step_9_target_k:
+    l_lock_k:
+      color: FFFFFF
+      fade: 0ms
+
+  missiles_step_9_complete:
+    l_lock_l: off
+    l_lock_o: off
+    l_lock_c: off
+    l_lock_k: off
+
+  ##############################################
+  ## Perk active indicator
+  ##############################################
+  missiles_complete:
+    l_mode_missles:
+      color: 00FF00
+      fade: 0ms
+
+####################################################################################
+# SHOWS - Explosion GI and quick flash effects
+####################################################################################
+
+####################################################################################
+# COIL PLAYER - Left lane post hold during intro
+####################################################################################
+
+coil_player:
+  # Hold ball at left lane post during intro video
+  mode_pilot_training_mission_missiles_started:
+    c_left_lane_up_post:
+      action: enable
+
+  # Release ball after intro (or skip)
+  missiles_ball_released:
+    c_left_lane_up_post:
+      action: disable
+
+  # Mode cleanup - disable post
+  missiles_cleanup:
+    c_left_lane_up_post:
+      action: disable
+
+  # Safety - disable post on mode stop
+  mode_pilot_training_mission_missiles_will_stop:
+    c_left_lane_up_post:
+      action: disable
+
+
+shows:
+  ##############################################
+  ## MISSILE FLYING GI STROBE - Rapid white strobe during missile flight
+  ## 2 frames at 100ms each = 200ms cycle (5 Hz strobe), loops infinitely
+  ##############################################
+  missiles_missile_flying_gi:
+    - duration: 100ms
+      lights:
+        l_gi_light_1: white
+        l_gi_light_2: white
+        l_gi_light_3: white
+        l_gi_light_4: white
+        l_gi_light_5: white
+        l_gi_light_6: white
+        l_gi_light_7: white
+        l_gi_light_8: white
+        l_gi_light_9: white
+        l_gi_light_10: white
+        l_gi_light_11: white
+        l_gi_light_12: white
+        l_gi_light_13: white
+        l_gi_light_14: white
+        l_gi_light_15: white
+        l_gi_light_16: white
+        l_gi_light_17: white
+        l_gi_light_18: white
+        l_gi_light_19: white
+        l_gi_light_20: white
+        l_gi_light_21: white
+        l_gi_light_22: white
+        l_gi_light_23: white
+        l_gi_light_24: white
+        l_gi_light_25: white
+        l_gi_light_26: white
+        l_gi_light_27: white
+        l_apron_light_1: white
+        l_apron_light_2: white
+        l_apron_light_3: white
+        l_apron_light_4: white
+    - duration: 100ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: off
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: off
+        l_apron_light_1: off
+        l_apron_light_2: off
+        l_apron_light_3: off
+        l_apron_light_4: off
+
+  ##############################################
+  ## EXPLOSION GI - Rapid flicker for lock step hits
+  ## 8 frames of randomized Yellow/Orange/Red across all GI + apron
+  ##############################################
+  missiles_explosion_gi:
+    - duration: 100ms
+      lights:
+        l_gi_light_1: yellow
+        l_gi_light_2: orange
+        l_gi_light_3: red
+        l_gi_light_4: yellow
+        l_gi_light_5: orange
+        l_gi_light_6: red
+        l_gi_light_7: yellow
+        l_gi_light_8: orange
+        l_gi_light_9: red
+        l_gi_light_10: yellow
+        l_gi_light_11: orange
+        l_gi_light_12: red
+        l_gi_light_13: yellow
+        l_gi_light_14: orange
+        l_gi_light_15: red
+        l_gi_light_16: yellow
+        l_gi_light_17: orange
+        l_gi_light_18: red
+        l_gi_light_19: yellow
+        l_gi_light_20: orange
+        l_gi_light_21: red
+        l_gi_light_22: yellow
+        l_gi_light_23: orange
+        l_gi_light_24: red
+        l_gi_light_25: yellow
+        l_gi_light_26: orange
+        l_gi_light_27: red
+        l_apron_light_1: yellow
+        l_apron_light_2: orange
+        l_apron_light_3: red
+        l_apron_light_4: yellow
+    - duration: 100ms
+      lights:
+        l_gi_light_1: red
+        l_gi_light_2: yellow
+        l_gi_light_3: orange
+        l_gi_light_4: red
+        l_gi_light_5: yellow
+        l_gi_light_6: orange
+        l_gi_light_7: red
+        l_gi_light_8: yellow
+        l_gi_light_9: orange
+        l_gi_light_10: red
+        l_gi_light_11: yellow
+        l_gi_light_12: orange
+        l_gi_light_13: red
+        l_gi_light_14: yellow
+        l_gi_light_15: orange
+        l_gi_light_16: red
+        l_gi_light_17: yellow
+        l_gi_light_18: orange
+        l_gi_light_19: red
+        l_gi_light_20: yellow
+        l_gi_light_21: orange
+        l_gi_light_22: red
+        l_gi_light_23: yellow
+        l_gi_light_24: orange
+        l_gi_light_25: red
+        l_gi_light_26: yellow
+        l_gi_light_27: orange
+        l_apron_light_1: red
+        l_apron_light_2: yellow
+        l_apron_light_3: orange
+        l_apron_light_4: red
+    - duration: 100ms
+      lights:
+        l_gi_light_1: orange
+        l_gi_light_2: red
+        l_gi_light_3: yellow
+        l_gi_light_4: orange
+        l_gi_light_5: red
+        l_gi_light_6: yellow
+        l_gi_light_7: orange
+        l_gi_light_8: red
+        l_gi_light_9: yellow
+        l_gi_light_10: orange
+        l_gi_light_11: red
+        l_gi_light_12: yellow
+        l_gi_light_13: orange
+        l_gi_light_14: red
+        l_gi_light_15: yellow
+        l_gi_light_16: orange
+        l_gi_light_17: red
+        l_gi_light_18: yellow
+        l_gi_light_19: orange
+        l_gi_light_20: red
+        l_gi_light_21: yellow
+        l_gi_light_22: orange
+        l_gi_light_23: red
+        l_gi_light_24: yellow
+        l_gi_light_25: orange
+        l_gi_light_26: red
+        l_gi_light_27: yellow
+        l_apron_light_1: orange
+        l_apron_light_2: red
+        l_apron_light_3: yellow
+        l_apron_light_4: orange
+    - duration: 100ms
+      lights:
+        l_gi_light_1: yellow
+        l_gi_light_2: orange
+        l_gi_light_3: red
+        l_gi_light_4: yellow
+        l_gi_light_5: red
+        l_gi_light_6: orange
+        l_gi_light_7: yellow
+        l_gi_light_8: red
+        l_gi_light_9: orange
+        l_gi_light_10: yellow
+        l_gi_light_11: orange
+        l_gi_light_12: red
+        l_gi_light_13: yellow
+        l_gi_light_14: red
+        l_gi_light_15: orange
+        l_gi_light_16: yellow
+        l_gi_light_17: red
+        l_gi_light_18: orange
+        l_gi_light_19: yellow
+        l_gi_light_20: orange
+        l_gi_light_21: red
+        l_gi_light_22: yellow
+        l_gi_light_23: red
+        l_gi_light_24: orange
+        l_gi_light_25: yellow
+        l_gi_light_26: red
+        l_gi_light_27: orange
+        l_apron_light_1: yellow
+        l_apron_light_2: red
+        l_apron_light_3: orange
+        l_apron_light_4: yellow
+    - duration: 100ms
+      lights:
+        l_gi_light_1: red
+        l_gi_light_2: yellow
+        l_gi_light_3: orange
+        l_gi_light_4: red
+        l_gi_light_5: orange
+        l_gi_light_6: yellow
+        l_gi_light_7: red
+        l_gi_light_8: orange
+        l_gi_light_9: yellow
+        l_gi_light_10: red
+        l_gi_light_11: yellow
+        l_gi_light_12: orange
+        l_gi_light_13: red
+        l_gi_light_14: orange
+        l_gi_light_15: yellow
+        l_gi_light_16: red
+        l_gi_light_17: orange
+        l_gi_light_18: yellow
+        l_gi_light_19: red
+        l_gi_light_20: yellow
+        l_gi_light_21: orange
+        l_gi_light_22: red
+        l_gi_light_23: orange
+        l_gi_light_24: yellow
+        l_gi_light_25: red
+        l_gi_light_26: orange
+        l_gi_light_27: yellow
+        l_apron_light_1: red
+        l_apron_light_2: orange
+        l_apron_light_3: yellow
+        l_apron_light_4: red
+    - duration: 100ms
+      lights:
+        l_gi_light_1: orange
+        l_gi_light_2: red
+        l_gi_light_3: yellow
+        l_gi_light_4: orange
+        l_gi_light_5: yellow
+        l_gi_light_6: red
+        l_gi_light_7: orange
+        l_gi_light_8: yellow
+        l_gi_light_9: red
+        l_gi_light_10: orange
+        l_gi_light_11: red
+        l_gi_light_12: yellow
+        l_gi_light_13: orange
+        l_gi_light_14: yellow
+        l_gi_light_15: red
+        l_gi_light_16: orange
+        l_gi_light_17: yellow
+        l_gi_light_18: red
+        l_gi_light_19: orange
+        l_gi_light_20: red
+        l_gi_light_21: yellow
+        l_gi_light_22: orange
+        l_gi_light_23: yellow
+        l_gi_light_24: red
+        l_gi_light_25: orange
+        l_gi_light_26: yellow
+        l_gi_light_27: red
+        l_apron_light_1: orange
+        l_apron_light_2: yellow
+        l_apron_light_3: red
+        l_apron_light_4: orange
+    - duration: 100ms
+      lights:
+        l_gi_light_1: yellow
+        l_gi_light_2: orange
+        l_gi_light_3: red
+        l_gi_light_4: yellow
+        l_gi_light_5: orange
+        l_gi_light_6: red
+        l_gi_light_7: yellow
+        l_gi_light_8: orange
+        l_gi_light_9: red
+        l_gi_light_10: yellow
+        l_gi_light_11: orange
+        l_gi_light_12: red
+        l_gi_light_13: yellow
+        l_gi_light_14: orange
+        l_gi_light_15: red
+        l_gi_light_16: yellow
+        l_gi_light_17: orange
+        l_gi_light_18: red
+        l_gi_light_19: yellow
+        l_gi_light_20: orange
+        l_gi_light_21: red
+        l_gi_light_22: yellow
+        l_gi_light_23: orange
+        l_gi_light_24: red
+        l_gi_light_25: yellow
+        l_gi_light_26: orange
+        l_gi_light_27: red
+        l_apron_light_1: yellow
+        l_apron_light_2: orange
+        l_apron_light_3: red
+        l_apron_light_4: yellow
+    - duration: 100ms
+      lights:
+        l_gi_light_1: FF00FF
+        l_gi_light_2: white
+        l_gi_light_3: FF00FF
+        l_gi_light_4: white
+        l_gi_light_5: FF00FF
+        l_gi_light_6: white
+        l_gi_light_7: FF00FF
+        l_gi_light_8: white
+        l_gi_light_9: FF00FF
+        l_gi_light_10: white
+        l_gi_light_11: FF00FF
+        l_gi_light_12: white
+        l_gi_light_13: FF00FF
+        l_gi_light_14: white
+        l_gi_light_15: FF00FF
+        l_gi_light_16: white
+        l_gi_light_17: FF00FF
+        l_gi_light_18: white
+        l_gi_light_19: FF00FF
+        l_gi_light_20: white
+        l_gi_light_21: FF00FF
+        l_gi_light_22: white
+        l_gi_light_23: FF00FF
+        l_gi_light_24: white
+        l_gi_light_25: FF00FF
+        l_gi_light_26: white
+        l_gi_light_27: FF00FF
+        l_apron_light_1: FF00FF
+        l_apron_light_2: white
+        l_apron_light_3: FF00FF
+        l_apron_light_4: white
+
+  ##############################################
+  ## GI FLASH - Quick white flash for pair shot hits
+  ##############################################
+  missiles_gi_flash:
+    - duration: 150ms
+      lights:
+        l_gi_light_1: white
+        l_gi_light_2: white
+        l_gi_light_3: white
+        l_gi_light_4: white
+        l_gi_light_5: white
+        l_gi_light_6: white
+        l_gi_light_7: white
+        l_gi_light_8: white
+        l_gi_light_9: white
+        l_gi_light_10: white
+        l_gi_light_11: white
+        l_gi_light_12: white
+        l_gi_light_13: white
+        l_gi_light_14: white
+        l_gi_light_15: white
+        l_gi_light_16: white
+        l_gi_light_17: white
+        l_gi_light_18: white
+        l_gi_light_19: white
+        l_gi_light_20: white
+        l_gi_light_21: white
+        l_gi_light_22: white
+        l_gi_light_23: white
+        l_gi_light_24: white
+        l_gi_light_25: white
+        l_gi_light_26: white
+        l_gi_light_27: white
+        l_apron_light_1: white
+        l_apron_light_2: white
+        l_apron_light_3: white
+        l_apron_light_4: white
+    - duration: 150ms
+      lights:
+        l_gi_light_1: FF00FF
+        l_gi_light_2: white
+        l_gi_light_3: FF00FF
+        l_gi_light_4: white
+        l_gi_light_5: FF00FF
+        l_gi_light_6: white
+        l_gi_light_7: FF00FF
+        l_gi_light_8: white
+        l_gi_light_9: FF00FF
+        l_gi_light_10: white
+        l_gi_light_11: FF00FF
+        l_gi_light_12: white
+        l_gi_light_13: FF00FF
+        l_gi_light_14: white
+        l_gi_light_15: FF00FF
+        l_gi_light_16: white
+        l_gi_light_17: FF00FF
+        l_gi_light_18: white
+        l_gi_light_19: FF00FF
+        l_gi_light_20: white
+        l_gi_light_21: FF00FF
+        l_gi_light_22: white
+        l_gi_light_23: FF00FF
+        l_gi_light_24: white
+        l_gi_light_25: FF00FF
+        l_gi_light_26: white
+        l_gi_light_27: FF00FF
+        l_apron_light_1: FF00FF
+        l_apron_light_2: white
+        l_apron_light_3: FF00FF
+        l_apron_light_4: white

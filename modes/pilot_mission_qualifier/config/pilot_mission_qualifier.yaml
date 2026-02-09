@@ -280,6 +280,16 @@ variable_player:
     training_missions_played:
       action: set
       int: 0
+    # Missiles training mission tracking
+    missiles_perk_active:
+      action: set
+      int: 0
+    training_missles_complete:
+      action: set
+      int: 0
+    training_missions_played_count:
+      action: set
+      int: 0
     # Bonus tracking - hard deck awards (persists whole game)
     hard_deck_awards_count:
       action: set
@@ -475,6 +485,36 @@ variable_player:
       action: set
       int: 0
 
+  # Clear pause flags when training mission inverted stops
+  mode_pilot_training_mission_inverted_stopped:
+    letter_collection_paused:
+      action: set
+      int: 0
+    pilot_qualifier_paused:
+      action: set
+      int: 0
+    # Clear multiball active flag
+    multiball_active:
+      action: set
+      int: 0
+    # Clear training mission active flag
+    training_mission_active:
+      action: set
+      int: 0
+
+  # Clear pause flags when training mission missiles stops
+  mode_pilot_training_mission_missiles_stopped:
+    letter_collection_paused:
+      action: set
+      int: 0
+    pilot_qualifier_paused:
+      action: set
+      int: 0
+    # Clear training mission active flag
+    training_mission_active:
+      action: set
+      int: 0
+
 ##############################################
 ## Shot Hit Tracking - ANY Shot Increments Counter
 ##############################################
@@ -659,8 +699,8 @@ variable_player:
       action: set
       int: 1
   
-  # Unpause when skillshot ends
-  mode_skillshot_stopped:
+  # Unpause when skillshot ends (only if no training mission is active)
+  mode_skillshot_stopped{current_player.training_mission_active==0}:
     pilot_qualifier_paused:
       action: set
       int: 0
@@ -1258,6 +1298,15 @@ coil_player:
     c_mode_barrier:
       action: enable
 
+  # DROP barrier when training mission ends - if pilot mission is qualified
+  mode_pilot_training_mission_missiles_stopped{current_player.qualified_mode_number>0 and current_player.multiball_active==0}:
+    c_mode_barrier:
+      action: enable
+
+  mode_pilot_training_mission_inverted_stopped{current_player.qualified_mode_number>0 and current_player.multiball_active==0}:
+    c_mode_barrier:
+      action: enable
+
 ##############################################
 ## Event Player - Mode Qualification & Rotation
 ##############################################
@@ -1344,6 +1393,11 @@ event_player:
   
   # Rise of Phoenix
   mode_rise_of_phoenix_stopped{current_player.pilot_mode_drain_pending==1}:
+    - pilot_mission_bonus_ready
+    - pilot_mission_drain_complete
+
+  # Missiles Training Mission
+  mode_pilot_training_mission_missiles_stopped{current_player.pilot_mode_drain_pending==1}:
     - pilot_mission_bonus_ready
     - pilot_mission_drain_complete
 
@@ -1811,34 +1865,35 @@ event_player:
   ##############################################
   
   # Mode selection based on qualified mode when scoop is hit
-  s_mode_start_active{current_player.qualified_mode_number==1 and current_player.mode_rescue_cougar_played==0}:
+  # Training mission must not be active
+  s_mode_start_active{current_player.qualified_mode_number==1 and current_player.mode_rescue_cougar_played==0 and current_player.training_mission_active==0}:
     - start_mode_rescue_cougar
   
-  s_mode_start_active{current_player.qualified_mode_number==2 and current_player.mode_balls_of_fire_played==0}:
+  s_mode_start_active{current_player.qualified_mode_number==2 and current_player.mode_balls_of_fire_played==0 and current_player.training_mission_active==0}:
     - start_mode_balls_of_fire
   
-  s_mode_start_active{current_player.qualified_mode_number==3 and current_player.mode_cool_under_pressure_played==0}:
+  s_mode_start_active{current_player.qualified_mode_number==3 and current_player.mode_cool_under_pressure_played==0 and current_player.training_mission_active==0}:
     - start_mode_cool_under_pressure
   
-  s_mode_start_active{current_player.qualified_mode_number==4 and current_player.mode_battle_jester_played==0}:
+  s_mode_start_active{current_player.qualified_mode_number==4 and current_player.mode_battle_jester_played==0 and current_player.training_mission_active==0}:
     - start_mode_battle_jester
   
-  s_mode_start_active{current_player.qualified_mode_number==5 and current_player.mode_no_points_for_second_place_played==0}:
+  s_mode_start_active{current_player.qualified_mode_number==5 and current_player.mode_no_points_for_second_place_played==0 and current_player.training_mission_active==0}:
     - start_mode_no_points_for_second_place
   
-  s_mode_start_active{current_player.qualified_mode_number==6 and current_player.mode_edge_of_space_played==0}:
+  s_mode_start_active{current_player.qualified_mode_number==6 and current_player.mode_edge_of_space_played==0 and current_player.training_mission_active==0}:
     - start_mode_edge_of_space
   
-  s_mode_start_active{current_player.qualified_mode_number==7 and current_player.mode_below_the_hard_deck_played==0}:
+  s_mode_start_active{current_player.qualified_mode_number==7 and current_player.mode_below_the_hard_deck_played==0 and current_player.training_mission_active==0}:
     - start_mode_below_the_hard_deck
   
-  s_mode_start_active{current_player.qualified_mode_number==8 and current_player.mode_canyon_run_played==0}:
+  s_mode_start_active{current_player.qualified_mode_number==8 and current_player.mode_canyon_run_played==0 and current_player.training_mission_active==0}:
     - start_mode_canyon_run
   
-  s_mode_start_active{current_player.qualified_mode_number==9 and current_player.mode_rise_of_phoenix_played==0}:
+  s_mode_start_active{current_player.qualified_mode_number==9 and current_player.mode_rise_of_phoenix_played==0 and current_player.training_mission_active==0}:
     - start_mode_rise_of_phoenix
   
-  s_mode_start_active{current_player.qualified_mode_number==10 and current_player.mode_no_margin_for_error_played==0}:
+  s_mode_start_active{current_player.qualified_mode_number==10 and current_player.mode_no_margin_for_error_played==0 and current_player.training_mission_active==0}:
     - start_mode_no_margin_for_error
   
   ##############################################
