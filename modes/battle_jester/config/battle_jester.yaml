@@ -5,7 +5,7 @@
 # Timer: 120 seconds countdown
 # Total Steps: 11 shots to complete + optional Step 12 (tower challenge)
 # Can stack with multiball: Yes (but cannot START during multiball)
-# GI Color: Purple and White (odd lights=white, even lights=purple, pops=purple)
+# GI Color: Cyan and White (odd lights=white, even lights=cyan, pops=white)
 # Points Bank: Shots add to bank, payout at end (50%/100%/150%)
 # Music: Controlled in base.yaml (starts on ball eject, NOT mode start)
 #
@@ -352,6 +352,34 @@ timers:
         action: start
       - event: battle_jester_step_5_complete
         action: stop
+
+  # Servo stagger delays - prevent power contention when moving 2 servos
+  battle_jester_servo_step3_setup_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 500ms
+    control_events:
+      - event: battle_jester_setup_step_3
+        action: restart
+
+  battle_jester_servo_step3_done_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 500ms
+    control_events:
+      - event: battle_jester_step_3_complete
+        action: restart
+
+  battle_jester_servo_cleanup_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 500ms
+    control_events:
+      - event: battle_jester_cleanup
+        action: restart
 
 ####################################################################################
 # QUEUE RELAY PLAYER - Hold ball_ending until mode cleanup completes
@@ -826,28 +854,35 @@ event_player:
     - barrier_raise
   
   # Mode cleanup - RAISE barrier (let qualification logic handle dropping if needed)
-  # Also lower both ramps via servo events
+  # Lower right ramp immediately, top ramp after 500ms delay
   battle_jester_cleanup:
     - barrier_raise
-    - right_ramp_down             # SERVO: Lower right ramp on cleanup
-    - top_ramp_down               # SERVO: Lower top ramp on cleanup
+    - right_ramp_down
+
+  timer_battle_jester_servo_cleanup_delay_complete:
+    - top_ramp_down
 
   ##############################################
   ## SERVO CONTROL - Ramp lifters
   ## These events trigger servo movements
   ##############################################
   
-  # Step 3: Raise top ramp for orbit_lower shot
+  # Step 3: Raise top ramp immediately, right ramp after 500ms delay
   battle_jester_setup_step_3:
     - top_ramp_up
   
-  # Step 3 complete: Lower top ramp
+  timer_battle_jester_servo_step3_setup_delay_complete:
+    - right_ramp_up
+  
+  # Step 3 complete: Lower top ramp immediately, right ramp after 500ms delay
   battle_jester_step_3_complete:
     - top_ramp_down
   
-  # Step 5: Raise right ramp
-  battle_jester_setup_step_5:
-    - right_ramp_up
+  timer_battle_jester_servo_step3_done_delay_complete:
+    - right_ramp_down
+  
+  # Step 5: Right ramp stays DOWN (step 5 uses s_ramp_right_exit)
+  # No servo action needed
   
   # Step 5 complete: Lower right ramp
   battle_jester_step_5_complete:
@@ -1104,11 +1139,12 @@ event_player:
   s_orbit_right_active{current_player.battle_jester_step==10}:
     - battle_jester_activate_left_diverter
     
-  # Left lane hit - pause timer, hold ball, deactivate diverter, and complete step 11
+  # Left lane hit - pause timer, hold ball, deactivate diverter, lower right ramp, and complete step 11
   s_lane_left_active{current_player.battle_jester_step==10}:
     - battle_jester_pause_timer
     - battle_jester_activate_left_lane_post
     - battle_jester_deactivate_left_diverter
+    - right_ramp_down
     - battle_jester_step_11_complete
     # Note: No add_time_green here - timer jumps to 20 for decision phase
     
@@ -1155,7 +1191,6 @@ event_player:
   ##############################################
   battle_jester_add_time_green:
     - battle_jester_timer_add_5s
-    - play_shot_made_callout
 
   ##############################################
   ## RED SHOT TIME PENALTY (-5 seconds)
@@ -1675,19 +1710,19 @@ show_player:
   ## Shows already use 500ms timing for sync compatibility
   ##############################################
 
-  # GI effects for green shot hit - flash RED (swapped)
+  # GI effects for green shot hit - flash GREEN
   battle_jester_add_time_green:
-    gi_red_flicker:
-      show: jester_gi_red_flicker
+    gi_green_flash:
+      show: jester_gi_green_flash
       key: gi_effect
       loops: 0
       show_tokens:
         led: gi_lights
 
-  # GI effects for red shot hit - flash GREEN (swapped)
+  # GI effects for red shot hit - flash RED
   battle_jester_subtract_time_red:
-    gi_green_flash:
-      show: jester_gi_green_flash
+    gi_red_flicker:
+      show: jester_gi_red_flicker
       key: gi_effect
       loops: 0
       show_tokens:
@@ -2238,7 +2273,7 @@ show_player:
 
   # Step 11 - Set step 7 ramp shots to solid red, flash spinner, right_orbit, left_lane green
   battle_jester_setup_step_11:
-    # Set step 7-10 ramp shots to solid red
+    # Set step 7-10 ramp shots to solid red (except right_orbit - it's a GREEN shot in step 11)
     flash_step7_ramp_left:
       show: jester_solid_red
       key: mode_l_shot_ramp_left
@@ -2257,12 +2292,10 @@ show_player:
       loops: -1
       show_tokens:
         led: l_shot_tower_ramp
+    # STOP the right ramp show - right_orbit is GREEN in step 11, not red
     flash_step7_ramp_right:
-      show: jester_solid_red
+      action: stop
       key: mode_l_shot_ramp_right
-      loops: -1
-      show_tokens:
-        led: l_shot_right_orbit
     # Flash step 11 shots - spinner, right_orbit, left_lane green
     flash_step11_spinner:
       show: jester_flash_green
@@ -2415,7 +2448,7 @@ show_player:
 
 
 light_player:
-  # Mode start - Set GI to purple/white alternating pattern
+  # Mode start - Set GI to cyan/white alternating pattern
   mode_battle_jester_started:
     # Odd numbered GI lights = white
     l_gi_light_1:
@@ -2457,55 +2490,55 @@ light_player:
     l_gi_light_27:
       color: white
       fade: 0ms
-    # Even numbered GI lights = purple
+    # Even numbered GI lights = cyan
     l_gi_light_2:
-      color: purple
+      color: cyan
       fade: 0ms
     l_gi_light_4:
-      color: purple
+      color: cyan
       fade: 0ms
     l_gi_light_6:
-      color: purple
+      color: cyan
       fade: 0ms
     l_gi_light_8:
-      color: purple
+      color: cyan
       fade: 0ms
     l_gi_light_10:
-      color: purple
+      color: cyan
       fade: 0ms
     l_gi_light_12:
-      color: purple
+      color: cyan
       fade: 0ms
     l_gi_light_14:
-      color: purple
+      color: cyan
       fade: 0ms
     l_gi_light_16:
-      color: purple
+      color: cyan
       fade: 0ms
     l_gi_light_18:
-      color: purple
+      color: cyan
       fade: 0ms
     l_gi_light_20:
-      color: purple
+      color: cyan
       fade: 0ms
     l_gi_light_22:
-      color: purple
+      color: cyan
       fade: 0ms
     l_gi_light_24:
-      color: purple
+      color: cyan
       fade: 0ms
     l_gi_light_26:
-      color: purple
+      color: cyan
       fade: 0ms
-    # Pop bumper lights = purple
+    # Pop bumper lights = white (matches GI)
     l_gi_light_pop_left:
-      color: purple
+      color: white
       fade: 0ms
     l_gi_light_pop_right:
-      color: purple
+      color: white
       fade: 0ms
     l_gi_light_pop_bottom:
-      color: purple
+      color: white
       fade: 0ms
     # Light 19 = white (odd pattern)
     l_gi_light_19:
@@ -2938,6 +2971,16 @@ light_player:
   ## STEP 11 - Flash spinner, right_orbit, left_lane green; all others red
   ##############################################
   battle_jester_setup_step_11:
+    # Green shots - set to off so show_player flash takes priority
+    l_shot_left_lane:
+      color: off
+      fade: 0ms
+    l_shot_right_orbit:
+      color: off
+      fade: 0ms
+    l_shot_spinner:
+      color: off
+      fade: 0ms
     # Red shots (all non-step-11 shots)
     l_shot_left_orbit:
       color: red
