@@ -72,6 +72,36 @@ timers:
       - action: restart
         event: s_orbit_right_active
 
+  ##############################################
+  ## INVERTED PERK: Delay bonus TOPGUN letter by 500ms
+  ## This prevents race condition where both normal and bonus letters
+  ## fire in the same tick, causing slides to process in reversed order
+  ##############################################
+  inverted_bonus_topgun_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 500ms
+    control_events:
+      - action: restart
+        event: inverted_bonus_topgun_pending
+
+  ##############################################
+  ## ORBIT SHOT LOCKOUT TIMER
+  ## Prevents fast orbit pass from double-triggering composite shots
+  ## When either orbit completes, lockout is set; timer clears it after 500ms
+  ##############################################
+  orbit_shot_lockout_timer:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 500ms
+    control_events:
+      - action: restart
+        event: left_orbit_shot_hit
+      - action: restart
+        event: right_orbit_shot_hit
+
 
 
 slide_player:
@@ -221,6 +251,20 @@ slide_player:
     topgun_6:
       action: remove
 
+  ##############################################
+  ## AFTERBURNER PERK INDICATOR
+  ## Shown when afterburner perk is earned, persists until ball ends
+  ## (managed here because the training mission mode stops after winning)
+  ##############################################
+  player_afterburner_perk_active{value==1}:
+    afterburner_perk_active:
+      action: play
+      priority: 850
+
+  player_afterburner_perk_active{value==0}:
+    afterburner_perk_active:
+      action: remove
+
 ##############################################
 ## Player Variables - Track Progress
 ##############################################
@@ -282,6 +326,20 @@ variable_player:
       int: 0
     # Missiles training mission tracking
     missiles_perk_active:
+      action: set
+      int: 0
+    missiles_perk_saved:
+      action: set
+      int: 0
+    # Inverted training mission perk tracking
+    inverted_perk_active:
+      action: set
+      int: 0
+    orbit_shot_lockout:
+      action: set
+      int: 0
+    # Afterburner training mission perk tracking
+    afterburner_perk_active:
       action: set
       int: 0
     training_missles_complete:
@@ -401,6 +459,10 @@ variable_player:
     pilot_mode_active:
       action: set
       int: 0
+    # Restore missiles perk (was disabled on mode complete to stop visual firing)
+    missiles_perk_active:
+      action: set
+      int: current_player.missiles_perk_saved
     # Letter display tracking (based on count, not specific shots)
     topgun_letter_t:
       action: set
@@ -430,6 +492,10 @@ variable_player:
     pilot_mode_active:
       action: set
       int: 0
+    # Restore missiles perk (was disabled on mode complete to stop visual firing)
+    missiles_perk_active:
+      action: set
+      int: current_player.missiles_perk_saved
     # Letter display tracking (based on count, not specific shots)
     topgun_letter_t:
       action: set
@@ -459,6 +525,10 @@ variable_player:
     pilot_mode_active:
       action: set
       int: 0
+    # Restore missiles perk (was disabled on mode complete to stop visual firing)
+    missiles_perk_active:
+      action: set
+      int: current_player.missiles_perk_saved
     # Letter display tracking (based on count, not specific shots)
     topgun_letter_t:
       action: set
@@ -515,6 +585,19 @@ variable_player:
       action: set
       int: 0
 
+  # Clear pause flags when training mission afterburner stops
+  mode_pilot_training_mission_afterburner_stopped:
+    letter_collection_paused:
+      action: set
+      int: 0
+    pilot_qualifier_paused:
+      action: set
+      int: 0
+    # Clear training mission active flag
+    training_mission_active:
+      action: set
+      int: 0
+
 ##############################################
 ## Shot Hit Tracking - ANY Shot Increments Counter
 ##############################################
@@ -527,13 +610,27 @@ variable_player:
       action: add
       int: 1
 
-  # Left orbit letter collection - uses left_orbit_shot_hit (requires full orbit: s_orbit_left -> s_orbit_right)
+  # Orbit shot lockout - set by either orbit completion, prevents double-trigger on fast orbits
+  left_orbit_shot_hit:
+    orbit_shot_lockout:
+      action: set
+      int: 1
+  right_orbit_shot_hit:
+    orbit_shot_lockout:
+      action: set
+      int: 1
+  timer_orbit_shot_lockout_timer_complete:
+    orbit_shot_lockout:
+      action: set
+      int: 0
+
+  # Left orbit letter collection
   left_orbit_shot_hit{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
     topgun_shots_collected:
       action: add
       int: 1
 
-  # Right orbit letter collection - uses right_orbit_shot_hit (requires full orbit: s_orbit_right -> s_orbit_left)
+  # Right orbit letter collection
   right_orbit_shot_hit{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
     topgun_shots_collected:
       action: add
@@ -1216,6 +1313,31 @@ variable_player:
       action: set
       int: 0
 
+  ##############################################
+  ## PERK VARIABLE RESETS - Clear all perks when ball ends
+  ## Perks are only active for the current ball
+  ##############################################
+  ball_ending:
+    inverted_perk_active:
+      action: set
+      int: 0
+    afterburner_perk_active:
+      action: set
+      int: 0
+    missiles_perk_active:
+      action: set
+      int: 0
+
+  ##############################################
+  ## INVERTED PERK: Bonus TOPGUN Letter
+  ## Awards +1 extra TOPGUN letter per qualifying shot
+  ## Cap at <6 to prevent overshooting the qualification trigger
+  ##############################################
+  inverted_bonus_topgun_letter{current_player.topgun_shots_collected<6}:
+    topgun_shots_collected:
+      action: add
+      int: 1
+
 
 ##############################################
 ## Coil Player - Mode Barrier Control
@@ -1343,12 +1465,13 @@ event_player:
   ##############################################
   
   # Left orbit complete: s_orbit_right hit while left orbit timer running
-  s_orbit_right_active{device.timers.left_orbit_shot_timeout.running}:
+  # orbit_shot_lockout prevents exit switch from immediately triggering a new orbit
+  s_orbit_right_active{device.timers.left_orbit_shot_timeout.running and current_player.orbit_shot_lockout==0}:
     - left_orbit_shot_hit
     - timer_left_orbit_shot_timeout_stop
   
   # Right orbit complete: s_orbit_left hit while right orbit timer running
-  s_orbit_left_active{device.timers.right_orbit_shot_timeout.running}:
+  s_orbit_left_active{device.timers.right_orbit_shot_timeout.running and current_player.orbit_shot_lockout==0}:
     - right_orbit_shot_hit
     - timer_right_orbit_shot_timeout_stop
 
@@ -1938,6 +2061,45 @@ event_player:
   # Reset letters when new ball starts
   ball_will_end:
     topgun_letters_reset
+
+  ##############################################
+  ## INVERTED PERK: Double TOPGUN Letters
+  ## When inverted_perk_active==1, each qualifying shot posts a DELAYED
+  ## extra letter event via timer. The 500ms delay prevents slide race
+  ## conditions when both normal and bonus letters fire in the same tick.
+  ## The variable_player handler caps at <6 to prevent overshooting.
+  ##############################################
+  
+  s_lane_left_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1}:
+    - inverted_bonus_topgun_pending
+
+  left_orbit_shot_hit{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1}:
+    - inverted_bonus_topgun_pending
+
+  right_orbit_shot_hit{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1}:
+    - inverted_bonus_topgun_pending
+
+  s_ramp_left_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1}:
+    - inverted_bonus_topgun_pending
+
+  spinner_shot_made{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1}:
+    - inverted_bonus_topgun_pending
+
+  s_ramp_tower_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1}:
+    - inverted_bonus_topgun_pending
+
+  s_orbit_upper_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1}:
+    - inverted_bonus_topgun_pending
+
+  s_ramp_inner_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1}:
+    - inverted_bonus_topgun_pending
+
+  s_ramp_right_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1}:
+    - inverted_bonus_topgun_pending
+
+  # Delayed bonus letter fires after 500ms timer
+  timer_inverted_bonus_topgun_delay_complete:
+    - inverted_bonus_topgun_letter
 
 ##############################################
 ## Show Player

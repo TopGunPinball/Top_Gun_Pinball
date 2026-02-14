@@ -116,6 +116,9 @@ timers:
         action: stop
       - event: battle_jester_choice_no
         action: stop
+      - event: afterburner_extend_battle_jester_timer
+        action: jump
+        value: 9999
 
   # Intro video delay timer - 5 seconds
   battle_jester_intro_video_delay:
@@ -643,6 +646,13 @@ variable_player:
     battle_jester_complete_flag:
       action: set
       int: 1
+    # Save and disable missiles perk to prevent visual firing during victory video
+    missiles_perk_saved:
+      action: set
+      int: current_player.missiles_perk_active
+    missiles_perk_active:
+      action: set
+      int: 0
 
   # Step 11 - Right flipper choice (YES tower challenge)
   battle_jester_choice_yes:
@@ -661,6 +671,13 @@ variable_player:
     battle_jester_complete_flag:
       action: set
       int: 1
+    # Save and disable missiles perk to prevent visual firing during victory video
+    missiles_perk_saved:
+      action: set
+      int: current_player.missiles_perk_active
+    missiles_perk_active:
+      action: set
+      int: 0
 
   # Tower challenge LOST - 50% payout
   battle_jester_tower_lost:
@@ -673,6 +690,13 @@ variable_player:
     battle_jester_complete_flag:
       action: set
       int: 1
+    # Save and disable missiles perk to prevent visual firing during victory video
+    missiles_perk_saved:
+      action: set
+      int: current_player.missiles_perk_active
+    missiles_perk_active:
+      action: set
+      int: 0
 
   # Step completion tracking
   battle_jester_step_1_complete:
@@ -735,6 +759,18 @@ variable_player:
       action: add
       int: -1
 
+  # Missile perk - auto-complete awards points to bank
+  missiles_perk_bank_award:
+    battle_jester_points_bank:
+      action: add
+      int: 150000 * current_player.total_scoring_multiplier
+
+  # Missile perk - auto-complete a ramp hit (triggers player_battle_jester_ramps_hit event)
+  missiles_perk_ramp_hit:
+    battle_jester_ramps_hit:
+      action: add
+      int: 1
+
   # Step 11 complete - player has reached the end of the mode (counts as WIN)
   # This triggers at the left lane hit before the tower challenge decision
   # Player is credited with a win even if they attempt tower and fail
@@ -754,6 +790,14 @@ variable_player:
 ####################################################################################
 
 event_player:
+  ##############################################
+  ## AFTERBURNER PERK: Pause Mode Timer
+  ## Jumps timer to 9999s making it effectively infinite
+  ## 500ms delay ensures timer has started before jump fires
+  ##############################################
+  battle_jester_ball_released{current_player.afterburner_perk_active==1}:
+    - afterburner_extend_battle_jester_timer|500ms
+
   # Post pilot_mode_cleanup_complete when any delay timer completes (for bonus delay)
   timer_battle_jester_complete_delay_complete:
     - pilot_mode_cleanup_complete
@@ -1129,6 +1173,57 @@ event_player:
     - battle_jester_shots_remaining_minus_one
 
   ##############################################
+  ## MISSILE PERK - Auto-complete current step
+  ## Steps 0-4: fire step_complete + setup_next + add_time + bank_award
+  ## Step 5: skip scoop capture, go directly to ramp phase (setup_step_7)
+  ## Step 6: increment ramps_hit (player_battle_jester_ramps_hit handles videos)
+  ## Steps 10+: missiles do NOT work (decision/tower phases)
+  ##############################################
+
+  missiles_perk_complete_shot{current_player.battle_jester_step==0 and current_player.battle_jester_complete_flag==0}:
+    - battle_jester_step_1_complete
+    - battle_jester_setup_step_2
+    - battle_jester_add_time_green
+    - missiles_perk_bank_award
+
+  missiles_perk_complete_shot{current_player.battle_jester_step==1 and current_player.battle_jester_complete_flag==0}:
+    - battle_jester_step_2_complete
+    - battle_jester_setup_step_3
+    - battle_jester_add_time_green
+    - missiles_perk_bank_award
+
+  missiles_perk_complete_shot{current_player.battle_jester_step==2 and current_player.battle_jester_complete_flag==0}:
+    - battle_jester_step_3_complete
+    - battle_jester_setup_step_4
+    - battle_jester_add_time_green
+    - missiles_perk_bank_award
+
+  missiles_perk_complete_shot{current_player.battle_jester_step==3 and current_player.battle_jester_complete_flag==0}:
+    - battle_jester_step_4_complete
+    - battle_jester_setup_step_5
+    - battle_jester_add_time_green
+    - missiles_perk_bank_award
+
+  missiles_perk_complete_shot{current_player.battle_jester_step==4 and current_player.battle_jester_complete_flag==0}:
+    - battle_jester_step_5_complete
+    - battle_jester_setup_step_6
+    - battle_jester_add_time_green
+    - missiles_perk_bank_award
+
+  # Step 5 = mode scoop shot. Missile skips scoop capture, goes to ramp phase
+  missiles_perk_complete_shot{current_player.battle_jester_step==5 and current_player.battle_jester_complete_flag==0}:
+    - battle_jester_step_6_complete
+    - battle_jester_setup_step_7
+    - battle_jester_add_time_green
+    - missiles_perk_bank_award
+
+  # Step 6 = ramp phase. Missile completes 1 ramp hit
+  missiles_perk_complete_shot{current_player.battle_jester_step==6 and current_player.battle_jester_complete_flag==0}:
+    - missiles_perk_ramp_hit
+    - battle_jester_add_time_green
+    - missiles_perk_bank_award
+
+  ##############################################
   ## STEP 11 - Left lane shot triggers decision
   ##############################################
   
@@ -1326,7 +1421,8 @@ event_player:
   ##############################################
   
   # Mode timer expired during gameplay (steps 0-9) - 100% payout of banked points
-  timer_battle_jester_timer_complete{current_player.battle_jester_step<10}:
+  # Afterburner perk: timer expiry does NOT fail the mode
+  timer_battle_jester_timer_complete{current_player.battle_jester_step<10 and current_player.afterburner_perk_active==0}:
     - battle_jester_failed
   
   # Mode timer expired during step 11 decision - default to NO (safe choice)
@@ -1338,12 +1434,16 @@ event_player:
   # Mode cleanup
   battle_jester_complete:
     - battle_jester_cleanup
+    - missiles_perk_unload
   battle_jester_failed:
     - battle_jester_cleanup
+    - missiles_perk_unload
   battle_jester_tower_won:
     - battle_jester_cleanup
+    - missiles_perk_unload
   battle_jester_tower_lost:
     - battle_jester_cleanup
+    - missiles_perk_unload
 
   # Mode stops via stop_events in mode header
 
@@ -1368,9 +1468,6 @@ random_event_player:
 
 slide_player:
   mode_battle_jester_started:
-    battle_jester_timer:
-      action: play
-      priority: 1000
     battle_jester_shots_remaining:
       action: play
       priority: 1000
@@ -1380,6 +1477,26 @@ slide_player:
     battle_jester_step_1_instructions:
       action: play
       priority: 850
+
+  # Show normal timer when perk is NOT active
+  mode_battle_jester_started{current_player.afterburner_perk_active==0}:
+    battle_jester_timer:
+      action: play
+      priority: 1000
+
+  # Show perk slides when perk IS active (immediately on mode start)
+  # Timer add/subtract mechanics still work under the hood
+  mode_battle_jester_started{current_player.afterburner_perk_active==1}:
+    afterburner_perk_active:
+      action: play
+      priority: 850
+    timer_perk_activated:
+      action: play
+      priority: 1000
+
+  battle_jester_cleanup:
+    timer_perk_activated:
+      action: remove
 
   # Cancel intro video when both flippers pressed
   battle_jester_skip_intro:
@@ -1398,6 +1515,8 @@ slide_player:
 
   # Step 2 complete - show step 2 video
   battle_jester_step_2_complete:
+    battle_jester_step_1_video:
+      action: remove
     battle_jester_points_bank:
       action: play
       priority: 1000
@@ -1408,6 +1527,8 @@ slide_player:
 
   # Step 3 complete - show step 3 video
   battle_jester_step_3_complete:
+    battle_jester_step_2_video:
+      action: remove
     battle_jester_points_bank:
       action: play
       priority: 1000
@@ -1418,6 +1539,8 @@ slide_player:
 
   # Step 4 complete - show step 4 video
   battle_jester_step_4_complete:
+    battle_jester_step_3_video:
+      action: remove
     battle_jester_points_bank:
       action: play
       priority: 1000
@@ -1428,6 +1551,8 @@ slide_player:
 
   # Step 5 complete - show step 5 video
   battle_jester_step_5_complete:
+    battle_jester_step_4_video:
+      action: remove
     battle_jester_step_1_instructions:
       action: remove
     battle_jester_step_5_instructions:
@@ -1443,6 +1568,8 @@ slide_player:
 
   # Step 6 complete - turn off step 5 instructions
   battle_jester_step_6_complete:
+    battle_jester_step_5_video:
+      action: remove
     battle_jester_step_5_instructions:
       action: remove
     battle_jester_points_bank:
@@ -1461,6 +1588,8 @@ slide_player:
 
   # Step 7 video (ramp 1 of 4)
   battle_jester_step_7_video:
+    battle_jester_step_6_video:
+      action: remove
     battle_jester_points_bank:
       action: play
       priority: 1000
@@ -1471,6 +1600,8 @@ slide_player:
 
   # Step 8 video (ramp 2 of 4)
   battle_jester_step_8_video:
+    battle_jester_step_7:
+      action: remove
     battle_jester_points_bank:
       action: play
       priority: 1000
@@ -1481,6 +1612,8 @@ slide_player:
 
   # Step 9 video (ramp 3 of 4)
   battle_jester_step_9_video:
+    battle_jester_step_8:
+      action: remove
     battle_jester_points_bank:
       action: play
       priority: 1000
@@ -1491,6 +1624,8 @@ slide_player:
 
   # Step 10 video (ramp 4 of 4)
   battle_jester_step_10_video:
+    battle_jester_step_9:
+      action: remove
     battle_jester_points_bank:
       action: play
       priority: 1000
@@ -1501,6 +1636,8 @@ slide_player:
 
   # Step 11 starts - turn off step 7 instructions, show step 11 instructions
   battle_jester_setup_step_11:
+    battle_jester_step_10:
+      action: remove
     battle_jester_step_7_instructions:
       action: remove
     battle_jester_step_11_instructions:
@@ -1564,6 +1701,27 @@ slide_player:
       action: remove
     battle_jester_buzz_tower:
       action: remove
+    # Step videos - ensure none linger (missile rapid-fire cleanup)
+    battle_jester_step_1_video:
+      action: remove
+    battle_jester_step_2_video:
+      action: remove
+    battle_jester_step_3_video:
+      action: remove
+    battle_jester_step_4_video:
+      action: remove
+    battle_jester_step_5_video:
+      action: remove
+    battle_jester_step_6_video:
+      action: remove
+    battle_jester_step_7:
+      action: remove
+    battle_jester_step_8:
+      action: remove
+    battle_jester_step_9:
+      action: remove
+    battle_jester_step_10:
+      action: remove
     battle_jester_won_video:
       action: play
       priority: 900
@@ -1594,6 +1752,27 @@ slide_player:
     battle_jester_instructions_buzz_tower:
       action: remove
     battle_jester_buzz_tower:
+      action: remove
+    # Step videos - ensure none linger (missile rapid-fire cleanup)
+    battle_jester_step_1_video:
+      action: remove
+    battle_jester_step_2_video:
+      action: remove
+    battle_jester_step_3_video:
+      action: remove
+    battle_jester_step_4_video:
+      action: remove
+    battle_jester_step_5_video:
+      action: remove
+    battle_jester_step_6_video:
+      action: remove
+    battle_jester_step_7:
+      action: remove
+    battle_jester_step_8:
+      action: remove
+    battle_jester_step_9:
+      action: remove
+    battle_jester_step_10:
       action: remove
     battle_jester_lost_video:
       action: play
@@ -2292,11 +2471,15 @@ show_player:
       loops: -1
       show_tokens:
         led: l_shot_tower_ramp
-    # STOP the right ramp show - right_orbit is GREEN in step 11, not red
-    flash_step7_ramp_right:
-      action: stop
+    # Right orbit is GREEN in step 11 - restart flash on same key as step 7
+    flash_step11_right_orbit:
+      show: jester_flash_green
+      sync_ms: 1000
       key: mode_l_shot_ramp_right
-    # Flash step 11 shots - spinner, right_orbit, left_lane green
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
+    # Flash step 11 shots - spinner, left_lane green
     flash_step11_spinner:
       show: jester_flash_green
       sync_ms: 1000
@@ -2304,13 +2487,6 @@ show_player:
       loops: -1
       show_tokens:
         led: l_shot_spinner
-    flash_step11_right_orbit:
-      show: jester_flash_green
-      sync_ms: 1000
-      key: step11_right_orbit
-      loops: -1
-      show_tokens:
-        led: l_shot_right_orbit
     flash_step11_left_lane:
       show: jester_flash_green
       sync_ms: 1000
@@ -2331,7 +2507,7 @@ show_player:
         led: l_shot_spinner
     flash_step11_right_orbit:
       show: jester_off
-      key: step11_right_orbit
+      key: mode_l_shot_ramp_right
       priority: 500
       loops: -1
       show_tokens:
@@ -2365,13 +2541,6 @@ show_player:
       loops: -1
       show_tokens:
         led: l_shot_tower_ramp
-    flash_step7_ramp_right:
-      show: jester_off
-      key: mode_l_shot_ramp_right
-      priority: 500
-      loops: -1
-      show_tokens:
-        led: l_shot_right_orbit
     # Turn off remaining red lights (orbit_left, barrier, upper_orbit, pilot_gear)
     flash_step11_orbit_left:
       show: jester_off
@@ -2415,6 +2584,7 @@ show_player:
       action: stop
     step11_right_orbit:
       action: stop
+      key: mode_l_shot_ramp_right
     step11_left_lane:
       action: stop
     step7_ramp_left:
@@ -2445,6 +2615,90 @@ show_player:
   battle_jester_tower_lost:
     flash_tower_challenge:
       action: stop
+
+  # MODE CLEANUP - Stop ALL running shot shows so lights turn off during victory/failure videos
+  battle_jester_cleanup:
+    # Step 1-6 shot shows
+    cleanup_left_lane:
+      action: stop
+      key: mode_l_shot_left_lane
+    cleanup_left_orbit:
+      action: stop
+      key: mode_l_shot_left_orbit
+    cleanup_left_ramp:
+      action: stop
+      key: mode_l_shot_left_ramp
+    cleanup_spinner:
+      action: stop
+      key: mode_l_shot_spinner
+    cleanup_barrier:
+      action: stop
+      key: mode_l_shot_barrier
+    cleanup_tower_ramp:
+      action: stop
+      key: mode_l_shot_tower_ramp
+    cleanup_upper_orbit:
+      action: stop
+      key: mode_l_shot_upper_orbit
+    cleanup_middle_ramp:
+      action: stop
+      key: mode_l_shot_middle_ramp
+    cleanup_pilot_gear:
+      action: stop
+      key: mode_l_shot_pilot_gear
+    cleanup_right_orbit:
+      action: stop
+      key: mode_l_shot_right_orbit
+    cleanup_orbit_left:
+      action: stop
+      key: mode_l_shot_orbit_left
+    # Step 3 specific
+    cleanup_step3_orbit_lower:
+      action: stop
+      key: step3_orbit_lower
+    cleanup_step3_upper_orbit:
+      action: stop
+      key: step3_upper_orbit
+    # Step 6 specific
+    cleanup_step6_barrier:
+      action: stop
+      key: step6_barrier
+    # Step 7-10 ramp shows
+    cleanup_ramp_left:
+      action: stop
+      key: mode_l_shot_ramp_left
+    cleanup_ramp_middle:
+      action: stop
+      key: mode_l_shot_ramp_middle
+    cleanup_ramp_tower:
+      action: stop
+      key: mode_l_shot_ramp_tower
+    cleanup_ramp_right:
+      action: stop
+      key: mode_l_shot_ramp_right
+    # Step 11 specific
+    cleanup_step11_spinner:
+      action: stop
+      key: step11_spinner
+    cleanup_step11_left_lane:
+      action: stop
+      key: step11_left_lane
+    cleanup_step11_orbit_left:
+      action: stop
+      key: step11_orbit_left
+    cleanup_step11_barrier:
+      action: stop
+      key: step11_barrier
+    cleanup_step11_pilot_gear:
+      action: stop
+      key: step11_pilot_gear
+    cleanup_step11_upper_orbit:
+      action: stop
+      key: step11_upper_orbit
+    # Tower challenge
+    cleanup_tower:
+      action: stop
+      key: tower_challenge
 
 
 light_player:

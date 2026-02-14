@@ -141,6 +141,10 @@ timers:
         action: stop
       - event: missiles_drain_detected
         action: stop
+      - event: missiles_step_4_shot_hit
+        action: stop
+      - event: missiles_step_5_shot_hit
+        action: stop
 
   missiles_step_6_flying_delay:
     start_value: 0
@@ -153,6 +157,10 @@ timers:
       - event: missiles_cleanup
         action: stop
       - event: missiles_drain_detected
+        action: stop
+      - event: missiles_step_7_shot_hit
+        action: stop
+      - event: missiles_step_8_shot_hit
         action: stop
 
   missiles_step_9_flying_delay:
@@ -183,6 +191,10 @@ timers:
         action: stop
       - event: missiles_drain_detected
         action: stop
+      - event: missiles_step_4_shot_hit
+        action: stop
+      - event: missiles_step_5_shot_hit
+        action: stop
 
   missiles_step_6_explosion_delay:
     start_value: 0
@@ -195,6 +207,10 @@ timers:
       - event: missiles_cleanup
         action: stop
       - event: missiles_drain_detected
+        action: stop
+      - event: missiles_step_7_shot_hit
+        action: stop
+      - event: missiles_step_8_shot_hit
         action: stop
 
   missiles_step_9_explosion_delay:
@@ -221,10 +237,10 @@ timers:
         action: start
 
   missiles_failed_delay:
-    start_value: 5
-    end_value: 0
-    direction: down
-    tick_interval: 1s
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 3300ms
     start_running: false
     control_events:
       - event: timer_missiles_failed_delay_start
@@ -232,9 +248,9 @@ timers:
 
   missiles_drain_delay:
     start_value: 0
-    end_value: 5
+    end_value: 1
     direction: up
-    tick_interval: 1s
+    tick_interval: 3300ms
     control_events:
       - event: missiles_drain_detected
         action: start
@@ -732,15 +748,45 @@ event_player:
     - missiles_step_9_flying_start
 
   ##############################################
+  ## IMMEDIATE STEP SETUP ON LOCK COMPLETION
+  ## Next pair shots light immediately - don't wait for flying/explosion animation
+  ## Player can shoot during the animation; if they hit, animation stops
+  ##############################################
+  missiles_step_3_complete:
+    - missiles_setup_step_4
+
+  missiles_step_6_complete:
+    - missiles_setup_step_7
+
+  ##############################################
+  ## ANIMATION CLEANUP - Stop GI animation and restore normal GI
+  ## when player hits a pair shot during the flying/explosion animation
+  ##############################################
+  missiles_step_4_shot_hit:
+    - missiles_stop_explosion_gi
+    - missiles_set_gi|200ms
+
+  missiles_step_5_shot_hit:
+    - missiles_stop_explosion_gi
+    - missiles_set_gi|200ms
+
+  missiles_step_7_shot_hit:
+    - missiles_stop_explosion_gi
+    - missiles_set_gi|200ms
+
+  missiles_step_8_shot_hit:
+    - missiles_stop_explosion_gi
+    - missiles_set_gi|200ms
+
+  ##############################################
   ## MISSILE FLYING → EXPLOSION → NEXT STEP CHAINS
-  ## Flying delay → explosion effect → explosion delay → next step
+  ## Flying delay → explosion effect → explosion delay → GI restore
   ##############################################
   timer_missiles_step_3_flying_delay_complete:
     - missiles_step_3_explosion_start
     - missiles_explosion_effect
 
   timer_missiles_step_3_explosion_delay_complete:
-    - missiles_setup_step_4
     - missiles_stop_explosion_gi
     - missiles_set_gi
 
@@ -749,7 +795,6 @@ event_player:
     - missiles_explosion_effect
 
   timer_missiles_step_6_explosion_delay_complete:
-    - missiles_setup_step_7
     - missiles_stop_explosion_gi
     - missiles_set_gi
 
@@ -851,6 +896,11 @@ random_event_player:
 sound_player:
   missiles_play_instructions_voice:
     voice_missiles_training_mission_instructions:
+      bus: voice
+      loops: 0
+
+  missiles_failed:
+    voice_missiles_failed:
       bus: voice
       loops: 0
 
@@ -1027,6 +1077,19 @@ slide_player:
 ####################################################################################
 
 show_player:
+  ##############################################
+  ## MISSILES INSERT - White pulse during mode play
+  ##############################################
+  missiles_ball_released:
+    missles_insert_pulse:
+      show: missles_pulse
+      loops: -1
+      speed: 1
+      show_tokens:
+        led: l_mode_missles
+        color: white
+      key: missles_pulse
+
   ##############################################
   ## STEPS 1-2: LO and LR (GREEN flash)
   ##############################################
@@ -1421,6 +1484,9 @@ show_player:
       show: missiles_missile_flying_gi
       action: stop
       key: gi_effect
+    stop_insert_pulse:
+      action: stop
+      key: missles_pulse
 
 ####################################################################################
 # LIGHT PLAYER - GI colors and static shot lights
@@ -1777,10 +1843,7 @@ light_player:
   ##############################################
   ## Perk active indicator
   ##############################################
-  missiles_complete:
-    l_mode_missles:
-      color: 00FF00
-      fade: 0ms
+  ## Insert light handled by iceman_letters.yaml on mode stop
 
 ####################################################################################
 # SHOWS - Explosion GI and quick flash effects

@@ -110,6 +110,9 @@ variable_player:
     rescue_cougar_shots_remaining:
       action: set
       int: 11
+    mode_points_scored:
+      action: set
+      int: 0
 
   # Ball drain during mode - award points and mark drain pending
   ball_will_end{mode.rescue_cougar.active==True}:
@@ -123,7 +126,10 @@ variable_player:
     rescue_cougar_step:
       action: set
       int: 1
-    score: 100000 * current_player.score_multiplier
+    score: 100000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 100000 * current_player.total_scoring_multiplier
     rescue_cougar_shots_remaining:
       action: add
       int: -1
@@ -132,7 +138,10 @@ variable_player:
     rescue_cougar_step:
       action: set
       int: 2
-    score: 125000 * current_player.score_multiplier
+    score: 125000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 125000 * current_player.total_scoring_multiplier
     rescue_cougar_shots_remaining:
       action: add
       int: -1
@@ -141,7 +150,10 @@ variable_player:
     rescue_cougar_step:
       action: set
       int: 3
-    score: 150000 * current_player.score_multiplier
+    score: 150000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 150000 * current_player.total_scoring_multiplier
     rescue_cougar_shots_remaining:
       action: add
       int: -1
@@ -150,7 +162,10 @@ variable_player:
     rescue_cougar_step:
       action: set
       int: 4
-    score: 175000 * current_player.score_multiplier
+    score: 175000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 175000 * current_player.total_scoring_multiplier
     rescue_cougar_shots_remaining:
       action: add
       int: -1
@@ -159,7 +174,10 @@ variable_player:
     rescue_cougar_step:
       action: set
       int: 5
-    score: 200000 * current_player.score_multiplier
+    score: 200000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 200000 * current_player.total_scoring_multiplier
     rescue_cougar_shots_remaining:
       action: add
       int: -1
@@ -168,7 +186,10 @@ variable_player:
     rescue_cougar_step:
       action: set
       int: 6
-    score: 225000 * current_player.score_multiplier
+    score: 225000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 225000 * current_player.total_scoring_multiplier
     rescue_cougar_shots_remaining:
       action: add
       int: -1
@@ -177,7 +198,10 @@ variable_player:
     rescue_cougar_step:
       action: set
       int: 7
-    score: 250000 * current_player.score_multiplier
+    score: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 250000 * current_player.total_scoring_multiplier
     rescue_cougar_shots_remaining:
       action: add
       int: -1
@@ -186,7 +210,10 @@ variable_player:
     rescue_cougar_step:
       action: set
       int: 8
-    score: 275000 * current_player.score_multiplier
+    score: 275000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 275000 * current_player.total_scoring_multiplier
     rescue_cougar_shots_remaining:
       action: add
       int: -1
@@ -195,7 +222,10 @@ variable_player:
     rescue_cougar_step:
       action: set
       int: 9
-    score: 300000 * current_player.score_multiplier
+    score: 300000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 300000 * current_player.total_scoring_multiplier
     rescue_cougar_shots_remaining:
       action: add
       int: -1
@@ -204,7 +234,10 @@ variable_player:
     rescue_cougar_step:
       action: set
       int: 10
-    score: 325000 * current_player.score_multiplier
+    score: 325000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 325000 * current_player.total_scoring_multiplier
     rescue_cougar_shots_remaining:
       action: add
       int: -1
@@ -216,13 +249,23 @@ variable_player:
     rescue_cougar_complete_flag:
       action: set
       int: 1
-    score: 350000 * current_player.score_multiplier
+    score: 350000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 350000 * current_player.total_scoring_multiplier
     pilot_missions_won:
       action: add
       int: 1
     rescue_cougar_shots_remaining:
       action: add
       int: -1
+    # Save and disable missiles perk to prevent visual firing during victory video
+    missiles_perk_saved:
+      action: set
+      int: current_player.missiles_perk_active
+    missiles_perk_active:
+      action: set
+      int: 0
 
 ####################################################################################
 # SLIDE PLAYER - Mode Slides (GODOT 4.1.1 Format)
@@ -230,9 +273,6 @@ variable_player:
 
 slide_player:
   mode_rescue_cougar_started:
-    rescue_cougar_timer:
-      action: play
-      priority: 1000
     rescue_cougar_shots_remaining:
       action: play
       priority: 1000
@@ -243,9 +283,28 @@ slide_player:
       action: play
       priority: 850  # Below main video, above background
 
+  # Show normal timer when perk is NOT active
+  mode_rescue_cougar_started{current_player.afterburner_perk_active==0}:
+    rescue_cougar_timer:
+      action: play
+      priority: 1000
+
+  # Show perk slides when perk IS active (immediately on mode start)
+  mode_rescue_cougar_started{current_player.afterburner_perk_active==1}:
+    afterburner_perk_active:
+      action: play
+      priority: 850
+    timer_perk_activated:
+      action: play
+      priority: 1000
+
   # Cancel intro video when both flippers pressed
   rescue_cougar_skip_intro:
     rescue_cougar_intro_video:
+      action: remove
+
+  rescue_cougar_cleanup:
+    timer_perk_activated:
       action: remove
 
   # Step 3 starts - turn off step 1 instructions, show step 3 instructions
@@ -302,6 +361,29 @@ slide_player:
       action: remove
     rescue_cougar_step_8_instructions:
       action: remove
+    # Step videos - ensure none linger (missile rapid-fire cleanup)
+    rescue_cougar_step_1:
+      action: remove
+    rescue_cougar_step_2:
+      action: remove
+    rescue_cougar_step_3:
+      action: remove
+    rescue_cougar_step_4:
+      action: remove
+    rescue_cougar_step_5:
+      action: remove
+    rescue_cougar_step_6:
+      action: remove
+    rescue_cougar_step_7:
+      action: remove
+    rescue_cougar_step_8:
+      action: remove
+    rescue_cougar_step_9:
+      action: remove
+    rescue_cougar_step_10:
+      action: remove
+    rescue_cougar_step_11:
+      action: remove
     rescue_cougar_won:
       action: play
       priority: 900
@@ -324,6 +406,29 @@ slide_player:
       action: remove
     rescue_cougar_step_8_instructions:
       action: remove
+    # Step videos - ensure none linger (missile rapid-fire cleanup)
+    rescue_cougar_step_1:
+      action: remove
+    rescue_cougar_step_2:
+      action: remove
+    rescue_cougar_step_3:
+      action: remove
+    rescue_cougar_step_4:
+      action: remove
+    rescue_cougar_step_5:
+      action: remove
+    rescue_cougar_step_6:
+      action: remove
+    rescue_cougar_step_7:
+      action: remove
+    rescue_cougar_step_8:
+      action: remove
+    rescue_cougar_step_9:
+      action: remove
+    rescue_cougar_step_10:
+      action: remove
+    rescue_cougar_step_11:
+      action: remove
     rescue_cougar_lost:
       action: play
       priority: 900
@@ -344,6 +449,29 @@ slide_player:
       action: remove
     rescue_cougar_step_8_instructions:
       action: remove
+    # Step videos - ensure none linger (missile rapid-fire cleanup)
+    rescue_cougar_step_1:
+      action: remove
+    rescue_cougar_step_2:
+      action: remove
+    rescue_cougar_step_3:
+      action: remove
+    rescue_cougar_step_4:
+      action: remove
+    rescue_cougar_step_5:
+      action: remove
+    rescue_cougar_step_6:
+      action: remove
+    rescue_cougar_step_7:
+      action: remove
+    rescue_cougar_step_8:
+      action: remove
+    rescue_cougar_step_9:
+      action: remove
+    rescue_cougar_step_10:
+      action: remove
+    rescue_cougar_step_11:
+      action: remove
 
 
   # Step videos - play when shot is hit, remove previous
@@ -351,6 +479,10 @@ slide_player:
     rescue_cougar_step_1:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
 
   rescue_cougar_step_2_shot_hit:
     rescue_cougar_step_1:
@@ -358,6 +490,10 @@ slide_player:
     rescue_cougar_step_2:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
 
   rescue_cougar_step_3_shot_hit:
     rescue_cougar_step_2:
@@ -365,6 +501,10 @@ slide_player:
     rescue_cougar_step_3:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
 
   rescue_cougar_step_4_shot_hit:
     rescue_cougar_step_3:
@@ -372,6 +512,10 @@ slide_player:
     rescue_cougar_step_4:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
 
   rescue_cougar_step_5_shot_hit:
     rescue_cougar_step_4:
@@ -379,6 +523,10 @@ slide_player:
     rescue_cougar_step_5:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
 
   rescue_cougar_step_6_shot_hit:
     rescue_cougar_step_5:
@@ -386,6 +534,10 @@ slide_player:
     rescue_cougar_step_6:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
 
   rescue_cougar_step_7_shot_hit:
     rescue_cougar_step_6:
@@ -393,6 +545,10 @@ slide_player:
     rescue_cougar_step_7:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
 
   rescue_cougar_step_8_shot_hit:
     rescue_cougar_step_7:
@@ -400,6 +556,10 @@ slide_player:
     rescue_cougar_step_8:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
 
   rescue_cougar_step_9_shot_hit:
     rescue_cougar_step_8:
@@ -407,6 +567,10 @@ slide_player:
     rescue_cougar_step_9:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
 
   rescue_cougar_step_10_shot_hit:
     rescue_cougar_step_9:
@@ -414,6 +578,10 @@ slide_player:
     rescue_cougar_step_10:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
 
   rescue_cougar_step_11_shot_hit:
     rescue_cougar_step_10:
@@ -421,6 +589,10 @@ slide_player:
     rescue_cougar_step_11:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
 
 
 ####################################################################################
@@ -445,6 +617,9 @@ timers:
         action: pause
       - event: s_lane_left_inactive
         action: start
+      - event: afterburner_extend_rescue_cougar_timer
+        action: jump
+        value: 9999
 
   # INTRO VIDEO TIMER - Match battle_jester pattern EXACTLY
   # Auto-starts on mode_started, tick_interval in seconds, control_events to start
@@ -578,6 +753,14 @@ timers:
 
 event_player:
   ##############################################
+  ## AFTERBURNER PERK: Pause Mode Timer
+  ## Jumps timer to 9999s making it effectively infinite
+  ## 500ms delay ensures timer has started before jump fires
+  ##############################################
+  rescue_cougar_ball_released{current_player.afterburner_perk_active==1}:
+    - afterburner_extend_rescue_cougar_timer|500ms
+
+  ##############################################
   ## DRAIN HANDLING - Critical for proper cleanup
   ## queue_relay_player holds ball_ending until we're ready
   ## This ensures pilot_mission_qualifier stays active to clear pause flags
@@ -633,8 +816,8 @@ event_player:
   rescue_cougar_step_7_complete:
     - rescue_cougar_setup_step_8
 
-  # Timer expired
-  timer_rescue_cougar_timer_complete:
+  # Timer expired (only fail if afterburner perk is NOT active)
+  timer_rescue_cougar_timer_complete{current_player.afterburner_perk_active==0}:
     - rescue_cougar_failed
 
   # Step 1 and 2 - Left and Right Orbits (using entrance switches for MIG post shots)
@@ -780,31 +963,6 @@ event_player:
   timer_rescue_cougar_left_lane_lockout_complete:
     - rescue_cougar_left_lane_available
 
-  ##############################################
-  ## Voice Callout - Random shot made callout
-  ##############################################
-  rescue_cougar_step_1_shot_hit:
-    - play_shot_made_callout
-  rescue_cougar_step_2_shot_hit:
-    - play_shot_made_callout
-  rescue_cougar_step_3_shot_hit:
-    - play_shot_made_callout
-  rescue_cougar_step_4_shot_hit:
-    - play_shot_made_callout
-  rescue_cougar_step_5_shot_hit:
-    - play_shot_made_callout
-  rescue_cougar_step_6_shot_hit:
-    - play_shot_made_callout
-  # step_7 callout is in the combined entry below (has right_ramp_down)
-  rescue_cougar_step_8_shot_hit:
-    - play_shot_made_callout
-  rescue_cougar_step_9_shot_hit:
-    - play_shot_made_callout
-  rescue_cougar_step_10_shot_hit:
-    - play_shot_made_callout
-  rescue_cougar_step_11_shot_hit:
-    - play_shot_made_callout
-
   # Step completion events to set up next step
   rescue_cougar_step_1_complete:
     - rescue_cougar_setup_step_2
@@ -831,16 +989,70 @@ event_player:
   rescue_cougar_step_10_complete:
     - rescue_cougar_setup_step_11
 
+  ##############################################
+  ## MISSILE PERK - Auto-complete current step
+  ## Fires step_complete + step_shot_hit for current step
+  ## Step chains in event_player handle setup_next_step automatically
+  ## NOTE: MIG posts and left lane post are NOT activated by missiles
+  ##############################################
+
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==0 and current_player.rescue_cougar_complete_flag==0}:
+    - rescue_cougar_step_1_complete
+    - rescue_cougar_step_1_shot_hit
+
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==1 and current_player.rescue_cougar_complete_flag==0}:
+    - rescue_cougar_step_2_complete
+    - rescue_cougar_step_2_shot_hit
+
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==2 and current_player.rescue_cougar_complete_flag==0}:
+    - rescue_cougar_step_3_complete
+    - rescue_cougar_step_3_shot_hit
+
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==3 and current_player.rescue_cougar_complete_flag==0}:
+    - rescue_cougar_step_4_complete
+    - rescue_cougar_step_4_shot_hit
+
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==4 and current_player.rescue_cougar_complete_flag==0}:
+    - rescue_cougar_step_5_complete
+    - rescue_cougar_step_5_shot_hit
+
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==5 and current_player.rescue_cougar_complete_flag==0}:
+    - rescue_cougar_step_6_complete
+    - rescue_cougar_step_6_shot_hit
+
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==6 and current_player.rescue_cougar_complete_flag==0}:
+    - rescue_cougar_step_7_complete
+    - rescue_cougar_step_7_shot_hit
+
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==7 and current_player.rescue_cougar_complete_flag==0}:
+    - rescue_cougar_step_8_complete
+    - rescue_cougar_step_8_shot_hit
+
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==8 and current_player.rescue_cougar_complete_flag==0}:
+    - rescue_cougar_step_9_complete
+    - rescue_cougar_step_9_shot_hit
+
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==9 and current_player.rescue_cougar_complete_flag==0}:
+    - rescue_cougar_step_10_complete
+    - rescue_cougar_step_10_shot_hit
+
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==10 and current_player.rescue_cougar_complete_flag==0}:
+    - rescue_cougar_step_11_complete
+    - rescue_cougar_step_11_shot_hit
+    - rescue_cougar_complete
+
   # Mode completion and failure - start delay timers
   rescue_cougar_complete:
     - rescue_cougar_cleanup
     - timer_rescue_cougar_complete_delay_start
     - left_orbit_diverter_closed
+    - missiles_perk_unload
 
   rescue_cougar_failed:
     - rescue_cougar_cleanup
     - timer_rescue_cougar_failed_delay_start
     - left_orbit_diverter_closed
+    - missiles_perk_unload
   
   # Post completion/failure events after videos finish (for base mode to use)
   timer_rescue_cougar_complete_delay_complete:
@@ -897,7 +1109,6 @@ event_player:
   # Step 7 shot hit - lower right ramp
   rescue_cougar_step_7_shot_hit:
     - right_ramp_down
-    - play_shot_made_callout
   
   # Step 11 setup - raise top/inner ramp
   rescue_cougar_setup_step_11:

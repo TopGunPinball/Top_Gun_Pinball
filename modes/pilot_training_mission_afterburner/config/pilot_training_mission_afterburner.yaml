@@ -1,0 +1,1710 @@
+#config_version=6
+
+####################################################################################
+# PILOT TRAINING MISSION: AFTERBURNER
+# 
+# A single-ball timed training mission with no-hold flipper mechanics.
+# 
+# THEME: Afterburner training - flippers fire but cannot be held up
+# BALLS: 1 (no-hold flippers - pulse only, no holding)
+# TIMER: 120 seconds
+# GI: Yellow → gradually shifts to Red with each step (afterburner fire effect)
+# INSERT COLORS: Orange (active shots)
+# PERK: Afterburner perk earned when step 9 completed, active for rest of ball
+# CANNOT STACK WITH MULTIBALL
+#
+# NO-HOLD FLIPPER MECHANIC:
+# Normal flippers are disabled after intro. Flipper buttons pulse coils
+# via coil_player instead, so flippers fire up but immediately drop back.
+# Player cannot hold flippers in the up position.
+#
+# MODE PROGRESSION:
+# Step 1: LR (Left Ramp)               - 500K
+# Step 2: RR (Right Ramp)              - 550K
+# Step 3: LR (Left Ramp)               - 600K
+# Step 4: TWR (Tower Ramp)             - 700K
+# Step 5: LR (Left Ramp)               - 800K
+# Step 6: RO (Right Orbit, ramp UP)    - 900K
+# Step 7: TL or TO (either one, top ramp UP, right ramp DOWN staggered) - 1,000K
+# Step 8: SP (Spinner, top ramp DOWN)  - 1,200K
+# Step 9: 2X (Pilot Gear Target)       - 2,250K + perk
+# TOTAL: 8,500,000 points (before multipliers)
+#
+# SERVO CONTROL:
+# Step 6: Right ramp UP
+# Step 7: Top ramp UP first, then right ramp DOWN (staggered 2s delay)
+# Step 8: Top ramp DOWN
+#
+# GI PROGRESSION (afterburner heating effect):
+# Start: All yellow
+# Each step hit: Flash GI strobe, then set new GI state with more orange/red
+# Scattered light changes simulate engine fire gradually intensifying
+# Step 9: All red
+#
+# COMPLETION:
+# Step 9 hit → afterburner_step_9 video plays (4 seconds)
+# → mode ends → voice_afterburner_completed plays on voice bus
+# No separate mode won video
+#
+# SHOT LIGHTS:
+#   LR  = l_shot_left_ramp       RR  = l_shot_right_orbit
+#   TWR = l_shot_tower_ramp      RO  = l_shot_right_orbit
+#   TL  = l_shot_upper_orbit     TO  = l_shot_middle_ramp
+#   SP  = l_shot_spinner         2X  = l_shot_pilot_gear
+####################################################################################
+
+mode:
+  start_events: start_mode_pilot_training_mission_afterburner
+  stop_events: 
+    - afterburner_video_complete
+    - timer_afterburner_failed_delay_complete
+    - afterburner_drain_cleanup_complete
+  priority: 600
+  game_mode: true
+  use_wait_queue: true
+
+mode_settings:
+  can_stack_with_multiball: false
+
+####################################################################################
+# BALL HOLDS - Prevent auto-eject during intro video
+####################################################################################
+
+ball_holds:
+  afterburner_scoop_hold:
+    balls_to_hold: 1
+    hold_devices: bd_mode_scoop
+    enable_events: 
+      - mode_pilot_training_mission_afterburner_started
+    release_one_events: 
+      - afterburner_ball_released
+    release_all_events:
+      - mode_pilot_training_mission_afterburner_will_stop
+
+####################################################################################
+# QUEUE RELAY PLAYER - Hold ball_ending until mode cleanup completes
+####################################################################################
+
+queue_relay_player:
+  ball_ending{mode.pilot_training_mission_afterburner.active==True}:
+    post: afterburner_ball_ending_hold
+    wait_for: afterburner_drain_cleanup_complete
+    priority: 1000
+
+####################################################################################
+# TIMERS
+####################################################################################
+
+timers:
+  afterburner_timer:
+    start_value: 120
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: afterburner_ball_released
+        action: start
+      - event: afterburner_complete
+        action: stop
+      - event: timer_afterburner_failed_delay_start
+        action: stop
+      - event: afterburner_drain_detected
+        action: stop
+
+  afterburner_intro_video_delay:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: mode_pilot_training_mission_afterburner_started
+        action: start
+      - event: afterburner_skip_intro
+        action: stop
+
+  afterburner_complete_delay:
+    start_value: 0
+    end_value: 4
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: timer_afterburner_complete_delay_start
+        action: start
+
+  afterburner_failed_delay:
+    start_value: 3
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: timer_afterburner_failed_delay_start
+        action: start
+
+  afterburner_drain_delay:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: afterburner_drain_detected
+        action: start
+
+  ##############################################
+  ## SERVO STAGGER TIMER - Delay right ramp down after top ramp up (step 7)
+  ##############################################
+  afterburner_right_ramp_down_delay:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: afterburner_stagger_right_ramp_down
+        action: restart
+      - event: afterburner_cleanup
+        action: stop
+      - event: afterburner_drain_detected
+        action: stop
+
+####################################################################################
+# VARIABLE PLAYER
+####################################################################################
+
+variable_player:
+  mode_pilot_training_mission_afterburner_started:
+    training_mission_active:
+      action: set
+      int: 1
+    letter_collection_paused:
+      action: set
+      int: 1
+    afterburner_step:
+      action: set
+      int: 0
+    afterburner_complete_flag:
+      action: set
+      int: 0
+    afterburner_shots_remaining:
+      action: set
+      int: 9
+    afterburner_no_hold_active:
+      action: set
+      int: 0
+    mode_points_scored:
+      action: set
+      int: 0
+    training_missions_played:
+      action: add
+      int: 1
+
+  # Set no-hold flipper flag when ball released (after intro)
+  afterburner_ball_released:
+    afterburner_no_hold_active:
+      action: set
+      int: 1
+
+  # Clear no-hold flipper flag on cleanup
+  afterburner_cleanup:
+    afterburner_no_hold_active:
+      action: set
+      int: 0
+
+  ball_will_end{mode.pilot_training_mission_afterburner.active==True}:
+    pilot_mode_drain_pending:
+      action: set
+      int: 1
+
+  ##############################################
+  ## Step scoring
+  ## 500K → 550K → 600K → 700K → 800K → 900K → 1M → 1.2M → 2.25M
+  ##############################################
+
+  # Step 1: LR - 500,000
+  afterburner_step_1_complete:
+    afterburner_step:
+      action: set
+      int: 1
+    score: 500000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 500000 * current_player.total_scoring_multiplier
+    afterburner_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 2: RR - 550,000
+  afterburner_step_2_complete:
+    afterburner_step:
+      action: set
+      int: 2
+    score: 550000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 550000 * current_player.total_scoring_multiplier
+    afterburner_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 3: LR - 600,000
+  afterburner_step_3_complete:
+    afterburner_step:
+      action: set
+      int: 3
+    score: 600000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 600000 * current_player.total_scoring_multiplier
+    afterburner_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 4: TWR - 700,000
+  afterburner_step_4_complete:
+    afterburner_step:
+      action: set
+      int: 4
+    score: 700000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 700000 * current_player.total_scoring_multiplier
+    afterburner_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 5: LR - 800,000
+  afterburner_step_5_complete:
+    afterburner_step:
+      action: set
+      int: 5
+    score: 800000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 800000 * current_player.total_scoring_multiplier
+    afterburner_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 6: RO - 900,000
+  afterburner_step_6_complete:
+    afterburner_step:
+      action: set
+      int: 6
+    score: 900000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 900000 * current_player.total_scoring_multiplier
+    afterburner_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 7: TL or TO - 1,000,000
+  afterburner_step_7_complete:
+    afterburner_step:
+      action: set
+      int: 7
+    score: 1000000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 1000000 * current_player.total_scoring_multiplier
+    afterburner_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 8: SP - 1,200,000
+  afterburner_step_8_complete:
+    afterburner_step:
+      action: set
+      int: 8
+    score: 1200000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 1200000 * current_player.total_scoring_multiplier
+    afterburner_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 9: 2X - 2,250,000 - MODE WON + perk
+  afterburner_step_9_complete:
+    afterburner_step:
+      action: set
+      int: 9
+    afterburner_complete_flag:
+      action: set
+      int: 1
+    score: 2250000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 2250000 * current_player.total_scoring_multiplier
+    afterburner_shots_remaining:
+      action: add
+      int: -1
+    afterburner_perk_active:
+      action: set
+      int: 1
+
+  afterburner_mode_ended:
+    training_afterburner_complete:
+      action: set
+      int: 1
+
+####################################################################################
+# EVENT PLAYER - Mode flow and shot detection
+####################################################################################
+
+event_player:
+  ##############################################
+  ## MODE START SEQUENCE
+  ##############################################
+  mode_pilot_training_mission_afterburner_started:
+    - afterburner_set_gi_step_0|200ms
+    - afterburner_play_instructions_voice
+
+  ##############################################
+  ## SKIP INTRO - Both flippers pressed during intro
+  ##############################################
+  s_flipper_left_active{current_player.afterburner_step==0 and device.timers.afterburner_intro_video_delay.running}:
+    - afterburner_check_skip_intro
+  s_flipper_right_active{current_player.afterburner_step==0 and device.timers.afterburner_intro_video_delay.running}:
+    - afterburner_check_skip_intro
+
+  afterburner_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - afterburner_skip_intro
+
+  # SKIP PATH: Stop intro timer, release ball, setup shots
+  afterburner_skip_intro:
+    - afterburner_ball_released
+    - afterburner_setup_step_1
+
+  # NORMAL PATH: Timer completes -> release ball AND setup shots
+  timer_afterburner_intro_video_delay_complete:
+    - afterburner_ball_released
+    - afterburner_setup_step_1
+
+  ##############################################
+  ## NO-HOLD FLIPPERS
+  ## Swap to no-hold flippers when ball is released (after intro).
+  ## No-hold flippers pulse up then drop immediately (hold_power: 0.0).
+  ## Defined in config_no_hold_flippers.yaml
+  ## Restored to normal in afterburner_cleanup.
+  ##############################################
+  afterburner_ball_released:
+    - disable_normal_flippers
+    - enable_no_hold_flippers
+
+  ##############################################
+  ## DRAIN HANDLING
+  ##############################################
+  afterburner_ball_ending_hold:
+    - afterburner_failed
+    - afterburner_drain_detected
+
+  timer_afterburner_drain_delay_complete:
+    - afterburner_drain_cleanup_complete
+    - afterburner_cleanup
+
+  ##############################################
+  ## STEP 1: LR (Left Ramp)
+  ##############################################
+  s_ramp_left_exit_active{current_player.afterburner_step==0}:
+    - afterburner_step_1_complete
+    - afterburner_step_1_shot_hit
+    - afterburner_setup_step_2
+
+  ##############################################
+  ## STEP 2: RR (Right Ramp - ramp is DOWN)
+  ##############################################
+  s_ramp_right_exit_active{current_player.afterburner_step==1}:
+    - afterburner_step_2_complete
+    - afterburner_step_2_shot_hit
+    - afterburner_setup_step_3
+
+  ##############################################
+  ## STEP 3: LR (Left Ramp)
+  ##############################################
+  s_ramp_left_exit_active{current_player.afterburner_step==2}:
+    - afterburner_step_3_complete
+    - afterburner_step_3_shot_hit
+    - afterburner_setup_step_4
+
+  ##############################################
+  ## STEP 4: TWR (Tower Ramp)
+  ##############################################
+  s_ramp_tower_exit_active{current_player.afterburner_step==3}:
+    - afterburner_step_4_complete
+    - afterburner_step_4_shot_hit
+    - afterburner_setup_step_5
+
+  ##############################################
+  ## STEP 5: LR (Left Ramp)
+  ##############################################
+  s_ramp_left_exit_active{current_player.afterburner_step==4}:
+    - afterburner_step_5_complete
+    - afterburner_step_5_shot_hit
+    - afterburner_setup_step_6
+
+  ##############################################
+  ## STEP 6: RO (Right Orbit - ramp is UP)
+  ##############################################
+  s_orbit_right_active{current_player.afterburner_step==5}:
+    - afterburner_step_6_complete
+    - afterburner_step_6_shot_hit
+    - afterburner_setup_step_7
+
+  ##############################################
+  ## STEP 7: TL or TO (hit either one)
+  ## TL = s_orbit_upper, TO = s_orbit_lower
+  ##############################################
+  s_orbit_upper_active{current_player.afterburner_step==6}:
+    - afterburner_step_7_complete
+    - afterburner_step_7_shot_hit
+    - afterburner_setup_step_8
+
+  s_orbit_lower_active{current_player.afterburner_step==6}:
+    - afterburner_step_7_complete
+    - afterburner_step_7_shot_hit
+    - afterburner_setup_step_8
+
+  ##############################################
+  ## STEP 8: SP (Spinner)
+  ##############################################
+  spinner_shot_made{current_player.afterburner_step==7}:
+    - afterburner_step_8_complete
+    - afterburner_step_8_shot_hit
+    - afterburner_setup_step_9
+
+  ##############################################
+  ## STEP 9: 2X (Pilot Gear Target)
+  ##############################################
+  s_flight_gear_target_active{current_player.afterburner_step==8}:
+    - afterburner_step_9_complete
+    - afterburner_step_9_shot_hit
+
+  ##############################################
+  ## SERVO EVENTS
+  ##############################################
+
+  # Step 6: Right ramp UP
+  afterburner_setup_step_6:
+    - right_ramp_up
+
+  # Step 7: Top ramp UP first, then right ramp DOWN (staggered)
+  afterburner_setup_step_7:
+    - top_ramp_up
+    - afterburner_stagger_right_ramp_down
+
+  timer_afterburner_right_ramp_down_delay_complete:
+    - right_ramp_down
+
+  # Step 8: Top ramp DOWN
+  afterburner_setup_step_8:
+    - top_ramp_down
+
+  ##############################################
+  ## GI RESTORE AFTER SHOT HIT FLASH
+  ## Each shot hit fires the GI flash show, then restores to new step colors
+  ##############################################
+  afterburner_step_1_shot_hit:
+    - afterburner_set_gi_step_1|300ms
+  afterburner_step_2_shot_hit:
+    - afterburner_set_gi_step_2|300ms
+  afterburner_step_3_shot_hit:
+    - afterburner_set_gi_step_3|300ms
+  afterburner_step_4_shot_hit:
+    - afterburner_set_gi_step_4|300ms
+  afterburner_step_5_shot_hit:
+    - afterburner_set_gi_step_5|300ms
+  afterburner_step_6_shot_hit:
+    - afterburner_set_gi_step_6|300ms
+  afterburner_step_7_shot_hit:
+    - afterburner_set_gi_step_7|300ms
+  afterburner_step_8_shot_hit:
+    - afterburner_set_gi_step_8|300ms
+  afterburner_step_9_shot_hit:
+    - afterburner_set_gi_step_9|300ms
+
+  ##############################################
+  ## TIMER EXPIRED - Mode failed
+  ##############################################
+  timer_afterburner_timer_complete:
+    - afterburner_failed
+
+  ##############################################
+  ## MODE COMPLETION AND FAILURE
+  ##############################################
+  afterburner_complete:
+    - afterburner_cleanup
+    - timer_afterburner_complete_delay_start
+    - afterburner_mode_ended
+
+  timer_afterburner_complete_delay_complete:
+    - afterburner_video_complete
+    - pilot_mode_cleanup_complete
+
+  afterburner_failed:
+    - afterburner_cleanup
+    - timer_afterburner_failed_delay_start
+    - afterburner_mode_ended
+
+  timer_afterburner_failed_delay_complete:
+    - afterburner_video_complete
+    - pilot_mode_cleanup_complete
+
+  ##############################################
+  ## STEP 9 COMPLETE → MODE WON
+  ##############################################
+  afterburner_step_9_complete:
+    - afterburner_complete
+
+  ##############################################
+  ## MODE CLEANUP
+  ##############################################
+  afterburner_cleanup:
+    - right_ramp_down
+    - top_ramp_down
+    - disable_no_hold_flippers
+    - enable_normal_flippers
+
+####################################################################################
+# SOUND PLAYER - Voice Callouts ONLY (Music handled in base.yaml)
+####################################################################################
+
+sound_player:
+  afterburner_play_instructions_voice:
+    voice_afterburner_training_mission_instructions:
+      bus: voice
+      loops: 0
+
+  afterburner_failed:
+    voice_afterburner_failed:
+      bus: voice
+      loops: 0
+
+  # NOTE: voice_afterburner_completed is played from base.yaml on 
+  # mode_pilot_training_mission_afterburner_stopped because the mode
+  # is tearing down when timer_afterburner_complete_delay_complete fires
+
+####################################################################################
+# SLIDE PLAYER - Mode Slides (Godot GMC)
+# afterburner_instructions plays the ENTIRE mode (from start to end)
+# afterburner_shots_remaining shows remaining shot count
+# afterburner_perk_active shown on victory
+####################################################################################
+
+slide_player:
+  mode_pilot_training_mission_afterburner_started:
+    afterburner_timer:
+      action: play
+      priority: 1000
+    afterburner_instructions:
+      action: play
+      priority: 850
+    afterburner_shots_remaining:
+      action: play
+      priority: 800
+
+  ##############################################
+  ## Step Videos + mode_points_scored display
+  ##############################################
+  afterburner_step_1_shot_hit:
+    afterburner_step_1:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  afterburner_step_2_shot_hit:
+    afterburner_step_1:
+      action: remove
+    afterburner_step_2:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  afterburner_step_3_shot_hit:
+    afterburner_step_2:
+      action: remove
+    afterburner_step_3:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  afterburner_step_4_shot_hit:
+    afterburner_step_3:
+      action: remove
+    afterburner_step_4:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  afterburner_step_5_shot_hit:
+    afterburner_step_4:
+      action: remove
+    afterburner_step_5:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  afterburner_step_6_shot_hit:
+    afterburner_step_5:
+      action: remove
+    afterburner_step_6:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  afterburner_step_7_shot_hit:
+    afterburner_step_6:
+      action: remove
+    afterburner_step_7:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  afterburner_step_8_shot_hit:
+    afterburner_step_7:
+      action: remove
+    afterburner_step_8:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  # Step 9 hit: Show step 9 video, remove HUD
+  # No mode_won video - step_9 video IS the completion video (4 seconds)
+  # NOTE: afterburner_perk_active slide is triggered by qualifier via player variable change
+  afterburner_step_9_shot_hit:
+    afterburner_step_8:
+      action: remove
+    afterburner_step_9:
+      action: play
+      priority: 800
+    afterburner_timer:
+      action: remove
+    afterburner_instructions:
+      action: remove
+    afterburner_shots_remaining:
+      action: remove
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  ##############################################
+  ## Failure - remove HUD slides
+  ##############################################
+  afterburner_failed:
+    afterburner_timer:
+      action: remove
+    afterburner_instructions:
+      action: remove
+    afterburner_shots_remaining:
+      action: remove
+
+  # Safety cleanup on mode stop
+  mode_pilot_training_mission_afterburner_stopped:
+    afterburner_timer:
+      action: remove
+    afterburner_instructions:
+      action: remove
+    afterburner_shots_remaining:
+      action: remove
+    # NOTE: afterburner_perk_active slide is managed by pilot_mission_qualifier
+
+####################################################################################
+# SHOW PLAYER - Flashing shot lights and GI effects
+####################################################################################
+
+show_player:
+  ##############################################
+  ## AFTERBURNER INSERT - White pulse during mode play
+  ##############################################
+  afterburner_ball_released:
+    afterburner_insert_pulse:
+      show: afterburner_pulse
+      loops: -1
+      speed: 1
+      show_tokens:
+        led: l_mode_afterburner
+        color: white
+      key: afterburner_pulse
+
+  ##############################################
+  ## STEP 1: LR (ORANGE flash)
+  ##############################################
+  afterburner_setup_step_1:
+    lr_mode_flash_s1:
+      show: sync_flash_mode
+      key: mode_l_shot_left_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+        color: FF6600
+
+  ##############################################
+  ## STEP 2: RR (ORANGE flash)
+  ##############################################
+  afterburner_setup_step_2:
+    stop_lr_s1:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_ramp
+    rr_mode_flash_s2:
+      show: sync_flash_mode
+      key: mode_l_shot_right_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
+        color: FF6600
+
+  ##############################################
+  ## STEP 3: LR (ORANGE flash)
+  ##############################################
+  afterburner_setup_step_3:
+    stop_rr_s2:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_right_orbit
+    lr_mode_flash_s3:
+      show: sync_flash_mode
+      key: mode_l_shot_left_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+        color: FF6600
+
+  ##############################################
+  ## STEP 4: TWR (ORANGE flash)
+  ##############################################
+  afterburner_setup_step_4:
+    stop_lr_s3:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_ramp
+    twr_mode_flash_s4:
+      show: sync_flash_mode
+      key: mode_l_shot_tower_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_tower_ramp
+        color: FF6600
+
+  ##############################################
+  ## STEP 5: LR (ORANGE flash)
+  ##############################################
+  afterburner_setup_step_5:
+    stop_twr_s4:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_tower_ramp
+    lr_mode_flash_s5:
+      show: sync_flash_mode
+      key: mode_l_shot_left_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+        color: FF6600
+
+  ##############################################
+  ## STEP 6: RO (ORANGE flash) - Right ramp UP
+  ##############################################
+  afterburner_setup_step_6:
+    stop_lr_s5:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_ramp
+    ro_mode_flash_s6:
+      show: sync_flash_mode
+      key: mode_l_shot_right_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
+        color: FF6600
+
+  ##############################################
+  ## STEP 7: TL and TO (ORANGE flash both) - Hit either one
+  ##############################################
+  afterburner_setup_step_7:
+    stop_ro_s6:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_right_orbit
+    tl_mode_flash_s7:
+      show: sync_flash_mode
+      key: mode_l_shot_upper_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: FF6600
+    to_mode_flash_s7:
+      show: sync_flash_mode
+      key: mode_l_shot_middle_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: FF6600
+
+  ##############################################
+  ## STEP 8: SP (ORANGE flash)
+  ##############################################
+  afterburner_setup_step_8:
+    stop_tl_s7:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_upper_orbit
+    stop_to_s7:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_middle_ramp
+    sp_mode_flash_s8:
+      show: sync_flash_mode
+      key: mode_l_shot_spinner
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_spinner
+        color: FF6600
+
+  ##############################################
+  ## STEP 9: 2X (ORANGE flash)
+  ##############################################
+  afterburner_setup_step_9:
+    stop_sp_s8:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_spinner
+    gear_mode_flash_s9:
+      show: sync_flash_mode
+      key: mode_l_shot_pilot_gear
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_pilot_gear
+        color: FF6600
+
+  afterburner_step_9_complete:
+    stop_gear_s9:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_pilot_gear
+
+  ##############################################
+  ## SHOT HIT GI FLASH - Quick strobe on each step hit
+  ##############################################
+  afterburner_step_1_shot_hit:
+    gi_flash_1:
+      show: afterburner_gi_flash
+      key: gi_effect
+      loops: 0
+  afterburner_step_2_shot_hit:
+    gi_flash_2:
+      show: afterburner_gi_flash
+      key: gi_effect
+      loops: 0
+  afterburner_step_3_shot_hit:
+    gi_flash_3:
+      show: afterburner_gi_flash
+      key: gi_effect
+      loops: 0
+  afterburner_step_4_shot_hit:
+    gi_flash_4:
+      show: afterburner_gi_flash
+      key: gi_effect
+      loops: 0
+  afterburner_step_5_shot_hit:
+    gi_flash_5:
+      show: afterburner_gi_flash
+      key: gi_effect
+      loops: 0
+  afterburner_step_6_shot_hit:
+    gi_flash_6:
+      show: afterburner_gi_flash
+      key: gi_effect
+      loops: 0
+  afterburner_step_7_shot_hit:
+    gi_flash_7:
+      show: afterburner_gi_flash
+      key: gi_effect
+      loops: 0
+  afterburner_step_8_shot_hit:
+    gi_flash_8:
+      show: afterburner_gi_flash
+      key: gi_effect
+      loops: 0
+  afterburner_step_9_shot_hit:
+    gi_flash_9:
+      show: afterburner_gi_flash
+      key: gi_effect
+      loops: 0
+
+  ##############################################
+  ## MODE CLEANUP - Stop all flashing shows
+  ##############################################
+  afterburner_cleanup:
+    stop_lr_final:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_ramp
+    stop_rr_final:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_right_orbit
+    stop_twr_final:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_tower_ramp
+    stop_tl_final:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_upper_orbit
+    stop_to_final:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_middle_ramp
+    stop_sp_final:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_spinner
+    stop_gear_final:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_pilot_gear
+    stop_gi_effect:
+      show: afterburner_gi_flash
+      action: stop
+      key: gi_effect
+    stop_insert_pulse:
+      action: stop
+      key: afterburner_pulse
+
+####################################################################################
+# LIGHT PLAYER - GI colors and static shot lights
+####################################################################################
+# 
+# GI PROGRESSION: Yellow → Orange → Red (afterburner heating effect)
+# 31 total lights: l_gi_light_1..27 + l_apron_light_1..4
+# Each step changes scattered lights to simulate fire gradually intensifying
+#
+# Step 0: ALL yellow (31Y)
+# Step 1: 27Y, 4O          - first hints of heat
+# Step 2: 23Y, 8O          - warming up
+# Step 3: 20Y, 8O, 3R      - first reds appear
+# Step 4: 16Y, 9O, 6R      - approaching halfway
+# Step 5: 11Y, 10O, 10R    - half orange/red
+# Step 6:  7Y, 10O, 14R    - mostly hot
+# Step 7:  0Y, 13O, 18R    - no yellow remaining
+# Step 8:  0Y,  5O, 26R    - nearly all red
+# Step 9:  0Y,  0O, 31R    - FULL AFTERBURNER
+####################################################################################
+
+light_player:
+  ##############################################
+  ## GI Step 0: ALL YELLOW (mode start)
+  ##############################################
+  afterburner_set_gi_step_0:
+    l_gi_light_1: {color: yellow, fade: 500ms}
+    l_gi_light_2: {color: yellow, fade: 500ms}
+    l_gi_light_3: {color: yellow, fade: 500ms}
+    l_gi_light_4: {color: yellow, fade: 500ms}
+    l_gi_light_5: {color: yellow, fade: 500ms}
+    l_gi_light_6: {color: yellow, fade: 500ms}
+    l_gi_light_7: {color: yellow, fade: 500ms}
+    l_gi_light_8: {color: yellow, fade: 500ms}
+    l_gi_light_9: {color: yellow, fade: 500ms}
+    l_gi_light_10: {color: yellow, fade: 500ms}
+    l_gi_light_11: {color: yellow, fade: 500ms}
+    l_gi_light_12: {color: yellow, fade: 500ms}
+    l_gi_light_13: {color: yellow, fade: 500ms}
+    l_gi_light_14: {color: yellow, fade: 500ms}
+    l_gi_light_15: {color: yellow, fade: 500ms}
+    l_gi_light_16: {color: yellow, fade: 500ms}
+    l_gi_light_17: {color: yellow, fade: 500ms}
+    l_gi_light_18: {color: yellow, fade: 500ms}
+    l_gi_light_19: {color: yellow, fade: 500ms}
+    l_gi_light_20: {color: yellow, fade: 500ms}
+    l_gi_light_21: {color: yellow, fade: 500ms}
+    l_gi_light_22: {color: yellow, fade: 500ms}
+    l_gi_light_23: {color: yellow, fade: 500ms}
+    l_gi_light_24: {color: yellow, fade: 500ms}
+    l_gi_light_25: {color: yellow, fade: 500ms}
+    l_gi_light_26: {color: yellow, fade: 500ms}
+    l_gi_light_27: {color: yellow, fade: 500ms}
+    l_apron_light_1: {color: yellow, fade: 500ms}
+    l_apron_light_2: {color: yellow, fade: 500ms}
+    l_apron_light_3: {color: yellow, fade: 500ms}
+    l_apron_light_4: {color: yellow, fade: 500ms}
+
+  ##############################################
+  ## GI Step 1: 27Y, 4O - first hints of heat
+  ## Changed to orange: gi5, gi14, gi22, apron2
+  ##############################################
+  afterburner_set_gi_step_1:
+    l_gi_light_1: {color: yellow, fade: 0ms}
+    l_gi_light_2: {color: yellow, fade: 0ms}
+    l_gi_light_3: {color: yellow, fade: 0ms}
+    l_gi_light_4: {color: yellow, fade: 0ms}
+    l_gi_light_5: {color: orange, fade: 300ms}
+    l_gi_light_6: {color: yellow, fade: 0ms}
+    l_gi_light_7: {color: yellow, fade: 0ms}
+    l_gi_light_8: {color: yellow, fade: 0ms}
+    l_gi_light_9: {color: yellow, fade: 0ms}
+    l_gi_light_10: {color: yellow, fade: 0ms}
+    l_gi_light_11: {color: yellow, fade: 0ms}
+    l_gi_light_12: {color: yellow, fade: 0ms}
+    l_gi_light_13: {color: yellow, fade: 0ms}
+    l_gi_light_14: {color: orange, fade: 300ms}
+    l_gi_light_15: {color: yellow, fade: 0ms}
+    l_gi_light_16: {color: yellow, fade: 0ms}
+    l_gi_light_17: {color: yellow, fade: 0ms}
+    l_gi_light_18: {color: yellow, fade: 0ms}
+    l_gi_light_19: {color: yellow, fade: 0ms}
+    l_gi_light_20: {color: yellow, fade: 0ms}
+    l_gi_light_21: {color: yellow, fade: 0ms}
+    l_gi_light_22: {color: orange, fade: 300ms}
+    l_gi_light_23: {color: yellow, fade: 0ms}
+    l_gi_light_24: {color: yellow, fade: 0ms}
+    l_gi_light_25: {color: yellow, fade: 0ms}
+    l_gi_light_26: {color: yellow, fade: 0ms}
+    l_gi_light_27: {color: yellow, fade: 0ms}
+    l_apron_light_1: {color: yellow, fade: 0ms}
+    l_apron_light_2: {color: orange, fade: 300ms}
+    l_apron_light_3: {color: yellow, fade: 0ms}
+    l_apron_light_4: {color: yellow, fade: 0ms}
+
+  ##############################################
+  ## GI Step 2: 23Y, 8O - warming up
+  ## Added orange: gi3, gi9, gi18, gi27
+  ##############################################
+  afterburner_set_gi_step_2:
+    l_gi_light_1: {color: yellow, fade: 0ms}
+    l_gi_light_2: {color: yellow, fade: 0ms}
+    l_gi_light_3: {color: orange, fade: 300ms}
+    l_gi_light_4: {color: yellow, fade: 0ms}
+    l_gi_light_5: {color: orange, fade: 0ms}
+    l_gi_light_6: {color: yellow, fade: 0ms}
+    l_gi_light_7: {color: yellow, fade: 0ms}
+    l_gi_light_8: {color: yellow, fade: 0ms}
+    l_gi_light_9: {color: orange, fade: 300ms}
+    l_gi_light_10: {color: yellow, fade: 0ms}
+    l_gi_light_11: {color: yellow, fade: 0ms}
+    l_gi_light_12: {color: yellow, fade: 0ms}
+    l_gi_light_13: {color: yellow, fade: 0ms}
+    l_gi_light_14: {color: orange, fade: 0ms}
+    l_gi_light_15: {color: yellow, fade: 0ms}
+    l_gi_light_16: {color: yellow, fade: 0ms}
+    l_gi_light_17: {color: yellow, fade: 0ms}
+    l_gi_light_18: {color: orange, fade: 300ms}
+    l_gi_light_19: {color: yellow, fade: 0ms}
+    l_gi_light_20: {color: yellow, fade: 0ms}
+    l_gi_light_21: {color: yellow, fade: 0ms}
+    l_gi_light_22: {color: orange, fade: 0ms}
+    l_gi_light_23: {color: yellow, fade: 0ms}
+    l_gi_light_24: {color: yellow, fade: 0ms}
+    l_gi_light_25: {color: yellow, fade: 0ms}
+    l_gi_light_26: {color: yellow, fade: 0ms}
+    l_gi_light_27: {color: orange, fade: 300ms}
+    l_apron_light_1: {color: yellow, fade: 0ms}
+    l_apron_light_2: {color: orange, fade: 0ms}
+    l_apron_light_3: {color: yellow, fade: 0ms}
+    l_apron_light_4: {color: yellow, fade: 0ms}
+
+  ##############################################
+  ## GI Step 3: 20Y, 8O, 3R - first reds appear
+  ## Added orange: gi7, gi25, apron4
+  ## Changed to red: gi5, gi14, gi22
+  ##############################################
+  afterburner_set_gi_step_3:
+    l_gi_light_1: {color: yellow, fade: 0ms}
+    l_gi_light_2: {color: yellow, fade: 0ms}
+    l_gi_light_3: {color: orange, fade: 0ms}
+    l_gi_light_4: {color: yellow, fade: 0ms}
+    l_gi_light_5: {color: red, fade: 300ms}
+    l_gi_light_6: {color: yellow, fade: 0ms}
+    l_gi_light_7: {color: orange, fade: 300ms}
+    l_gi_light_8: {color: yellow, fade: 0ms}
+    l_gi_light_9: {color: orange, fade: 0ms}
+    l_gi_light_10: {color: yellow, fade: 0ms}
+    l_gi_light_11: {color: yellow, fade: 0ms}
+    l_gi_light_12: {color: yellow, fade: 0ms}
+    l_gi_light_13: {color: yellow, fade: 0ms}
+    l_gi_light_14: {color: red, fade: 300ms}
+    l_gi_light_15: {color: yellow, fade: 0ms}
+    l_gi_light_16: {color: yellow, fade: 0ms}
+    l_gi_light_17: {color: yellow, fade: 0ms}
+    l_gi_light_18: {color: orange, fade: 0ms}
+    l_gi_light_19: {color: yellow, fade: 0ms}
+    l_gi_light_20: {color: yellow, fade: 0ms}
+    l_gi_light_21: {color: yellow, fade: 0ms}
+    l_gi_light_22: {color: red, fade: 300ms}
+    l_gi_light_23: {color: yellow, fade: 0ms}
+    l_gi_light_24: {color: yellow, fade: 0ms}
+    l_gi_light_25: {color: orange, fade: 300ms}
+    l_gi_light_26: {color: yellow, fade: 0ms}
+    l_gi_light_27: {color: orange, fade: 0ms}
+    l_apron_light_1: {color: yellow, fade: 0ms}
+    l_apron_light_2: {color: orange, fade: 0ms}
+    l_apron_light_3: {color: yellow, fade: 0ms}
+    l_apron_light_4: {color: orange, fade: 300ms}
+
+  ##############################################
+  ## GI Step 4: 16Y, 9O, 6R - approaching halfway
+  ## Added orange: gi11, gi16, gi20
+  ## Changed to red: gi3, gi9, gi27
+  ##############################################
+  afterburner_set_gi_step_4:
+    l_gi_light_1: {color: yellow, fade: 0ms}
+    l_gi_light_2: {color: yellow, fade: 0ms}
+    l_gi_light_3: {color: red, fade: 300ms}
+    l_gi_light_4: {color: yellow, fade: 0ms}
+    l_gi_light_5: {color: red, fade: 0ms}
+    l_gi_light_6: {color: yellow, fade: 0ms}
+    l_gi_light_7: {color: orange, fade: 0ms}
+    l_gi_light_8: {color: yellow, fade: 0ms}
+    l_gi_light_9: {color: red, fade: 300ms}
+    l_gi_light_10: {color: yellow, fade: 0ms}
+    l_gi_light_11: {color: orange, fade: 300ms}
+    l_gi_light_12: {color: yellow, fade: 0ms}
+    l_gi_light_13: {color: yellow, fade: 0ms}
+    l_gi_light_14: {color: red, fade: 0ms}
+    l_gi_light_15: {color: yellow, fade: 0ms}
+    l_gi_light_16: {color: orange, fade: 300ms}
+    l_gi_light_17: {color: yellow, fade: 0ms}
+    l_gi_light_18: {color: orange, fade: 0ms}
+    l_gi_light_19: {color: yellow, fade: 0ms}
+    l_gi_light_20: {color: orange, fade: 300ms}
+    l_gi_light_21: {color: yellow, fade: 0ms}
+    l_gi_light_22: {color: red, fade: 0ms}
+    l_gi_light_23: {color: yellow, fade: 0ms}
+    l_gi_light_24: {color: yellow, fade: 0ms}
+    l_gi_light_25: {color: orange, fade: 0ms}
+    l_gi_light_26: {color: yellow, fade: 0ms}
+    l_gi_light_27: {color: red, fade: 300ms}
+    l_apron_light_1: {color: yellow, fade: 0ms}
+    l_apron_light_2: {color: orange, fade: 0ms}
+    l_apron_light_3: {color: yellow, fade: 0ms}
+    l_apron_light_4: {color: orange, fade: 0ms}
+
+  ##############################################
+  ## GI Step 5: 11Y, 10O, 10R - half orange/red
+  ## Added orange: gi6, gi12, gi24, apron1
+  ## Changed to red: gi7, gi18, gi25, apron2
+  ##############################################
+  afterburner_set_gi_step_5:
+    l_gi_light_1: {color: yellow, fade: 0ms}
+    l_gi_light_2: {color: yellow, fade: 0ms}
+    l_gi_light_3: {color: red, fade: 0ms}
+    l_gi_light_4: {color: yellow, fade: 0ms}
+    l_gi_light_5: {color: red, fade: 0ms}
+    l_gi_light_6: {color: orange, fade: 300ms}
+    l_gi_light_7: {color: red, fade: 300ms}
+    l_gi_light_8: {color: yellow, fade: 0ms}
+    l_gi_light_9: {color: red, fade: 0ms}
+    l_gi_light_10: {color: yellow, fade: 0ms}
+    l_gi_light_11: {color: orange, fade: 0ms}
+    l_gi_light_12: {color: orange, fade: 300ms}
+    l_gi_light_13: {color: yellow, fade: 0ms}
+    l_gi_light_14: {color: red, fade: 0ms}
+    l_gi_light_15: {color: yellow, fade: 0ms}
+    l_gi_light_16: {color: orange, fade: 0ms}
+    l_gi_light_17: {color: yellow, fade: 0ms}
+    l_gi_light_18: {color: red, fade: 300ms}
+    l_gi_light_19: {color: yellow, fade: 0ms}
+    l_gi_light_20: {color: orange, fade: 0ms}
+    l_gi_light_21: {color: yellow, fade: 0ms}
+    l_gi_light_22: {color: red, fade: 0ms}
+    l_gi_light_23: {color: yellow, fade: 0ms}
+    l_gi_light_24: {color: orange, fade: 300ms}
+    l_gi_light_25: {color: red, fade: 300ms}
+    l_gi_light_26: {color: yellow, fade: 0ms}
+    l_gi_light_27: {color: red, fade: 0ms}
+    l_apron_light_1: {color: orange, fade: 300ms}
+    l_apron_light_2: {color: red, fade: 300ms}
+    l_apron_light_3: {color: yellow, fade: 0ms}
+    l_apron_light_4: {color: orange, fade: 0ms}
+
+  ##############################################
+  ## GI Step 6: 7Y, 10O, 14R - mostly hot
+  ## Added orange: gi10, gi15, gi21, apron3
+  ## Changed to red: gi11, gi16, gi20, apron4
+  ##############################################
+  afterburner_set_gi_step_6:
+    l_gi_light_1: {color: yellow, fade: 0ms}
+    l_gi_light_2: {color: yellow, fade: 0ms}
+    l_gi_light_3: {color: red, fade: 0ms}
+    l_gi_light_4: {color: yellow, fade: 0ms}
+    l_gi_light_5: {color: red, fade: 0ms}
+    l_gi_light_6: {color: orange, fade: 0ms}
+    l_gi_light_7: {color: red, fade: 0ms}
+    l_gi_light_8: {color: yellow, fade: 0ms}
+    l_gi_light_9: {color: red, fade: 0ms}
+    l_gi_light_10: {color: orange, fade: 300ms}
+    l_gi_light_11: {color: red, fade: 300ms}
+    l_gi_light_12: {color: orange, fade: 0ms}
+    l_gi_light_13: {color: yellow, fade: 0ms}
+    l_gi_light_14: {color: red, fade: 0ms}
+    l_gi_light_15: {color: orange, fade: 300ms}
+    l_gi_light_16: {color: red, fade: 300ms}
+    l_gi_light_17: {color: yellow, fade: 0ms}
+    l_gi_light_18: {color: red, fade: 0ms}
+    l_gi_light_19: {color: yellow, fade: 0ms}
+    l_gi_light_20: {color: red, fade: 300ms}
+    l_gi_light_21: {color: orange, fade: 300ms}
+    l_gi_light_22: {color: red, fade: 0ms}
+    l_gi_light_23: {color: yellow, fade: 0ms}
+    l_gi_light_24: {color: orange, fade: 0ms}
+    l_gi_light_25: {color: red, fade: 0ms}
+    l_gi_light_26: {color: yellow, fade: 0ms}
+    l_gi_light_27: {color: red, fade: 0ms}
+    l_apron_light_1: {color: orange, fade: 0ms}
+    l_apron_light_2: {color: red, fade: 0ms}
+    l_apron_light_3: {color: orange, fade: 300ms}
+    l_apron_light_4: {color: red, fade: 300ms}
+
+  ##############################################
+  ## GI Step 7: 0Y, 13O, 18R - no yellow remaining
+  ## Remaining yellows → orange: gi1, gi2, gi4, gi8, gi13, gi17, gi19, gi23, gi26
+  ## Changed to red: gi6, gi12, gi24
+  ##############################################
+  afterburner_set_gi_step_7:
+    l_gi_light_1: {color: orange, fade: 300ms}
+    l_gi_light_2: {color: orange, fade: 300ms}
+    l_gi_light_3: {color: red, fade: 0ms}
+    l_gi_light_4: {color: orange, fade: 300ms}
+    l_gi_light_5: {color: red, fade: 0ms}
+    l_gi_light_6: {color: red, fade: 300ms}
+    l_gi_light_7: {color: red, fade: 0ms}
+    l_gi_light_8: {color: orange, fade: 300ms}
+    l_gi_light_9: {color: red, fade: 0ms}
+    l_gi_light_10: {color: orange, fade: 0ms}
+    l_gi_light_11: {color: red, fade: 0ms}
+    l_gi_light_12: {color: red, fade: 300ms}
+    l_gi_light_13: {color: orange, fade: 300ms}
+    l_gi_light_14: {color: red, fade: 0ms}
+    l_gi_light_15: {color: orange, fade: 0ms}
+    l_gi_light_16: {color: red, fade: 0ms}
+    l_gi_light_17: {color: orange, fade: 300ms}
+    l_gi_light_18: {color: red, fade: 0ms}
+    l_gi_light_19: {color: orange, fade: 300ms}
+    l_gi_light_20: {color: red, fade: 0ms}
+    l_gi_light_21: {color: orange, fade: 0ms}
+    l_gi_light_22: {color: red, fade: 0ms}
+    l_gi_light_23: {color: orange, fade: 300ms}
+    l_gi_light_24: {color: red, fade: 300ms}
+    l_gi_light_25: {color: red, fade: 0ms}
+    l_gi_light_26: {color: orange, fade: 300ms}
+    l_gi_light_27: {color: red, fade: 0ms}
+    l_apron_light_1: {color: orange, fade: 0ms}
+    l_apron_light_2: {color: red, fade: 0ms}
+    l_apron_light_3: {color: orange, fade: 0ms}
+    l_apron_light_4: {color: red, fade: 0ms}
+
+  ##############################################
+  ## GI Step 8: 0Y, 5O, 26R - nearly all red
+  ## Changed to red: gi1, gi4, gi8, gi10, gi13, gi15, gi17, gi21, apron1, apron3
+  ## Remaining orange: gi2, gi19, gi23, gi26, gi(remaining)
+  ##############################################
+  afterburner_set_gi_step_8:
+    l_gi_light_1: {color: red, fade: 300ms}
+    l_gi_light_2: {color: orange, fade: 0ms}
+    l_gi_light_3: {color: red, fade: 0ms}
+    l_gi_light_4: {color: red, fade: 300ms}
+    l_gi_light_5: {color: red, fade: 0ms}
+    l_gi_light_6: {color: red, fade: 0ms}
+    l_gi_light_7: {color: red, fade: 0ms}
+    l_gi_light_8: {color: red, fade: 300ms}
+    l_gi_light_9: {color: red, fade: 0ms}
+    l_gi_light_10: {color: red, fade: 300ms}
+    l_gi_light_11: {color: red, fade: 0ms}
+    l_gi_light_12: {color: red, fade: 0ms}
+    l_gi_light_13: {color: red, fade: 300ms}
+    l_gi_light_14: {color: red, fade: 0ms}
+    l_gi_light_15: {color: red, fade: 300ms}
+    l_gi_light_16: {color: red, fade: 0ms}
+    l_gi_light_17: {color: red, fade: 300ms}
+    l_gi_light_18: {color: red, fade: 0ms}
+    l_gi_light_19: {color: orange, fade: 0ms}
+    l_gi_light_20: {color: red, fade: 0ms}
+    l_gi_light_21: {color: red, fade: 300ms}
+    l_gi_light_22: {color: red, fade: 0ms}
+    l_gi_light_23: {color: orange, fade: 0ms}
+    l_gi_light_24: {color: red, fade: 0ms}
+    l_gi_light_25: {color: red, fade: 0ms}
+    l_gi_light_26: {color: orange, fade: 0ms}
+    l_gi_light_27: {color: red, fade: 0ms}
+    l_apron_light_1: {color: red, fade: 300ms}
+    l_apron_light_2: {color: red, fade: 0ms}
+    l_apron_light_3: {color: red, fade: 300ms}
+    l_apron_light_4: {color: red, fade: 0ms}
+
+  ##############################################
+  ## GI Step 9: ALL RED - FULL AFTERBURNER
+  ##############################################
+  afterburner_set_gi_step_9:
+    l_gi_light_1: {color: red, fade: 0ms}
+    l_gi_light_2: {color: red, fade: 300ms}
+    l_gi_light_3: {color: red, fade: 0ms}
+    l_gi_light_4: {color: red, fade: 0ms}
+    l_gi_light_5: {color: red, fade: 0ms}
+    l_gi_light_6: {color: red, fade: 0ms}
+    l_gi_light_7: {color: red, fade: 0ms}
+    l_gi_light_8: {color: red, fade: 0ms}
+    l_gi_light_9: {color: red, fade: 0ms}
+    l_gi_light_10: {color: red, fade: 0ms}
+    l_gi_light_11: {color: red, fade: 0ms}
+    l_gi_light_12: {color: red, fade: 0ms}
+    l_gi_light_13: {color: red, fade: 0ms}
+    l_gi_light_14: {color: red, fade: 0ms}
+    l_gi_light_15: {color: red, fade: 0ms}
+    l_gi_light_16: {color: red, fade: 0ms}
+    l_gi_light_17: {color: red, fade: 0ms}
+    l_gi_light_18: {color: red, fade: 0ms}
+    l_gi_light_19: {color: red, fade: 300ms}
+    l_gi_light_20: {color: red, fade: 0ms}
+    l_gi_light_21: {color: red, fade: 0ms}
+    l_gi_light_22: {color: red, fade: 0ms}
+    l_gi_light_23: {color: red, fade: 300ms}
+    l_gi_light_24: {color: red, fade: 0ms}
+    l_gi_light_25: {color: red, fade: 0ms}
+    l_gi_light_26: {color: red, fade: 300ms}
+    l_gi_light_27: {color: red, fade: 0ms}
+    l_apron_light_1: {color: red, fade: 0ms}
+    l_apron_light_2: {color: red, fade: 0ms}
+    l_apron_light_3: {color: red, fade: 0ms}
+    l_apron_light_4: {color: red, fade: 0ms}
+
+  ##############################################
+  ## Restore GI to white on cleanup
+  ##############################################
+  afterburner_cleanup:
+    l_gi_light_1: {color: white, fade: 0ms}
+    l_gi_light_2: {color: white, fade: 0ms}
+    l_gi_light_3: {color: white, fade: 0ms}
+    l_gi_light_4: {color: white, fade: 0ms}
+    l_gi_light_5: {color: white, fade: 0ms}
+    l_gi_light_6: {color: white, fade: 0ms}
+    l_gi_light_7: {color: white, fade: 0ms}
+    l_gi_light_8: {color: white, fade: 0ms}
+    l_gi_light_9: {color: white, fade: 0ms}
+    l_gi_light_10: {color: white, fade: 0ms}
+    l_gi_light_11: {color: white, fade: 0ms}
+    l_gi_light_12: {color: white, fade: 0ms}
+    l_gi_light_13: {color: white, fade: 0ms}
+    l_gi_light_14: {color: white, fade: 0ms}
+    l_gi_light_15: {color: white, fade: 0ms}
+    l_gi_light_16: {color: white, fade: 0ms}
+    l_gi_light_17: {color: white, fade: 0ms}
+    l_gi_light_18: {color: white, fade: 0ms}
+    l_gi_light_19: {color: white, fade: 0ms}
+    l_gi_light_20: {color: white, fade: 0ms}
+    l_gi_light_21: {color: white, fade: 0ms}
+    l_gi_light_22: {color: white, fade: 0ms}
+    l_gi_light_23: {color: white, fade: 0ms}
+    l_gi_light_24: {color: white, fade: 0ms}
+    l_gi_light_25: {color: white, fade: 0ms}
+    l_gi_light_26: {color: white, fade: 0ms}
+    l_gi_light_27: {color: white, fade: 0ms}
+    l_apron_light_1: {color: white, fade: 0ms}
+    l_apron_light_2: {color: white, fade: 0ms}
+    l_apron_light_3: {color: white, fade: 0ms}
+    l_apron_light_4: {color: white, fade: 0ms}
+    # Turn off all shot inserts
+    l_shot_left_ramp: off
+    l_shot_right_orbit: off
+    l_shot_tower_ramp: off
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+    l_shot_spinner: off
+    l_shot_pilot_gear: off
+
+  ##############################################
+  ## Static shot insert lighting (solid orange for active shots)
+  ## Flash shows override these with sync_flash_mode
+  ##############################################
+
+  # Step 1: LR solid orange
+  afterburner_setup_step_1:
+    l_shot_left_ramp:
+      color: FF6600
+      fade: 0ms
+
+  # Step 2: RR solid orange
+  afterburner_setup_step_2:
+    l_shot_left_ramp: off
+    l_shot_right_orbit:
+      color: FF6600
+      fade: 0ms
+
+  # Step 3: LR solid orange
+  afterburner_setup_step_3:
+    l_shot_right_orbit: off
+    l_shot_left_ramp:
+      color: FF6600
+      fade: 0ms
+
+  # Step 4: TWR solid orange
+  afterburner_setup_step_4:
+    l_shot_left_ramp: off
+    l_shot_tower_ramp:
+      color: FF6600
+      fade: 0ms
+
+  # Step 5: LR solid orange
+  afterburner_setup_step_5:
+    l_shot_tower_ramp: off
+    l_shot_left_ramp:
+      color: FF6600
+      fade: 0ms
+
+  # Step 6: RO solid orange
+  afterburner_setup_step_6:
+    l_shot_left_ramp: off
+    l_shot_right_orbit:
+      color: FF6600
+      fade: 0ms
+
+  # Step 7: TL and TO both solid orange
+  afterburner_setup_step_7:
+    l_shot_right_orbit: off
+    l_shot_upper_orbit:
+      color: FF6600
+      fade: 0ms
+    l_shot_middle_ramp:
+      color: FF6600
+      fade: 0ms
+
+  # Step 8: SP solid orange
+  afterburner_setup_step_8:
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+    l_shot_spinner:
+      color: FF6600
+      fade: 0ms
+
+  # Step 9: 2X solid orange
+  afterburner_setup_step_9:
+    l_shot_spinner: off
+    l_shot_pilot_gear:
+      color: FF6600
+      fade: 0ms
+
+  afterburner_step_9_complete:
+    l_shot_pilot_gear: off
+
+  ##############################################
+  ## Perk active indicator
+  ##############################################
+  ## Insert light handled by iceman_letters.yaml on mode stop
+
+####################################################################################
+# COIL PLAYER - Left lane post hold during intro + no-hold flipper pulses
+####################################################################################
+
+coil_player:
+  # Hold ball at left lane post during intro video
+  mode_pilot_training_mission_afterburner_started:
+    c_left_lane_up_post:
+      action: enable
+
+  # Release ball after intro (or skip)
+  afterburner_ball_released:
+    c_left_lane_up_post:
+      action: disable
+
+  # Mode cleanup - disable post
+  afterburner_cleanup:
+    c_left_lane_up_post:
+      action: disable
+
+  # Safety - disable post on mode stop
+  mode_pilot_training_mission_afterburner_will_stop:
+    c_left_lane_up_post:
+      action: disable
+
+  ##############################################
+  ## NO-HOLD FLIPPERS
+  ## Defined in config_no_hold_flippers.yaml
+  ## Activated/deactivated via event_player (afterburner_ball_released / afterburner_cleanup)
+  ##############################################
+
+####################################################################################
+# SHOWS - GI flash effect for shot hits
+####################################################################################
+
+shows:
+  ##############################################
+  ## AFTERBURNER GI FLASH - Quick white/off strobe on shot hits
+  ## 3 frames: white → off → white, then show ends and GI restore event fires
+  ##############################################
+  afterburner_gi_flash:
+    - duration: 100ms
+      lights:
+        l_gi_light_1: white
+        l_gi_light_2: white
+        l_gi_light_3: white
+        l_gi_light_4: white
+        l_gi_light_5: white
+        l_gi_light_6: white
+        l_gi_light_7: white
+        l_gi_light_8: white
+        l_gi_light_9: white
+        l_gi_light_10: white
+        l_gi_light_11: white
+        l_gi_light_12: white
+        l_gi_light_13: white
+        l_gi_light_14: white
+        l_gi_light_15: white
+        l_gi_light_16: white
+        l_gi_light_17: white
+        l_gi_light_18: white
+        l_gi_light_19: white
+        l_gi_light_20: white
+        l_gi_light_21: white
+        l_gi_light_22: white
+        l_gi_light_23: white
+        l_gi_light_24: white
+        l_gi_light_25: white
+        l_gi_light_26: white
+        l_gi_light_27: white
+        l_apron_light_1: white
+        l_apron_light_2: white
+        l_apron_light_3: white
+        l_apron_light_4: white
+    - duration: 50ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: off
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: off
+        l_apron_light_1: off
+        l_apron_light_2: off
+        l_apron_light_3: off
+        l_apron_light_4: off
+    - duration: 100ms
+      lights:
+        l_gi_light_1: white
+        l_gi_light_2: white
+        l_gi_light_3: white
+        l_gi_light_4: white
+        l_gi_light_5: white
+        l_gi_light_6: white
+        l_gi_light_7: white
+        l_gi_light_8: white
+        l_gi_light_9: white
+        l_gi_light_10: white
+        l_gi_light_11: white
+        l_gi_light_12: white
+        l_gi_light_13: white
+        l_gi_light_14: white
+        l_gi_light_15: white
+        l_gi_light_16: white
+        l_gi_light_17: white
+        l_gi_light_18: white
+        l_gi_light_19: white
+        l_gi_light_20: white
+        l_gi_light_21: white
+        l_gi_light_22: white
+        l_gi_light_23: white
+        l_gi_light_24: white
+        l_gi_light_25: white
+        l_gi_light_26: white
+        l_gi_light_27: white
+        l_apron_light_1: white
+        l_apron_light_2: white
+        l_apron_light_3: white
+        l_apron_light_4: white
+
+####################################################################################
+# NOTES AND GODOT SLIDES
+####################################################################################
+
+# GODOT SLIDES TO CREATE:
+# - afterburner_timer: Mode countdown timer display (120 seconds)
+#   Variables: device.timers.afterburner_timer.ticks (timer countdown value)
+#
+# - afterburner_instructions: Instructions overlay (stays active entire mode)
+#   Variables: none (static video/animation)
+#
+# - afterburner_shots_remaining: Shots remaining counter
+#   Variables: current_player.afterburner_shots_remaining (9 down to 0)
+#
+# - afterburner_step_1: Step 1 completion video (LR hit)
+# - afterburner_step_2: Step 2 completion video (RR hit)
+# - afterburner_step_3: Step 3 completion video (LR hit)
+# - afterburner_step_4: Step 4 completion video (TWR hit)
+# - afterburner_step_5: Step 5 completion video (LR hit)
+# - afterburner_step_6: Step 6 completion video (RO hit)
+# - afterburner_step_7: Step 7 completion video (TL or TO hit)
+# - afterburner_step_8: Step 8 completion video (SP hit)
+# - afterburner_step_9: Step 9 completion video (2X target hit - 4 second video, IS the victory video)
+#
+# - afterburner_perk_active: Perk active indicator
+#   Variables: none (shows perk icon/text)
+#
+# - mode_points_scored: Shared points display (already exists)
+#   Variables: current_player.mode_points_scored (points just earned)
+#
+# NOTE: No afterburner_mode_won slide used. Step 9 video IS the completion video.
+# voice_afterburner_completed plays on voice bus when step 9 video finishes (4s delay).
+#
+# MPF VARIABLES FOR GODOT DISPLAY:
+# - afterburner_step: Current step (0-9, where 0=step 1 active)
+# - afterburner_shots_remaining: Shots remaining (9 down to 0)
+# - afterburner_complete_flag: 1 when mode won
+# - afterburner_perk_active: 1 when perk earned
+# - afterburner_no_hold_active: 1 when flippers are in no-hold pulse mode
+# - mode_points_scored: Points from last shot (for shot feedback)
+# - device.timers.afterburner_timer.ticks: Timer countdown value

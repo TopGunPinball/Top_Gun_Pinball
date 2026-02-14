@@ -44,7 +44,7 @@
 mode:
   start_events: start_mode_pilot_training_mission_inverted
   stop_events: 
-    - pilot_training_mission_inverted_mode_ended
+    - inverted_video_complete
   priority: 600
   game_mode: true
   use_wait_queue: true
@@ -151,6 +151,27 @@ timers:
     control_events:
       - event: pilot_training_mission_inverted_iceman_complete
         action: restart
+
+  # End video delay timers - allow fail/complete video to play before mode stops
+  inverted_complete_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 3600ms
+    start_running: false
+    control_events:
+      - event: timer_inverted_complete_delay_start
+        action: start
+
+  inverted_failed_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 3600ms
+    start_running: false
+    control_events:
+      - event: timer_inverted_failed_delay_start
+        action: start
 
 ####################################################################################
 # VARIABLE PLAYER - Initialize and track mode variables
@@ -3628,9 +3649,22 @@ event_player:
     - enable_normal_flippers
     - pilot_training_mission_inverted_cleanup
 
-  # Fire mode_failed if mode ended without winning
+  # Win path: start complete delay, video plays, then mode stops
+  pilot_training_mission_inverted_mode_ended{current_player.pilot_training_mission_inverted_won==1}:
+    - timer_inverted_complete_delay_start
+
+  # Fail path: start failed delay, video plays, then mode stops
   pilot_training_mission_inverted_mode_ended{current_player.pilot_training_mission_inverted_won==0}:
     - pilot_training_mission_inverted_mode_failed
+    - timer_inverted_failed_delay_start
+
+  timer_inverted_complete_delay_complete:
+    - inverted_video_complete
+    - pilot_mode_cleanup_complete
+
+  timer_inverted_failed_delay_complete:
+    - inverted_video_complete
+    - pilot_mode_cleanup_complete
 
   pilot_training_mission_inverted_cleanup:
     - right_ramp_down
@@ -3657,6 +3691,11 @@ sound_player:
   # Jackpot callout - plays when jackpot is lit at CNT (steps 2, 4, 6, 8)
   pilot_training_mission_inverted_jackpot_lit:
     voice_shoot_center_target_for_jackpot:
+      bus: voice
+      loops: 0
+
+  pilot_training_mission_inverted_mode_failed:
+    voice_inverted_failed:
       bus: voice
       loops: 0
 

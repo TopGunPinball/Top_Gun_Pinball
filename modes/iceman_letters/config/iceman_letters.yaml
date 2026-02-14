@@ -197,7 +197,7 @@ variable_player:
       action: set
       int: 0
 
-  mode_training_afterburner_started:
+  mode_pilot_training_mission_afterburner_started:
     training_mission_qualified:
       action: set
       int: 0
@@ -271,6 +271,46 @@ variable_player:
       action: set
       int: 0
 
+  ##############################################
+  ## INVERTED PERK: Set inverted_perk_active on mode win
+  ## training_inverted_mode_over fires 500ms after mode stops
+  ## Only sets perk if training mission was won
+  ##############################################
+  training_inverted_mode_over{current_player.training_mission_inverted_perk_active==1}:
+    inverted_perk_active:
+      action: set
+      int: 1
+
+  ##############################################
+  ## INVERTED PERK: Double ICEMAN Letters
+  ## Awards the next uncollected letter in I→C→E→M→A→N chain
+  ## Each target that sets a letter also triggers the bonus chain
+  ##############################################
+  inverted_award_iceman_i:
+    iceman_letter_i:
+      action: set
+      int: 1
+  inverted_award_iceman_c:
+    iceman_letter_c:
+      action: set
+      int: 1
+  inverted_award_iceman_e:
+    iceman_letter_e:
+      action: set
+      int: 1
+  inverted_award_iceman_m:
+    iceman_letter_m:
+      action: set
+      int: 1
+  inverted_award_iceman_a:
+    iceman_letter_a:
+      action: set
+      int: 1
+  inverted_award_iceman_n:
+    iceman_letter_n:
+      action: set
+      int: 1
+
 ##############################################
 ## Timers
 ##############################################
@@ -326,6 +366,51 @@ event_player:
   mode_pilot_training_mission_missiles_stopped:
     - training_missiles_mode_over|500ms
 
+  mode_pilot_training_mission_afterburner_stopped:
+    - training_afterburner_mode_over|500ms
+
+  ##############################################
+  ## INVERTED PERK: Double ICEMAN Letters
+  ## When inverted_perk_active==1, each ICEMAN target hit also awards
+  ## the next uncollected letter in I→C→E→M→A→N order
+  ##############################################
+  
+  # Each target hit triggers the bonus chain (same conditions as normal collection)
+  s_i_iceman_target_active{current_player.iceman_letter_i==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.inverted_perk_active==1}:
+    - inverted_bonus_iceman_letter
+  s_c_iceman_target_active{current_player.iceman_letter_c==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.inverted_perk_active==1}:
+    - inverted_bonus_iceman_letter
+  s_e_iceman_target_active{current_player.iceman_letter_e==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.inverted_perk_active==1}:
+    - inverted_bonus_iceman_letter
+  s_m_iceman_target_active{current_player.iceman_letter_m==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.inverted_perk_active==1}:
+    - inverted_bonus_iceman_letter
+  s_a_iceman_target_active{current_player.iceman_letter_a==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.inverted_perk_active==1}:
+    - inverted_bonus_iceman_letter
+  s_n_iceman_target_active{current_player.iceman_letter_n==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.inverted_perk_active==1}:
+    - inverted_bonus_iceman_letter
+
+  # Chain logic: award first uncollected letter in I→C→E→M→A→N order
+  inverted_bonus_iceman_letter{current_player.iceman_letter_i==0}:
+    - inverted_award_iceman_i
+  inverted_bonus_iceman_letter{current_player.iceman_letter_i==1 and current_player.iceman_letter_c==0}:
+    - inverted_award_iceman_c
+  inverted_bonus_iceman_letter{current_player.iceman_letter_i==1 and current_player.iceman_letter_c==1 and current_player.iceman_letter_e==0}:
+    - inverted_award_iceman_e
+  inverted_bonus_iceman_letter{current_player.iceman_letter_i==1 and current_player.iceman_letter_c==1 and current_player.iceman_letter_e==1 and current_player.iceman_letter_m==0}:
+    - inverted_award_iceman_m
+  inverted_bonus_iceman_letter{current_player.iceman_letter_i==1 and current_player.iceman_letter_c==1 and current_player.iceman_letter_e==1 and current_player.iceman_letter_m==1 and current_player.iceman_letter_a==0}:
+    - inverted_award_iceman_a
+  inverted_bonus_iceman_letter{current_player.iceman_letter_i==1 and current_player.iceman_letter_c==1 and current_player.iceman_letter_e==1 and current_player.iceman_letter_m==1 and current_player.iceman_letter_a==1 and current_player.iceman_letter_n==0}:
+    - inverted_award_iceman_n
+
+  # After each bonus award, check if ICEMAN is now complete
+  inverted_award_iceman_i: check_ice_man_complete
+  inverted_award_iceman_c: check_ice_man_complete
+  inverted_award_iceman_e: check_ice_man_complete
+  inverted_award_iceman_m: check_ice_man_complete
+  inverted_award_iceman_a: check_ice_man_complete
+  inverted_award_iceman_n: check_ice_man_complete
+
   ##############################################
   ## Start Training Missions via Left Lane
   ##############################################
@@ -341,8 +426,9 @@ event_player:
     - start_mode_pilot_training_mission_missiles
   
   # Start Afterburner training mission when left lane hit with mission 3 qualified
-  s_lane_left_active{current_player.training_mission_qualified==3 and current_player.pilot_mode_active==0}:
-    - start_mode_training_afterburner
+  # Only start if not already completed and no pilot mode active
+  s_lane_left_active{current_player.training_mission_qualified==3 and current_player.training_afterburner_complete==0 and current_player.pilot_mode_active==0}:
+    - start_mode_pilot_training_mission_afterburner
   
   # Start Wingman training mission when left lane hit with mission 4 qualified
   s_lane_left_active{current_player.training_mission_qualified==4 and current_player.pilot_mode_active==0}:
@@ -421,7 +507,7 @@ event_player:
     stop_all_training_pulse_shows
   mode_pilot_training_mission_missiles_started:
     stop_all_training_pulse_shows
-  mode_training_afterburner_started:
+  mode_pilot_training_mission_afterburner_started:
     stop_all_training_pulse_shows
   mode_training_wingman_started:
     stop_all_training_pulse_shows
@@ -478,7 +564,7 @@ coil_player:
   mode_pilot_training_mission_missiles_started:
     c_mode_barrier:
       action: off
-  mode_training_afterburner_started:
+  mode_pilot_training_mission_afterburner_started:
     c_mode_barrier:
       action: off
   mode_training_wingman_started:
@@ -605,7 +691,7 @@ show_player:
       speed: 1
       key: pop_bumpers_fade
 
-  player_training_mission_qualified{value==3}:
+  player_training_mission_qualified{value==3 and current_player.training_afterburner_complete==0}:
     inverted_pulse:
       action: stop
     missles_pulse:
@@ -742,9 +828,19 @@ show_player:
   mode_pilot_training_mission_missiles_started:
     pop_bumpers_fade:
       action: stop
-  mode_training_afterburner_started:
+  # Stop pulse show when missiles mode ends (before setting solid white)
+  training_missiles_mode_over:
+    missles_pulse:
+      action: stop
+      key: missles_pulse
+  mode_pilot_training_mission_afterburner_started:
     pop_bumpers_fade:
       action: stop
+  # Stop pulse show when afterburner mode ends (before setting solid white)
+  training_afterburner_mode_over:
+    afterburner_pulse:
+      action: stop
+      key: afterburner_pulse
   mode_training_wingman_started:
     pop_bumpers_fade:
       action: stop
@@ -932,6 +1028,35 @@ light_player:
       fade: 0ms
 
   ##############################################
+  ## INVERTED PERK: Light Bonus ICEMAN Letters
+  ## Same cyan color as normal collection
+  ##############################################
+  inverted_award_iceman_i:
+    l_iceman_i:
+      color: cyan
+      fade: 0ms
+  inverted_award_iceman_c:
+    l_iceman_c:
+      color: cyan
+      fade: 0ms
+  inverted_award_iceman_e:
+    l_iceman_e:
+      color: cyan
+      fade: 0ms
+  inverted_award_iceman_m:
+    l_iceman_m:
+      color: cyan
+      fade: 0ms
+  inverted_award_iceman_a:
+    l_iceman_a:
+      color: cyan
+      fade: 0ms
+  inverted_award_iceman_n:
+    l_iceman_n:
+      color: cyan
+      fade: 0ms
+
+  ##############################################
   ## Turn Off All Letters When Collection Paused
   ##############################################
 
@@ -1073,12 +1198,15 @@ light_player:
       color: white
       fade: 0ms
 
+  # Delayed light setting for afterburner - solid white after mode played
+  training_afterburner_mode_over:
+    l_mode_afterburner:
+      color: white
+      fade: 0ms
+
   mode_pilot_training_mission_missiles_started:
     l_pilot_training_lit:
       color: off
-    l_mode_missles:
-      color: cyan
-      fade: 0ms
     l_gi_light_pop_left:
       color: off
       fade: 0ms
@@ -1089,7 +1217,7 @@ light_player:
       color: off
       fade: 0ms
 
-  mode_training_afterburner_started:
+  mode_pilot_training_mission_afterburner_started:
     l_pilot_training_lit:
       color: off
     l_mode_afterburner:
@@ -1149,9 +1277,10 @@ light_player:
   stop_all_training_pulse_shows{current_player.training_missles_complete==0}:
     l_mode_missles:
       color: off
-  stop_all_training_pulse_shows:
+  stop_all_training_pulse_shows{current_player.training_afterburner_complete==0}:
     l_mode_afterburner:
       color: off
+  stop_all_training_pulse_shows:
     l_mode_wingman:
       color: off
     l_mode_dogfight:
@@ -1175,7 +1304,12 @@ light_player:
   restore_training_mission_light{current_player.training_mission_qualified==2 and current_player.training_missles_complete==0}:
     l_mode_missles:
       color: cyan
-  restore_training_mission_light{current_player.training_mission_qualified==3}:
+  # If afterburner mode has been played, show solid white on ball start
+  restore_training_mission_light{current_player.training_afterburner_complete==1}:
+    l_mode_afterburner:
+      color: white
+      fade: 0ms
+  restore_training_mission_light{current_player.training_mission_qualified==3 and current_player.training_afterburner_complete==0}:
     l_mode_afterburner:
       color: cyan
   restore_training_mission_light{current_player.training_mission_qualified==4}:
@@ -1197,6 +1331,12 @@ light_player:
       color: white
       fade: 0ms
 
+  # Reset afterburner insert to white on ball end
+  ball_will_end{current_player.training_afterburner_complete==1}:
+    l_mode_afterburner:
+      color: white
+      fade: 0ms
+
   # Initial light when qualified (will be overridden by pulsing show)
   # Use player variable change event
   # Turn off all mission lights first, then turn on the qualified one
@@ -1208,11 +1348,12 @@ light_player:
     l_mode_missles:
       color: off
   player_training_mission_qualified{value==1}:
-    l_mode_afterburner:
-      color: off
     l_mode_wingman:
       color: off
     l_mode_dogfight:
+      color: off
+  player_training_mission_qualified{value==1 and current_player.training_afterburner_complete==0}:
+    l_mode_afterburner:
       color: off
   
   player_training_mission_qualified{value==2 and current_player.training_inverted_complete==0}:
@@ -1222,11 +1363,12 @@ light_player:
     l_mode_missles:
       color: cyan
   player_training_mission_qualified{value==2}:
-    l_mode_afterburner:
-      color: off
     l_mode_wingman:
       color: off
     l_mode_dogfight:
+      color: off
+  player_training_mission_qualified{value==2 and current_player.training_afterburner_complete==0}:
+    l_mode_afterburner:
       color: off
   
   player_training_mission_qualified{value==3 and current_player.training_inverted_complete==0}:
@@ -1235,7 +1377,7 @@ light_player:
   player_training_mission_qualified{value==3 and current_player.training_missles_complete==0}:
     l_mode_missles:
       color: off
-  player_training_mission_qualified{value==3}:
+  player_training_mission_qualified{value==3 and current_player.training_afterburner_complete==0}:
     l_mode_afterburner:
       color: cyan
     l_mode_wingman:
@@ -1250,11 +1392,12 @@ light_player:
     l_mode_missles:
       color: off
   player_training_mission_qualified{value==4}:
-    l_mode_afterburner:
-      color: off
     l_mode_wingman:
       color: cyan
     l_mode_dogfight:
+      color: off
+  player_training_mission_qualified{value==4 and current_player.training_afterburner_complete==0}:
+    l_mode_afterburner:
       color: off
   
   player_training_mission_qualified{value==5 and current_player.training_inverted_complete==0}:

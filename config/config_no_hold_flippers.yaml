@@ -1,0 +1,63 @@
+#config_version=6
+
+##############################################################################
+# NO-HOLD FLIPPERS CONFIGURATION
+# Used by pilot_training_mission_afterburner mode
+#
+# Normal flippers hold up while the button is pressed.
+# No-hold flippers pulse up then immediately drop back down,
+# regardless of whether the button is still held.
+#
+# Same switch-to-coil mapping as normal:
+#   s_flipper_left -> c_flipper_left, c_flipper_left_upper
+#   s_flipper_right -> c_flipper_right
+#
+# Uses main_coil_overwrite with hold_power: 0.01 (1% PWM).
+# MPF blocks hold_power: 0.0, so we use the minimum possible value.
+# 1% duty cycle is far too weak to physically hold a flipper up,
+# so the flipper will pulse up and immediately fall back down.
+#
+# ADD THIS FILE TO config.yaml:
+#   config:
+#     - config_no_hold_flippers.yaml
+##############################################################################
+
+flippers:
+  ##############################################################################
+  # NO-HOLD LEFT FLIPPER
+  ##############################################################################
+  no_hold_left_flipper:
+    main_coil: c_flipper_left
+    activation_switch: s_flipper_left
+    eos_switch: s_flipper_left_eos
+    label: no_hold_left_flipper
+    main_coil_overwrite:
+      hold_power: 0.01
+    enable_events: enable_no_hold_flippers
+    disable_events: disable_no_hold_flippers, ball_will_end
+
+  ##############################################################################
+  # NO-HOLD LEFT UPPER FLIPPER
+  ##############################################################################
+  no_hold_left_upper_flipper:
+    main_coil: c_flipper_left_upper
+    activation_switch: s_flipper_left
+    eos_switch: s_flipper_left_upper_eos
+    label: no_hold_left_upper_flipper
+    main_coil_overwrite:
+      hold_power: 0.01
+    enable_events: enable_no_hold_flippers
+    disable_events: disable_no_hold_flippers, ball_will_end
+
+  ##############################################################################
+  # NO-HOLD RIGHT FLIPPER
+  ##############################################################################
+  no_hold_right_flipper:
+    main_coil: c_flipper_right
+    activation_switch: s_flipper_right
+    eos_switch: s_flipper_right_eos
+    label: no_hold_right_flipper
+    main_coil_overwrite:
+      hold_power: 0.01
+    enable_events: enable_no_hold_flippers
+    disable_events: disable_no_hold_flippers, ball_will_end

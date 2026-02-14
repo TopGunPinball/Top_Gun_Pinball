@@ -947,6 +947,52 @@ sound_player:
       loops: 0
 
 #################################################################################### 
+  # Afterburner Training Mission Music Handler
+####################################################################################
+
+  # Start mode music immediately when mode starts (during intro hold)
+  mode_pilot_training_mission_afterburner_started:
+    pilot_training_mission_afterburner:
+      bus: music
+      loops: -1
+
+  # Restart base music when mode stops (but NOT if drain pending - bonus will handle it)
+  mode_pilot_training_mission_afterburner_stopped{current_player.pilot_mode_drain_pending==0}:
+    music_danger_zone:
+      bus: music
+      loops: -1
+
+  # Silence music when mode completes (step 9 video plays)
+  afterburner_complete:
+    silence:
+      bus: music
+      loops: 0
+
+  # Silence music when mode fails (failure video plays)
+  afterburner_failed:
+    silence:
+      bus: music
+      loops: 0
+
+  # Play completed voice when mode stops after winning
+  mode_pilot_training_mission_afterburner_stopped{current_player.afterburner_complete_flag==1}:
+    voice_afterburner_completed:
+      bus: voice
+      loops: 0
+
+  # Play completed voice when missiles mode stops after winning
+  mode_pilot_training_mission_missiles_stopped{current_player.missiles_complete_flag==1}:
+    voice_missiles_completed:
+      bus: voice
+      loops: 0
+
+  # Play completed voice when inverted mode stops after winning
+  mode_pilot_training_mission_inverted_stopped{current_player.pilot_training_mission_inverted_won==1}:
+    voice_inverted_completed:
+      bus: voice
+      loops: 0
+
+#################################################################################### 
   # Ejection Seat Mode Music Handler
   # Silence music when ejection fails (ball drains)
 ####################################################################################

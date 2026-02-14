@@ -45,6 +45,7 @@ timers:
         event: mach_qualified
 
   # Main countdown timer - 20 seconds at active mach level
+  # Inverted perk extends by +20s (total 40s) via mach_inverted_extend_timer
   mach_timer:
     start_value: 20
     end_value: 0
@@ -60,6 +61,9 @@ timers:
         event: mach_max_hit
       - action: stop
         event: timer_mach_timer_complete
+      - action: add
+        event: mach_inverted_extend_timer
+        value: 20
 
 event_player:
   # First hit - no mach scoring yet
@@ -98,6 +102,18 @@ event_player:
   # When mach 1.25 is reached, trigger video
   player_mach_level{value==1.25}:
     show_mach_1_25_video:
+
+  ##############################################
+  ## INVERTED PERK: Doubled Mach Timer (+20s)
+  ## Timer restarts to 20s normally, then extends by 20 more = 40s total
+  ## Fires AFTER the restart events so timing is: restart(20s) → add(+20s) = 40s
+  ##############################################
+  mach_qualified{current_player.inverted_perk_active==1}:
+    - mach_inverted_extend_timer
+  mach_level_up{current_player.inverted_perk_active==1}:
+    - mach_inverted_extend_timer
+  mach_max_hit{current_player.inverted_perk_active==1}:
+    - mach_inverted_extend_timer
   player_mach_level{value==1.5}:
     show_mach_1_5_video:
   player_mach_level{value==1.75}:
@@ -154,6 +170,28 @@ variable_player:
     mach_level:
       float: 1.0
       action: set
+
+  ##############################################
+  ## INVERTED PERK: 2x Mach Progression
+  ## Extra +1 step and +0.25 level per level-up (fires in addition to normal)
+  ## Normal: +0.25 per hit (9 hits to max). Perk: +0.50 per hit (5 hits to max)
+  ##############################################
+  mach_level_up{current_player.inverted_perk_active==1}:
+    mach_step:
+      int: 1
+      action: add
+    mach_level:
+      float: 0.25
+      action: add
+
+  ## Cap at max if perk causes overshoot (step 10+ back to 9, level to 3.0)
+  player_mach_step{value>9}:
+    mach_step:
+      action: set
+      int: 9
+    mach_level:
+      action: set
+      float: 3.0
 
 show_player:
   # Play fire effect show when timer expires
@@ -369,146 +407,292 @@ slide_player:
     timer20:
       action: remove
   
-  # Timer slides
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==20}:
+  # Timer slides - NORMAL (no inverted perk): 1 slide per tick, ticks 20→0
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==20 and current_player.inverted_perk_active==0}:
     timer20:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==19}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==19 and current_player.inverted_perk_active==0}:
     timer20:
       action: remove
     timer19:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==18}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==18 and current_player.inverted_perk_active==0}:
     timer19:
       action: remove
     timer18:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==17}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==17 and current_player.inverted_perk_active==0}:
     timer18:
       action: remove
     timer17:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==16}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==16 and current_player.inverted_perk_active==0}:
     timer17:
       action: remove
     timer16:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==15}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==15 and current_player.inverted_perk_active==0}:
     timer16:
       action: remove
     timer15:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==14}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==14 and current_player.inverted_perk_active==0}:
     timer15:
       action: remove
     timer14:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==13}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==13 and current_player.inverted_perk_active==0}:
     timer14:
       action: remove
     timer13:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==12}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==12 and current_player.inverted_perk_active==0}:
     timer13:
       action: remove
     timer12:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==11}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==11 and current_player.inverted_perk_active==0}:
     timer12:
       action: remove
     timer11:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==10}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==10 and current_player.inverted_perk_active==0}:
     timer11:
       action: remove
     timer10:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==9}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==9 and current_player.inverted_perk_active==0}:
     timer10:
       action: remove
     timer9:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==8}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==8 and current_player.inverted_perk_active==0}:
     timer9:
       action: remove
     timer8:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==7}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==7 and current_player.inverted_perk_active==0}:
     timer8:
       action: remove
     timer7:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==6}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==6 and current_player.inverted_perk_active==0}:
     timer7:
       action: remove
     timer6:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==5}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==5 and current_player.inverted_perk_active==0}:
     timer6:
       action: remove
     timer5:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==4}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==4 and current_player.inverted_perk_active==0}:
     timer5:
       action: remove
     timer4:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==3}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==3 and current_player.inverted_perk_active==0}:
     timer4:
       action: remove
     timer3:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==2}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==2 and current_player.inverted_perk_active==0}:
     timer3:
       action: remove
     timer2:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==1}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==1 and current_player.inverted_perk_active==0}:
     timer2:
       action: remove
     timer1:
       action: play
       priority: 200
       
-  timer_mach_timer_tick{device.timers.mach_timer.ticks==0}:
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==0 and current_player.inverted_perk_active==0}:
+    timer1:
+      action: remove
+
+  ##############################################
+  ## Timer slides - INVERTED PERK: 1 slide per 2 ticks, ticks 40→0
+  ## Same 20 slides but each lasts 2 seconds (timer goes down slower visually)
+  ##############################################
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==40 and current_player.inverted_perk_active==1}:
+    timer20:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==38 and current_player.inverted_perk_active==1}:
+    timer20:
+      action: remove
+    timer19:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==36 and current_player.inverted_perk_active==1}:
+    timer19:
+      action: remove
+    timer18:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==34 and current_player.inverted_perk_active==1}:
+    timer18:
+      action: remove
+    timer17:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==32 and current_player.inverted_perk_active==1}:
+    timer17:
+      action: remove
+    timer16:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==30 and current_player.inverted_perk_active==1}:
+    timer16:
+      action: remove
+    timer15:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==28 and current_player.inverted_perk_active==1}:
+    timer15:
+      action: remove
+    timer14:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==26 and current_player.inverted_perk_active==1}:
+    timer14:
+      action: remove
+    timer13:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==24 and current_player.inverted_perk_active==1}:
+    timer13:
+      action: remove
+    timer12:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==22 and current_player.inverted_perk_active==1}:
+    timer12:
+      action: remove
+    timer11:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==20 and current_player.inverted_perk_active==1}:
+    timer11:
+      action: remove
+    timer10:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==18 and current_player.inverted_perk_active==1}:
+    timer10:
+      action: remove
+    timer9:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==16 and current_player.inverted_perk_active==1}:
+    timer9:
+      action: remove
+    timer8:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==14 and current_player.inverted_perk_active==1}:
+    timer8:
+      action: remove
+    timer7:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==12 and current_player.inverted_perk_active==1}:
+    timer7:
+      action: remove
+    timer6:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==10 and current_player.inverted_perk_active==1}:
+    timer6:
+      action: remove
+    timer5:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==8 and current_player.inverted_perk_active==1}:
+    timer5:
+      action: remove
+    timer4:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==6 and current_player.inverted_perk_active==1}:
+    timer4:
+      action: remove
+    timer3:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==4 and current_player.inverted_perk_active==1}:
+    timer3:
+      action: remove
+    timer2:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==2 and current_player.inverted_perk_active==1}:
+    timer2:
+      action: remove
+    timer1:
+      action: play
+      priority: 200
+
+  timer_mach_timer_tick{device.timers.mach_timer.ticks==0 and current_player.inverted_perk_active==1}:
     timer1:
       action: remove
   

@@ -69,6 +69,43 @@ variable_player:
     goose_last_letter_collected:
       action: set
       int: 0
+    # Missile Perk System - loaded when pilot mode starts with perk active
+    missile_pos_g:
+      action: set
+      int: 0
+    missile_pos_o_left:
+      action: set
+      int: 0
+    missile_pos_e:
+      action: set
+      int: 0
+    missile_pos_o_right:
+      action: set
+      int: 0
+    missile_pos_s:
+      action: set
+      int: 0
+    missiles_remaining:
+      action: set
+      int: 0
+    missile_firing:
+      action: set
+      int: 0
+    missile_temp_g:
+      action: set
+      int: 0
+    missile_temp_o_left:
+      action: set
+      int: 0
+    missile_temp_e:
+      action: set
+      int: 0
+    missile_temp_o_right:
+      action: set
+      int: 0
+    missile_temp_s:
+      action: set
+      int: 0
 
   ##############################################
   ## Light Letters When Lane Switches Hit
@@ -179,6 +216,21 @@ variable_player:
     goose_temp_s:
       action: set
       int: current_player.goose_letter_s
+    missile_temp_g:
+      action: set
+      int: current_player.missile_pos_g
+    missile_temp_o_left:
+      action: set
+      int: current_player.missile_pos_o_left
+    missile_temp_e:
+      action: set
+      int: current_player.missile_pos_e
+    missile_temp_o_right:
+      action: set
+      int: current_player.missile_pos_o_right
+    missile_temp_s:
+      action: set
+      int: current_player.missile_pos_s
 
   s_flipper_right_active:
     goose_temp_g:
@@ -196,6 +248,21 @@ variable_player:
     goose_temp_s:
       action: set
       int: current_player.goose_letter_s
+    missile_temp_g:
+      action: set
+      int: current_player.missile_pos_g
+    missile_temp_o_left:
+      action: set
+      int: current_player.missile_pos_o_left
+    missile_temp_e:
+      action: set
+      int: current_player.missile_pos_e
+    missile_temp_o_right:
+      action: set
+      int: current_player.missile_pos_o_right
+    missile_temp_s:
+      action: set
+      int: current_player.missile_pos_s
 
   ##############################################
   ## LEFT FLIPPER ROTATIONS - Clockwise
@@ -217,6 +284,22 @@ variable_player:
     goose_letter_e:
       action: set
       int: current_player.goose_temp_g
+    # Missile positions rotate in parallel with GOOSE letters
+    missile_pos_g:
+      action: set
+      int: current_player.missile_temp_o_left
+    missile_pos_o_left:
+      action: set
+      int: current_player.missile_temp_o_right
+    missile_pos_o_right:
+      action: set
+      int: current_player.missile_temp_s
+    missile_pos_s:
+      action: set
+      int: current_player.missile_temp_e
+    missile_pos_e:
+      action: set
+      int: current_player.missile_temp_g
 
   ##############################################
   ## RIGHT FLIPPER ROTATIONS - Counterclockwise
@@ -238,6 +321,22 @@ variable_player:
     goose_letter_o_left:
       action: set
       int: current_player.goose_temp_g
+    # Missile positions rotate in parallel with GOOSE letters
+    missile_pos_g:
+      action: set
+      int: current_player.missile_temp_e
+    missile_pos_e:
+      action: set
+      int: current_player.missile_temp_s
+    missile_pos_s:
+      action: set
+      int: current_player.missile_temp_o_right
+    missile_pos_o_right:
+      action: set
+      int: current_player.missile_temp_o_left
+    missile_pos_o_left:
+      action: set
+      int: current_player.missile_temp_g
 
   ##############################################
   ## Progressive Milestones
@@ -380,6 +479,150 @@ variable_player:
     goose_completing:
       action: set
       int: 0
+    # Reset missile positions on ball end
+    missile_pos_g:
+      action: set
+      int: 0
+    missile_pos_o_left:
+      action: set
+      int: 0
+    missile_pos_e:
+      action: set
+      int: 0
+    missile_pos_o_right:
+      action: set
+      int: 0
+    missile_pos_s:
+      action: set
+      int: 0
+    missiles_remaining:
+      action: set
+      int: 0
+    missile_firing:
+      action: set
+      int: 0
+    missiles_perk_active:
+      action: set
+      int: 0
+
+  ##############################################
+  ## Missile Perk System - Load/Fire/Unload
+  ##############################################
+
+  # Load 4 missiles when pilot mode starts with perk active
+  # Positions: G, O_left, E, O_right loaded / S empty (player rotates with flippers)
+  missiles_perk_load:
+    missile_pos_g:
+      action: set
+      int: 1
+    missile_pos_o_left:
+      action: set
+      int: 1
+    missile_pos_e:
+      action: set
+      int: 1
+    missile_pos_o_right:
+      action: set
+      int: 0
+    missile_pos_s:
+      action: set
+      int: 1
+    missiles_remaining:
+      action: set
+      int: 4
+    missile_firing:
+      action: set
+      int: 0
+
+  # Fire from G position (left outlane)
+  missile_fired_from_g:
+    missile_pos_g:
+      action: set
+      int: 0
+    missiles_remaining:
+      action: add
+      int: -1
+    missile_firing:
+      action: set
+      int: 1
+
+  # Fire from O_left position (left inlane)
+  missile_fired_from_o_left:
+    missile_pos_o_left:
+      action: set
+      int: 0
+    missiles_remaining:
+      action: add
+      int: -1
+    missile_firing:
+      action: set
+      int: 1
+
+  # Fire from E position (right outlane)
+  missile_fired_from_e:
+    missile_pos_e:
+      action: set
+      int: 0
+    missiles_remaining:
+      action: add
+      int: -1
+    missile_firing:
+      action: set
+      int: 1
+
+  # Fire from O_right position (inner right inlane)
+  missile_fired_from_o_right:
+    missile_pos_o_right:
+      action: set
+      int: 0
+    missiles_remaining:
+      action: add
+      int: -1
+    missile_firing:
+      action: set
+      int: 1
+
+  # Fire from S position (outer right inlane)
+  missile_fired_from_s:
+    missile_pos_s:
+      action: set
+      int: 0
+    missiles_remaining:
+      action: add
+      int: -1
+    missile_firing:
+      action: set
+      int: 1
+
+  # Reset firing flag when fire timer completes
+  timer_missile_fire_delay_complete:
+    missile_firing:
+      action: set
+      int: 0
+
+  # Clear all missiles when pilot mode ends
+  missiles_perk_unload:
+    missile_pos_g:
+      action: set
+      int: 0
+    missile_pos_o_left:
+      action: set
+      int: 0
+    missile_pos_e:
+      action: set
+      int: 0
+    missile_pos_o_right:
+      action: set
+      int: 0
+    missile_pos_s:
+      action: set
+      int: 0
+    missiles_remaining:
+      action: set
+      int: 0
+    missile_firing:
+      action: set
+      int: 0
 
 ##############################################
 ## Timers
@@ -394,6 +637,18 @@ timers:
     control_events:
       - event: goose_complete
         action: restart
+
+  # Missile fire delay - 1.2 seconds for missile video before completing mode shot
+  missile_fire_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1200ms
+    control_events:
+      - event: missile_fired
+        action: restart
+      - event: missiles_perk_unload
+        action: stop
 
 ##############################################
 ## Event Player - Check Completion
@@ -489,6 +744,51 @@ event_player:
   player_goose_completions{value==100 and current_player.eject_mode_qualified==1}:
     - light_mystery_award
 
+  ##############################################
+  ## Missile Perk System Events
+  ##############################################
+
+  # Load 4 missiles when a pilot mode starts and perk is active
+  player_pilot_mode_active{value==1 and current_player.missiles_perk_active==1}:
+    - missiles_perk_load
+
+  # Unload missiles when pilot mode ends
+  player_pilot_mode_active{value==0 and current_player.missiles_perk_active==1}:
+    - missiles_perk_unload
+
+  # Fire detection - ALL 5 lanes
+  # Conditions: perk active, pilot mode active, missile at position, not already firing
+  s_outlane_left_active{current_player.missiles_perk_active==1 and current_player.pilot_mode_active==1 and current_player.missile_pos_g==1 and current_player.missile_firing==0}:
+    - missile_fired_from_g
+
+  s_inlane_left_active{current_player.missiles_perk_active==1 and current_player.pilot_mode_active==1 and current_player.missile_pos_o_left==1 and current_player.missile_firing==0}:
+    - missile_fired_from_o_left
+
+  s_outlane_right_active{current_player.missiles_perk_active==1 and current_player.pilot_mode_active==1 and current_player.missile_pos_e==1 and current_player.missile_firing==0}:
+    - missile_fired_from_e
+
+  s_inner_inlane_right_active{current_player.missiles_perk_active==1 and current_player.pilot_mode_active==1 and current_player.missile_pos_o_right==1 and current_player.missile_firing==0}:
+    - missile_fired_from_o_right
+
+  s_outer_inlane_right_active{current_player.missiles_perk_active==1 and current_player.pilot_mode_active==1 and current_player.missile_pos_s==1 and current_player.missile_firing==0}:
+    - missile_fired_from_s
+
+  # All fire events chain to generic missile_fired (starts timer)
+  missile_fired_from_g:
+    - missile_fired
+  missile_fired_from_o_left:
+    - missile_fired
+  missile_fired_from_e:
+    - missile_fired
+  missile_fired_from_o_right:
+    - missile_fired
+  missile_fired_from_s:
+    - missile_fired
+
+  # When fire timer completes, post the shot completion event for active mode
+  timer_missile_fire_delay_complete:
+    - missiles_perk_complete_shot
+
 ##############################################
 ## Random Event Player - Randomize GOOSE Collected Slides
 ##############################################
@@ -510,6 +810,15 @@ random_event_player:
 ##############################################
 
 slide_player:
+  # Missile fired video - plays during 1.2s delay before shot auto-completes
+  missile_fired:
+    mode_missile_fired:
+      action: play
+      priority: 860
+  timer_missile_fire_delay_complete:
+    mode_missile_fired:
+      action: remove
+
   # Show progress slides when mode starts (if not qualified)
   mode_goose_letters_started{current_player.eject_mode_qualified==0}:
     ejection_shots_completed:
@@ -623,27 +932,27 @@ light_player:
 
   s_outlane_left_active{current_player.goose_letter_g==0 and current_player.goose_completing==0}:
     l_goose_g:
-      color: white
+      color: cyan
       fade: 0ms
 
   s_inlane_left_active{current_player.goose_letter_o_left==0 and current_player.goose_completing==0}:
     l_goose_o_left:
-      color: white
+      color: cyan
       fade: 0ms
 
   s_outlane_right_active{current_player.goose_letter_e==0 and current_player.goose_completing==0}:
     l_goose_e:
-      color: white
+      color: cyan
       fade: 0ms
 
   s_inner_inlane_right_active{current_player.goose_letter_o_right==0 and current_player.goose_completing==0}:
     l_goose_o_right:
-      color: white
+      color: cyan
       fade: 0ms
 
   s_outer_inlane_right_active{current_player.goose_letter_s==0 and current_player.goose_completing==0}:
     l_goose_s:
-      color: white
+      color: cyan
       fade: 0ms
 
   ##############################################
@@ -652,7 +961,7 @@ light_player:
 
   player_goose_letter_g{value==1}:
     l_goose_g:
-      color: white
+      color: cyan
 
   player_goose_letter_g{value==0}:
     l_goose_g:
@@ -660,7 +969,7 @@ light_player:
 
   player_goose_letter_o_left{value==1}:
     l_goose_o_left:
-      color: white
+      color: cyan
 
   player_goose_letter_o_left{value==0}:
     l_goose_o_left:
@@ -668,7 +977,7 @@ light_player:
 
   player_goose_letter_e{value==1}:
     l_goose_e:
-      color: white
+      color: cyan
 
   player_goose_letter_e{value==0}:
     l_goose_e:
@@ -676,7 +985,7 @@ light_player:
 
   player_goose_letter_o_right{value==1}:
     l_goose_o_right:
-      color: white
+      color: cyan
 
   player_goose_letter_o_right{value==0}:
     l_goose_o_right:
@@ -684,7 +993,7 @@ light_player:
 
   player_goose_letter_s{value==1}:
     l_goose_s:
-      color: white
+      color: cyan
 
   player_goose_letter_s{value==0}:
     l_goose_s:
@@ -756,6 +1065,261 @@ show_player:
       speed: 40
       sync_ms: true
 
+  ##############################################
+  ## Missile Perk - Red Flash Indicators (sync_flash_mb)
+  ## Uses multiball flash timing to alternate with GOOSE letter colors
+  ##############################################
+
+  # G position missile loaded - NO goose letter (flash yellow/off)
+  player_missile_pos_g{value==1 and current_player.goose_letter_g==0}:
+    missile_flash_g:
+      show: sync_flash_mb
+      key: mb_l_goose_g
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_g
+        color: FFFF00
+
+  # G position missile loaded - WITH goose letter (flash cyan/yellow)
+  player_missile_pos_g{value==1 and current_player.goose_letter_g==1}:
+    missile_flash_g_goose:
+      show: missile_flash_goose
+      key: mb_l_goose_g
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_g
+        color: FFFF00
+
+  # G goose letter collected while missile loaded - switch to cyan/yellow
+  player_goose_letter_g{value==1 and current_player.missile_pos_g==1}:
+    missile_flash_g_switch:
+      show: missile_flash_goose
+      key: mb_l_goose_g
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_g
+        color: FFFF00
+
+  # G goose letter cleared while missile loaded - switch back to off/yellow
+  player_goose_letter_g{value==0 and current_player.missile_pos_g==1}:
+    missile_flash_g_revert:
+      show: sync_flash_mb
+      key: mb_l_goose_g
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_g
+        color: FFFF00
+
+  player_missile_pos_g{value==0}:
+    missile_stop_g:
+      show: sync_flash_mb
+      action: stop
+      key: mb_l_goose_g
+
+  # O_left position missile loaded - NO goose letter (flash yellow/off)
+  player_missile_pos_o_left{value==1 and current_player.goose_letter_o_left==0}:
+    missile_flash_o_left:
+      show: sync_flash_mb
+      key: mb_l_goose_o_left
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_o_left
+        color: FFFF00
+
+  # O_left position missile loaded - WITH goose letter (flash cyan/yellow)
+  player_missile_pos_o_left{value==1 and current_player.goose_letter_o_left==1}:
+    missile_flash_o_left_goose:
+      show: missile_flash_goose
+      key: mb_l_goose_o_left
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_o_left
+        color: FFFF00
+
+  # O_left goose letter collected while missile loaded - switch to cyan/yellow
+  player_goose_letter_o_left{value==1 and current_player.missile_pos_o_left==1}:
+    missile_flash_o_left_switch:
+      show: missile_flash_goose
+      key: mb_l_goose_o_left
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_o_left
+        color: FFFF00
+
+  # O_left goose letter cleared while missile loaded - switch back to off/yellow
+  player_goose_letter_o_left{value==0 and current_player.missile_pos_o_left==1}:
+    missile_flash_o_left_revert:
+      show: sync_flash_mb
+      key: mb_l_goose_o_left
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_o_left
+        color: FFFF00
+
+  player_missile_pos_o_left{value==0}:
+    missile_stop_o_left:
+      show: sync_flash_mb
+      action: stop
+      key: mb_l_goose_o_left
+
+  # E position missile loaded - NO goose letter (flash yellow/off)
+  player_missile_pos_e{value==1 and current_player.goose_letter_e==0}:
+    missile_flash_e:
+      show: sync_flash_mb
+      key: mb_l_goose_e
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_e
+        color: FFFF00
+
+  # E position missile loaded - WITH goose letter (flash cyan/yellow)
+  player_missile_pos_e{value==1 and current_player.goose_letter_e==1}:
+    missile_flash_e_goose:
+      show: missile_flash_goose
+      key: mb_l_goose_e
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_e
+        color: FFFF00
+
+  # E goose letter collected while missile loaded - switch to cyan/yellow
+  player_goose_letter_e{value==1 and current_player.missile_pos_e==1}:
+    missile_flash_e_switch:
+      show: missile_flash_goose
+      key: mb_l_goose_e
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_e
+        color: FFFF00
+
+  # E goose letter cleared while missile loaded - switch back to off/yellow
+  player_goose_letter_e{value==0 and current_player.missile_pos_e==1}:
+    missile_flash_e_revert:
+      show: sync_flash_mb
+      key: mb_l_goose_e
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_e
+        color: FFFF00
+
+  player_missile_pos_e{value==0}:
+    missile_stop_e:
+      show: sync_flash_mb
+      action: stop
+      key: mb_l_goose_e
+
+  # O_right position missile loaded - NO goose letter (flash yellow/off)
+  player_missile_pos_o_right{value==1 and current_player.goose_letter_o_right==0}:
+    missile_flash_o_right:
+      show: sync_flash_mb
+      key: mb_l_goose_o_right
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_o_right
+        color: FFFF00
+
+  # O_right position missile loaded - WITH goose letter (flash cyan/yellow)
+  player_missile_pos_o_right{value==1 and current_player.goose_letter_o_right==1}:
+    missile_flash_o_right_goose:
+      show: missile_flash_goose
+      key: mb_l_goose_o_right
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_o_right
+        color: FFFF00
+
+  # O_right goose letter collected while missile loaded - switch to cyan/yellow
+  player_goose_letter_o_right{value==1 and current_player.missile_pos_o_right==1}:
+    missile_flash_o_right_switch:
+      show: missile_flash_goose
+      key: mb_l_goose_o_right
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_o_right
+        color: FFFF00
+
+  # O_right goose letter cleared while missile loaded - switch back to off/yellow
+  player_goose_letter_o_right{value==0 and current_player.missile_pos_o_right==1}:
+    missile_flash_o_right_revert:
+      show: sync_flash_mb
+      key: mb_l_goose_o_right
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_o_right
+        color: FFFF00
+
+  player_missile_pos_o_right{value==0}:
+    missile_stop_o_right:
+      show: sync_flash_mb
+      action: stop
+      key: mb_l_goose_o_right
+
+  # S position missile loaded - NO goose letter (flash yellow/off)
+  player_missile_pos_s{value==1 and current_player.goose_letter_s==0}:
+    missile_flash_s:
+      show: sync_flash_mb
+      key: mb_l_goose_s
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_s
+        color: FFFF00
+
+  # S position missile loaded - WITH goose letter (flash cyan/yellow)
+  player_missile_pos_s{value==1 and current_player.goose_letter_s==1}:
+    missile_flash_s_goose:
+      show: missile_flash_goose
+      key: mb_l_goose_s
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_s
+        color: FFFF00
+
+  # S goose letter collected while missile loaded - switch to cyan/yellow
+  player_goose_letter_s{value==1 and current_player.missile_pos_s==1}:
+    missile_flash_s_switch:
+      show: missile_flash_goose
+      key: mb_l_goose_s
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_s
+        color: FFFF00
+
+  # S goose letter cleared while missile loaded - switch back to off/yellow
+  player_goose_letter_s{value==0 and current_player.missile_pos_s==1}:
+    missile_flash_s_revert:
+      show: sync_flash_mb
+      key: mb_l_goose_s
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_goose_s
+        color: FFFF00
+
+  player_missile_pos_s{value==0}:
+    missile_stop_s:
+      show: sync_flash_mb
+      action: stop
+      key: mb_l_goose_s
+
 shows:
   pulse_purple:
     - duration: 0.5s
@@ -764,6 +1328,19 @@ shows:
     - duration: 0.5s
       lights:
         (led): off
+
+  # Missile flash with GOOSE letter - alternates cyan (collected) with missile color
+  missile_flash_goose:
+    - duration: 500ms
+      lights:
+        (led):
+          color: cyan
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: (color)
+          fade: 0ms
 
 ##############################################
 ## Sound Player (Optional)

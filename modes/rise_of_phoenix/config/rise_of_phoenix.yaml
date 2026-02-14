@@ -111,6 +111,9 @@ variable_player:
     pilot_missions_played:
       action: add
       int: 1
+    mode_points_scored:
+      action: set
+      int: 0
 
   # Ball drain during mode - mark drain pending
   ball_will_end{mode.rise_of_phoenix.active==True}:
@@ -125,6 +128,9 @@ variable_player:
       action: set
       int: 1
     score: 150000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 150000 * current_player.total_scoring_multiplier
     shots_remaining_phoenix:
       action: add
       int: -1
@@ -134,7 +140,10 @@ variable_player:
     rise_of_phoenix_step:
       action: set
       int: 2
-    score: 175000 * current_player.total_scoring_multiplier
+    score: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 250000 * current_player.total_scoring_multiplier
     shots_remaining_phoenix:
       action: add
       int: -1
@@ -144,7 +153,10 @@ variable_player:
     rise_of_phoenix_step:
       action: set
       int: 3
-    score: 200000 * current_player.total_scoring_multiplier
+    score: 350000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 350000 * current_player.total_scoring_multiplier
     shots_remaining_phoenix:
       action: add
       int: -1
@@ -154,7 +166,10 @@ variable_player:
     rise_of_phoenix_step:
       action: set
       int: 4
-    score: 225000 * current_player.total_scoring_multiplier
+    score: 450000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 450000 * current_player.total_scoring_multiplier
     shots_remaining_phoenix:
       action: add
       int: -1
@@ -164,7 +179,10 @@ variable_player:
     rise_of_phoenix_step:
       action: set
       int: 5
-    score: 250000 * current_player.total_scoring_multiplier
+    score: 550000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 550000 * current_player.total_scoring_multiplier
     shots_remaining_phoenix:
       action: add
       int: -1
@@ -174,7 +192,10 @@ variable_player:
     rise_of_phoenix_step:
       action: set
       int: 6
-    score: 275000 * current_player.total_scoring_multiplier
+    score: 650000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 650000 * current_player.total_scoring_multiplier
     shots_remaining_phoenix:
       action: add
       int: -1
@@ -184,7 +205,10 @@ variable_player:
     rise_of_phoenix_step:
       action: set
       int: 7
-    score: 300000 * current_player.total_scoring_multiplier
+    score: 500000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 500000 * current_player.total_scoring_multiplier
     shots_remaining_phoenix:
       action: add
       int: -1
@@ -194,7 +218,10 @@ variable_player:
     rise_of_phoenix_step:
       action: set
       int: 8
-    score: 325000 * current_player.total_scoring_multiplier
+    score: 800000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 800000 * current_player.total_scoring_multiplier
     shots_remaining_phoenix:
       action: add
       int: -1
@@ -204,7 +231,10 @@ variable_player:
     rise_of_phoenix_step:
       action: set
       int: 9
-    score: 500000 * current_player.total_scoring_multiplier
+    score: 1000000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 1000000 * current_player.total_scoring_multiplier
     shots_remaining_phoenix:
       action: set
       int: 0
@@ -223,7 +253,13 @@ variable_player:
     modes_completed_count:
       action: add
       int: 1
-    score: 1000000 * current_player.total_scoring_multiplier
+    # Save and disable missiles perk to prevent visual firing during victory video
+    missiles_perk_saved:
+      action: set
+      int: current_player.missiles_perk_active
+    missiles_perk_active:
+      action: set
+      int: 0
 
   # Spinner tracking
   rise_of_phoenix_setup_step_2:
@@ -258,21 +294,37 @@ variable_player:
     rise_of_phoenix_lock_l:
       action: set
       int: 1
+    score: 200000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 200000 * current_player.total_scoring_multiplier
 
   rise_of_phoenix_lock_o_hit:
     rise_of_phoenix_lock_o:
       action: set
       int: 1
+    score: 200000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 200000 * current_player.total_scoring_multiplier
 
   rise_of_phoenix_lock_c_hit:
     rise_of_phoenix_lock_c:
       action: set
       int: 1
+    score: 200000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 200000 * current_player.total_scoring_multiplier
 
   rise_of_phoenix_lock_k_hit:
     rise_of_phoenix_lock_k:
       action: set
       int: 1
+    score: 200000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 200000 * current_player.total_scoring_multiplier
 
   rise_of_phoenix_lock_target_hit:
     rise_of_phoenix_lock_count:
@@ -325,6 +377,9 @@ timers:
         action: stop
       - event: timer_rise_of_phoenix_failed_delay_start
         action: stop
+      - event: afterburner_extend_rise_of_phoenix_timer
+        action: jump
+        value: 9999
 
   # Shot lockout (prevent rapid-fire hits)
   shot_lockout:
@@ -393,6 +448,14 @@ timers:
 ##############################################
 
 event_player:
+  ##############################################
+  ## AFTERBURNER PERK: Pause Mode Timer
+  ## Jumps timer to 9999s making it effectively infinite
+  ## 500ms delay ensures timer has started before jump fires
+  ##############################################
+  rise_of_phoenix_ball_released{current_player.afterburner_perk_active==1}:
+    - afterburner_extend_rise_of_phoenix_timer|500ms
+
   # Post pilot_mode_cleanup_complete when delay timer completes (for bonus delay)
   timer_rise_of_phoenix_complete_delay_complete:
     - pilot_mode_cleanup_complete
@@ -541,7 +604,62 @@ event_player:
   rise_of_phoenix_setup_step_9:
     - barrier_drop
 
+  ##############################################
+  ## MISSILE PERK - Auto-complete current step
+  ## Fires step_complete + step_shot_hit + setup_next_step + servo control
+  ## Mirrors the switch event chains exactly (minus shot lockout timer)
+  ##############################################
 
+  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==0 and current_player.rise_of_phoenix_complete_flag==0}:
+    - rise_of_phoenix_step_1_complete
+    - rise_of_phoenix_step_1_shot_hit
+    - rise_of_phoenix_setup_step_2
+
+  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==1 and current_player.rise_of_phoenix_complete_flag==0}:
+    - rise_of_phoenix_step_2_complete
+    - rise_of_phoenix_step_2_shot_hit
+    - rise_of_phoenix_setup_step_3
+
+  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==2 and current_player.rise_of_phoenix_complete_flag==0}:
+    - rise_of_phoenix_step_3_complete
+    - rise_of_phoenix_step_3_shot_hit
+    - rise_of_phoenix_setup_step_4
+
+  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==3 and current_player.rise_of_phoenix_complete_flag==0}:
+    - rise_of_phoenix_step_4_complete
+    - rise_of_phoenix_step_4_shot_hit
+    - rise_of_phoenix_setup_step_5
+    - right_ramp_up
+
+  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==4 and current_player.rise_of_phoenix_complete_flag==0}:
+    - rise_of_phoenix_step_5_complete
+    - rise_of_phoenix_step_5_shot_hit
+    - rise_of_phoenix_setup_step_6
+    - top_ramp_up
+    # right_ramp_down fires automatically via timer triggered by step_5_complete
+
+  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==5 and current_player.rise_of_phoenix_complete_flag==0}:
+    - rise_of_phoenix_step_6_complete
+    - rise_of_phoenix_step_6_shot_hit
+    - rise_of_phoenix_setup_step_7
+    - top_ramp_down
+
+  # Step 6 = LOCK target phase - missile skips ALL remaining locks
+  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==6 and current_player.rise_of_phoenix_complete_flag==0}:
+    - rise_of_phoenix_step_7_complete
+    - rise_of_phoenix_step_7_shot_hit
+    - rise_of_phoenix_setup_step_8
+
+  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==7 and current_player.rise_of_phoenix_complete_flag==0}:
+    - rise_of_phoenix_step_8_complete
+    - rise_of_phoenix_step_8_shot_hit
+    - rise_of_phoenix_setup_step_9
+
+  # Final step - completes the mode
+  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==8 and current_player.rise_of_phoenix_complete_flag==0}:
+    - rise_of_phoenix_step_9_complete
+    - rise_of_phoenix_step_9_shot_hit
+    - rise_of_phoenix_complete
 
   # Victory flow - after ball is kicked out, raise barrier and complete mode
   timer_rise_of_phoenix_victory_barrier_delay_complete:
@@ -555,9 +673,10 @@ event_player:
     - timer_rise_of_phoenix_complete_delay_start
     - right_ramp_down             # SERVO: Lower right ramp on mode complete
     - top_ramp_down               # SERVO: Lower top ramp on mode complete
+    - missiles_perk_unload
 
-  # Mission Failed (timer runs out)
-  timer_rise_of_phoenix_timer_complete:
+  # Mission Failed (timer runs out - only if afterburner perk NOT active)
+  timer_rise_of_phoenix_timer_complete{current_player.afterburner_perk_active==0}:
     - rise_of_phoenix_failed
     - timer_rise_of_phoenix_failed_delay_start
 
@@ -565,6 +684,7 @@ event_player:
   rise_of_phoenix_failed:
     - rise_of_phoenix_cleanup
     - right_ramp_down             # SERVO: Lower right ramp on mode fail
+    - missiles_perk_unload
     - top_ramp_down               # SERVO: Lower top ramp on mode fail
 
 ##############################################
@@ -572,11 +692,8 @@ event_player:
 ##############################################
 
 slide_player:
-  # Mode start - timer, shots remaining, intro video, first instructions
+  # Mode start - shots remaining, intro video, first instructions (always)
   mode_rise_of_phoenix_started:
-    rise_of_phoenix_timer:
-      action: play
-      priority: 1000
     rise_of_phoenix_shots_remaining:
       action: play
       priority: 1000
@@ -587,9 +704,28 @@ slide_player:
       action: play
       priority: 850
 
+  # Show normal timer when perk is NOT active
+  mode_rise_of_phoenix_started{current_player.afterburner_perk_active==0}:
+    rise_of_phoenix_timer:
+      action: play
+      priority: 1000
+
+  # Show perk slides when perk IS active (immediately on mode start)
+  mode_rise_of_phoenix_started{current_player.afterburner_perk_active==1}:
+    afterburner_perk_active:
+      action: play
+      priority: 850
+    timer_perk_activated:
+      action: play
+      priority: 1000
+
   # Cancel intro video when both flippers pressed
   rise_of_phoenix_skip_intro:
     rise_of_phoenix_intro_video:
+      action: remove
+
+  rise_of_phoenix_cleanup:
+    timer_perk_activated:
       action: remove
 
   # Step videos - remove previous, play current
@@ -597,6 +733,10 @@ slide_player:
     rise_of_phoenix_step_1:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
 
   rise_of_phoenix_step_2_shot_hit:
     rise_of_phoenix_step_1:
@@ -604,6 +744,10 @@ slide_player:
     rise_of_phoenix_step_2:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
 
   rise_of_phoenix_step_3_shot_hit:
     rise_of_phoenix_step_2:
@@ -611,6 +755,10 @@ slide_player:
     rise_of_phoenix_step_3:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
 
   rise_of_phoenix_step_4_shot_hit:
     rise_of_phoenix_step_3:
@@ -618,6 +766,10 @@ slide_player:
     rise_of_phoenix_step_4:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
 
   rise_of_phoenix_step_5_shot_hit:
     rise_of_phoenix_step_4:
@@ -625,6 +777,10 @@ slide_player:
     rise_of_phoenix_step_5:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
 
   rise_of_phoenix_step_6_shot_hit:
     rise_of_phoenix_step_5:
@@ -632,6 +788,10 @@ slide_player:
     rise_of_phoenix_step_6:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
 
   rise_of_phoenix_step_7_shot_hit:
     rise_of_phoenix_step_6:
@@ -639,6 +799,10 @@ slide_player:
     rise_of_phoenix_step_7:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
     rise_of_phoenix_step_6_targets2:
       action: remove
 
@@ -697,6 +861,10 @@ slide_player:
     rise_of_phoenix_step_8:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
 
   # Update instructions at key points
   rise_of_phoenix_setup_step_7:
@@ -717,6 +885,20 @@ slide_player:
     rise_of_phoenix_instructions_base:
       action: remove
 
+  # Step 9 shot hit - show points scored
+  rise_of_phoenix_step_9_shot_hit:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  # Lock target hit - show points scored overlay
+  rise_of_phoenix_lock_target_hit:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
   # Mission complete - remove all active slides, show won video
   rise_of_phoenix_complete:
     rise_of_phoenix_timer:
@@ -728,6 +910,27 @@ slide_player:
     rise_of_phoenix_instructions_base:
       action: remove
     rise_of_phoenix_instructions_locks:
+      action: remove
+    # Step videos - ensure none linger (missile rapid-fire cleanup)
+    rise_of_phoenix_step_1:
+      action: remove
+    rise_of_phoenix_step_2:
+      action: remove
+    rise_of_phoenix_step_3:
+      action: remove
+    rise_of_phoenix_step_4:
+      action: remove
+    rise_of_phoenix_step_5:
+      action: remove
+    rise_of_phoenix_step_6:
+      action: remove
+    rise_of_phoenix_step_7:
+      action: remove
+    rise_of_phoenix_step_8:
+      action: remove
+    rise_of_phoenix_step_6_targets1:
+      action: remove
+    rise_of_phoenix_step_6_targets2:
       action: remove
     rise_of_phoenix_won:
       action: play
@@ -745,6 +948,27 @@ slide_player:
     rise_of_phoenix_instructions_base:
       action: remove
     rise_of_phoenix_instructions_locks:
+      action: remove
+    # Step videos - ensure none linger (missile rapid-fire cleanup)
+    rise_of_phoenix_step_1:
+      action: remove
+    rise_of_phoenix_step_2:
+      action: remove
+    rise_of_phoenix_step_3:
+      action: remove
+    rise_of_phoenix_step_4:
+      action: remove
+    rise_of_phoenix_step_5:
+      action: remove
+    rise_of_phoenix_step_6:
+      action: remove
+    rise_of_phoenix_step_7:
+      action: remove
+    rise_of_phoenix_step_8:
+      action: remove
+    rise_of_phoenix_step_6_targets1:
+      action: remove
+    rise_of_phoenix_step_6_targets2:
       action: remove
     rise_of_phoenix_lost:
       action: play
