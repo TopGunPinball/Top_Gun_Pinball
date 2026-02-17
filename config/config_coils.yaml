@@ -259,14 +259,31 @@ coils:
     tags: [lock release, playfield]
   c_lock_upkicker:
     number: playfield_board_lock_ramps_mechs-0
-    default_pulse_ms: 15          # duration the coil is activated
-    default_pulse_power: 0.75     # percentage of coil power during initial pulse (0 - 1), factor of 1/8
+    default_pulse_ms: 20          # INCREASED from 15 - ball wasn't reaching lock
+    default_pulse_power: 0.875    # INCREASED from 0.75
     max_pulse_ms: none
     max_pulse_power: 1.0
-    platform_settings:            # minimum time between pulses for this coil (coil cool down time)       
-      recycle_ms: 30              # suggested to start at about 2x the ms power
+    platform_settings:
+      recycle_ms: 40              # INCREASED from 30 (2x pulse_ms)
     label: "Lock Upkicker"
     tags: [lock upkicker, playfield]  
+
+  # SAFETY: Conservative settings - magnet should never be on more than 3 seconds
+  c_lock_diverter_magnet:
+    number: playfield_board_mags_diverter_mechs-3
+    allow_enable: true            # REQUIRED for action: enable in coil_player
+    default_pulse_ms: 50          # INCREASED from 30 - match orbit diverters, longer initial grab
+    default_pulse_power: 1.0      # INCREASED from 0.75 - match orbit diverters, full power grab
+    default_hold_power: 0.375     # INCREASED from 0.25 - match orbit diverters, stronger sustain
+    max_pulse_ms: 100             # Safety limit on pulse duration
+    max_pulse_power: 1.0
+    max_hold_duration: 4s         # CRITICAL SAFETY: Software auto-disable after 4 seconds (1s margin over 3s timer)
+    max_hold_power: 0.5           # Safety limit on hold power
+    platform_settings:            # minimum time between pulses for this coil (coil cool down time)
+      recycle_ms: 50              # suggested to start at about 2x the ms power
+      pwm2_ms: 4000               # CRITICAL SAFETY: FAST hardware auto-cutoff at 4 seconds
+    label: "Lock Diverter Magnet"
+    tags: [magnet, playfield, lock_diverter]
 
 # Cabinet Board LED Drivers (Low Current)
 # These are on the FP-I/O-0024 Cabinet I/O Board

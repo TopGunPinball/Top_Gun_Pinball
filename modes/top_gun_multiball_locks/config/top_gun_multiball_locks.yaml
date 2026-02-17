@@ -1,0 +1,1393 @@
+#config_version=6
+
+####################################################################################
+# TOP GUN MULTIBALL LOCKS
+#
+# Always-running mode that tracks LOCK letter collection, ball locking,
+# and multiball qualification.
+#
+# PRIORITY: 200 (same as pilot_mission_qualifier - base game layer)
+#
+# DIFFICULTY PROGRESSION (per game):
+#   1st MB attempt: Spell LOCK once → both goose + mav lit at once
+#   2nd MB attempt: Spell LOCK x3 (1=goose lit, 2=mav lit, 3=MB qualified)
+#   3rd+ MB attempt: Same as 2nd but each letter needs 2 hits
+#
+# PHYSICAL LAYOUT:
+#   s_ramp_inner_exit → c_lock_diverter_magnet diverts ball →
+#   s_lock_plunger (elevator) → c_lock_upkicker fires ball up →
+#   s_lock_goose (ball 1 position) → s_lock_mav (ball 2 position)
+#   servo_lock_release holds/releases balls in lock mech
+#
+# LOCK LETTER TARGETS:
+#   L = s_l_lock_target / l_lock_l
+#   O = s_o_lock_target / l_lock_o
+#   C = s_c_lock_target / l_lock_c
+#   K = s_k_lock_target / l_lock_k
+#
+# LOCK INDICATOR LIGHTS:
+#   l_lock_lit     = lock is qualified (shoot ramp to lock)
+#   l_lock_goose   = ball 1 status (white=lit, green=locked)
+#   l_lock_mav     = ball 2 status (white=lit, green=locked)
+#   l_multiball_lit = multiball start available
+#
+# SOUND CALLOUTS NEEDED:
+#   lock_letter_l_collected.mp3    "L!"
+#   lock_letter_o_collected.mp3    "O!"
+#   lock_letter_c_collected.mp3    "C!"
+#   lock_letter_k_collected.mp3    "K!"
+#   lock_all_locks_lit.mp3         "All locks are lit!" (1st attempt)
+#   lock_goose_lit.mp3             "Goose lock is lit!" (2nd/3rd+)
+#   lock_mav_lit.mp3               "Maverick lock is lit!" (2nd/3rd+)
+#   lock_multiball_lit.mp3         "Multiball is lit! Shoot the scoop!"
+#   lock_letter_partial_1.mp3      "Almost there!"
+#   lock_letter_partial_2.mp3      "Keep going!"
+#   lock_letter_partial_3.mp3      "One more hit!"
+#   lock_letter_partial_4.mp3      "Lock it in!"
+#   lock_letter_partial_5.mp3      "Stay on target!"
+####################################################################################
+
+mode:
+  start_events: mode_base_started
+  stop_events: mode_base_will_stop
+  priority: 200
+  game_mode: true
+
+####################################################################################
+# MULTIBALL LOCKS - Claims balls entering lock devices, auto-serves replacements
+#
+# This is the key to proper ball accounting. When enabled, multiball_lock
+# "claims" any ball entering the lock device. MPF then automatically:
+#   1. Holds the ball in the device (no "unexpected ball" eject attempts)
+#   2. Serves a replacement ball from the trough to the plunger
+#
+# Two separate locks (one per position) because goose and mav light
+# independently based on the difficulty progression.
+####################################################################################
+multiball_locks:
+  cockpit_lock_goose:
+    balls_to_lock: 1
+    lock_devices: bd_lock_goose
+    debug: true
+    enable_events:
+      - lock_goose_now_lit
+      - lock_restore_goose_lock_enabled
+    disable_events:
+      - multiball_lock_cockpit_lock_goose_locked_ball
+      - multiball_start_sequence
+      - mode_top_gun_multiball_locks_will_stop
+    reset_count_for_current_player_events: mode_top_gun_multiball_stopped
+
+  cockpit_lock_mav:
+    balls_to_lock: 1
+    lock_devices: bd_lock_mav
+    debug: true
+    enable_events:
+      - lock_mav_now_lit
+      - lock_restore_mav_lock_enabled
+    disable_events:
+      - multiball_lock_cockpit_lock_mav_locked_ball
+      - multiball_start_sequence
+      - mode_top_gun_multiball_locks_will_stop
+    reset_count_for_current_player_events: mode_top_gun_multiball_stopped
+
+####################################################################################
+# BALL HOLDS - Scoop hold for MB start + plunger hold during lock video
+####################################################################################
+ball_holds:
+  # Hold ball in mode scoop during multiball start sequence
+  # Released by MB mode after intro video (or immediately if stacked)
+  multiball_scoop_hold:
+    balls_to_hold: 1
+    hold_devices: bd_mode_scoop
+    enable_events: multiball_now_qualified
+    release_one_events:
+      - mb_balls_release
+    release_all_events:
+      - mode_top_gun_multiball_locks_will_stop
+
+  # NOTE: With eject_coil removed from bd_plunger, replacement balls
+  # always wait for player to manually plunge. No plunger hold needed.
+
+####################################################################################
+# TIMERS
+####################################################################################
+timers:
+  # Diverter magnet timeout - 3 seconds max hold
+  lock_diverter_timeout:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: lock_diverter_fired
+        action: restart
+      - event: s_lock_plunger_active
+        action: stop
+      - event: mode_top_gun_multiball_locks_will_stop
+        action: stop
+
+  # Barrier raise delay after MB start (same pattern as rescue_cougar)
+  lock_mb_barrier_delay:
+    start_value: 0
+    end_value: 750
+    direction: up
+    tick_interval: 1ms
+    start_running: false
+    control_events:
+      - event: timer_lock_mb_eject_debounce_complete
+        action: restart
+
+  # Eject debounce for MB start
+  lock_mb_eject_debounce:
+    start_value: 0
+    end_value: 150
+    direction: up
+    tick_interval: 1ms
+    start_running: false
+    control_events:
+      - event: s_mode_start_inactive{current_player.multiball_starting==1}
+        action: restart
+      - event: s_mode_start_active
+        action: stop
+
+  # Delay before releasing scoop ball during MB start
+  # Gives locked balls time to reach playfield
+  lock_mb_release_delay:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: multiball_start_sequence
+        action: start
+
+  # Random partial callout cooldown (prevent spam)
+  lock_partial_callout_cooldown:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: lock_play_partial_callout
+        action: restart
+
+  # Letter sound delay - prevents sound from playing when it's the completing letter
+  # lock_complete cancels this timer before it fires, so only the lit sound plays
+  lock_letter_sound_delay:
+    start_value: 0
+    end_value: 150
+    direction: up
+    tick_interval: 1ms
+    start_running: false
+    control_events:
+      - event: lock_letter_l_collected
+        action: restart
+      - event: lock_letter_o_collected
+        action: restart
+      - event: lock_letter_c_collected
+        action: restart
+      - event: lock_letter_k_collected
+        action: restart
+      - event: lock_complete
+        action: stop
+
+  # Lock switch debounce - ball must sit on switch 500ms to register as locked
+  # Prevents pass-through (31ms) from counting as a lock
+  lock_goose_debounce:
+    start_value: 0
+    end_value: 500
+    direction: up
+    tick_interval: 1ms
+    start_running: false
+    control_events:
+      - event: s_lock_goose_active
+        action: restart
+      - event: s_lock_goose_inactive
+        action: stop
+      - event: mode_top_gun_multiball_locks_will_stop
+        action: stop
+
+  lock_mav_debounce:
+    start_value: 0
+    end_value: 500
+    direction: up
+    tick_interval: 1ms
+    start_running: false
+    control_events:
+      - event: s_lock_mav_active
+        action: restart
+      - event: s_lock_mav_inactive
+        action: stop
+      - event: mode_top_gun_multiball_locks_will_stop
+        action: stop
+
+  ##############################################################################
+  # GOOSE LOCK SEQUENCE TIMERS
+  # Flow: lock_goose_now_locked → video (6s) → callout (1s) → serve ball
+  ##############################################################################
+  lock_goose_callout_delay:
+    start_value: 0
+    end_value: 6
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: lock_goose_now_locked
+        action: restart
+      - event: mode_top_gun_multiball_locks_will_stop
+        action: stop
+
+  lock_goose_serve_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: lock_goose_callout_play
+        action: restart
+      - event: mode_top_gun_multiball_locks_will_stop
+        action: stop
+
+  ##############################################################################
+  # MAV LOCK SEQUENCE TIMERS
+  # Flow: lock_mav_now_locked → video+callout simultaneously (4s)
+  #       → "multiball lit" callout (~1.5s) → serve ball
+  ##############################################################################
+  lock_mav_mb_lit_callout_delay:
+    start_value: 0
+    end_value: 4
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: lock_mav_now_locked
+        action: restart
+      - event: mode_top_gun_multiball_locks_will_stop
+        action: stop
+
+  lock_mav_serve_delay:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: lock_mav_mb_lit_callout_play
+        action: restart
+      - event: mode_top_gun_multiball_locks_will_stop
+        action: stop
+
+####################################################################################
+# VARIABLE PLAYER
+####################################################################################
+variable_player:
+
+  ##############################################################################
+  # MODE INITIALIZATION - Reset TRANSIENT per-ball variables only
+  # Persistent lock state (lock_goose_lit, lock_mav_lit, lock_goose_locked,
+  # lock_mav_locked, lock_completions, lock_l/o/c/k_hits, multiball_qualified)
+  # is initialized to 0 by player_added in base.yaml and reset by
+  # mode_top_gun_multiball_stopped. Do NOT reset them here or lock
+  # progress will be wiped between balls!
+  ##############################################################################
+  mode_top_gun_multiball_locks_started:
+    multiball_starting:
+      action: set
+      int: 0
+    lock_partial_callout_index:
+      action: set
+      int: 0
+    lock_pending_letter:
+      action: set
+      int: 0
+    lock_collection_paused:
+      action: set
+      int: 0
+
+  # Restore lock_collection_paused if any lock is lit but not locked on mode restart
+  mode_top_gun_multiball_locks_started{(current_player.lock_goose_lit==1 and current_player.lock_goose_locked==0) or (current_player.lock_mav_lit==1 and current_player.lock_mav_locked==0)}:
+    lock_collection_paused:
+      action: set
+      int: 1
+
+  ##############################################################################
+  # LETTER COLLECTION - L TARGET
+  # 1st/2nd attempt: 1 hit to collect (lock_l_hits goes 0→1)
+  ##############################################################################
+  s_l_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played<2 and current_player.lock_l_hits==0}:
+    lock_l_hits:
+      action: set
+      int: 1
+    score: 5000
+
+  # 3rd+ attempt: first hit (0→1)
+  s_l_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_l_hits==0}:
+    lock_l_hits:
+      action: set
+      int: 1
+    score: 5000
+
+  # 3rd+ attempt: second hit (1→2)
+  s_l_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_l_hits==1}:
+    lock_l_hits:
+      action: set
+      int: 2
+    score: 5000
+
+  ##############################################################################
+  # LETTER COLLECTION - O TARGET
+  ##############################################################################
+  s_o_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played<2 and current_player.lock_o_hits==0}:
+    lock_o_hits:
+      action: set
+      int: 1
+    score: 5000
+
+  s_o_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_o_hits==0}:
+    lock_o_hits:
+      action: set
+      int: 1
+    score: 5000
+
+  s_o_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_o_hits==1}:
+    lock_o_hits:
+      action: set
+      int: 2
+    score: 5000
+
+  ##############################################################################
+  # LETTER COLLECTION - C TARGET
+  ##############################################################################
+  s_c_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played<2 and current_player.lock_c_hits==0}:
+    lock_c_hits:
+      action: set
+      int: 1
+    score: 5000
+
+  s_c_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_c_hits==0}:
+    lock_c_hits:
+      action: set
+      int: 1
+    score: 5000
+
+  s_c_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_c_hits==1}:
+    lock_c_hits:
+      action: set
+      int: 2
+    score: 5000
+
+  ##############################################################################
+  # LETTER COLLECTION - K TARGET
+  ##############################################################################
+  s_k_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played<2 and current_player.lock_k_hits==0}:
+    lock_k_hits:
+      action: set
+      int: 1
+    score: 5000
+
+  s_k_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_k_hits==0}:
+    lock_k_hits:
+      action: set
+      int: 1
+    score: 5000
+
+  s_k_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_k_hits==1}:
+    lock_k_hits:
+      action: set
+      int: 2
+    score: 5000
+
+  ##############################################################################
+  # LOCK COMPLETION - Reset letters and increment completion counter
+  ##############################################################################
+  lock_complete:
+    lock_l_hits:
+      action: set
+      int: 0
+    lock_o_hits:
+      action: set
+      int: 0
+    lock_c_hits:
+      action: set
+      int: 0
+    lock_k_hits:
+      action: set
+      int: 0
+    lock_completions:
+      action: add
+      int: 1
+    score: 50000
+
+  ##############################################################################
+  # LOCK STATUS UPDATES
+  ##############################################################################
+  lock_goose_now_lit:
+    lock_goose_lit:
+      action: set
+      int: 1
+    lock_collection_paused:
+      action: set
+      int: 1
+
+  lock_mav_now_lit:
+    lock_mav_lit:
+      action: set
+      int: 1
+    lock_collection_paused:
+      action: set
+      int: 1
+
+  lock_goose_now_locked:
+    lock_goose_locked:
+      action: set
+      int: 1
+
+  # Resume collection after goose locked IF no other lit-but-unlocked positions
+  lock_goose_now_locked{current_player.lock_mav_lit==0 or current_player.lock_mav_locked==1}:
+    lock_collection_paused:
+      action: set
+      int: 0
+
+  lock_mav_now_locked:
+    lock_mav_locked:
+      action: set
+      int: 1
+
+  # Resume collection after mav locked IF no other lit-but-unlocked positions
+  lock_mav_now_locked{current_player.lock_goose_lit==0 or current_player.lock_goose_locked==1}:
+    lock_collection_paused:
+      action: set
+      int: 0
+
+  multiball_now_qualified:
+    multiball_qualified:
+      action: set
+      int: 1
+
+  ##############################################################################
+  # MULTIBALL START - Track that MB is starting, increment plays counter
+  ##############################################################################
+  multiball_start_sequence:
+    multiball_starting:
+      action: set
+      int: 1
+    multiball_times_played:
+      action: add
+      int: 1
+    letter_collection_paused:
+      action: set
+      int: 1
+    pilot_qualifier_paused:
+      action: set
+      int: 1
+    lock_collection_paused:
+      action: set
+      int: 1
+
+  ##############################################################################
+  # MULTIBALL ENDED - Reset lock state for next attempt
+  ##############################################################################
+  mode_top_gun_multiball_stopped:
+    lock_goose_lit:
+      action: set
+      int: 0
+    lock_mav_lit:
+      action: set
+      int: 0
+    lock_goose_locked:
+      action: set
+      int: 0
+    lock_mav_locked:
+      action: set
+      int: 0
+    multiball_qualified:
+      action: set
+      int: 0
+    multiball_starting:
+      action: set
+      int: 0
+    lock_completions:
+      action: set
+      int: 0
+    multiball_active:
+      action: set
+      int: 0
+    letter_collection_paused:
+      action: set
+      int: 0
+    pilot_qualifier_paused:
+      action: set
+      int: 0
+    lock_collection_paused:
+      action: set
+      int: 0
+
+  # --- PARTIAL CALLOUT INDEX: Cycles 0→1→2→3→4→0 ---
+  lock_advance_partial_index{current_player.lock_partial_callout_index==0}:
+    lock_partial_callout_index:
+      action: set
+      int: 1
+  lock_advance_partial_index{current_player.lock_partial_callout_index==1}:
+    lock_partial_callout_index:
+      action: set
+      int: 2
+  lock_advance_partial_index{current_player.lock_partial_callout_index==2}:
+    lock_partial_callout_index:
+      action: set
+      int: 3
+  lock_advance_partial_index{current_player.lock_partial_callout_index==3}:
+    lock_partial_callout_index:
+      action: set
+      int: 4
+  lock_advance_partial_index{current_player.lock_partial_callout_index>=4}:
+    lock_partial_callout_index:
+      action: set
+      int: 0
+
+  # --- LETTER SOUND DELAY: Track which letter to play after timer ---
+  lock_letter_l_collected:
+    lock_pending_letter:
+      action: set
+      int: 1
+  lock_letter_o_collected:
+    lock_pending_letter:
+      action: set
+      int: 2
+  lock_letter_c_collected:
+    lock_pending_letter:
+      action: set
+      int: 3
+  lock_letter_k_collected:
+    lock_pending_letter:
+      action: set
+      int: 4
+
+####################################################################################
+# EVENT PLAYER
+####################################################################################
+event_player:
+
+  ##############################################################################
+  # STATE RESTORATION ON MODE START
+  # This mode restarts each ball (starts with base). Player variables persist
+  # but ball_holds and lights reset. Restore visual and mechanical state.
+  ##############################################################################
+
+  # Re-enable servo hold and ball hold if any balls are locked
+  mode_top_gun_multiball_locks_started{current_player.lock_goose_locked==1 or current_player.lock_mav_locked==1}:
+    - lock_servo_to_held
+
+  # Re-enable multiball_locks + restore light if lit but not yet locked
+  mode_top_gun_multiball_locks_started{current_player.lock_goose_lit==1 and current_player.lock_goose_locked==0}:
+    - lock_restore_goose_lock_enabled
+    - lock_restore_goose_lit
+
+  mode_top_gun_multiball_locks_started{current_player.lock_mav_lit==1 and current_player.lock_mav_locked==0}:
+    - lock_restore_mav_lock_enabled
+    - lock_restore_mav_lit
+
+  # Restore light if already locked (green)
+  mode_top_gun_multiball_locks_started{current_player.lock_goose_locked==1}:
+    - lock_restore_goose_locked
+
+  mode_top_gun_multiball_locks_started{current_player.lock_mav_locked==1}:
+    - lock_restore_mav_locked
+
+  # Restore lock lit indicator if any lock position is lit but not locked
+  mode_top_gun_multiball_locks_started{(current_player.lock_goose_lit==1 and current_player.lock_goose_locked==0) or (current_player.lock_mav_lit==1 and current_player.lock_mav_locked==0)}:
+    - lock_restore_lock_lit
+
+  # Restore multiball qualified state
+  mode_top_gun_multiball_locks_started{current_player.multiball_qualified==1}:
+    - lock_restore_mb_qualified
+    - barrier_drop
+
+  # Restore partial letter flash states (3rd+ attempt, letters with 1 hit)
+  mode_top_gun_multiball_locks_started{current_player.multiball_times_played>=2 and current_player.lock_l_hits==1}:
+    - lock_letter_l_partial
+  mode_top_gun_multiball_locks_started{current_player.multiball_times_played>=2 and current_player.lock_o_hits==1}:
+    - lock_letter_o_partial
+  mode_top_gun_multiball_locks_started{current_player.multiball_times_played>=2 and current_player.lock_c_hits==1}:
+    - lock_letter_c_partial
+  mode_top_gun_multiball_locks_started{current_player.multiball_times_played>=2 and current_player.lock_k_hits==1}:
+    - lock_letter_k_partial
+
+  # Restore solid letter lights (fully collected letters)
+  # 1st/2nd attempt: collected = 1 hit
+  mode_top_gun_multiball_locks_started{current_player.multiball_times_played<2 and current_player.lock_l_hits>=1}:
+    - lock_letter_l_collected
+  mode_top_gun_multiball_locks_started{current_player.multiball_times_played<2 and current_player.lock_o_hits>=1}:
+    - lock_letter_o_collected
+  mode_top_gun_multiball_locks_started{current_player.multiball_times_played<2 and current_player.lock_c_hits>=1}:
+    - lock_letter_c_collected
+  mode_top_gun_multiball_locks_started{current_player.multiball_times_played<2 and current_player.lock_k_hits>=1}:
+    - lock_letter_k_collected
+  # 3rd+ attempt: collected = 2 hits
+  mode_top_gun_multiball_locks_started{current_player.multiball_times_played>=2 and current_player.lock_l_hits>=2}:
+    - lock_letter_l_collected
+  mode_top_gun_multiball_locks_started{current_player.multiball_times_played>=2 and current_player.lock_o_hits>=2}:
+    - lock_letter_o_collected
+  mode_top_gun_multiball_locks_started{current_player.multiball_times_played>=2 and current_player.lock_c_hits>=2}:
+    - lock_letter_c_collected
+  mode_top_gun_multiball_locks_started{current_player.multiball_times_played>=2 and current_player.lock_k_hits>=2}:
+    - lock_letter_k_collected
+
+  ##############################################################################
+  # LETTER COLLECTED EVENTS
+  # Triggered by player_lock_X_hits variable change events
+  # MPF posts these automatically when the variable changes
+  ##############################################################################
+
+  # L collected (1st/2nd attempt - value reaches 1)
+  player_lock_l_hits{value==1 and current_player.multiball_times_played<2}:
+    - lock_letter_l_collected
+    - lock_check_all_letters
+
+  # L partial (3rd+ first hit - value reaches 1)
+  player_lock_l_hits{value==1 and current_player.multiball_times_played>=2}:
+    - lock_letter_l_partial
+    - lock_play_partial_callout
+
+  # L collected (3rd+ second hit - value reaches 2)
+  player_lock_l_hits{value==2 and current_player.multiball_times_played>=2}:
+    - lock_letter_l_collected
+    - lock_check_all_letters
+
+  # O collected (1st/2nd)
+  player_lock_o_hits{value==1 and current_player.multiball_times_played<2}:
+    - lock_letter_o_collected
+    - lock_check_all_letters
+
+  player_lock_o_hits{value==1 and current_player.multiball_times_played>=2}:
+    - lock_letter_o_partial
+    - lock_play_partial_callout
+
+  player_lock_o_hits{value==2 and current_player.multiball_times_played>=2}:
+    - lock_letter_o_collected
+    - lock_check_all_letters
+
+  # C collected (1st/2nd)
+  player_lock_c_hits{value==1 and current_player.multiball_times_played<2}:
+    - lock_letter_c_collected
+    - lock_check_all_letters
+
+  player_lock_c_hits{value==1 and current_player.multiball_times_played>=2}:
+    - lock_letter_c_partial
+    - lock_play_partial_callout
+
+  player_lock_c_hits{value==2 and current_player.multiball_times_played>=2}:
+    - lock_letter_c_collected
+    - lock_check_all_letters
+
+  # K collected (1st/2nd)
+  player_lock_k_hits{value==1 and current_player.multiball_times_played<2}:
+    - lock_letter_k_collected
+    - lock_check_all_letters
+
+  player_lock_k_hits{value==1 and current_player.multiball_times_played>=2}:
+    - lock_letter_k_partial
+    - lock_play_partial_callout
+
+  player_lock_k_hits{value==2 and current_player.multiball_times_played>=2}:
+    - lock_letter_k_collected
+    - lock_check_all_letters
+
+  ##############################################################################
+  # ALL LETTERS CHECK - fires lock_complete when all collected
+  ##############################################################################
+
+  # Easy/Medium mode (1st/2nd attempt) - each letter needs 1 hit
+  lock_check_all_letters{current_player.multiball_times_played<2 and current_player.lock_l_hits>=1 and current_player.lock_o_hits>=1 and current_player.lock_c_hits>=1 and current_player.lock_k_hits>=1}:
+    - lock_complete
+
+  # Hard mode (3rd+ attempt) - each letter needs 2 hits
+  lock_check_all_letters{current_player.multiball_times_played>=2 and current_player.lock_l_hits>=2 and current_player.lock_o_hits>=2 and current_player.lock_c_hits>=2 and current_player.lock_k_hits>=2}:
+    - lock_complete
+
+  ##############################################################################
+  # LOCK PROGRESSION - What happens when LOCK is completed
+  ##############################################################################
+
+  # 1ST ATTEMPT: 1 completion → both goose AND mav lit simultaneously
+  # NOTE: Conditions are on lock_completion_route (not lock_complete) because
+  # variable_player increments lock_completions on lock_complete, but event_player
+  # conditions evaluate before variables update. The route event fires AFTER.
+  lock_complete:
+    - lock_completion_route
+
+  lock_completion_route{current_player.multiball_times_played==0 and current_player.lock_completions>=1 and current_player.lock_goose_lit==0}:
+    - lock_goose_now_lit
+    - lock_mav_now_lit
+    - lock_all_lit
+    - lock_servo_to_held
+
+  # 2ND/3RD+ ATTEMPT: 1st completion → goose lit
+  lock_completion_route{current_player.multiball_times_played>=1 and current_player.lock_completions==1}:
+    - lock_goose_now_lit
+    - lock_servo_to_held
+
+  # 2ND/3RD+ ATTEMPT: 2nd completion → mav lit
+  lock_completion_route{current_player.multiball_times_played>=1 and current_player.lock_completions==2}:
+    - lock_mav_now_lit
+
+  # 2ND/3RD+ ATTEMPT: 3rd completion → multiball qualified
+  lock_completion_route{current_player.multiball_times_played>=1 and current_player.lock_completions>=3}:
+    - multiball_now_qualified
+
+  ##############################################################################
+  # BALL LOCKING - Detect when balls physically arrive in lock mech
+  ##############################################################################
+
+  # Goose position filled - debounced (switch must be active 500ms to count)
+  timer_lock_goose_debounce_complete{current_player.lock_goose_lit==1 and current_player.lock_goose_locked==0}:
+    - lock_goose_now_locked
+
+  # Mav position filled - debounced (switch must be active 500ms to count)
+  timer_lock_mav_debounce_complete{current_player.lock_mav_lit==1 and current_player.lock_mav_locked==0}:
+    - lock_mav_now_locked
+
+  # 1ST ATTEMPT: After both balls locked → qualify multiball
+  lock_goose_now_locked{current_player.multiball_times_played==0 and current_player.lock_mav_locked==1}:
+    - multiball_now_qualified
+
+  lock_mav_now_locked{current_player.multiball_times_played==0 and current_player.lock_goose_locked==1}:
+    - multiball_now_qualified
+
+  ##############################################################################
+  # DIVERTER CONTROL
+  # Fire when ramp is hit AND a lock position is lit but not yet locked
+  ##############################################################################
+  s_ramp_inner_exit_active{(current_player.lock_goose_lit==1 and current_player.lock_goose_locked==0) or (current_player.lock_mav_lit==1 and current_player.lock_mav_locked==0)}:
+    - lock_diverter_fired
+
+  # Disable diverter when ball arrives at elevator OR timeout
+  timer_lock_diverter_timeout_complete:
+    - lock_diverter_disable
+
+  s_lock_plunger_active{mode.top_gun_multiball_locks.active}:
+    - lock_diverter_disable
+
+  ##############################################################################
+  # GOOSE LOCK SEQUENCE
+  # Video (6s) → callout (1s) → release plunger hold → ball served
+  ##############################################################################
+  timer_lock_goose_callout_delay_complete:
+    - lock_goose_callout_play
+
+  timer_lock_goose_serve_delay_complete:
+    - lock_serve_new_ball
+
+  ##############################################################################
+  # MAV LOCK SEQUENCE
+  # Video + callout simultaneously (4s) → "multiball lit" callout (2s)
+  # → release plunger hold → ball served
+  ##############################################################################
+  timer_lock_mav_mb_lit_callout_delay_complete:
+    - lock_mav_mb_lit_callout_play
+
+  timer_lock_mav_serve_delay_complete:
+    - lock_serve_new_ball
+
+  ##############################################################################
+  # MULTIBALL QUALIFICATION
+  ##############################################################################
+  multiball_now_qualified:
+    - barrier_drop
+
+  ##############################################################################
+  # MULTIBALL START SEQUENCE
+  # Ball enters mode scoop while multiball is qualified
+  ##############################################################################
+  s_mode_start_active{current_player.multiball_qualified==1 and current_player.multiball_starting==0}:
+    - multiball_start_sequence
+
+  # After 2 second delay: release locked balls, release scoop, start MB
+  timer_lock_mb_release_delay_complete:
+    - start_mode_top_gun_multiball
+
+  # MB mode posts this when ready (after intro video or immediately if stacked)
+  mb_balls_release:
+    - lock_mech_release
+
+  # After barrier delay: raise barrier
+  timer_lock_mb_barrier_delay_complete:
+    - barrier_raise
+
+  ##############################################################################
+  # SERVO CONTROL EVENTS
+  ##############################################################################
+  lock_servo_to_held:
+    - lock_held
+
+  lock_mech_release:
+    - lock_released
+
+  # Safety: release servo when game ends
+  game_ending:
+    - lock_released
+
+  ##############################################################################
+  # CLEANUP when multiball mode actually stops
+  ##############################################################################
+  mode_top_gun_multiball_stopped:
+    - lock_released
+    - barrier_raise
+    - lock_lights_restore
+
+  ##############################################################################
+  # LETTER SOUND ROUTING - Timer-delayed to prevent overlap with lit sounds
+  # Timer starts on letter_collected, lock_complete stops it if completing
+  ##############################################################################
+  timer_lock_letter_sound_delay_complete{current_player.lock_pending_letter==1}:
+    - lock_play_letter_l_sound
+  timer_lock_letter_sound_delay_complete{current_player.lock_pending_letter==2}:
+    - lock_play_letter_o_sound
+  timer_lock_letter_sound_delay_complete{current_player.lock_pending_letter==3}:
+    - lock_play_letter_c_sound
+  timer_lock_letter_sound_delay_complete{current_player.lock_pending_letter==4}:
+    - lock_play_letter_k_sound
+
+  ##############################################################################
+  # PARTIAL CALLOUT ROUTING - Cycles through 5 callout sounds
+  ##############################################################################
+  lock_play_partial_callout{not device.timers.lock_partial_callout_cooldown.running and current_player.lock_partial_callout_index==0}:
+    - lock_partial_play_1
+    - lock_advance_partial_index
+  lock_play_partial_callout{not device.timers.lock_partial_callout_cooldown.running and current_player.lock_partial_callout_index==1}:
+    - lock_partial_play_2
+    - lock_advance_partial_index
+  lock_play_partial_callout{not device.timers.lock_partial_callout_cooldown.running and current_player.lock_partial_callout_index==2}:
+    - lock_partial_play_3
+    - lock_advance_partial_index
+  lock_play_partial_callout{not device.timers.lock_partial_callout_cooldown.running and current_player.lock_partial_callout_index==3}:
+    - lock_partial_play_4
+    - lock_advance_partial_index
+  lock_play_partial_callout{not device.timers.lock_partial_callout_cooldown.running and current_player.lock_partial_callout_index>=4}:
+    - lock_partial_play_5
+    - lock_advance_partial_index
+
+####################################################################################
+# COIL PLAYER - Diverter magnet control
+####################################################################################
+coil_player:
+  lock_diverter_fired:
+    c_lock_diverter_magnet:
+      action: enable
+
+  lock_diverter_disable:
+    c_lock_diverter_magnet:
+      action: disable
+
+  # Safety: disable diverter when mode stops
+  mode_top_gun_multiball_locks_will_stop:
+    c_lock_diverter_magnet:
+      action: disable
+
+####################################################################################
+# LIGHT PLAYER
+####################################################################################
+light_player:
+
+  ##############################################################################
+  # STATE RESTORATION LIGHTS
+  ##############################################################################
+  lock_restore_goose_lit:
+    l_lock_goose:
+      color: white
+      fade: 0ms
+
+  lock_restore_goose_locked:
+    l_lock_goose:
+      color: green
+      fade: 0ms
+
+  lock_restore_mav_lit:
+    l_lock_mav:
+      color: white
+      fade: 0ms
+
+  lock_restore_mav_locked:
+    l_lock_mav:
+      color: green
+      fade: 0ms
+
+  # lock_restore_lock_lit: l_lock_lit handled by show_player flash
+
+  lock_restore_mb_qualified:
+    l_multiball_lit:
+      color: white
+      fade: 0ms
+
+  ##############################################################################
+  # LOCK LETTER LIGHTS - Solid when collected
+  ##############################################################################
+
+  # L collected (solid)
+  lock_letter_l_collected:
+    l_lock_l:
+      color: white
+      fade: 0ms
+
+  # O collected (solid)
+  lock_letter_o_collected:
+    l_lock_o:
+      color: white
+      fade: 0ms
+
+  # C collected (solid)
+  lock_letter_c_collected:
+    l_lock_c:
+      color: white
+      fade: 0ms
+
+  # K collected (solid)
+  lock_letter_k_collected:
+    l_lock_k:
+      color: white
+      fade: 0ms
+
+  # Reset letter lights on LOCK completion
+  lock_complete:
+    l_lock_l:
+      color: off
+      fade: 0ms
+    l_lock_o:
+      color: off
+      fade: 0ms
+    l_lock_c:
+      color: off
+      fade: 0ms
+    l_lock_k:
+      color: off
+      fade: 0ms
+
+  ##############################################################################
+  # LOCK STATUS LIGHTS
+  ##############################################################################
+
+  # Goose lit (white = available to lock)
+  lock_goose_now_lit:
+    l_lock_goose:
+      color: white
+      fade: 0ms
+
+  # Mav lit (white = available to lock)
+  lock_mav_now_lit:
+    l_lock_mav:
+      color: white
+      fade: 0ms
+
+  # Goose locked (green = ball collected)
+  lock_goose_now_locked:
+    l_lock_goose:
+      color: green
+      fade: 0ms
+
+  # Mav locked (green = ball collected)
+  lock_mav_now_locked:
+    l_lock_mav:
+      color: green
+      fade: 0ms
+
+  # Turn off lock lit when the last lit-but-unlocked position is filled
+  # Goose locked: turn off lock_lit if mav is NOT lit, or mav is already locked
+  lock_goose_now_locked{current_player.lock_mav_lit==0 or current_player.lock_mav_locked==1}:
+    l_lock_lit:
+      color: off
+      fade: 0ms
+
+  # Mav locked: turn off lock_lit if goose is NOT lit, or goose is already locked
+  lock_mav_now_locked{current_player.lock_goose_lit==0 or current_player.lock_goose_locked==1}:
+    l_lock_lit:
+      color: off
+      fade: 0ms
+
+  # Multiball qualified
+  multiball_now_qualified:
+    l_multiball_lit:
+      color: white
+      fade: 0ms
+    l_lock_lit:
+      color: off
+      fade: 0ms
+
+  # Re-light LOCK letters when ALL locks are lit (stay on until MB starts)
+  # 1st attempt: mav lights after goose (both at once) - goose_lit already 1
+  lock_mav_now_lit{current_player.lock_goose_lit==1}:
+    l_lock_l:
+      color: white
+      fade: 0ms
+    l_lock_o:
+      color: white
+      fade: 0ms
+    l_lock_c:
+      color: white
+      fade: 0ms
+    l_lock_k:
+      color: white
+      fade: 0ms
+
+  # Safety: if goose lights after mav (shouldn't happen normally)
+  lock_goose_now_lit{current_player.lock_mav_lit==1}:
+    l_lock_l:
+      color: white
+      fade: 0ms
+    l_lock_o:
+      color: white
+      fade: 0ms
+    l_lock_c:
+      color: white
+      fade: 0ms
+    l_lock_k:
+      color: white
+      fade: 0ms
+
+  # Multiball started - turn off all lock lights
+  multiball_start_sequence:
+    l_lock_l:
+      color: off
+      fade: 0ms
+    l_lock_o:
+      color: off
+      fade: 0ms
+    l_lock_c:
+      color: off
+      fade: 0ms
+    l_lock_k:
+      color: off
+      fade: 0ms
+    l_lock_lit:
+      color: off
+      fade: 0ms
+    l_lock_goose:
+      color: off
+      fade: 0ms
+    l_lock_mav:
+      color: off
+      fade: 0ms
+    l_multiball_lit:
+      color: off
+      fade: 0ms
+
+  # Restore after multiball ends
+  lock_lights_restore:
+    l_lock_l:
+      color: off
+      fade: 0ms
+    l_lock_o:
+      color: off
+      fade: 0ms
+    l_lock_c:
+      color: off
+      fade: 0ms
+    l_lock_k:
+      color: off
+      fade: 0ms
+    l_lock_lit:
+      color: off
+      fade: 0ms
+    l_lock_goose:
+      color: off
+      fade: 0ms
+    l_lock_mav:
+      color: off
+      fade: 0ms
+    l_multiball_lit:
+      color: off
+      fade: 0ms
+
+####################################################################################
+# SHOW PLAYER - Flashing effects
+####################################################################################
+show_player:
+
+  # 3rd+ attempt: Partial letter hit → flash with sync_flash_mb timing
+  lock_letter_l_partial:
+    lock_flash_l:
+      show: sync_flash_mb
+      key: lock_l_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_lock_l
+        color: white
+
+  lock_letter_o_partial:
+    lock_flash_o:
+      show: sync_flash_mb
+      key: lock_o_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_lock_o
+        color: white
+
+  lock_letter_c_partial:
+    lock_flash_c:
+      show: sync_flash_mb
+      key: lock_c_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_lock_c
+        color: white
+
+  lock_letter_k_partial:
+    lock_flash_k:
+      show: sync_flash_mb
+      key: lock_k_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_lock_k
+        color: white
+
+  # Stop flashing when letter is fully collected
+  lock_letter_l_collected:
+    stop_l_flash:
+      show: sync_flash_mb
+      action: stop
+      key: lock_l_flash
+
+  lock_letter_o_collected:
+    stop_o_flash:
+      show: sync_flash_mb
+      action: stop
+      key: lock_o_flash
+
+  lock_letter_c_collected:
+    stop_c_flash:
+      show: sync_flash_mb
+      action: stop
+      key: lock_c_flash
+
+  lock_letter_k_collected:
+    stop_k_flash:
+      show: sync_flash_mb
+      action: stop
+      key: lock_k_flash
+
+  # Stop all flashing on lock_complete (letters reset)
+  lock_complete:
+    stop_all_l:
+      show: sync_flash_mb
+      action: stop
+      key: lock_l_flash
+    stop_all_o:
+      show: sync_flash_mb
+      action: stop
+      key: lock_o_flash
+    stop_all_c:
+      show: sync_flash_mb
+      action: stop
+      key: lock_c_flash
+    stop_all_k:
+      show: sync_flash_mb
+      action: stop
+      key: lock_k_flash
+
+  # Multiball lit indicator flash
+  multiball_now_qualified:
+    mb_lit_flash:
+      show: sync_flash_mb
+      key: multiball_lit_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_multiball_lit
+        color: yellow
+    stop_lock_lit_flash_qual:
+      show: sync_flash_mb
+      action: stop
+      key: lock_lit_flash
+
+  # Restore MB qualified flash on mode restart
+  lock_restore_mb_qualified:
+    mb_lit_flash_restore:
+      show: sync_flash_mb
+      key: multiball_lit_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_multiball_lit
+        color: yellow
+
+  multiball_start_sequence:
+    stop_mb_flash:
+      show: sync_flash_mb
+      action: stop
+      key: multiball_lit_flash
+    stop_lock_lit_flash_mb:
+      show: sync_flash_mb
+      action: stop
+      key: lock_lit_flash
+
+  # --- LOCK LIT INSERT PULSING ---
+  # Start pulsing when a lock position becomes lit
+  lock_goose_now_lit:
+    lock_lit_pulse_goose:
+      show: sync_flash_mb
+      key: lock_lit_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_lock_lit
+        color: white
+
+  lock_mav_now_lit:
+    lock_lit_pulse_mav:
+      show: sync_flash_mb
+      key: lock_lit_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_lock_lit
+        color: white
+
+  lock_restore_lock_lit:
+    lock_lit_pulse_restore:
+      show: sync_flash_mb
+      key: lock_lit_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_lock_lit
+        color: white
+
+  # Stop pulsing when last lit-but-unlocked position is filled
+  lock_goose_now_locked{current_player.lock_mav_lit==0 or current_player.lock_mav_locked==1}:
+    stop_lock_lit_flash_goose:
+      show: sync_flash_mb
+      action: stop
+      key: lock_lit_flash
+
+  lock_mav_now_locked{current_player.lock_goose_lit==0 or current_player.lock_goose_locked==1}:
+    stop_lock_lit_flash_mav:
+      show: sync_flash_mb
+      action: stop
+      key: lock_lit_flash
+
+  lock_lights_restore:
+    stop_lock_lit_flash_restore:
+      show: sync_flash_mb
+      action: stop
+      key: lock_lit_flash
+
+####################################################################################
+# SLIDE PLAYER - Ball Lock Videos
+####################################################################################
+slide_player:
+  # Goose locked video
+  lock_goose_now_locked:
+    goose_locked:
+      action: play
+      priority: 800
+      expire: 6s
+
+  # Maverick locked video
+  lock_mav_now_locked:
+    maverick_locked:
+      action: play
+      priority: 800
+      expire: 5s
+
+####################################################################################
+# SOUND PLAYER
+####################################################################################
+sound_player:
+  # Letter collected callouts (delayed 150ms via timer to prevent overlap with lit sounds)
+  lock_play_letter_l_sound:
+    lock_letter_l_collected:
+      bus: effects
+      loops: 0
+
+  lock_play_letter_o_sound:
+    lock_letter_o_collected:
+      bus: effects
+      loops: 0
+
+  lock_play_letter_c_sound:
+    lock_letter_c_collected:
+      bus: effects
+      loops: 0
+
+  lock_play_letter_k_sound:
+    lock_letter_k_collected:
+      bus: effects
+      loops: 0
+
+  # All locks lit (1st attempt)
+  lock_all_lit:
+    lock_all_locks_lit:
+      bus: effects
+      loops: 0
+
+  # Individual lock lit (2nd/3rd+ attempt)
+  lock_goose_now_lit{current_player.multiball_times_played>=1}:
+    lock_goose_lit:
+      bus: effects
+      loops: 0
+
+  lock_mav_now_lit{current_player.multiball_times_played>=1}:
+    lock_mav_lit:
+      bus: effects
+      loops: 0
+
+  # Multiball qualified - only play if mav lock sequence is NOT handling it
+  multiball_now_qualified{not device.timers.lock_mav_mb_lit_callout_delay.running}:
+    lock_multiball_lit:
+      bus: effects
+      loops: 0
+
+  ##############################################################################
+  # LOCK SEQUENCE CALLOUTS
+  ##############################################################################
+
+  # Goose: voice callout plays AFTER 6s video finishes
+  lock_goose_callout_play:
+    lock_goose_locked:
+      bus: effects
+      loops: 0
+
+  # Mav: voice callout plays SIMULTANEOUSLY with 4s video
+  lock_mav_now_locked:
+    lock_maverick_locked:
+      bus: effects
+      loops: 0
+
+  # Mav: "multiball lit" callout plays AFTER 4s video+callout finishes
+  lock_mav_mb_lit_callout_play:
+    lock_multiball_lit:
+      bus: effects
+      loops: 0
+
+  # Partial hit callouts (3rd+ attempt) - cycles through 5 sounds
+  lock_partial_play_1:
+    lock_letter_partial_1:
+      bus: effects
+      loops: 0
+
+  lock_partial_play_2:
+    lock_letter_partial_2:
+      bus: effects
+      loops: 0
+
+  lock_partial_play_3:
+    lock_letter_partial_3:
+      bus: effects
+      loops: 0
+
+  lock_partial_play_4:
+    lock_letter_partial_4:
+      bus: effects
+      loops: 0
+
+  lock_partial_play_5:
+    lock_letter_partial_5:
+      bus: effects
+      loops: 0

@@ -14,6 +14,10 @@ event_player:
     - start_mode_bumpers
     - right_ramp_down
     - top_ramp_down
+
+  # Release lock servo at ball start ONLY if no balls are physically locked
+  # If balls are locked, the locks mode restore logic handles the servo
+  mode_base_started{current_player.lock_goose_locked==0 and current_player.lock_mav_locked==0}:
     - lock_released
   mode_base_will_stop:
     - stop_mode_bumpers
@@ -52,6 +56,147 @@ variable_player:
       action: set
       int: 0
     hard_deck_active:
+      action: set
+      int: 0
+    # Top Gun Multiball Animations
+    multiball_active:
+      action: set
+      int: 0
+    multiball_lockon_active:
+      action: set
+      int: 0
+    multiball_wave:
+      action: set
+      int: 1
+    multiball_migs_destroyed:
+      action: set
+      int: 0
+    multiball_migs_destroyed_wave:
+      action: set
+      int: 0
+    multiball_jackpot_total:
+      action: set
+      int: 0
+    multiball_last_jackpot:
+      action: set
+      int: 0
+    multiball_super_lit:
+      action: set
+      int: 0
+    multiball_penalty_no_hold:
+      action: set
+      int: 0
+    multiball_penalty_reversed:
+      action: set
+      int: 0
+    multiball_penalty_gi_off:
+      action: set
+      int: 0
+    multiball_penalty_scoring_reduced:
+      action: set
+      int: 0
+    mig_left_orbit_active:
+      action: set
+      int: 0
+    mig_left_ramp_active:
+      action: set
+      int: 0
+    mig_spinner_active:
+      action: set
+      int: 0
+    mig_barrier_active:
+      action: set
+      int: 0
+    mig_tower_active:
+      action: set
+      int: 0
+    mig_top_orbit_active:
+      action: set
+      int: 0
+    mig_top_ramp_active:
+      action: set
+      int: 0
+    mig_right_ramp_active:
+      action: set
+      int: 0
+    multiball_evasion_left_orbit:
+      action: set
+      int: 0
+    multiball_evasion_left_ramp:
+      action: set
+      int: 0
+    multiball_evasion_spinner:
+      action: set
+      int: 0
+    multiball_evasion_barrier:
+      action: set
+      int: 0
+    multiball_evasion_tower:
+      action: set
+      int: 0
+    multiball_evasion_top_ramp:
+      action: set
+      int: 0
+    multiball_evasion_right_ramp:
+      action: set
+      int: 0
+    # Top Gun Multiball Lock System
+    lock_l_hits:
+      action: set
+      int: 0
+    lock_o_hits:
+      action: set
+      int: 0
+    lock_c_hits:
+      action: set
+      int: 0
+    lock_k_hits:
+      action: set
+      int: 0
+    lock_completions:
+      action: set
+      int: 0
+    lock_goose_lit:
+      action: set
+      int: 0
+    lock_mav_lit:
+      action: set
+      int: 0
+    lock_goose_locked:
+      action: set
+      int: 0
+    lock_mav_locked:
+      action: set
+      int: 0
+    multiball_qualified:
+      action: set
+      int: 0
+    multiball_starting:
+      action: set
+      int: 0
+    multiball_times_played:
+      action: set
+      int: 0
+    lock_collection_paused:
+      action: set
+      int: 0
+    lock_partial_callout_index:
+      action: set
+      int: 0
+    lock_pending_letter:
+      action: set
+      int: 0
+    # Top Gun Multiball Video Tracking
+    multiball_evade_toggle:
+      action: set
+      int: 0
+    multiball_hit_index:
+      action: set
+      int: 0
+    multiball_explosion_index:
+      action: set
+      int: 0
+    multiball_intro_done:
       action: set
       int: 0
 
@@ -1002,6 +1147,47 @@ sound_player:
     silence:
       bus: music
       loops: 0
+
+
+#################################################################################### 
+  # Top Gun Multiball Mode Music Handler
+####################################################################################
+  # Silence base/pilot music when multiball mode starts (intro video may play)
+  mode_top_gun_multiball_started:
+    silence:
+      bus: music
+      loops: 0
+
+  # Music starts at 56s into intro video, or immediately if stacked/skipped
+  mb_start_music:
+    top_gun_multiball_music:
+      bus: music
+      loops: -1
+
+  radar_mig_lockon:
+    silence:
+      bus: music
+      loops: 0
+
+  radar_evasion_success:
+    top_gun_multiball_music:
+      bus: music
+      loops: -1
+
+  radar_evasion_failed:
+    silence:
+      bus: music
+      loops: 0
+
+  radar_punishment_start:
+    top_gun_multiball_music:
+      bus: music
+      loops: -1
+
+  mode_top_gun_multiball_stopped{current_player.pilot_mode_drain_pending==0}:
+    music_danger_zone:
+      bus: music
+      loops: -1
 
 ####################################################################################
 # SYNCHRONIZED FLASH SHOWS - For Mode/Multiball Stacking

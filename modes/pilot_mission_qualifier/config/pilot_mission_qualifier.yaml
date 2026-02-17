@@ -275,6 +275,10 @@ variable_player:
     letter_collection_paused:
       action: set
       int: 0
+    # Lock letter collection pause flag
+    lock_collection_paused:
+      action: set
+      int: 0
     # Pilot mode active flag - prevents bonus from starting during pilot modes
     pilot_mode_active:
       action: set
@@ -595,6 +599,21 @@ variable_player:
       int: 0
     # Clear training mission active flag
     training_mission_active:
+      action: set
+      int: 0
+
+  # Clear pause flags when top gun multiball stops
+  mode_top_gun_multiball_stopped:
+    letter_collection_paused:
+      action: set
+      int: 0
+    pilot_qualifier_paused:
+      action: set
+      int: 0
+    lock_collection_paused:
+      action: set
+      int: 0
+    multiball_active:
       action: set
       int: 0
 
@@ -1360,6 +1379,23 @@ coil_player:
       action: disable
 
   ##############################################
+  ## PLUNGER AUTO-FIRE (eject_coil removed from bd_plunger)
+  ## Pulse c_plunger directly when auto-launch is needed
+  ##############################################
+  do_auto_plunge:
+    c_plunger:
+      action: pulse
+
+  # Safety: clear shooter lane on tilt and game ending
+  tilt:
+    c_plunger:
+      action: pulse
+
+  game_ending:
+    c_plunger:
+      action: pulse
+
+  ##############################################
   ## LEFT ORBIT DIVERTER CONTROL
   ## All modes should use left_orbit_diverter_open/closed events.
   ## This ensures tracking works for under_flipper_shot detection.
@@ -1434,6 +1470,22 @@ coil_player:
 ##############################################
 
 event_player:
+  ##############################################
+  ## PLUNGER AUTO-LAUNCH SYSTEM
+  ## eject_coil removed from bd_plunger so it never auto-fires.
+  ## Ball save already sets ball_just_saved=1 (in ball_save.yaml)
+  ## for BOTH new_ball_save and mode_ball_save.
+  ## We detect ball arrival at shooter lane and pulse c_plunger.
+  ##
+  ## Auto-fire scenarios:
+  ##   - Ball save serves replacement (ball_just_saved==1)
+  ## Manual plunge scenarios:
+  ##   - Game start (ball_just_saved==0)
+  ##   - Lock replacement (ball_just_saved==0)
+  ##############################################
+  s_shooter_lane_active{current_player.ball_just_saved==1}:
+    - do_auto_plunge
+
   ##############################################
   ## 5th+ QUALIFICATION - RANDOM VIDEO SELECTION
   ## For modes_completed_count >= 4, trigger random video selection

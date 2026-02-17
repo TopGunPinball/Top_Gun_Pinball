@@ -1,0 +1,1017 @@
+#config_version=6
+##############################################################################
+# TOP GUN MULTIBALL MODE
+# Priority: 400
+#
+# ARCHITECTURE:
+#   - Godot handles: radar visuals, MIG spawning (random), movement, lock-on
+#     visual, penalty selection (random), score calculation (distance-based)
+#   - MPF handles: shot detection, scoring, insert lighting, GI effects,
+#     flipper penalties, sound callouts, super jackpot tracking
+#
+# GODOT → MPF EVENTS:
+#   radar_activate_mig_[id]     MIG spawned on shot
+#   radar_deactivate_mig_[id]   MIG removed from shot
+#   radar_mig_destroyed          MIG killed (with scoring)
+#   radar_mig_destroyed_no_score MIG killed during 10% penalty
+#   radar_mig_explosion          Trigger GI explosion show
+#   radar_mig_lockon             MIG reached center, lock-on starts
+#   radar_evasion_shot_[id]      Random evasion shot selected
+#   radar_evasion_success        Player hit evasion shot
+#   radar_penalty_no_hold        Penalty: no hold flippers
+#   radar_penalty_reversed       Penalty: reversed flippers
+#   radar_penalty_gi_off         Penalty: GI lights off
+#   radar_penalty_scoring_reduced Penalty: scoring at 10%
+#   radar_penalty_progress_reset Penalty: reset mig kill count
+#   radar_super_jackpot_lit      Super jackpot available
+#   radar_super_jackpot_collected Super jackpot hit
+#   radar_wave_advance           Wave difficulty increased
+#   radar_set_jackpot_value      Godot calculated jackpot (sets variable)
+#
+# MPF → GODOT EVENTS:
+#   multiball_mig_hit_[id]       Shot detected for active MIG
+#   radar_evasion_hit            Evasion shot was hit
+#   multiball_ending             Multiball ending, clean up
+##############################################################################
+
+mode:
+  start_events: start_mode_top_gun_multiball
+  stop_events: top_gun_multiball_ended
+  priority: 400
+  game_mode: true
+
+##############################################################################
+# SHOWS - GI Explosion (2 seconds, red/yellow/orange flicker)
+##############################################################################
+shows:
+  gi_mig_explosion:
+    - duration: 150ms
+      lights:
+        gi_lights:
+          color: ff2200
+          fade: 0ms
+    - duration: 100ms
+      lights:
+        gi_lights:
+          color: ff8800
+          fade: 0ms
+    - duration: 150ms
+      lights:
+        gi_lights:
+          color: ff0000
+          fade: 0ms
+    - duration: 100ms
+      lights:
+        gi_lights:
+          color: ffcc00
+          fade: 0ms
+    - duration: 200ms
+      lights:
+        gi_lights:
+          color: ff4400
+          fade: 0ms
+    - duration: 150ms
+      lights:
+        gi_lights:
+          color: ff0000
+          fade: 0ms
+    - duration: 100ms
+      lights:
+        gi_lights:
+          color: ffaa00
+          fade: 0ms
+    - duration: 200ms
+      lights:
+        gi_lights:
+          color: ff2200
+          fade: 0ms
+    - duration: 150ms
+      lights:
+        gi_lights:
+          color: ff6600
+          fade: 0ms
+    - duration: 100ms
+      lights:
+        gi_lights:
+          color: ff0000
+          fade: 0ms
+    - duration: 150ms
+      lights:
+        gi_lights:
+          color: ff4400
+          fade: 0ms
+    - duration: 100ms
+      lights:
+        gi_lights:
+          color: 220000
+          fade: 0ms
+    - duration: 150ms
+      lights:
+        gi_lights:
+          color: red
+          fade: 200ms
+
+##############################################################################
+# VARIABLE PLAYER
+##############################################################################
+variable_player:
+  # --- MODE START: Initialize all tracking variables ---
+  mode_top_gun_multiball_started:
+    multiball_active:
+      action: set
+      int: 1
+    letter_collection_paused:
+      action: set
+      int: 1
+    pilot_qualifier_paused:
+      action: set
+      int: 1
+    lock_collection_paused:
+      action: set
+      int: 1
+    multiball_migs_destroyed:
+      action: set
+      int: 0
+    multiball_migs_destroyed_wave:
+      action: set
+      int: 0
+    multiball_jackpot_total:
+      action: set
+      int: 0
+    multiball_last_jackpot:
+      action: set
+      int: 0
+    multiball_wave:
+      action: set
+      int: 1
+    multiball_super_lit:
+      action: set
+      int: 0
+    multiball_lockon_active:
+      action: set
+      int: 0
+    multiball_penalty_no_hold:
+      action: set
+      int: 0
+    multiball_penalty_reversed:
+      action: set
+      int: 0
+    multiball_penalty_gi_off:
+      action: set
+      int: 0
+    multiball_penalty_scoring_reduced:
+      action: set
+      int: 0
+    # Video tracking variables
+    multiball_evade_toggle:
+      action: set
+      int: 0
+    multiball_hit_index:
+      action: set
+      int: 0
+    multiball_explosion_index:
+      action: set
+      int: 0
+    multiball_intro_done:
+      action: set
+      int: 0
+
+  # --- MIG ACTIVATION: Track which MIGs are on the radar ---
+  radar_activate_mig_left_orbit:
+    mig_left_orbit_active:
+      action: set
+      int: 1
+  radar_deactivate_mig_left_orbit:
+    mig_left_orbit_active:
+      action: set
+      int: 0
+  radar_activate_mig_left_ramp:
+    mig_left_ramp_active:
+      action: set
+      int: 1
+  radar_deactivate_mig_left_ramp:
+    mig_left_ramp_active:
+      action: set
+      int: 0
+  radar_activate_mig_spinner:
+    mig_spinner_active:
+      action: set
+      int: 1
+  radar_deactivate_mig_spinner:
+    mig_spinner_active:
+      action: set
+      int: 0
+  radar_activate_mig_barrier:
+    mig_barrier_active:
+      action: set
+      int: 1
+  radar_deactivate_mig_barrier:
+    mig_barrier_active:
+      action: set
+      int: 0
+  radar_activate_mig_tower:
+    mig_tower_active:
+      action: set
+      int: 1
+  radar_deactivate_mig_tower:
+    mig_tower_active:
+      action: set
+      int: 0
+  radar_activate_mig_top_orbit:
+    mig_top_orbit_active:
+      action: set
+      int: 1
+  radar_deactivate_mig_top_orbit:
+    mig_top_orbit_active:
+      action: set
+      int: 0
+  radar_activate_mig_top_ramp:
+    mig_top_ramp_active:
+      action: set
+      int: 1
+  radar_deactivate_mig_top_ramp:
+    mig_top_ramp_active:
+      action: set
+      int: 0
+  radar_activate_mig_right_ramp:
+    mig_right_ramp_active:
+      action: set
+      int: 1
+  radar_deactivate_mig_right_ramp:
+    mig_right_ramp_active:
+      action: set
+      int: 0
+
+  # --- MIG DESTROYED (Godot sets multiball_last_jackpot before posting) ---
+  radar_mig_destroyed:
+    score:
+      action: add
+      int: current_player.multiball_last_jackpot * current_player.total_scoring_multiplier
+    multiball_migs_destroyed:
+      action: add
+      int: 1
+    multiball_migs_destroyed_wave:
+      action: add
+      int: 1
+    multiball_jackpot_total:
+      action: add
+      int: current_player.multiball_last_jackpot
+    mode_points_scored:
+      action: set
+      int: current_player.multiball_last_jackpot * current_player.total_scoring_multiplier
+
+  # --- MIG DESTROYED NO SCORE (during 10% penalty, score already reduced) ---
+  radar_mig_destroyed_no_score:
+    multiball_migs_destroyed:
+      action: add
+      int: 1
+
+  # --- EVASION SUCCESS ---
+  radar_evasion_success:
+    score:
+      action: add
+      int: 50000 * current_player.total_scoring_multiplier
+    multiball_lockon_active:
+      action: set
+      int: 0
+
+  # --- LOCK-ON START ---
+  radar_mig_lockon:
+    multiball_lockon_active:
+      action: set
+      int: 1
+
+  # --- SUPER JACKPOT ---
+  radar_super_jackpot_lit:
+    multiball_super_lit:
+      action: set
+      int: 1
+
+  radar_super_jackpot_collected:
+    score:
+      action: add
+      int: current_player.multiball_jackpot_total * current_player.total_scoring_multiplier
+    multiball_super_lit:
+      action: set
+      int: 0
+    multiball_migs_destroyed_wave:
+      action: set
+      int: 0
+    multiball_jackpot_total:
+      action: set
+      int: 0
+
+  # --- WAVE ADVANCE ---
+  radar_wave_advance:
+    multiball_wave:
+      action: add
+      int: 1
+
+  # --- PENALTY TRACKING ---
+  radar_penalty_no_hold:
+    multiball_penalty_no_hold:
+      action: set
+      int: 1
+  radar_penalty_reversed:
+    multiball_penalty_reversed:
+      action: set
+      int: 1
+  radar_penalty_gi_off:
+    multiball_penalty_gi_off:
+      action: set
+      int: 1
+  radar_penalty_scoring_reduced:
+    multiball_penalty_scoring_reduced:
+      action: set
+      int: 1
+  radar_penalty_progress_reset:
+    multiball_migs_destroyed_wave:
+      action: set
+      int: 0
+
+  # --- PENALTY END ---
+  radar_penalty_no_hold_ended:
+    multiball_penalty_no_hold:
+      action: set
+      int: 0
+  radar_penalty_reversed_ended:
+    multiball_penalty_reversed:
+      action: set
+      int: 0
+  radar_penalty_gi_off_ended:
+    multiball_penalty_gi_off:
+      action: set
+      int: 0
+  radar_penalty_scoring_reduced_ended:
+    multiball_penalty_scoring_reduced:
+      action: set
+      int: 0
+
+  # --- VIDEO TRACKING: Evade toggle (alternates 0/1) ---
+  mb_toggle_evade{current_player.multiball_evade_toggle==0}:
+    multiball_evade_toggle:
+      action: set
+      int: 1
+  mb_toggle_evade{current_player.multiball_evade_toggle==1}:
+    multiball_evade_toggle:
+      action: set
+      int: 0
+
+  # --- VIDEO TRACKING: Hit index (cycles 0→1→2→0) ---
+  mb_advance_hit_index{current_player.multiball_hit_index==0}:
+    multiball_hit_index:
+      action: set
+      int: 1
+  mb_advance_hit_index{current_player.multiball_hit_index==1}:
+    multiball_hit_index:
+      action: set
+      int: 2
+  mb_advance_hit_index{current_player.multiball_hit_index>=2}:
+    multiball_hit_index:
+      action: set
+      int: 0
+
+  # --- VIDEO TRACKING: Explosion index (cycles 0→1→2→0) ---
+  mb_advance_explosion_index{current_player.multiball_explosion_index==0}:
+    multiball_explosion_index:
+      action: set
+      int: 1
+  mb_advance_explosion_index{current_player.multiball_explosion_index==1}:
+    multiball_explosion_index:
+      action: set
+      int: 2
+  mb_advance_explosion_index{current_player.multiball_explosion_index>=2}:
+    multiball_explosion_index:
+      action: set
+      int: 0
+
+  # --- INTRO DONE ---
+  mb_gameplay_start:
+    multiball_intro_done:
+      action: set
+      int: 1
+
+  # --- MODE END ---
+  mode_top_gun_multiball_will_stop:
+    multiball_active:
+      action: set
+      int: 0
+
+##############################################################################
+# EVENT PLAYER - Shot Detection & Penalty Routing
+##############################################################################
+event_player:
+  # ===== MIG SHOT DETECTION =====
+  # Each shot checks if its MIG is active, then posts the hit event to Godot
+  left_orbit_shot_hit{current_player.mig_left_orbit_active==1}:
+    - multiball_mig_hit_left_orbit
+
+  s_ramp_left_exit_active{current_player.mig_left_ramp_active==1}:
+    - multiball_mig_hit_left_ramp
+
+  spinner_shot_made{current_player.mig_spinner_active==1}:
+    - multiball_mig_hit_spinner
+
+  s_barrier_target_active{current_player.mig_barrier_active==1}:
+    - multiball_mig_hit_barrier
+
+  s_ramp_tower_exit_active{current_player.mig_tower_active==1}:
+    - multiball_mig_hit_tower
+
+  s_orbit_lower_active{current_player.mig_top_orbit_active==1}:
+    - multiball_mig_hit_top_orbit
+
+  s_ramp_inner_exit_active{current_player.mig_top_ramp_active==1}:
+    - multiball_mig_hit_top_ramp
+
+  s_ramp_right_exit_active{current_player.mig_right_ramp_active==1}:
+    - multiball_mig_hit_right_ramp
+
+  # ===== EVASION SHOT DETECTION =====
+  # When a MIG locks on, Godot sets which shot is the evasion target
+  # These check if the evasion flag is set for that shot
+  left_orbit_shot_hit{current_player.multiball_evasion_left_orbit==1}:
+    - radar_evasion_hit
+  s_ramp_left_exit_active{current_player.multiball_evasion_left_ramp==1}:
+    - radar_evasion_hit
+  spinner_shot_made{current_player.multiball_evasion_spinner==1}:
+    - radar_evasion_hit
+  s_barrier_target_active{current_player.multiball_evasion_barrier==1}:
+    - radar_evasion_hit
+  s_ramp_tower_exit_active{current_player.multiball_evasion_tower==1}:
+    - radar_evasion_hit
+  s_ramp_inner_exit_active{current_player.multiball_evasion_top_ramp==1}:
+    - radar_evasion_hit
+  s_ramp_right_exit_active{current_player.multiball_evasion_right_ramp==1}:
+    - radar_evasion_hit
+
+  # ===== PENALTY: NO HOLD FLIPPERS =====
+  radar_penalty_no_hold:
+    - disable_flippers
+    - enable_no_hold_flippers
+  timer_penalty_no_hold_timer_complete:
+    - disable_no_hold_flippers
+    - enable_flippers
+    - radar_penalty_no_hold_ended
+
+  # ===== PENALTY: REVERSED FLIPPERS =====
+  radar_penalty_reversed:
+    - disable_flippers
+    - enable_reversed_flippers
+  timer_penalty_reversed_timer_complete:
+    - disable_reversed_flippers
+    - enable_flippers
+    - radar_penalty_reversed_ended
+
+  # ===== PENALTY: GI OFF =====
+  # (light_player handles the actual GI control below)
+  timer_penalty_gi_off_timer_complete:
+    - radar_penalty_gi_off_ended
+
+  # ===== PENALTY: SCORING REDUCED =====
+  timer_penalty_scoring_reduced_timer_complete:
+    - radar_penalty_scoring_reduced_ended
+
+  # ===== MODE CLEANUP =====
+  mode_top_gun_multiball_will_stop:
+    - disable_reversed_flippers
+    - disable_no_hold_flippers
+    - enable_flippers
+
+  # ===== INTRO VIDEO FLOW =====
+  # If no pilot mission active: play intro video, raise barrier
+  # If pilot mission active: skip intro, go straight to gameplay
+  mode_top_gun_multiball_started{current_player.pilot_mode_active==0}:
+    - mb_intro_start
+    - barrier_raise
+
+  mode_top_gun_multiball_started{current_player.pilot_mode_active==1}:
+    - mb_gameplay_start
+    - mb_balls_release
+    - mb_start_music
+
+  # ===== SKIP INTRO (both flippers) =====
+  s_flipper_left_active{current_player.multiball_intro_done==0 and device.timers.mb_intro_video_delay.running}:
+    - mb_check_skip_intro
+  s_flipper_right_active{current_player.multiball_intro_done==0 and device.timers.mb_intro_video_delay.running}:
+    - mb_check_skip_intro
+  mb_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - mb_skip_intro
+
+  # Skip path: drop barrier, release balls, start music + gameplay
+  mb_skip_intro:
+    - barrier_drop
+    - mb_gameplay_start
+    - mb_balls_release
+    - mb_start_music
+
+  # Music starts at 56 seconds into intro video
+  timer_mb_intro_music_delay_complete:
+    - mb_start_music
+
+  # Normal path: intro video finishes → drop barrier, release, start
+  timer_mb_intro_video_delay_complete:
+    - barrier_drop
+    - mb_gameplay_start
+    - mb_balls_release
+
+  # Barrier raise after scoop ball clears
+  timer_mb_barrier_delay_complete:
+    - barrier_raise
+
+  # ===== EVADE VIDEOS (toggle evade_1 / evade_2) =====
+  radar_evasion_success{current_player.multiball_evade_toggle==0}:
+    - mb_play_evade_1
+    - mb_toggle_evade
+  radar_evasion_success{current_player.multiball_evade_toggle==1}:
+    - mb_play_evade_2
+    - mb_toggle_evade
+
+  # ===== HIT VIDEOS (cycle hit_1/hit_2/hit_3 after 3s callout delay) =====
+  timer_mb_hit_video_delay_complete{current_player.multiball_hit_index==0}:
+    - mb_play_hit_1
+    - mb_advance_hit_index
+  timer_mb_hit_video_delay_complete{current_player.multiball_hit_index==1}:
+    - mb_play_hit_2
+    - mb_advance_hit_index
+  timer_mb_hit_video_delay_complete{current_player.multiball_hit_index>=2}:
+    - mb_play_hit_3
+    - mb_advance_hit_index
+
+  # ===== EXPLOSION VIDEOS (cycle 1/2/3 with cooldown) =====
+  # Only play if cooldown timer is NOT running (prevents overlap)
+  radar_mig_destroyed{device.timers.mb_explosion_cooldown.running==False}:
+    - mb_play_explosion_video
+  radar_mig_destroyed_no_score{device.timers.mb_explosion_cooldown.running==False}:
+    - mb_play_explosion_video
+
+  # Route to correct video based on index
+  mb_play_explosion_video{current_player.multiball_explosion_index==0}:
+    - mb_play_explosion_1
+    - mb_advance_explosion_index
+  mb_play_explosion_video{current_player.multiball_explosion_index==1}:
+    - mb_play_explosion_2
+    - mb_advance_explosion_index
+  mb_play_explosion_video{current_player.multiball_explosion_index>=2}:
+    - mb_play_explosion_3
+    - mb_advance_explosion_index
+
+  # GI explosion show triggers 1.25 seconds after video starts
+  timer_mb_explosion_gi_delay_complete:
+    - radar_mig_explosion
+
+##############################################################################
+# TIMERS - One per stackable penalty
+##############################################################################
+timers:
+  penalty_no_hold_timer:
+    start_value: 20
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: radar_penalty_no_hold
+        action: restart
+
+  penalty_reversed_timer:
+    start_value: 20
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: radar_penalty_reversed
+        action: restart
+
+  penalty_gi_off_timer:
+    start_value: 20
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: radar_penalty_gi_off
+        action: restart
+
+  penalty_scoring_reduced_timer:
+    start_value: 20
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: radar_penalty_scoring_reduced
+        action: restart
+
+  ##############################################################################
+  # INTRO VIDEO TIMER - 78 seconds (full video length)
+  ##############################################################################
+  mb_intro_video_delay:
+    start_value: 0
+    end_value: 78
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: mb_intro_start
+        action: start
+      - event: mb_skip_intro
+        action: stop
+      - event: mode_top_gun_multiball_will_stop
+        action: stop
+
+  # Music starts at 56 seconds into intro video
+  mb_intro_music_delay:
+    start_value: 0
+    end_value: 56
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: mb_intro_start
+        action: start
+      - event: mb_skip_intro
+        action: stop
+      - event: mode_top_gun_multiball_will_stop
+        action: stop
+
+  ##############################################################################
+  # HIT VIDEO DELAY - 3 seconds after penalty (let callout finish)
+  ##############################################################################
+  mb_hit_video_delay:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: radar_evasion_failed
+        action: restart
+      - event: mode_top_gun_multiball_will_stop
+        action: stop
+
+  ##############################################################################
+  # EXPLOSION VIDEO COOLDOWN - 4 seconds (prevents overlap of 3.1s videos)
+  ##############################################################################
+  mb_explosion_cooldown:
+    start_value: 0
+    end_value: 4
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: mb_play_explosion_video
+        action: restart
+      - event: mode_top_gun_multiball_will_stop
+        action: stop
+
+  # GI explosion delay - 1.25 seconds after explosion video starts
+  mb_explosion_gi_delay:
+    start_value: 0
+    end_value: 1250
+    direction: up
+    tick_interval: 1ms
+    start_running: false
+    control_events:
+      - event: mb_play_explosion_video
+        action: restart
+      - event: mode_top_gun_multiball_will_stop
+        action: stop
+
+  ##############################################################################
+  # BARRIER DELAY - After scoop eject during MB start (rescue_cougar pattern)
+  ##############################################################################
+  mb_barrier_delay:
+    start_value: 0
+    end_value: 750
+    direction: up
+    tick_interval: 1ms
+    start_running: false
+    control_events:
+      - event: timer_mb_eject_debounce_complete
+        action: restart
+
+  mb_eject_debounce:
+    start_value: 0
+    end_value: 150
+    direction: up
+    tick_interval: 1ms
+    start_running: false
+    control_events:
+      - event: s_mode_start_inactive{current_player.multiball_intro_done==1}
+        action: restart
+      - event: s_mode_start_active
+        action: stop
+
+##############################################################################
+# SHOW PLAYER - MIG Insert Pulsing + GI Explosion
+##############################################################################
+show_player:
+  # --- MIG INSERT PULSING (red, using sync_flash_mb) ---
+  radar_activate_mig_left_orbit:
+    mig_lo_flash:
+      show: sync_flash_mb
+      key: mb_l_shot_left_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_orbit
+        color: red
+  radar_deactivate_mig_left_orbit:
+    mig_lo_stop:
+      show: sync_flash_mb
+      action: stop
+      key: mb_l_shot_left_orbit
+
+  radar_activate_mig_left_ramp:
+    mig_lr_flash:
+      show: sync_flash_mb
+      key: mb_l_shot_left_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+        color: red
+  radar_deactivate_mig_left_ramp:
+    mig_lr_stop:
+      show: sync_flash_mb
+      action: stop
+      key: mb_l_shot_left_ramp
+
+  radar_activate_mig_spinner:
+    mig_sp_flash:
+      show: sync_flash_mb
+      key: mb_l_shot_spinner
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_spinner
+        color: red
+  radar_deactivate_mig_spinner:
+    mig_sp_stop:
+      show: sync_flash_mb
+      action: stop
+      key: mb_l_shot_spinner
+
+  radar_activate_mig_barrier:
+    mig_cnt_flash:
+      show: sync_flash_mb
+      key: mb_l_shot_barrier
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_barrier
+        color: red
+  radar_deactivate_mig_barrier:
+    mig_cnt_stop:
+      show: sync_flash_mb
+      action: stop
+      key: mb_l_shot_barrier
+
+  radar_activate_mig_tower:
+    mig_twr_flash:
+      show: sync_flash_mb
+      key: mb_l_shot_tower_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_tower_ramp
+        color: red
+  radar_deactivate_mig_tower:
+    mig_twr_stop:
+      show: sync_flash_mb
+      action: stop
+      key: mb_l_shot_tower_ramp
+
+  radar_activate_mig_top_orbit:
+    mig_to_flash:
+      show: sync_flash_mb
+      key: mb_l_shot_middle_ramp_to
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: red
+  radar_deactivate_mig_top_orbit:
+    mig_to_stop:
+      show: sync_flash_mb
+      action: stop
+      key: mb_l_shot_middle_ramp_to
+
+  radar_activate_mig_top_ramp:
+    mig_tr_flash:
+      show: sync_flash_mb
+      key: mb_l_shot_middle_ramp_tr
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: red
+  radar_deactivate_mig_top_ramp:
+    mig_tr_stop:
+      show: sync_flash_mb
+      action: stop
+      key: mb_l_shot_middle_ramp_tr
+
+  radar_activate_mig_right_ramp:
+    mig_rr_flash:
+      show: sync_flash_mb
+      key: mb_l_shot_right_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
+        color: red
+  radar_deactivate_mig_right_ramp:
+    mig_rr_stop:
+      show: sync_flash_mb
+      action: stop
+      key: mb_l_shot_right_orbit
+
+  # --- GI EXPLOSION ON MIG KILL (2 second red/yellow/orange flicker) ---
+  radar_mig_explosion:
+    gi_boom:
+      show: gi_mig_explosion
+      loops: 0
+      priority: 200
+
+  # --- SUPER JACKPOT LIT FLASH ---
+  radar_super_jackpot_lit:
+    super_flash:
+      show: sync_flash_mb
+      key: mb_super_flash
+      sync_ms: 500
+      loops: -1
+      show_tokens:
+        led: l_shot_barrier
+        color: yellow
+
+  radar_super_jackpot_collected:
+    super_stop:
+      show: sync_flash_mb
+      action: stop
+      key: mb_super_flash
+
+##############################################################################
+# LIGHT PLAYER - GI Control
+##############################################################################
+light_player:
+  # GI turns red during multiball
+  mode_top_gun_multiball_started:
+    gi_lights:
+      color: red
+      fade: 500ms
+
+  # GI penalty: turn off
+  radar_penalty_gi_off:
+    gi_lights:
+      color: off
+      fade: 0ms
+
+  # GI penalty end: restore to red
+  radar_penalty_gi_off_ended:
+    gi_lights:
+      color: red
+      fade: 200ms
+
+  # Restore GI on mode stop
+  mode_top_gun_multiball_will_stop:
+    gi_lights:
+      color: white
+      fade: 0ms
+
+##############################################################################
+# SOUND PLAYER - Callouts
+# SOUND FILES NEEDED:
+#   top_gun_mb_instructions.ogg        - "Shoot the MIGs!" (plays when gameplay starts)
+#   top_gun_mb_evade.ogg               - "You've been locked on!"
+#   top_gun_mb_hit_no_hold_flippers.ogg
+#   top_gun_mb_hit_reversed_flippers.ogg
+#   top_gun_mb_hit_gi_off.ogg
+#   top_gun_mb_hit_scoring_reduced.ogg
+#   top_gun_mb_hit_progress_reset.ogg
+#   top_gun_mb_super_jackpot_lit.ogg
+#   top_gun_mb_super_hit.ogg
+##############################################################################
+sound_player:
+  # Instructions callout when gameplay begins (after intro or immediately if stacked)
+  mb_gameplay_start:
+    top_gun_mb_instructions:
+      bus: sfx
+      loops: 0
+
+  # "You've been locked on!"
+  radar_mig_lockon:
+    top_gun_mb_evade:
+      bus: sfx
+      loops: 0
+
+  # Penalty callouts (one per penalty type)
+  radar_penalty_no_hold:
+    top_gun_mb_hit_no_hold_flippers:
+      bus: sfx
+      loops: 0
+
+  radar_penalty_reversed:
+    top_gun_mb_hit_reversed_flippers:
+      bus: sfx
+      loops: 0
+
+  radar_penalty_gi_off:
+    top_gun_mb_hit_gi_off:
+      bus: sfx
+      loops: 0
+
+  radar_penalty_scoring_reduced:
+    top_gun_mb_hit_scoring_reduced:
+      bus: sfx
+      loops: 0
+
+  radar_penalty_progress_reset:
+    top_gun_mb_hit_progress_reset:
+      bus: sfx
+      loops: 0
+
+  # "Super jackpot is lit!"
+  radar_super_jackpot_lit:
+    top_gun_mb_super_jackpot_lit:
+      bus: sfx
+      loops: 0
+
+  # Super jackpot collected
+  radar_super_jackpot_collected:
+    top_gun_mb_super_hit:
+      bus: sfx
+      loops: 0
+
+##############################################################################
+# SLIDE PLAYER - Radar display + Videos
+##############################################################################
+slide_player:
+  # Radar display starts when gameplay begins (after intro or immediately if stacked)
+  mb_gameplay_start:
+    top_gun_multiball:
+      action: play
+      priority: 500
+  mode_top_gun_multiball_will_stop:
+    top_gun_multiball:
+      action: remove
+
+  # --- INTRO VIDEO (plays over radar until dismissed) ---
+  mb_intro_start:
+    top_gun_multiball_intro_video:
+      action: play
+      priority: 900
+  mb_skip_intro:
+    top_gun_multiball_intro_video:
+      action: remove
+  timer_mb_intro_video_delay_complete:
+    top_gun_multiball_intro_video:
+      action: remove
+
+  # --- EVADE VIDEOS (alternating) ---
+  mb_play_evade_1:
+    evade_1:
+      action: play
+      priority: 800
+      expire: 4s
+  mb_play_evade_2:
+    evade_2:
+      action: play
+      priority: 800
+      expire: 4s
+
+  # --- HIT VIDEOS (cycling, plays 3s after penalty callout) ---
+  mb_play_hit_1:
+    hit_1:
+      action: play
+      priority: 800
+      expire: 4s
+  mb_play_hit_2:
+    hit_2:
+      action: play
+      priority: 800
+      expire: 4s
+  mb_play_hit_3:
+    hit_3:
+      action: play
+      priority: 800
+      expire: 4s
+
+  # --- EXPLOSION VIDEOS (3.1s each, with cooldown) ---
+  mb_play_explosion_1:
+    mig_explosion_1:
+      action: play
+      priority: 800
+      expire: 4s
+  mb_play_explosion_2:
+    mig_explosion_2:
+      action: play
+      priority: 800
+      expire: 4s
+  mb_play_explosion_3:
+    mig_explosion_3:
+      action: play
+      priority: 800
+      expire: 4s

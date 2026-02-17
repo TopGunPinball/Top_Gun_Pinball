@@ -4,12 +4,10 @@ ball_devices:
   bd_plunger:
     ball_switches: s_shooter_lane
     entrance_count_delay: 300ms
-    eject_coil: c_plunger
     mechanical_eject: true
     confirm_eject_type: event
     confirm_eject_event: s_shooter_lane_inactive
-    eject_timeouts: 3s
-    eject_all_events: tilt
+    eject_timeouts: 10s
     
   bd_trough:
     ball_switches: s_trough_1, s_trough_2, s_trough_3, s_trough_4, s_trough_5, s_trough_6, s_jam
@@ -25,10 +23,33 @@ ball_devices:
   bd_lock_elevator:
     ball_switches: s_lock_plunger
     eject_coil: c_lock_upkicker
-    entrance_count_delay: 300ms
+    entrance_count_delay: 1s       # CHANGED from 300ms - 1 second debounce to prevent
+                                    # false fires from playfield vibration
     eject_timeouts: 3s
+    eject_targets: playfield        # Ball ejects "to playfield" so goose captures as
+                                    # unexpected → MPF serves replacement from trough
     eject_all_events: tilt
     
+  # Lock position 1 (Goose) - first ball lands here
+  bd_lock_goose:
+    ball_switches: s_lock_goose
+    mechanical_eject: true
+    entrance_count_delay: 500ms
+    eject_timeouts: 5s
+    eject_targets: playfield
+    auto_fire_on_unexpected_ball: false
+    eject_all_events: tilt, game_ending, lock_mech_release
+
+  # Lock position 2 (Mav) - second ball lands here
+  bd_lock_mav:
+    ball_switches: s_lock_mav
+    mechanical_eject: true
+    entrance_count_delay: 500ms
+    eject_timeouts: 5s
+    eject_targets: playfield
+    auto_fire_on_unexpected_ball: false
+    eject_all_events: tilt, game_ending, lock_mech_release
+
   bd_mode_scoop:
     ball_switches: s_mode_start
     eject_coil: c_mode_outkicker
