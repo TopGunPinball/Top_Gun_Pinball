@@ -32,7 +32,6 @@ ball_saves:
     grace_period: 500ms           # Brief window after drain detection
     auto_launch: true             # Auto-plunger fires the saved ball
     balls_to_save: 1              # Only save one ball per activation
-    early_ball_save_events: s_outlane_left_active, s_outlane_right_active
     enable_events: ball_save_new_ball_enable
     disable_events: ball_save_new_ball_disable, ball_save_new_ball_save_used
     timer_start_events: ball_save_new_ball_timer_start
@@ -52,7 +51,23 @@ ball_saves:
     grace_period: 500ms           # Brief window after drain detection
     auto_launch: true             # Auto-plunger fires the saved ball
     balls_to_save: -1             # UNLIMITED saves during active time
-    early_ball_save_events: s_outlane_left_active, s_outlane_right_active
     enable_events: ball_save_mode_timer_start
     disable_events: ball_save_mode_disable, timer_mode_ball_save_countdown_complete
+    debug: true
+
+  ##############################################################################
+  # SCOOP EJECT SAFETY SAVE
+  # - 5 second ball save after EVERY mode scoop eject
+  # - Prevents unfair drains from slingshot deflections or weak kick-outs
+  # - Fully automatic: enables + starts when scoop kicks ball out
+  # - Single save per eject (re-enables on next eject)
+  # - Silent save (no "ball saved" scene) - just a safety net
+  # - Stacks safely with new_ball_save and mode_ball_save
+  ##############################################################################
+  scoop_eject_save:
+    active_time: 5s
+    grace_period: 500ms
+    auto_launch: true
+    balls_to_save: 1
+    enable_events: balldevice_bd_mode_scoop_ejecting_ball
     debug: true

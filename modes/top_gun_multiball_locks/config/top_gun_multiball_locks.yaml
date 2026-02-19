@@ -68,6 +68,7 @@ multiball_locks:
   cockpit_lock_goose:
     balls_to_lock: 1
     lock_devices: bd_lock_goose
+    balls_to_replace: 0
     debug: true
     enable_events:
       - lock_goose_now_lit
@@ -81,6 +82,7 @@ multiball_locks:
   cockpit_lock_mav:
     balls_to_lock: 1
     lock_devices: bd_lock_mav
+    balls_to_replace: 0
     debug: true
     enable_events:
       - lock_mav_now_lit
@@ -156,9 +158,9 @@ timers:
   # Gives locked balls time to reach playfield
   lock_mb_release_delay:
     start_value: 0
-    end_value: 2
+    end_value: 500
     direction: up
-    tick_interval: 1s
+    tick_interval: 1ms
     start_running: false
     control_events:
       - event: multiball_start_sequence
@@ -174,6 +176,23 @@ timers:
     control_events:
       - event: lock_play_partial_callout
         action: restart
+
+  # Multiball + Mode choice countdown (15 seconds)
+  mb_mode_choice_timer:
+    start_value: 15
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: mb_mode_choice_start
+        action: restart
+      - event: mb_mode_choice_stack
+        action: stop
+      - event: mb_mode_choice_mb_only
+        action: stop
+      - event: mode_top_gun_multiball_locks_will_stop
+        action: stop
 
   # Letter sound delay - prevents sound from playing when it's the completing letter
   # lock_complete cancels this timer before it fires, so only the lit sound plays
@@ -193,6 +212,8 @@ timers:
       - event: lock_letter_k_collected
         action: restart
       - event: lock_complete
+        action: stop
+      - event: ball_started
         action: stop
 
   # Lock switch debounce - ball must sit on switch 500ms to register as locked
@@ -227,11 +248,11 @@ timers:
 
   ##############################################################################
   # GOOSE LOCK SEQUENCE TIMERS
-  # Flow: lock_goose_now_locked → video (6s) → callout (1s) → serve ball
+  # Flow: lock_goose_now_locked → video (7s) → callout (1s) → serve ball
   ##############################################################################
   lock_goose_callout_delay:
     start_value: 0
-    end_value: 6
+    end_value: 7
     direction: up
     tick_interval: 1s
     start_running: false
@@ -256,13 +277,13 @@ timers:
   ##############################################################################
   # MAV LOCK SEQUENCE TIMERS
   # Flow: lock_mav_now_locked → video+callout simultaneously (4s)
-  #       → "multiball lit" callout (~1.5s) → serve ball
+  #       → "multiball lit" callout after 1.75s (~1.5s) → serve ball
   ##############################################################################
   lock_mav_mb_lit_callout_delay:
     start_value: 0
-    end_value: 4
+    end_value: 1750
     direction: up
-    tick_interval: 1s
+    tick_interval: 1ms
     start_running: false
     control_events:
       - event: lock_mav_now_locked
@@ -488,6 +509,27 @@ variable_player:
     lock_collection_paused:
       action: set
       int: 1
+    # Clear choice state (in case choice was active)
+    mb_mode_choice_active:
+      action: set
+      int: 0
+
+  ##############################################################################
+  # MULTIBALL + MODE CHOICE VARIABLES
+  ##############################################################################
+  mb_mode_choice_start:
+    mb_mode_choice_active:
+      action: set
+      int: 1
+    mb_choice_seconds_remaining:
+      action: set
+      int: 15
+
+  # Update countdown variable each tick (decrements from 10)
+  timer_mb_mode_choice_timer_tick:
+    mb_choice_seconds_remaining:
+      action: add
+      int: -1
 
   ##############################################################################
   # MULTIBALL ENDED - Reset lock state for next attempt
@@ -524,6 +566,9 @@ variable_player:
       action: set
       int: 0
     lock_collection_paused:
+      action: set
+      int: 0
+    mb_mode_choice_active:
       action: set
       int: 0
 
@@ -636,6 +681,11 @@ event_player:
     - lock_letter_c_collected
   mode_top_gun_multiball_locks_started{current_player.multiball_times_played>=2 and current_player.lock_k_hits>=2}:
     - lock_letter_k_collected
+
+  # Restore LOCK letter inserts when both locks lit but letter hits already reset
+  # (happens when LOCK was fully completed, letters turned off, then ball ended)
+  mode_top_gun_multiball_locks_started{current_player.lock_goose_lit==1 and current_player.lock_mav_lit==1 and current_player.lock_l_hits==0}:
+    - lock_restore_all_letters
 
   ##############################################################################
   # LETTER COLLECTED EVENTS
@@ -758,6 +808,14 @@ event_player:
   lock_mav_now_locked{current_player.multiball_times_played==0 and current_player.lock_goose_locked==1}:
     - multiball_now_qualified
 
+  # 2ND+ ATTEMPT: After both balls locked → qualify multiball automatically
+  # No additional LOCK completion needed once both balls are physically locked
+  lock_mav_now_locked{current_player.multiball_times_played>=1 and current_player.lock_goose_locked==1}:
+    - multiball_now_qualified
+
+  lock_goose_now_locked{current_player.multiball_times_played>=1 and current_player.lock_mav_locked==1}:
+    - multiball_now_qualified
+
   ##############################################################################
   # DIVERTER CONTROL
   # Fire when ramp is hit AND a lock position is lit but not yet locked
@@ -803,7 +861,42 @@ event_player:
   # MULTIBALL START SEQUENCE
   # Ball enters mode scoop while multiball is qualified
   ##############################################################################
-  s_mode_start_active{current_player.multiball_qualified==1 and current_player.multiball_starting==0}:
+  
+  # MB qualified, NO mode qualified → start MB directly
+  s_mode_start_active{current_player.multiball_qualified==1 and current_player.multiball_starting==0 and current_player.qualified_mode_number==0}:
+    - multiball_start_sequence
+
+  # MB qualified AND mode qualified → show choice to player
+  s_mode_start_active{current_player.multiball_qualified==1 and current_player.multiball_starting==0 and current_player.qualified_mode_number>0 and current_player.mb_mode_choice_active==0}:
+    - mb_mode_choice_start
+
+  ##############################################################################
+  # MULTIBALL + MODE CHOICE SYSTEM
+  # When both MB and a pilot mode are qualified, let player choose:
+  #   Left flipper  = Stack mode WITH multiball
+  #   Right flipper = Multiball only (mode stays qualified for later)
+  #   Timeout (10s) = Defaults to multiball only
+  ##############################################################################
+
+  # Left flipper during choice → STACK (mode + MB)
+  s_flipper_left_active{current_player.mb_mode_choice_active==1}:
+    - mb_mode_choice_stack
+
+  # Right flipper during choice → MB ONLY
+  s_flipper_right_active{current_player.mb_mode_choice_active==1}:
+    - mb_mode_choice_mb_only
+
+  # Timeout → default to MB only
+  timer_mb_mode_choice_timer_complete:
+    - mb_mode_choice_mb_only
+
+  # STACK path: start both MB and the qualified mode
+  mb_mode_choice_stack:
+    - multiball_start_sequence
+    - mb_choice_start_qualified_mode
+
+  # MB ONLY path: start just MB, mode stays qualified for later
+  mb_mode_choice_mb_only:
     - multiball_start_sequence
 
   # After 2 second delay: release locked balls, release scoop, start MB
@@ -917,6 +1010,20 @@ light_player:
       fade: 0ms
 
   # lock_restore_lock_lit: l_lock_lit handled by show_player flash
+
+  lock_restore_all_letters:
+    l_lock_l:
+      color: white
+      fade: 0ms
+    l_lock_o:
+      color: white
+      fade: 0ms
+    l_lock_c:
+      color: white
+      fade: 0ms
+    l_lock_k:
+      color: white
+      fade: 0ms
 
   lock_restore_mb_qualified:
     l_multiball_lit:
@@ -1233,6 +1340,7 @@ show_player:
     lock_lit_pulse_goose:
       show: sync_flash_mb
       key: lock_lit_flash
+      priority: 1
       sync_ms: 1000
       loops: -1
       show_tokens:
@@ -1243,6 +1351,7 @@ show_player:
     lock_lit_pulse_mav:
       show: sync_flash_mb
       key: lock_lit_flash
+      priority: 1
       sync_ms: 1000
       loops: -1
       show_tokens:
@@ -1253,6 +1362,7 @@ show_player:
     lock_lit_pulse_restore:
       show: sync_flash_mb
       key: lock_lit_flash
+      priority: 1
       sync_ms: 1000
       loops: -1
       show_tokens:
@@ -1279,7 +1389,7 @@ show_player:
       key: lock_lit_flash
 
 ####################################################################################
-# SLIDE PLAYER - Ball Lock Videos
+# SLIDE PLAYER - Ball Lock Videos + Choice
 ####################################################################################
 slide_player:
   # Goose locked video
@@ -1287,7 +1397,7 @@ slide_player:
     goose_locked:
       action: play
       priority: 800
-      expire: 6s
+      expire: 7s
 
   # Maverick locked video
   lock_mav_now_locked:
@@ -1296,10 +1406,30 @@ slide_player:
       priority: 800
       expire: 5s
 
+  # Multiball + Mode stack choice slide
+  mb_mode_choice_start:
+    multiball_stack_choice:
+      action: play
+      priority: 900
+
+  mb_mode_choice_stack:
+    multiball_stack_choice:
+      action: remove
+
+  mb_mode_choice_mb_only:
+    multiball_stack_choice:
+      action: remove
+
 ####################################################################################
 # SOUND PLAYER
 ####################################################################################
 sound_player:
+  # Multiball + Mode stack choice instructions callout
+  mb_mode_choice_start:
+    multiball_stack_decision_instructions:
+      bus: voice
+      loops: 0
+
   # Letter collected callouts (delayed 150ms via timer to prevent overlap with lit sounds)
   lock_play_letter_l_sound:
     lock_letter_l_collected:

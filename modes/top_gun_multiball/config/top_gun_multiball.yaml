@@ -26,7 +26,6 @@
 #   radar_super_jackpot_lit      Super jackpot available
 #   radar_super_jackpot_collected Super jackpot hit
 #   radar_wave_advance           Wave difficulty increased
-#   radar_set_jackpot_value      Godot calculated jackpot (sets variable)
 #
 # MPF → GODOT EVENTS:
 #   multiball_mig_hit_[id]       Shot detected for active MIG
@@ -36,80 +35,282 @@
 
 mode:
   start_events: start_mode_top_gun_multiball
-  stop_events: top_gun_multiball_ended
+  stop_events: 
+    - top_gun_multiball_ended
+    - multiball_top_gun_multiball_ended
   priority: 400
   game_mode: true
 
 ##############################################################################
-# SHOWS - GI Explosion (2 seconds, red/yellow/orange flicker)
+# MULTIBALLS DEVICE - Tells MPF to expect 3 balls in play
+# Without this, MPF ends the ball on the first drain during multiball.
+# shoot_again provides a 15-second ball save at multiball start.
+##############################################################################
+multiballs:
+  top_gun_multiball:
+    ball_count: 3
+    ball_count_type: total
+    shoot_again: 15s
+    start_events: mb_balls_release
+    ball_locks: bd_lock_goose, bd_lock_mav
+
+##############################################################################
+# SHOWS - GI Explosion (4 seconds, red/yellow/orange flicker)
 ##############################################################################
 shows:
   gi_mig_explosion:
-    - duration: 150ms
-      lights:
-        gi_lights:
-          color: ff2200
-          fade: 0ms
     - duration: 100ms
       lights:
-        gi_lights:
-          color: ff8800
-          fade: 0ms
-    - duration: 150ms
-      lights:
-        gi_lights:
-          color: ff0000
-          fade: 0ms
+        l_gi_light_1: yellow
+        l_gi_light_2: orange
+        l_gi_light_3: red
+        l_gi_light_4: yellow
+        l_gi_light_5: orange
+        l_gi_light_6: red
+        l_gi_light_7: yellow
+        l_gi_light_8: orange
+        l_gi_light_9: red
+        l_gi_light_10: yellow
+        l_gi_light_11: orange
+        l_gi_light_12: red
+        l_gi_light_13: yellow
+        l_gi_light_14: orange
+        l_gi_light_15: red
+        l_gi_light_16: yellow
+        l_gi_light_17: orange
+        l_gi_light_18: red
+        l_gi_light_19: yellow
+        l_gi_light_20: orange
+        l_gi_light_21: red
+        l_gi_light_22: yellow
+        l_gi_light_23: orange
+        l_gi_light_24: red
+        l_gi_light_25: yellow
+        l_gi_light_26: orange
+        l_gi_light_27: red
+        l_apron_light_1: yellow
+        l_apron_light_2: orange
+        l_apron_light_3: red
+        l_apron_light_4: yellow
+        l_gi_light_pop_left: red
+        l_gi_light_pop_right: yellow
+        l_gi_light_pop_bottom: orange
     - duration: 100ms
       lights:
-        gi_lights:
-          color: ffcc00
-          fade: 0ms
-    - duration: 200ms
-      lights:
-        gi_lights:
-          color: ff4400
-          fade: 0ms
-    - duration: 150ms
-      lights:
-        gi_lights:
-          color: ff0000
-          fade: 0ms
+        l_gi_light_1: red
+        l_gi_light_2: yellow
+        l_gi_light_3: orange
+        l_gi_light_4: red
+        l_gi_light_5: yellow
+        l_gi_light_6: orange
+        l_gi_light_7: red
+        l_gi_light_8: yellow
+        l_gi_light_9: orange
+        l_gi_light_10: red
+        l_gi_light_11: yellow
+        l_gi_light_12: orange
+        l_gi_light_13: red
+        l_gi_light_14: yellow
+        l_gi_light_15: orange
+        l_gi_light_16: red
+        l_gi_light_17: yellow
+        l_gi_light_18: orange
+        l_gi_light_19: red
+        l_gi_light_20: yellow
+        l_gi_light_21: orange
+        l_gi_light_22: red
+        l_gi_light_23: yellow
+        l_gi_light_24: orange
+        l_gi_light_25: red
+        l_gi_light_26: yellow
+        l_gi_light_27: orange
+        l_apron_light_1: red
+        l_apron_light_2: yellow
+        l_apron_light_3: orange
+        l_apron_light_4: red
+        l_gi_light_pop_left: orange
+        l_gi_light_pop_right: red
+        l_gi_light_pop_bottom: yellow
     - duration: 100ms
       lights:
-        gi_lights:
-          color: ffaa00
-          fade: 0ms
-    - duration: 200ms
-      lights:
-        gi_lights:
-          color: ff2200
-          fade: 0ms
-    - duration: 150ms
-      lights:
-        gi_lights:
-          color: ff6600
-          fade: 0ms
+        l_gi_light_1: orange
+        l_gi_light_2: red
+        l_gi_light_3: yellow
+        l_gi_light_4: orange
+        l_gi_light_5: red
+        l_gi_light_6: yellow
+        l_gi_light_7: orange
+        l_gi_light_8: red
+        l_gi_light_9: yellow
+        l_gi_light_10: orange
+        l_gi_light_11: red
+        l_gi_light_12: yellow
+        l_gi_light_13: orange
+        l_gi_light_14: red
+        l_gi_light_15: yellow
+        l_gi_light_16: orange
+        l_gi_light_17: red
+        l_gi_light_18: yellow
+        l_gi_light_19: orange
+        l_gi_light_20: red
+        l_gi_light_21: yellow
+        l_gi_light_22: orange
+        l_gi_light_23: red
+        l_gi_light_24: yellow
+        l_gi_light_25: orange
+        l_gi_light_26: red
+        l_gi_light_27: yellow
+        l_apron_light_1: orange
+        l_apron_light_2: red
+        l_apron_light_3: yellow
+        l_apron_light_4: orange
+        l_gi_light_pop_left: yellow
+        l_gi_light_pop_right: orange
+        l_gi_light_pop_bottom: red
     - duration: 100ms
       lights:
-        gi_lights:
-          color: ff0000
-          fade: 0ms
-    - duration: 150ms
-      lights:
-        gi_lights:
-          color: ff4400
-          fade: 0ms
+        l_gi_light_1: yellow
+        l_gi_light_2: orange
+        l_gi_light_3: red
+        l_gi_light_4: yellow
+        l_gi_light_5: red
+        l_gi_light_6: orange
+        l_gi_light_7: yellow
+        l_gi_light_8: red
+        l_gi_light_9: orange
+        l_gi_light_10: yellow
+        l_gi_light_11: orange
+        l_gi_light_12: red
+        l_gi_light_13: yellow
+        l_gi_light_14: red
+        l_gi_light_15: orange
+        l_gi_light_16: yellow
+        l_gi_light_17: red
+        l_gi_light_18: orange
+        l_gi_light_19: yellow
+        l_gi_light_20: orange
+        l_gi_light_21: red
+        l_gi_light_22: yellow
+        l_gi_light_23: red
+        l_gi_light_24: orange
+        l_gi_light_25: yellow
+        l_gi_light_26: red
+        l_gi_light_27: orange
+        l_apron_light_1: yellow
+        l_apron_light_2: red
+        l_apron_light_3: orange
+        l_apron_light_4: yellow
+        l_gi_light_pop_left: red
+        l_gi_light_pop_right: orange
+        l_gi_light_pop_bottom: yellow
     - duration: 100ms
       lights:
-        gi_lights:
-          color: 220000
-          fade: 0ms
-    - duration: 150ms
+        l_gi_light_1: red
+        l_gi_light_2: yellow
+        l_gi_light_3: orange
+        l_gi_light_4: red
+        l_gi_light_5: orange
+        l_gi_light_6: yellow
+        l_gi_light_7: red
+        l_gi_light_8: orange
+        l_gi_light_9: yellow
+        l_gi_light_10: red
+        l_gi_light_11: yellow
+        l_gi_light_12: orange
+        l_gi_light_13: red
+        l_gi_light_14: orange
+        l_gi_light_15: yellow
+        l_gi_light_16: red
+        l_gi_light_17: orange
+        l_gi_light_18: yellow
+        l_gi_light_19: red
+        l_gi_light_20: yellow
+        l_gi_light_21: orange
+        l_gi_light_22: red
+        l_gi_light_23: orange
+        l_gi_light_24: yellow
+        l_gi_light_25: red
+        l_gi_light_26: orange
+        l_gi_light_27: yellow
+        l_apron_light_1: red
+        l_apron_light_2: orange
+        l_apron_light_3: yellow
+        l_apron_light_4: red
+        l_gi_light_pop_left: orange
+        l_gi_light_pop_right: yellow
+        l_gi_light_pop_bottom: red
+    - duration: 100ms
       lights:
-        gi_lights:
-          color: red
-          fade: 200ms
+        l_gi_light_1: orange
+        l_gi_light_2: red
+        l_gi_light_3: yellow
+        l_gi_light_4: orange
+        l_gi_light_5: yellow
+        l_gi_light_6: red
+        l_gi_light_7: orange
+        l_gi_light_8: yellow
+        l_gi_light_9: red
+        l_gi_light_10: orange
+        l_gi_light_11: red
+        l_gi_light_12: yellow
+        l_gi_light_13: orange
+        l_gi_light_14: yellow
+        l_gi_light_15: red
+        l_gi_light_16: orange
+        l_gi_light_17: yellow
+        l_gi_light_18: red
+        l_gi_light_19: orange
+        l_gi_light_20: red
+        l_gi_light_21: yellow
+        l_gi_light_22: orange
+        l_gi_light_23: yellow
+        l_gi_light_24: red
+        l_gi_light_25: orange
+        l_gi_light_26: yellow
+        l_gi_light_27: red
+        l_apron_light_1: orange
+        l_apron_light_2: yellow
+        l_apron_light_3: red
+        l_apron_light_4: orange
+        l_gi_light_pop_left: yellow
+        l_gi_light_pop_right: red
+        l_gi_light_pop_bottom: orange
+    - duration: 100ms
+      lights:
+        l_gi_light_1: yellow
+        l_gi_light_2: orange
+        l_gi_light_3: red
+        l_gi_light_4: yellow
+        l_gi_light_5: orange
+        l_gi_light_6: red
+        l_gi_light_7: yellow
+        l_gi_light_8: orange
+        l_gi_light_9: red
+        l_gi_light_10: yellow
+        l_gi_light_11: orange
+        l_gi_light_12: red
+        l_gi_light_13: yellow
+        l_gi_light_14: orange
+        l_gi_light_15: red
+        l_gi_light_16: yellow
+        l_gi_light_17: orange
+        l_gi_light_18: red
+        l_gi_light_19: yellow
+        l_gi_light_20: orange
+        l_gi_light_21: red
+        l_gi_light_22: yellow
+        l_gi_light_23: orange
+        l_gi_light_24: red
+        l_gi_light_25: yellow
+        l_gi_light_26: orange
+        l_gi_light_27: red
+        l_apron_light_1: yellow
+        l_apron_light_2: orange
+        l_apron_light_3: red
+        l_apron_light_4: yellow
+        l_gi_light_pop_left: red
+        l_gi_light_pop_right: yellow
+        l_gi_light_pop_bottom: orange
 
 ##############################################################################
 # VARIABLE PLAYER
@@ -175,12 +376,66 @@ variable_player:
     multiball_intro_done:
       action: set
       int: 0
+    # Jackpot decay tracking (MPF-side scoring)
+    mig_jackpot_left_orbit:
+      action: set
+      int: 0
+    mig_jackpot_left_ramp:
+      action: set
+      int: 0
+    mig_jackpot_spinner:
+      action: set
+      int: 0
+    mig_jackpot_barrier:
+      action: set
+      int: 0
+    mig_jackpot_tower:
+      action: set
+      int: 0
+    mig_jackpot_top_orbit:
+      action: set
+      int: 0
+    mig_jackpot_top_ramp:
+      action: set
+      int: 0
+    mig_jackpot_right_ramp:
+      action: set
+      int: 0
+    # Wave scoring multiplier (100 = 1x, 115 = 1.15x, etc.)
+    multiball_wave_multiplier_pct:
+      action: set
+      int: 100
+    # Evasion target tracking (set by Godot via radar_evasion_shot_[id])
+    multiball_evasion_left_orbit:
+      action: set
+      int: 0
+    multiball_evasion_left_ramp:
+      action: set
+      int: 0
+    multiball_evasion_spinner:
+      action: set
+      int: 0
+    multiball_evasion_barrier:
+      action: set
+      int: 0
+    multiball_evasion_tower:
+      action: set
+      int: 0
+    multiball_evasion_top_ramp:
+      action: set
+      int: 0
+    multiball_evasion_right_ramp:
+      action: set
+      int: 0
 
   # --- MIG ACTIVATION: Track which MIGs are on the radar ---
   radar_activate_mig_left_orbit:
     mig_left_orbit_active:
       action: set
       int: 1
+    mig_jackpot_left_orbit:
+      action: set
+      int: 500000 * current_player.multiball_wave_multiplier_pct / 100
   radar_deactivate_mig_left_orbit:
     mig_left_orbit_active:
       action: set
@@ -189,6 +444,9 @@ variable_player:
     mig_left_ramp_active:
       action: set
       int: 1
+    mig_jackpot_left_ramp:
+      action: set
+      int: 500000 * current_player.multiball_wave_multiplier_pct / 100
   radar_deactivate_mig_left_ramp:
     mig_left_ramp_active:
       action: set
@@ -197,6 +455,9 @@ variable_player:
     mig_spinner_active:
       action: set
       int: 1
+    mig_jackpot_spinner:
+      action: set
+      int: 500000 * current_player.multiball_wave_multiplier_pct / 100
   radar_deactivate_mig_spinner:
     mig_spinner_active:
       action: set
@@ -205,6 +466,9 @@ variable_player:
     mig_barrier_active:
       action: set
       int: 1
+    mig_jackpot_barrier:
+      action: set
+      int: 500000 * current_player.multiball_wave_multiplier_pct / 100
   radar_deactivate_mig_barrier:
     mig_barrier_active:
       action: set
@@ -213,6 +477,9 @@ variable_player:
     mig_tower_active:
       action: set
       int: 1
+    mig_jackpot_tower:
+      action: set
+      int: 750000 * current_player.multiball_wave_multiplier_pct / 100
   radar_deactivate_mig_tower:
     mig_tower_active:
       action: set
@@ -221,6 +488,9 @@ variable_player:
     mig_top_orbit_active:
       action: set
       int: 1
+    mig_jackpot_top_orbit:
+      action: set
+      int: 1000000 * current_player.multiball_wave_multiplier_pct / 100
   radar_deactivate_mig_top_orbit:
     mig_top_orbit_active:
       action: set
@@ -229,6 +499,9 @@ variable_player:
     mig_top_ramp_active:
       action: set
       int: 1
+    mig_jackpot_top_ramp:
+      action: set
+      int: 1250000 * current_player.multiball_wave_multiplier_pct / 100
   radar_deactivate_mig_top_ramp:
     mig_top_ramp_active:
       action: set
@@ -237,12 +510,51 @@ variable_player:
     mig_right_ramp_active:
       action: set
       int: 1
+    mig_jackpot_right_ramp:
+      action: set
+      int: 750000 * current_player.multiball_wave_multiplier_pct / 100
   radar_deactivate_mig_right_ramp:
     mig_right_ramp_active:
       action: set
       int: 0
 
-  # --- MIG DESTROYED (Godot sets multiball_last_jackpot before posting) ---
+  # --- MIG HIT: Capture current jackpot value before Godot confirms destroy ---
+  # MPF detects the shot hit BEFORE Godot posts radar_mig_destroyed.
+  # Set multiball_last_jackpot so the destroy handler can score it.
+  multiball_mig_hit_left_orbit:
+    multiball_last_jackpot:
+      action: set
+      int: current_player.mig_jackpot_left_orbit
+  multiball_mig_hit_left_ramp:
+    multiball_last_jackpot:
+      action: set
+      int: current_player.mig_jackpot_left_ramp
+  multiball_mig_hit_spinner:
+    multiball_last_jackpot:
+      action: set
+      int: current_player.mig_jackpot_spinner
+  multiball_mig_hit_barrier:
+    multiball_last_jackpot:
+      action: set
+      int: current_player.mig_jackpot_barrier
+  multiball_mig_hit_tower:
+    multiball_last_jackpot:
+      action: set
+      int: current_player.mig_jackpot_tower
+  multiball_mig_hit_top_orbit:
+    multiball_last_jackpot:
+      action: set
+      int: current_player.mig_jackpot_top_orbit
+  multiball_mig_hit_top_ramp:
+    multiball_last_jackpot:
+      action: set
+      int: current_player.mig_jackpot_top_ramp
+  multiball_mig_hit_right_ramp:
+    multiball_last_jackpot:
+      action: set
+      int: current_player.mig_jackpot_right_ramp
+
+  # --- MIG DESTROYED (multiball_last_jackpot set by hit handler above) ---
   radar_mig_destroyed:
     score:
       action: add
@@ -266,6 +578,65 @@ variable_player:
       action: add
       int: 1
 
+  # --- EVASION TARGET ACTIVATION (Godot posts radar_evasion_shot_[id]) ---
+  # Each event sets the corresponding evasion flag + clears all others
+  radar_evasion_shot_left_orbit:
+    multiball_evasion_left_orbit: { action: set, int: 1 }
+    multiball_evasion_left_ramp: { action: set, int: 0 }
+    multiball_evasion_spinner: { action: set, int: 0 }
+    multiball_evasion_barrier: { action: set, int: 0 }
+    multiball_evasion_tower: { action: set, int: 0 }
+    multiball_evasion_top_ramp: { action: set, int: 0 }
+    multiball_evasion_right_ramp: { action: set, int: 0 }
+  radar_evasion_shot_left_ramp:
+    multiball_evasion_left_orbit: { action: set, int: 0 }
+    multiball_evasion_left_ramp: { action: set, int: 1 }
+    multiball_evasion_spinner: { action: set, int: 0 }
+    multiball_evasion_barrier: { action: set, int: 0 }
+    multiball_evasion_tower: { action: set, int: 0 }
+    multiball_evasion_top_ramp: { action: set, int: 0 }
+    multiball_evasion_right_ramp: { action: set, int: 0 }
+  radar_evasion_shot_spinner:
+    multiball_evasion_left_orbit: { action: set, int: 0 }
+    multiball_evasion_left_ramp: { action: set, int: 0 }
+    multiball_evasion_spinner: { action: set, int: 1 }
+    multiball_evasion_barrier: { action: set, int: 0 }
+    multiball_evasion_tower: { action: set, int: 0 }
+    multiball_evasion_top_ramp: { action: set, int: 0 }
+    multiball_evasion_right_ramp: { action: set, int: 0 }
+  radar_evasion_shot_barrier:
+    multiball_evasion_left_orbit: { action: set, int: 0 }
+    multiball_evasion_left_ramp: { action: set, int: 0 }
+    multiball_evasion_spinner: { action: set, int: 0 }
+    multiball_evasion_barrier: { action: set, int: 1 }
+    multiball_evasion_tower: { action: set, int: 0 }
+    multiball_evasion_top_ramp: { action: set, int: 0 }
+    multiball_evasion_right_ramp: { action: set, int: 0 }
+  radar_evasion_shot_tower:
+    multiball_evasion_left_orbit: { action: set, int: 0 }
+    multiball_evasion_left_ramp: { action: set, int: 0 }
+    multiball_evasion_spinner: { action: set, int: 0 }
+    multiball_evasion_barrier: { action: set, int: 0 }
+    multiball_evasion_tower: { action: set, int: 1 }
+    multiball_evasion_top_ramp: { action: set, int: 0 }
+    multiball_evasion_right_ramp: { action: set, int: 0 }
+  radar_evasion_shot_top_ramp:
+    multiball_evasion_left_orbit: { action: set, int: 0 }
+    multiball_evasion_left_ramp: { action: set, int: 0 }
+    multiball_evasion_spinner: { action: set, int: 0 }
+    multiball_evasion_barrier: { action: set, int: 0 }
+    multiball_evasion_tower: { action: set, int: 0 }
+    multiball_evasion_top_ramp: { action: set, int: 1 }
+    multiball_evasion_right_ramp: { action: set, int: 0 }
+  radar_evasion_shot_right_ramp:
+    multiball_evasion_left_orbit: { action: set, int: 0 }
+    multiball_evasion_left_ramp: { action: set, int: 0 }
+    multiball_evasion_spinner: { action: set, int: 0 }
+    multiball_evasion_barrier: { action: set, int: 0 }
+    multiball_evasion_tower: { action: set, int: 0 }
+    multiball_evasion_top_ramp: { action: set, int: 0 }
+    multiball_evasion_right_ramp: { action: set, int: 1 }
+
   # --- EVASION SUCCESS ---
   radar_evasion_success:
     score:
@@ -274,6 +645,28 @@ variable_player:
     multiball_lockon_active:
       action: set
       int: 0
+    # Clear all evasion flags
+    multiball_evasion_left_orbit: { action: set, int: 0 }
+    multiball_evasion_left_ramp: { action: set, int: 0 }
+    multiball_evasion_spinner: { action: set, int: 0 }
+    multiball_evasion_barrier: { action: set, int: 0 }
+    multiball_evasion_tower: { action: set, int: 0 }
+    multiball_evasion_top_ramp: { action: set, int: 0 }
+    multiball_evasion_right_ramp: { action: set, int: 0 }
+
+  # --- EVASION FAILED ---
+  radar_evasion_failed:
+    multiball_lockon_active:
+      action: set
+      int: 0
+    # Clear all evasion flags
+    multiball_evasion_left_orbit: { action: set, int: 0 }
+    multiball_evasion_left_ramp: { action: set, int: 0 }
+    multiball_evasion_spinner: { action: set, int: 0 }
+    multiball_evasion_barrier: { action: set, int: 0 }
+    multiball_evasion_tower: { action: set, int: 0 }
+    multiball_evasion_top_ramp: { action: set, int: 0 }
+    multiball_evasion_right_ramp: { action: set, int: 0 }
 
   # --- LOCK-ON START ---
   radar_mig_lockon:
@@ -286,10 +679,24 @@ variable_player:
     multiball_super_lit:
       action: set
       int: 1
+    # Clear lockon/evasion state (super overrides lockon)
+    multiball_lockon_active:
+      action: set
+      int: 0
+    multiball_evasion_left_orbit: { action: set, int: 0 }
+    multiball_evasion_left_ramp: { action: set, int: 0 }
+    multiball_evasion_spinner: { action: set, int: 0 }
+    multiball_evasion_barrier: { action: set, int: 0 }
+    multiball_evasion_tower: { action: set, int: 0 }
+    multiball_evasion_top_ramp: { action: set, int: 0 }
+    multiball_evasion_right_ramp: { action: set, int: 0 }
 
   radar_super_jackpot_collected:
     score:
       action: add
+      int: current_player.multiball_jackpot_total * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
       int: current_player.multiball_jackpot_total * current_player.total_scoring_multiplier
     multiball_super_lit:
       action: set
@@ -306,6 +713,71 @@ variable_player:
     multiball_wave:
       action: add
       int: 1
+
+  # Wave scoring multiplier (conditions check POST-increment value)
+  # Wave 2: 15% better scoring
+  radar_wave_advance{current_player.multiball_wave==2}:
+    multiball_wave_multiplier_pct:
+      action: set
+      int: 115
+  # Wave 3: 25% better
+  radar_wave_advance{current_player.multiball_wave==3}:
+    multiball_wave_multiplier_pct:
+      action: set
+      int: 125
+  # Wave 4: 50% better
+  radar_wave_advance{current_player.multiball_wave==4}:
+    multiball_wave_multiplier_pct:
+      action: set
+      int: 150
+  # Wave 5: 75% better
+  radar_wave_advance{current_player.multiball_wave==5}:
+    multiball_wave_multiplier_pct:
+      action: set
+      int: 175
+  # Wave 6+: 2x scoring
+  radar_wave_advance{current_player.multiball_wave>=6}:
+    multiball_wave_multiplier_pct:
+      action: set
+      int: 200
+
+  # --- JACKPOT DECAY: Reduce MIG jackpot values every second ---
+  # EASY shots: 500K→100K over 30s = 13333/s decay
+  timer_mig_jackpot_decay_tick{current_player.mig_left_orbit_active==1 and current_player.mig_jackpot_left_orbit>100000}:
+    mig_jackpot_left_orbit:
+      action: add
+      int: -13333
+  timer_mig_jackpot_decay_tick{current_player.mig_left_ramp_active==1 and current_player.mig_jackpot_left_ramp>100000}:
+    mig_jackpot_left_ramp:
+      action: add
+      int: -13333
+  timer_mig_jackpot_decay_tick{current_player.mig_spinner_active==1 and current_player.mig_jackpot_spinner>100000}:
+    mig_jackpot_spinner:
+      action: add
+      int: -13333
+  timer_mig_jackpot_decay_tick{current_player.mig_barrier_active==1 and current_player.mig_jackpot_barrier>100000}:
+    mig_jackpot_barrier:
+      action: add
+      int: -13333
+  # MEDIUM shots: 750K→150K over 60s = 10000/s decay
+  timer_mig_jackpot_decay_tick{current_player.mig_tower_active==1 and current_player.mig_jackpot_tower>150000}:
+    mig_jackpot_tower:
+      action: add
+      int: -10000
+  timer_mig_jackpot_decay_tick{current_player.mig_right_ramp_active==1 and current_player.mig_jackpot_right_ramp>150000}:
+    mig_jackpot_right_ramp:
+      action: add
+      int: -10000
+  # HARD shot: 1M→200K over 90s = 8889/s decay
+  timer_mig_jackpot_decay_tick{current_player.mig_top_orbit_active==1 and current_player.mig_jackpot_top_orbit>200000}:
+    mig_jackpot_top_orbit:
+      action: add
+      int: -8889
+  # SUPER HARD shot: 1.25M→250K over 90s = 11111/s decay
+  timer_mig_jackpot_decay_tick{current_player.mig_top_ramp_active==1 and current_player.mig_jackpot_top_ramp>250000}:
+    mig_jackpot_top_ramp:
+      action: add
+      int: -11111
 
   # --- PENALTY TRACKING ---
   radar_penalty_no_hold:
@@ -347,12 +819,12 @@ variable_player:
       action: set
       int: 0
 
-  # --- VIDEO TRACKING: Evade toggle (alternates 0/1) ---
-  mb_toggle_evade{current_player.multiball_evade_toggle==0}:
+  # --- VIDEO TRACKING: Evade toggle (set on video play to avoid same-tick race) ---
+  mb_play_evade_1:
     multiball_evade_toggle:
       action: set
       int: 1
-  mb_toggle_evade{current_player.multiball_evade_toggle==1}:
+  mb_play_evade_2:
     multiball_evade_toggle:
       action: set
       int: 0
@@ -372,15 +844,16 @@ variable_player:
       int: 0
 
   # --- VIDEO TRACKING: Explosion index (cycles 0→1→2→0) ---
-  mb_advance_explosion_index{current_player.multiball_explosion_index==0}:
+  # Advance AFTER each specific explosion plays (cascade-free)
+  mb_play_explosion_1:
     multiball_explosion_index:
       action: set
       int: 1
-  mb_advance_explosion_index{current_player.multiball_explosion_index==1}:
+  mb_play_explosion_2:
     multiball_explosion_index:
       action: set
       int: 2
-  mb_advance_explosion_index{current_player.multiball_explosion_index>=2}:
+  mb_play_explosion_3:
     multiball_explosion_index:
       action: set
       int: 0
@@ -414,6 +887,12 @@ event_player:
 
   s_barrier_target_active{current_player.mig_barrier_active==1}:
     - multiball_mig_hit_barrier
+
+  # Super jackpot collection - barrier target when super is lit
+  # Post radar_super_jackpot_hit → Godot's _on_super() fires → 
+  # Godot posts radar_super_jackpot_collected + radar_wave_advance + spawns wave 2
+  s_barrier_target_active{current_player.multiball_super_lit==1}:
+    - radar_super_jackpot_hit
 
   s_ramp_tower_exit_active{current_player.mig_tower_active==1}:
     - multiball_mig_hit_tower
@@ -520,12 +999,11 @@ event_player:
     - barrier_raise
 
   # ===== EVADE VIDEOS (toggle evade_1 / evade_2) =====
+  # Toggle moves to variable_player on mb_play_evade events to prevent same-tick race
   radar_evasion_success{current_player.multiball_evade_toggle==0}:
     - mb_play_evade_1
-    - mb_toggle_evade
   radar_evasion_success{current_player.multiball_evade_toggle==1}:
     - mb_play_evade_2
-    - mb_toggle_evade
 
   # ===== HIT VIDEOS (cycle hit_1/hit_2/hit_3 after 3s callout delay) =====
   timer_mb_hit_video_delay_complete{current_player.multiball_hit_index==0}:
@@ -545,20 +1023,21 @@ event_player:
   radar_mig_destroyed_no_score{device.timers.mb_explosion_cooldown.running==False}:
     - mb_play_explosion_video
 
-  # Route to correct video based on index
+  # Route to correct video based on index (advance handled by variable_player on play events)
   mb_play_explosion_video{current_player.multiball_explosion_index==0}:
     - mb_play_explosion_1
-    - mb_advance_explosion_index
   mb_play_explosion_video{current_player.multiball_explosion_index==1}:
     - mb_play_explosion_2
-    - mb_advance_explosion_index
   mb_play_explosion_video{current_player.multiball_explosion_index>=2}:
     - mb_play_explosion_3
-    - mb_advance_explosion_index
 
   # GI explosion show triggers 1.25 seconds after video starts
   timer_mb_explosion_gi_delay_complete:
     - radar_mig_explosion
+
+  # GI explosion show stops 3 seconds after it starts
+  timer_mb_explosion_gi_stop_complete:
+    - mb_stop_explosion_gi
 
 ##############################################################################
 # TIMERS - One per stackable penalty
@@ -666,15 +1145,28 @@ timers:
       - event: mode_top_gun_multiball_will_stop
         action: stop
 
-  # GI explosion delay - 1.25 seconds after explosion video starts
+  # GI explosion delay - 1.75 seconds after explosion video starts
   mb_explosion_gi_delay:
     start_value: 0
-    end_value: 1250
+    end_value: 1750
     direction: up
     tick_interval: 1ms
     start_running: false
     control_events:
       - event: mb_play_explosion_video
+        action: restart
+      - event: mode_top_gun_multiball_will_stop
+        action: stop
+
+  # GI explosion stop - 3 seconds after GI explosion starts
+  mb_explosion_gi_stop:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: radar_mig_explosion
         action: restart
       - event: mode_top_gun_multiball_will_stop
         action: stop
@@ -703,6 +1195,31 @@ timers:
         action: restart
       - event: s_mode_start_active
         action: stop
+
+  ##############################################################################
+  # JACKPOT DECAY TIMER - Ticks every 1s to reduce MIG jackpot values
+  # Posts timer_mig_jackpot_decay_tick each second during multiball gameplay
+  ##############################################################################
+  mig_jackpot_decay:
+    start_value: 0
+    end_value: 999
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: mb_gameplay_start
+        action: start
+      - event: mode_top_gun_multiball_will_stop
+        action: stop
+      # Pause decay during lockon (MIGs are paused in Godot too)
+      - event: radar_mig_lockon
+        action: stop
+      - event: radar_evasion_success
+        action: start
+      - event: radar_evasion_failed
+        action: start
+      - event: radar_super_jackpot_lit
+        action: start
 
 ##############################################################################
 # SHOW PLAYER - MIG Insert Pulsing + GI Explosion
@@ -829,12 +1346,26 @@ show_player:
       action: stop
       key: mb_l_shot_right_orbit
 
-  # --- GI EXPLOSION ON MIG KILL (2 second red/yellow/orange flicker) ---
+  # --- GI EXPLOSION ON MIG KILL (missiles-style cycling, ~3 seconds) ---
   radar_mig_explosion:
     gi_boom:
       show: gi_mig_explosion
-      loops: 0
+      key: mb_gi_explosion
+      loops: -1
       priority: 200
+
+  mb_stop_explosion_gi:
+    gi_stop:
+      show: gi_mig_explosion
+      action: stop
+      key: mb_gi_explosion
+
+  # Also stop explosion on mode end (safety)
+  mode_top_gun_multiball_will_stop:
+    gi_cleanup:
+      show: gi_mig_explosion
+      action: stop
+      key: mb_gi_explosion
 
   # --- SUPER JACKPOT LIT FLASH ---
   radar_super_jackpot_lit:
@@ -846,6 +1377,11 @@ show_player:
       show_tokens:
         led: l_shot_barrier
         color: yellow
+    # Stop any active evade flash (super overrides lockon)
+    evade_stop_on_super:
+      show: sync_flash_mb
+      action: stop
+      key: mb_evade_flash
 
   radar_super_jackpot_collected:
     super_stop:
@@ -853,31 +1389,145 @@ show_player:
       action: stop
       key: mb_super_flash
 
+  # --- EVASION TARGET FLASH (green, fast pulse) ---
+  # Single key mb_evade_flash: each new target replaces previous
+  radar_evasion_shot_left_orbit:
+    evade_flash:
+      show: sync_flash_mb
+      key: mb_evade_flash
+      sync_ms: 400
+      loops: -1
+      show_tokens:
+        led: l_shot_left_orbit
+        color: lime
+  radar_evasion_shot_left_ramp:
+    evade_flash:
+      show: sync_flash_mb
+      key: mb_evade_flash
+      sync_ms: 400
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+        color: lime
+  radar_evasion_shot_spinner:
+    evade_flash:
+      show: sync_flash_mb
+      key: mb_evade_flash
+      sync_ms: 400
+      loops: -1
+      show_tokens:
+        led: l_shot_spinner
+        color: lime
+  radar_evasion_shot_barrier:
+    evade_flash:
+      show: sync_flash_mb
+      key: mb_evade_flash
+      sync_ms: 400
+      loops: -1
+      show_tokens:
+        led: l_shot_barrier
+        color: lime
+  radar_evasion_shot_tower:
+    evade_flash:
+      show: sync_flash_mb
+      key: mb_evade_flash
+      sync_ms: 400
+      loops: -1
+      show_tokens:
+        led: l_shot_tower_ramp
+        color: lime
+  radar_evasion_shot_top_ramp:
+    evade_flash:
+      show: sync_flash_mb
+      key: mb_evade_flash
+      sync_ms: 400
+      loops: -1
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: lime
+  radar_evasion_shot_right_ramp:
+    evade_flash:
+      show: sync_flash_mb
+      key: mb_evade_flash
+      sync_ms: 400
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
+        color: lime
+
+  # Stop evasion flash on success or failure
+  radar_evasion_success:
+    evade_stop:
+      show: sync_flash_mb
+      action: stop
+      key: mb_evade_flash
+  radar_evasion_failed:
+    evade_stop:
+      show: sync_flash_mb
+      action: stop
+      key: mb_evade_flash
+
 ##############################################################################
 # LIGHT PLAYER - GI Control
 ##############################################################################
 light_player:
-  # GI turns red during multiball
+  # GI turns red during multiball (including pop bumper lights)
   mode_top_gun_multiball_started:
     gi_lights:
       color: red
       fade: 500ms
+    l_gi_light_pop_left:
+      color: red
+      fade: 500ms
+    l_gi_light_pop_right:
+      color: red
+      fade: 500ms
+    l_gi_light_pop_bottom:
+      color: red
+      fade: 500ms
 
-  # GI penalty: turn off
+  # GI penalty: turn off (including pops)
   radar_penalty_gi_off:
     gi_lights:
       color: off
       fade: 0ms
+    l_gi_light_pop_left:
+      color: off
+      fade: 0ms
+    l_gi_light_pop_right:
+      color: off
+      fade: 0ms
+    l_gi_light_pop_bottom:
+      color: off
+      fade: 0ms
 
-  # GI penalty end: restore to red
+  # GI penalty end: restore to red (including pops)
   radar_penalty_gi_off_ended:
     gi_lights:
       color: red
       fade: 200ms
+    l_gi_light_pop_left:
+      color: red
+      fade: 200ms
+    l_gi_light_pop_right:
+      color: red
+      fade: 200ms
+    l_gi_light_pop_bottom:
+      color: red
+      fade: 200ms
 
-  # Restore GI on mode stop
+  # Restore GI on mode stop (including pops)
   mode_top_gun_multiball_will_stop:
     gi_lights:
+      color: white
+      fade: 0ms
+    l_gi_light_pop_left:
+      color: white
+      fade: 0ms
+    l_gi_light_pop_right:
+      color: white
+      fade: 0ms
+    l_gi_light_pop_bottom:
       color: white
       fade: 0ms
 
@@ -898,51 +1548,51 @@ sound_player:
   # Instructions callout when gameplay begins (after intro or immediately if stacked)
   mb_gameplay_start:
     top_gun_mb_instructions:
-      bus: sfx
+      bus: voice
       loops: 0
 
   # "You've been locked on!"
   radar_mig_lockon:
     top_gun_mb_evade:
-      bus: sfx
+      bus: voice
       loops: 0
 
   # Penalty callouts (one per penalty type)
   radar_penalty_no_hold:
     top_gun_mb_hit_no_hold_flippers:
-      bus: sfx
+      bus: voice
       loops: 0
 
   radar_penalty_reversed:
     top_gun_mb_hit_reversed_flippers:
-      bus: sfx
+      bus: voice
       loops: 0
 
   radar_penalty_gi_off:
     top_gun_mb_hit_gi_off:
-      bus: sfx
+      bus: voice
       loops: 0
 
   radar_penalty_scoring_reduced:
     top_gun_mb_hit_scoring_reduced:
-      bus: sfx
+      bus: voice
       loops: 0
 
   radar_penalty_progress_reset:
     top_gun_mb_hit_progress_reset:
-      bus: sfx
+      bus: voice
       loops: 0
 
   # "Super jackpot is lit!"
   radar_super_jackpot_lit:
     top_gun_mb_super_jackpot_lit:
-      bus: sfx
+      bus: voice
       loops: 0
 
   # Super jackpot collected
   radar_super_jackpot_collected:
     top_gun_mb_super_hit:
-      bus: sfx
+      bus: voice
       loops: 0
 
 ##############################################################################
@@ -1005,13 +1655,28 @@ slide_player:
       action: play
       priority: 800
       expire: 4s
+    mode_points_scored:
+      action: play
+      priority: 840
   mb_play_explosion_2:
     mig_explosion_2:
       action: play
       priority: 800
       expire: 4s
+    mode_points_scored:
+      action: play
+      priority: 840
   mb_play_explosion_3:
     mig_explosion_3:
       action: play
       priority: 800
       expire: 4s
+    mode_points_scored:
+      action: play
+      priority: 840
+
+  # Super jackpot collected - show points
+  radar_super_jackpot_collected:
+    mode_points_scored:
+      action: play
+      priority: 840

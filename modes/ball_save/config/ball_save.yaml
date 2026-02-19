@@ -7,6 +7,7 @@
 # This mode manages ball save functionality with:
 #   - Accelerating "shoot again" light flash as timer decreases
 #   - Two types of ball saves: new_ball and mode
+#   - Scoop eject safety save (5 seconds after every scoop kick)
 #   - Auto-plunger for saved balls
 #   - Godot scene "ball_saved" for new ball saves
 #
@@ -53,6 +54,32 @@ timers:
         action: restart
         value: time               # Uses 'time' parameter from event
       - event: ball_save_mode_save_disabled
+        action: stop
+
+  # Scoop eject safety save countdown (5 seconds)
+  scoop_save_countdown:
+    start_value: 5
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    control_events:
+      - event: ball_save_scoop_eject_save_timer_start
+        action: restart
+      - event: ball_save_scoop_eject_save_disabled
+        action: stop
+
+  # Auto-plunger delay - 1 second after saved ball settles on shooter lane
+  # Gated by ball_just_saved==1 so it does NOT fire during skillshot
+  # If MPF's auto_launch fires first, ball leaves and s_shooter_lane_inactive stops timer
+  ball_save_auto_plunger_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: s_shooter_lane_active{current_player.ball_just_saved==1}
+        action: restart
+      - event: s_shooter_lane_inactive
         action: stop
 
 ##############################################################################
@@ -145,6 +172,26 @@ event_player:
   timer_mode_ball_save_countdown_complete:
     - ball_save_flash_stop
 
+  ##############################################################################
+  # SCOOP EJECT SAVE LIGHT FLASH - 5 second duration
+  # Starts medium, speeds up, grace period at end
+  ##############################################################################
+  # 5-4 seconds: Medium flash
+  timer_scoop_save_countdown_tick{ticks>=4}:
+    - ball_save_flash_medium
+
+  # 3 seconds: Fast flash
+  timer_scoop_save_countdown_tick{ticks>=3 and ticks<4}:
+    - ball_save_flash_fast
+
+  # 2-0 seconds: Light OFF (grace period)
+  timer_scoop_save_countdown_tick{ticks<3}:
+    - ball_save_flash_off
+
+  # Timer complete - stop light
+  timer_scoop_save_countdown_complete:
+    - ball_save_flash_stop
+
 ##############################################################################
 # VARIABLE PLAYER
 ##############################################################################
@@ -181,6 +228,16 @@ variable_player:
     ball_save_active:
       action: set
       int: 0
+
+  ball_save_scoop_eject_save_enabled:
+    ball_save_active:
+      action: set
+      int: 1
+
+  ball_save_scoop_eject_save_disabled:
+    ball_save_active:
+      action: set
+      int: 0
   
   # Set flag when ball is saved (for skillshot mode to check)
   # This prevents skillshot from showing when a saved ball returns to shooter lane
@@ -190,6 +247,11 @@ variable_player:
       int: 1
   
   ball_save_mode_save_saving_ball:
+    ball_just_saved:
+      action: set
+      int: 1
+
+  ball_save_scoop_eject_save_saving_ball:
     ball_just_saved:
       action: set
       int: 1
@@ -210,6 +272,11 @@ variable_player:
     ball_save_time_remaining:
       action: set
       int: device.timers.mode_ball_save_countdown.ticks
+
+  timer_scoop_save_countdown_tick:
+    ball_save_time_remaining:
+      action: set
+      int: device.timers.scoop_save_countdown.ticks
 
 ##############################################################################
 # SHOW PLAYER - Accelerating light flash
@@ -232,6 +299,16 @@ show_player:
     ball_save_flash_show:
       key: ball_save_flash
       speed: 1                    # Start slow, timer ticks will adjust
+      loops: -1
+      show_tokens:
+        light: l_shoot_again
+        color: white
+
+  # Initial flash when SCOOP EJECT save starts (medium - only 5 seconds)
+  ball_save_scoop_eject_save_timer_start:
+    ball_save_flash_show:
+      key: ball_save_flash
+      speed: 2                    # Start at medium (500ms cycle)
       loops: -1
       show_tokens:
         light: l_shoot_again
@@ -294,6 +371,12 @@ show_player:
     ball_save_flash_show:
       key: ball_save_flash
       action: stop
+
+  # Scoop save triggered - stop flash (single use, done)
+  ball_save_scoop_eject_save_saving_ball:
+    ball_save_flash_show:
+      key: ball_save_flash
+      action: stop
   
   # Mode ball save continues - flash keeps going (don't stop on save)
 
@@ -324,6 +407,15 @@ slide_player:
     ball_saved:
       action: play
       expire: 3s
+
+##############################################################################
+# COIL PLAYER - Auto-plunger for saved balls
+##############################################################################
+coil_player:
+  # Auto-plunger fires 1 second after saved ball settles on shooter lane
+  timer_ball_save_auto_plunger_delay_complete:
+    c_plunger:
+      action: pulse
 
 ##############################################################################
 # SHOWS

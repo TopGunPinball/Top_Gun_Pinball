@@ -102,6 +102,22 @@ timers:
       - action: restart
         event: right_orbit_shot_hit
 
+  ##############################################
+  ## POST-MB BARRIER RESTORE
+  ## Short delay after multiball stops so barrier_drop fires
+  ## AFTER the locks mode's barrier_raise on the same event.
+  ## Only starts if mode is still qualified (qualified_mode_number>0).
+  ##############################################
+  post_mb_barrier_restore:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 500ms
+    start_running: false
+    control_events:
+      - event: mode_top_gun_multiball_stopped{current_player.qualified_mode_number>0}
+        action: restart
+
 
 
 slide_player:
@@ -271,190 +287,25 @@ slide_player:
 
 variable_player:
   player_added:
-    # GLOBAL pause flag - set by ANY mode that should block letter collection
-    letter_collection_paused:
+    ##########################################################################
+    # NOTE: All pilot mission qualifier variables have been moved OUT of
+    # player_added. They are initialized by their respective modes on
+    # mode_started events (or auto-created with default 0 by MPF).
+    #
+    # REASON: player_added fires when ANY player joins, including mid-game.
+    # If Player 2 joins during Player 1's multiball or pilot mode, these
+    # resets would overwrite Player 1's live game state (e.g., resetting
+    # letter_collection_paused=0 causes qualifying shot lights to flash
+    # during multiball, topgun_shots_collected=0 loses letter progress).
+    #
+    # MPF auto-creates player variables with default 0 when first set/read,
+    # which is the correct initial value for all these variables.
+    ##########################################################################
+    # Placeholder variable to prevent empty player_added section
+    _pmq_initialized:
       action: set
-      int: 0
-    # Lock letter collection pause flag
-    lock_collection_paused:
-      action: set
-      int: 0
-    # Pilot mode active flag - prevents bonus from starting during pilot modes
-    pilot_mode_active:
-      action: set
-      int: 0
-    # Drain pending flag - set when drain occurs during pilot mode
-    pilot_mode_drain_pending:
-      action: set
-      int: 0
-    # Spinner shot counter (tracks spins within 2-second window)
-    spinner_spin_count:
-      action: set
-      int: 0
-    ##############################################
-    ## SHOT TRACKING VARIABLES
-    ## Used for sneaky shot and under flipper shot detection
-    ##############################################
-    # Previous switch type for sneaky shot detection
-    # 0=other, 1=orbit_left, 2=upper_flipper_eos
-    previous_switch_type:
-      action: set
-      int: 0
-    # Left orbit diverter state (0=closed/inactive, 1=open/active)
-    left_orbit_diverter_active:
-      action: set
-      int: 0
-    # Shot counter (resets after each TOPGUN complete)
-    topgun_shots_collected:
-      action: set
-      int: 0
-    # Total modes completed (0-10)
-    modes_completed_count:
-      action: set
-      int: 0
-    # Which mode is currently qualified (0 = none, 1-10 = mode number)
-    qualified_mode_number:
-      action: set
-      int: 0
-    # Pause shot collection during skillshot/multiball (0=active, 1=paused)
-    pilot_qualifier_paused:
-      action: set
-      int: 0
-    # Track if ANY multiball is active (prevents mode start)
-    multiball_active:
-      action: set
-      int: 0
-    # Bonus tracking - training missions played (persists whole game)
-    training_missions_played:
-      action: set
-      int: 0
-    # Missiles training mission tracking
-    missiles_perk_active:
-      action: set
-      int: 0
-    missiles_perk_saved:
-      action: set
-      int: 0
-    # Inverted training mission perk tracking
-    inverted_perk_active:
-      action: set
-      int: 0
-    orbit_shot_lockout:
-      action: set
-      int: 0
-    # Afterburner training mission perk tracking
-    afterburner_perk_active:
-      action: set
-      int: 0
-    training_missles_complete:
-      action: set
-      int: 0
-    training_missions_played_count:
-      action: set
-      int: 0
-    # Bonus tracking - hard deck awards (persists whole game)
-    hard_deck_awards_count:
-      action: set
-      int: 0
-    # Bonus tracking - pilot missions won (persists whole game)
-    pilot_missions_won:
-      action: set
-      int: 0
-    # Track which modes are PLAYED (win or loss - prevents re-qualification)
-    mode_rescue_cougar_played:
-      action: set
-      int: 0
-    mode_balls_of_fire_played:
-      action: set
-      int: 0
-    mode_cool_under_pressure_played:
-      action: set
-      int: 0
-    mode_battle_jester_played:
-      action: set
-      int: 0
-    mode_no_points_for_second_place_played:
-      action: set
-      int: 0
-    mode_edge_of_space_played:
-      action: set
-      int: 0
-    mode_below_the_hard_deck_played:
-      action: set
-      int: 0
-    mode_canyon_run_played:
-      action: set
-      int: 0
-    mode_rise_of_phoenix_played:
-      action: set
-      int: 0
-    mode_no_margin_for_error_played:
-      action: set
-      int: 0
-    # Track which modes are WON (for bonus scoring)
-    mode_rescue_cougar_won:
-      action: set
-      int: 0
-    mode_balls_of_fire_won:
-      action: set
-      int: 0
-    mode_cool_under_pressure_won:
-      action: set
-      int: 0
-    mode_battle_jester_won:
-      action: set
-      int: 0
-    mode_no_points_for_second_place_won:
-      action: set
-      int: 0
-    mode_edge_of_space_won:
-      action: set
-      int: 0
-    mode_below_the_hard_deck_won:
-      action: set
-      int: 0
-    mode_canyon_run_won:
-      action: set
-      int: 0
-    mode_rise_of_phoenix_won:
-      action: set
-      int: 0
-    mode_no_margin_for_error_won:
-      action: set
-      int: 0
-    # Track which modes are COMPLETE (for rotation skip logic)
-    mode_rescue_cougar_complete:
-      action: set
-      int: 0
-    mode_balls_of_fire_complete:
-      action: set
-      int: 0
-    mode_cool_under_pressure_complete:
-      action: set
-      int: 0
-    mode_battle_jester_complete:
-      action: set
-      int: 0
-    mode_no_points_for_second_place_complete:
-      action: set
-      int: 0
-    mode_edge_of_space_complete:
-      action: set
-      int: 0
-    mode_below_the_hard_deck_complete:
-      action: set
-      int: 0
-    mode_canyon_run_complete:
-      action: set
-      int: 0
-    mode_rise_of_phoenix_complete:
-      action: set
-      int: 0
-    mode_no_margin_for_error_complete:
-      action: set
-      int: 0
-  
-  # Clear pause flag when rescue_cougar stops (can't do this in rescue_cougar itself)
+      int: 1
+
   mode_rescue_cougar_stopped:
     letter_collection_paused:
       action: set
@@ -618,13 +469,28 @@ variable_player:
       int: 0
 
 ##############################################
-## Shot Hit Tracking - ANY Shot Increments Counter
+## TIERED TOPGUN LETTER COLLECTION
+## Tier A (0-1 missions played): All 8 shots
+## Tier B (2-3 played): No Spinner
+## Tier C (4-5 played): LL, LR, TWR, TR, RR only
+## Tier D (6+ played): Rotating per letter
+## SP and TR are ALWAYS blocked when locks are lit
+## RO (right orbit) NEVER gives letters
 ##############################################
 
-  # ANY active shot just increments the counter
-  # Only count shots when NOT paused (either flag) AND not qualified
-  
-  s_lane_left_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
+  # Left Lane (LL) letter collection
+  # Tier A/B/C (played 0-5)
+  s_lane_left_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played<=5}:
+    topgun_shots_collected:
+      action: add
+      int: 1
+  # Tier D, letter T
+  s_lane_left_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==0}:
+    topgun_shots_collected:
+      action: add
+      int: 1
+  # Tier D, letter U
+  s_lane_left_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==4}:
     topgun_shots_collected:
       action: add
       int: 1
@@ -643,25 +509,55 @@ variable_player:
       action: set
       int: 0
 
-  # Left orbit letter collection
-  left_orbit_shot_hit{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
+  # Left Orbit (LO) letter collection
+  # Tier A/B (played 0-3)
+  left_orbit_shot_hit{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played<=3}:
+    topgun_shots_collected:
+      action: add
+      int: 1
+  # Tier D, letter T
+  left_orbit_shot_hit{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==0}:
+    topgun_shots_collected:
+      action: add
+      int: 1
+  # Tier D, letter U
+  left_orbit_shot_hit{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==4}:
     topgun_shots_collected:
       action: add
       int: 1
 
-  # Right orbit letter collection
-  right_orbit_shot_hit{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
+  # NOTE: Right Orbit (RO) NEVER gives TOPGUN letters - intentionally removed
+
+  # Left Ramp (LR) letter collection
+  # Tier A/B/C (played 0-5)
+  s_ramp_left_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played<=5}:
+    topgun_shots_collected:
+      action: add
+      int: 1
+  # Tier D, letter T
+  s_ramp_left_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==0}:
+    topgun_shots_collected:
+      action: add
+      int: 1
+  # Tier D, letter P
+  s_ramp_left_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==2}:
+    topgun_shots_collected:
+      action: add
+      int: 1
+  # Tier D, letter U
+  s_ramp_left_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==4}:
     topgun_shots_collected:
       action: add
       int: 1
 
-  s_ramp_left_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
+  # Spinner (SP) letter collection - ALWAYS blocked when locks lit
+  # Tier A only (played 0-1)
+  spinner_shot_made{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.lock_collection_paused==0 and current_player.pilot_missions_played<=1}:
     topgun_shots_collected:
       action: add
       int: 1
-
-  # Spinner letter collection - uses spinner_shot_made (requires 3 spins in 2 seconds)
-  spinner_shot_made{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
+  # Tier D, letter G
+  spinner_shot_made{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.lock_collection_paused==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==3}:
     topgun_shots_collected:
       action: add
       int: 1
@@ -706,22 +602,75 @@ variable_player:
       action: set
       int: 0
 
-  s_ramp_tower_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
+  # Tower Ramp (TWR) letter collection
+  # Tier A/B/C (played 0-5)
+  s_ramp_tower_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played<=5}:
+    topgun_shots_collected:
+      action: add
+      int: 1
+  # Tier D, letter P
+  s_ramp_tower_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==2}:
+    topgun_shots_collected:
+      action: add
+      int: 1
+  # Tier D, letter G
+  s_ramp_tower_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==3}:
+    topgun_shots_collected:
+      action: add
+      int: 1
+  # Tier D, letter N
+  s_ramp_tower_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==5}:
     topgun_shots_collected:
       action: add
       int: 1
 
-  s_orbit_upper_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
+  # Top Loop (TL) letter collection
+  # Tier A/B (played 0-3)
+  s_orbit_upper_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played<=3}:
+    topgun_shots_collected:
+      action: add
+      int: 1
+  # Tier D, letter O
+  s_orbit_upper_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==1}:
     topgun_shots_collected:
       action: add
       int: 1
 
-  s_ramp_inner_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
+  # Top Ramp (TR) letter collection - ALWAYS blocked when locks lit
+  # Tier A/B/C (played 0-5)
+  s_ramp_inner_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.lock_collection_paused==0 and current_player.pilot_missions_played<=5}:
+    topgun_shots_collected:
+      action: add
+      int: 1
+  # Tier D, letter O
+  s_ramp_inner_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.lock_collection_paused==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==1}:
+    topgun_shots_collected:
+      action: add
+      int: 1
+  # Tier D, letter N
+  s_ramp_inner_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.lock_collection_paused==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==5}:
     topgun_shots_collected:
       action: add
       int: 1
 
-  s_ramp_right_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
+  # Right Ramp (RR) letter collection
+  # Tier A/B/C (played 0-5)
+  s_ramp_right_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played<=5}:
+    topgun_shots_collected:
+      action: add
+      int: 1
+  # Tier D, letter O
+  s_ramp_right_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==1}:
+    topgun_shots_collected:
+      action: add
+      int: 1
+  # Tier D, letter P
+  s_ramp_right_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==2}:
+    topgun_shots_collected:
+      action: add
+      int: 1
+  # Tier D, letter N
+  s_ramp_right_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==5}:
     topgun_shots_collected:
       action: add
       int: 1
@@ -2041,35 +1990,73 @@ event_player:
   
   # Mode selection based on qualified mode when scoop is hit
   # Training mission must not be active
-  s_mode_start_active{current_player.qualified_mode_number==1 and current_player.mode_rescue_cougar_played==0 and current_player.training_mission_active==0}:
+  # multiball_qualified must be 0 (if both qualified, choice system handles it)
+  s_mode_start_active{current_player.qualified_mode_number==1 and current_player.mode_rescue_cougar_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
     - start_mode_rescue_cougar
   
-  s_mode_start_active{current_player.qualified_mode_number==2 and current_player.mode_balls_of_fire_played==0 and current_player.training_mission_active==0}:
+  s_mode_start_active{current_player.qualified_mode_number==2 and current_player.mode_balls_of_fire_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
     - start_mode_balls_of_fire
   
-  s_mode_start_active{current_player.qualified_mode_number==3 and current_player.mode_cool_under_pressure_played==0 and current_player.training_mission_active==0}:
+  s_mode_start_active{current_player.qualified_mode_number==3 and current_player.mode_cool_under_pressure_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
     - start_mode_cool_under_pressure
   
-  s_mode_start_active{current_player.qualified_mode_number==4 and current_player.mode_battle_jester_played==0 and current_player.training_mission_active==0}:
+  s_mode_start_active{current_player.qualified_mode_number==4 and current_player.mode_battle_jester_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
     - start_mode_battle_jester
   
-  s_mode_start_active{current_player.qualified_mode_number==5 and current_player.mode_no_points_for_second_place_played==0 and current_player.training_mission_active==0}:
+  s_mode_start_active{current_player.qualified_mode_number==5 and current_player.mode_no_points_for_second_place_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
     - start_mode_no_points_for_second_place
   
-  s_mode_start_active{current_player.qualified_mode_number==6 and current_player.mode_edge_of_space_played==0 and current_player.training_mission_active==0}:
+  s_mode_start_active{current_player.qualified_mode_number==6 and current_player.mode_edge_of_space_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
     - start_mode_edge_of_space
   
-  s_mode_start_active{current_player.qualified_mode_number==7 and current_player.mode_below_the_hard_deck_played==0 and current_player.training_mission_active==0}:
+  s_mode_start_active{current_player.qualified_mode_number==7 and current_player.mode_below_the_hard_deck_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
     - start_mode_below_the_hard_deck
   
-  s_mode_start_active{current_player.qualified_mode_number==8 and current_player.mode_canyon_run_played==0 and current_player.training_mission_active==0}:
+  s_mode_start_active{current_player.qualified_mode_number==8 and current_player.mode_canyon_run_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
     - start_mode_canyon_run
   
-  s_mode_start_active{current_player.qualified_mode_number==9 and current_player.mode_rise_of_phoenix_played==0 and current_player.training_mission_active==0}:
+  s_mode_start_active{current_player.qualified_mode_number==9 and current_player.mode_rise_of_phoenix_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
     - start_mode_rise_of_phoenix
   
-  s_mode_start_active{current_player.qualified_mode_number==10 and current_player.mode_no_margin_for_error_played==0 and current_player.training_mission_active==0}:
+  s_mode_start_active{current_player.qualified_mode_number==10 and current_player.mode_no_margin_for_error_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
     - start_mode_no_margin_for_error
+
+  ##############################################
+  ## MULTIBALL + MODE CHOICE - Start Qualified Mode
+  ## Fired by mb_mode_choice_stack in locks mode when player picks "stack"
+  ##############################################
+  mb_choice_start_qualified_mode{current_player.qualified_mode_number==1}:
+    - start_mode_rescue_cougar
+  mb_choice_start_qualified_mode{current_player.qualified_mode_number==2}:
+    - start_mode_balls_of_fire
+  mb_choice_start_qualified_mode{current_player.qualified_mode_number==3}:
+    - start_mode_cool_under_pressure
+  mb_choice_start_qualified_mode{current_player.qualified_mode_number==4}:
+    - start_mode_battle_jester
+  mb_choice_start_qualified_mode{current_player.qualified_mode_number==5}:
+    - start_mode_no_points_for_second_place
+  mb_choice_start_qualified_mode{current_player.qualified_mode_number==6}:
+    - start_mode_edge_of_space
+  mb_choice_start_qualified_mode{current_player.qualified_mode_number==7}:
+    - start_mode_below_the_hard_deck
+  mb_choice_start_qualified_mode{current_player.qualified_mode_number==8}:
+    - start_mode_canyon_run
+  mb_choice_start_qualified_mode{current_player.qualified_mode_number==9}:
+    - start_mode_rise_of_phoenix
+  mb_choice_start_qualified_mode{current_player.qualified_mode_number==10}:
+    - start_mode_no_margin_for_error
+
+  ##############################################
+  ## RESTORE MODE-LIT STATE AFTER MULTIBALL ENDS
+  ## If player chose "MB only" and mode is still qualified,
+  ## drop barrier so scoop is available for mode start.
+  ## Uses delayed event to fire AFTER locks mode's barrier_raise.
+  ##############################################
+  mode_top_gun_multiball_stopped{current_player.qualified_mode_number>0}:
+    - restore_qualified_mode_light
+  
+  timer_post_mb_barrier_restore_complete:
+    - barrier_drop
   
   ##############################################
   ## TOPGUN Reset Handler
@@ -2115,38 +2102,97 @@ event_player:
     topgun_letters_reset
 
   ##############################################
-  ## INVERTED PERK: Double TOPGUN Letters
-  ## When inverted_perk_active==1, each qualifying shot posts a DELAYED
-  ## extra letter event via timer. The 500ms delay prevents slide race
-  ## conditions when both normal and bonus letters fire in the same tick.
-  ## The variable_player handler caps at <6 to prevent overshooting.
+  ## QUALIFYING SHOW UPDATE TRIGGERS
+  ## Posts update_qualifying_show to refresh insert flashing
+  ## based on current tier, lock state, and letter progress
   ##############################################
-  
-  s_lane_left_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1}:
+
+  mode_pilot_mission_qualifier_started{current_player.qualified_mode_number==0 and current_player.letter_collection_paused==0 and current_player.pilot_qualifier_paused==0}:
+    - update_qualifying_show
+
+  player_letter_collection_paused{value==0 and current_player.qualified_mode_number==0 and current_player.pilot_qualifier_paused==0}:
+    - update_qualifying_show
+
+  player_pilot_qualifier_paused{value==0 and current_player.qualified_mode_number==0 and current_player.letter_collection_paused==0}:
+    - update_qualifying_show
+
+  player_lock_collection_paused{current_player.qualified_mode_number==0 and current_player.letter_collection_paused==0 and current_player.pilot_qualifier_paused==0}:
+    - update_qualifying_show
+
+  # Tier D: letter collected, show changes for next letter
+  player_topgun_shots_collected{value>=1 and value<=5 and current_player.pilot_missions_played>=6 and current_player.qualified_mode_number==0 and current_player.letter_collection_paused==0 and current_player.pilot_qualifier_paused==0}:
+    - update_qualifying_show
+
+  ##############################################
+  ## INVERTED PERK: Bonus TOPGUN Letter (Tiered)
+  ## Uses same tier rules as normal letter collection.
+  ## SP and TR ALWAYS blocked when locks lit. RO never gives letters.
+  ##############################################
+
+  # Left Lane (LL)
+  s_lane_left_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played<=5}:
+    - inverted_bonus_topgun_pending
+  s_lane_left_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==0}:
+    - inverted_bonus_topgun_pending
+  s_lane_left_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==4}:
     - inverted_bonus_topgun_pending
 
-  left_orbit_shot_hit{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1}:
+  # Left Orbit (LO)
+  left_orbit_shot_hit{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played<=3}:
+    - inverted_bonus_topgun_pending
+  left_orbit_shot_hit{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==0}:
+    - inverted_bonus_topgun_pending
+  left_orbit_shot_hit{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==4}:
     - inverted_bonus_topgun_pending
 
-  right_orbit_shot_hit{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1}:
+  # Left Ramp (LR)
+  s_ramp_left_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played<=5}:
+    - inverted_bonus_topgun_pending
+  s_ramp_left_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==0}:
+    - inverted_bonus_topgun_pending
+  s_ramp_left_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==2}:
+    - inverted_bonus_topgun_pending
+  s_ramp_left_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==4}:
     - inverted_bonus_topgun_pending
 
-  s_ramp_left_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1}:
+  # Spinner (SP) - ALWAYS blocked when locks lit
+  spinner_shot_made{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.lock_collection_paused==0 and current_player.pilot_missions_played<=1}:
+    - inverted_bonus_topgun_pending
+  spinner_shot_made{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.lock_collection_paused==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==3}:
     - inverted_bonus_topgun_pending
 
-  spinner_shot_made{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1}:
+  # Tower Ramp (TWR)
+  s_ramp_tower_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played<=5}:
+    - inverted_bonus_topgun_pending
+  s_ramp_tower_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==2}:
+    - inverted_bonus_topgun_pending
+  s_ramp_tower_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==3}:
+    - inverted_bonus_topgun_pending
+  s_ramp_tower_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==5}:
     - inverted_bonus_topgun_pending
 
-  s_ramp_tower_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1}:
+  # Top Loop (TL)
+  s_orbit_upper_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played<=3}:
+    - inverted_bonus_topgun_pending
+  s_orbit_upper_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==1}:
     - inverted_bonus_topgun_pending
 
-  s_orbit_upper_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1}:
+  # Top Ramp (TR) - ALWAYS blocked when locks lit
+  s_ramp_inner_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.lock_collection_paused==0 and current_player.pilot_missions_played<=5}:
+    - inverted_bonus_topgun_pending
+  s_ramp_inner_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.lock_collection_paused==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==1}:
+    - inverted_bonus_topgun_pending
+  s_ramp_inner_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.lock_collection_paused==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==5}:
     - inverted_bonus_topgun_pending
 
-  s_ramp_inner_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1}:
+  # Right Ramp (RR)
+  s_ramp_right_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played<=5}:
     - inverted_bonus_topgun_pending
-
-  s_ramp_right_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1}:
+  s_ramp_right_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==1}:
+    - inverted_bonus_topgun_pending
+  s_ramp_right_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==2}:
+    - inverted_bonus_topgun_pending
+  s_ramp_right_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==5}:
     - inverted_bonus_topgun_pending
 
   # Delayed bonus letter fires after 500ms timer
@@ -2158,39 +2204,123 @@ event_player:
 ##############################################
 
 show_player:
-  # Pulse all shot lights when mode starts and not qualified
-  mode_pilot_mission_qualifier_started{current_player.qualified_mode_number==0}:
-    qualifying_shots_pulse:
-      loops: -1
-      speed: 1
-  
-  # Stop pulsing when qualified
-  topgun_qualified:
-    qualifying_shots_pulse:
-      action: stop
-  
-  # Stop pulsing when letter collection paused
-  player_letter_collection_paused{value==1 and current_player.qualified_mode_number==0}:
-    qualifying_shots_pulse:
-      action: stop
-  
-  # Restart pulsing when letter collection unpaused (and not yet qualified)
-  player_letter_collection_paused{value==0 and current_player.qualified_mode_number==0}:
-    qualifying_shots_pulse:
-      loops: -1
-      speed: 1
-  
-  # Stop pulsing during skillshot (pilot_qualifier_paused)
-  player_pilot_qualifier_paused{value==1 and current_player.qualified_mode_number==0}:
-    qualifying_shots_pulse:
-      action: stop
+  ##############################################
+  ## QUALIFYING SHOT INSERT SHOWS (Tiered)
+  ## Start/swap driven by update_qualifying_show event
+  ## Stop driven by topgun_qualified and pause events
+  ##############################################
 
-  # Restart pulsing when skillshot ends (and not yet qualified)
-  player_pilot_qualifier_paused{value==0 and current_player.qualified_mode_number==0}:
-    qualifying_shots_pulse:
+  # Stop qualifying pulse when TOPGUN complete
+  topgun_qualified:
+    qual_tier_a:
+      action: stop
+      key: qualifying_pulse
+
+  # Stop qualifying pulse when paused
+  player_letter_collection_paused{value==1 and current_player.qualified_mode_number==0}:
+    qual_tier_a:
+      action: stop
+      key: qualifying_pulse
+
+  player_pilot_qualifier_paused{value==1 and current_player.qualified_mode_number==0}:
+    qual_tier_a:
+      action: stop
+      key: qualifying_pulse
+
+  # Tier A (0-1 missions played)
+  update_qualifying_show{current_player.pilot_missions_played<=1 and current_player.lock_collection_paused==0}:
+    qual_tier_a:
+      key: qualifying_pulse
       loops: -1
       speed: 1
-  
+
+  update_qualifying_show{current_player.pilot_missions_played<=1 and current_player.lock_collection_paused==1}:
+    qual_tier_ab_locks:
+      key: qualifying_pulse
+      loops: -1
+      speed: 1
+
+  # Tier B (2-3 missions played)
+  update_qualifying_show{current_player.pilot_missions_played>=2 and current_player.pilot_missions_played<=3 and current_player.lock_collection_paused==0}:
+    qual_tier_b:
+      key: qualifying_pulse
+      loops: -1
+      speed: 1
+
+  update_qualifying_show{current_player.pilot_missions_played>=2 and current_player.pilot_missions_played<=3 and current_player.lock_collection_paused==1}:
+    qual_tier_ab_locks:
+      key: qualifying_pulse
+      loops: -1
+      speed: 1
+
+  # Tier C (4-5 missions played)
+  update_qualifying_show{current_player.pilot_missions_played>=4 and current_player.pilot_missions_played<=5 and current_player.lock_collection_paused==0}:
+    qual_tier_c:
+      key: qualifying_pulse
+      loops: -1
+      speed: 1
+
+  update_qualifying_show{current_player.pilot_missions_played>=4 and current_player.pilot_missions_played<=5 and current_player.lock_collection_paused==1}:
+    qual_tier_c_locks:
+      key: qualifying_pulse
+      loops: -1
+      speed: 1
+
+  # Tier D (6+ missions played) - per letter
+  update_qualifying_show{current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==0}:
+    qual_tier_d_tu:
+      key: qualifying_pulse
+      loops: -1
+      speed: 1
+
+  update_qualifying_show{current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==1 and current_player.lock_collection_paused==0}:
+    qual_tier_d_o:
+      key: qualifying_pulse
+      loops: -1
+      speed: 1
+
+  update_qualifying_show{current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==1 and current_player.lock_collection_paused==1}:
+    qual_tier_d_o_locks:
+      key: qualifying_pulse
+      loops: -1
+      speed: 1
+
+  update_qualifying_show{current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==2}:
+    qual_tier_d_p:
+      key: qualifying_pulse
+      loops: -1
+      speed: 1
+
+  update_qualifying_show{current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==3 and current_player.lock_collection_paused==0}:
+    qual_tier_d_g:
+      key: qualifying_pulse
+      loops: -1
+      speed: 1
+
+  update_qualifying_show{current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==3 and current_player.lock_collection_paused==1}:
+    qual_tier_d_g_locks:
+      key: qualifying_pulse
+      loops: -1
+      speed: 1
+
+  update_qualifying_show{current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==4}:
+    qual_tier_d_tu:
+      key: qualifying_pulse
+      loops: -1
+      speed: 1
+
+  update_qualifying_show{current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==5 and current_player.lock_collection_paused==0}:
+    qual_tier_d_n:
+      key: qualifying_pulse
+      loops: -1
+      speed: 1
+
+  update_qualifying_show{current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==5 and current_player.lock_collection_paused==1}:
+    qual_tier_d_n_locks:
+      key: qualifying_pulse
+      loops: -1
+      speed: 1
+
   # Stop all pulse shows so new one can start
   stop_all_mode_pulse_shows:
     rescue_cougar_pulse:
@@ -2438,7 +2568,8 @@ show_player:
       key: no_margin_pulse
 
 shows:
-  qualifying_shots_pulse:
+  # Tier A: All 8 shots (0-1 missions played)
+  qual_tier_a:
     - duration: 0.75s
       lights:
         l_shot_left_lane: white
@@ -2459,6 +2590,172 @@ shows:
         l_shot_upper_orbit: off
         l_shot_middle_ramp: off
         l_shot_right_orbit: off
+
+  # Tier A/B locks variant: No Spinner or Top Ramp
+  qual_tier_ab_locks:
+    - duration: 0.75s
+      lights:
+        l_shot_left_lane: white
+        l_shot_left_orbit: white
+        l_shot_left_ramp: white
+        l_shot_tower_ramp: white
+        l_shot_upper_orbit: white
+        l_shot_right_orbit: white
+    - duration: 0.75s
+      lights:
+        l_shot_left_lane: off
+        l_shot_left_orbit: off
+        l_shot_left_ramp: off
+        l_shot_tower_ramp: off
+        l_shot_upper_orbit: off
+        l_shot_right_orbit: off
+
+  # Tier B: No Spinner (2-3 missions played)
+  qual_tier_b:
+    - duration: 0.75s
+      lights:
+        l_shot_left_lane: white
+        l_shot_left_orbit: white
+        l_shot_left_ramp: white
+        l_shot_tower_ramp: white
+        l_shot_upper_orbit: white
+        l_shot_middle_ramp: white
+        l_shot_right_orbit: white
+    - duration: 0.75s
+      lights:
+        l_shot_left_lane: off
+        l_shot_left_orbit: off
+        l_shot_left_ramp: off
+        l_shot_tower_ramp: off
+        l_shot_upper_orbit: off
+        l_shot_middle_ramp: off
+        l_shot_right_orbit: off
+
+  # Tier C: LL, LR, TWR, TR, RR (4-5 missions played)
+  qual_tier_c:
+    - duration: 0.75s
+      lights:
+        l_shot_left_lane: white
+        l_shot_left_ramp: white
+        l_shot_tower_ramp: white
+        l_shot_middle_ramp: white
+        l_shot_right_orbit: white
+    - duration: 0.75s
+      lights:
+        l_shot_left_lane: off
+        l_shot_left_ramp: off
+        l_shot_tower_ramp: off
+        l_shot_middle_ramp: off
+        l_shot_right_orbit: off
+
+  # Tier C locks variant: No Top Ramp
+  qual_tier_c_locks:
+    - duration: 0.75s
+      lights:
+        l_shot_left_lane: white
+        l_shot_left_ramp: white
+        l_shot_tower_ramp: white
+        l_shot_right_orbit: white
+    - duration: 0.75s
+      lights:
+        l_shot_left_lane: off
+        l_shot_left_ramp: off
+        l_shot_tower_ramp: off
+        l_shot_right_orbit: off
+
+  # Tier D: T and U letters (LL, LO, LR)
+  qual_tier_d_tu:
+    - duration: 0.75s
+      lights:
+        l_shot_left_lane: white
+        l_shot_left_orbit: white
+        l_shot_left_ramp: white
+    - duration: 0.75s
+      lights:
+        l_shot_left_lane: off
+        l_shot_left_orbit: off
+        l_shot_left_ramp: off
+
+  # Tier D: O letter (TL, TR, RR)
+  qual_tier_d_o:
+    - duration: 0.75s
+      lights:
+        l_shot_upper_orbit: white
+        l_shot_middle_ramp: white
+        l_shot_right_orbit: white
+    - duration: 0.75s
+      lights:
+        l_shot_upper_orbit: off
+        l_shot_middle_ramp: off
+        l_shot_right_orbit: off
+
+  # Tier D: O letter locks variant (TL, RR)
+  qual_tier_d_o_locks:
+    - duration: 0.75s
+      lights:
+        l_shot_upper_orbit: white
+        l_shot_right_orbit: white
+    - duration: 0.75s
+      lights:
+        l_shot_upper_orbit: off
+        l_shot_right_orbit: off
+
+  # Tier D: P letter (LR, TWR, RR)
+  qual_tier_d_p:
+    - duration: 0.75s
+      lights:
+        l_shot_left_ramp: white
+        l_shot_tower_ramp: white
+        l_shot_right_orbit: white
+    - duration: 0.75s
+      lights:
+        l_shot_left_ramp: off
+        l_shot_tower_ramp: off
+        l_shot_right_orbit: off
+
+  # Tier D: G letter (SP, TWR)
+  qual_tier_d_g:
+    - duration: 0.75s
+      lights:
+        l_shot_spinner: white
+        l_shot_tower_ramp: white
+    - duration: 0.75s
+      lights:
+        l_shot_spinner: off
+        l_shot_tower_ramp: off
+
+  # Tier D: G letter locks variant (TWR only)
+  qual_tier_d_g_locks:
+    - duration: 0.75s
+      lights:
+        l_shot_tower_ramp: white
+    - duration: 0.75s
+      lights:
+        l_shot_tower_ramp: off
+
+  # Tier D: N letter (RR, TWR, TR)
+  qual_tier_d_n:
+    - duration: 0.75s
+      lights:
+        l_shot_right_orbit: white
+        l_shot_tower_ramp: white
+        l_shot_middle_ramp: white
+    - duration: 0.75s
+      lights:
+        l_shot_right_orbit: off
+        l_shot_tower_ramp: off
+        l_shot_middle_ramp: off
+
+  # Tier D: N letter locks variant (RR, TWR)
+  qual_tier_d_n_locks:
+    - duration: 0.75s
+      lights:
+        l_shot_right_orbit: white
+        l_shot_tower_ramp: white
+    - duration: 0.75s
+      lights:
+        l_shot_right_orbit: off
+        l_shot_tower_ramp: off
 
 ##############################################
 ## Light Player
