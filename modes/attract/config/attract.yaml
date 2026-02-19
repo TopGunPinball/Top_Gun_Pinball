@@ -33,6 +33,7 @@ sound_player:
       loops: -1
 
 # Kick off the chained cycle and home all servos
+# Also clear any ball stuck in mode scoop (barrier blocks eject on cold boot)
 event_player:
   mode_attract_started:
     - attract_cycle_step1
@@ -40,19 +41,39 @@ event_player:
     - top_ramp_down
     - lock_released
 
+  # If ball is stuck in mode scoop on boot, drop barrier so it can eject
+  mode_attract_started{device.switches.s_mode_start.state==1}:
+    - attract_scoop_clear_start
+
+  # After delay, raise barrier back up
+  timer_attract_scoop_clear_delay_complete:
+    - attract_scoop_clear_done
+
 ##############################################
 ## Start Button LED - Slow flash in attract mode
 ##############################################
 coil_player:
-  # Stop flashing (turn off) when attract mode ends
+  # Stop flashing (turn off) when attract mode ends + safety barrier raise
   mode_attract_stopping:
     c_start_button_led:
+      action: disable
+    c_mode_barrier:
       action: disable
 
   # Clear any ball stuck in shooter lane when attract starts (boot/game over)
   mode_attract_started{device.switches.s_shooter_lane.state==1}:
     c_plunger:
       action: pulse
+
+  # Drop barrier directly (pilot_mission_qualifier not running in attract)
+  attract_scoop_clear_start:
+    c_mode_barrier:
+      action: enable
+
+  # Raise barrier after delay
+  attract_scoop_clear_done:
+    c_mode_barrier:
+      action: disable
 
 show_player:                                            # Light Shows being played
   # Start button slow flash during attract
@@ -126,6 +147,19 @@ timers:
         action: stop
       - event: flipper_cradle_release
         action: restart
+
+  # Delay before raising barrier after scoop clears stuck ball
+  attract_scoop_clear_delay:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: attract_scoop_clear_start
+        action: start
+      - event: mode_attract_will_stop
+        action: stop
 
 ##############################################
 ## SHOWS - Start Button Flash

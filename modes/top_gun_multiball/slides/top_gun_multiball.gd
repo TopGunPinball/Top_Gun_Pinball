@@ -19,6 +19,8 @@ const MIG_DEFS := {
     "mpf_hit_event":"multiball_mig_hit_right_ramp","mpf_activate_event":"radar_activate_mig_right_ramp","mpf_deactivate_event":"radar_deactivate_mig_right_ramp"},
 }
 const EVASION_SHOTS := ["left_orbit","left_ramp","spinner","barrier","tower","top_ramp","right_ramp"]
+# Wave 1 uses fixed shots matching intro animation (no regeneration)
+const WAVE1_SHOTS := ["left_orbit","left_ramp","right_ramp","tower","spinner"]
 # Display-only scores (MPF handles actual scoring via variable_player)
 const SCORE_TIERS := {"easy":[500000,100000],"medium":[750000,150000],"hard":[1000000,200000]}
 const WAVE_CFG := [[1.0,1.0,5],[1.15,1.15,10],[1.25,1.25,20],[1.5,1.5,40],[1.75,1.75,80],[2.0,2.0,160]]
@@ -135,7 +137,11 @@ func _process(delta: float) -> void:
   match gs:
     GS.PLAY: _umigs(delta)
     GS.LOCKON: lkT-=delta; if lkT<=0: _efail()
-    GS.SPLASH: spT-=delta; if spT<=0: gs=GS.PLAY; _srm()
+    GS.SPLASH:
+      spT-=delta
+      if spT<=0:
+        gs=GS.PLAY
+        if wav > 1: _srm()
   queue_redraw()
 
 func _draw() -> void:
@@ -254,6 +260,25 @@ func _draw_panel() -> void:
       draw_string(df,Vector2(cx, cy),"%ds" % int(ceil(pen["t"])),HORIZONTAL_ALIGNMENT_LEFT,-1,11,Color(1,0.4,0.2,0.4+fl*0.3))
       cy += 20
 
+  # --- COMBAT AIDS section (orange) ---
+  cy += 28
+  draw_line(Vector2(cx, cy - 12), Vector2(cx + cw * 0.6, cy - 12), Color(0.8,0.4,0,0.2), 1)
+  draw_string(df,Vector2(cx, cy),"COMBAT AIDS",HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color(0.9,0.5,0.1,0.65))
+  cy += 20
+  var aab_ready = _get_mpf_var("mb_add_a_ball_ready", 0)
+  var aab_used = _get_mpf_var("mb_add_a_balls_used", 0)
+  var aab_text = "YES" if aab_ready == 1 else ("DONE" if aab_used >= 2 else "NO")
+  var aab_col = Color(1,0.7,0,0.85) if aab_ready == 1 else Color(0.5,0.3,0.05,0.4)
+  draw_string(df,Vector2(cx, cy),"ADD A BALL:",HORIZONTAL_ALIGNMENT_LEFT,-1,12,Color(0.9,0.5,0.1,0.5))
+  draw_string(df,Vector2(cx+90, cy),aab_text,HORIZONTAL_ALIGNMENT_LEFT,-1,12,aab_col)
+  cy += 18
+  var ext_active = _get_mpf_var("wingman_perk_active", 0)
+  var ext_used = _get_mpf_var("mb_extender_used", 0)
+  var ext_text = "ACTIVE" if (ext_active == 1 and ext_used == 0) else "NO"
+  var ext_col = Color(1,0.7,0,0.85) if (ext_active == 1 and ext_used == 0) else Color(0.5,0.3,0.05,0.4)
+  draw_string(df,Vector2(cx, cy),"MB EXTENDER:",HORIZONTAL_ALIGNMENT_LEFT,-1,12,Color(0.9,0.5,0.1,0.5))
+  draw_string(df,Vector2(cx+100, cy),ext_text,HORIZONTAL_ALIGNMENT_LEFT,-1,12,ext_col)
+
 func _dlockon() -> void:
   draw_rect(Rect2(Vector2.ZERO,size),Color(0,0,0,0.55))
   var fl = abs(sin(lkT*3)); var bc = Color(1,0.25,0,0.4+fl*0.5)
@@ -281,6 +306,11 @@ func _umigs(dt: float) -> void:
     if ms[id]["dist"]<=CT: _slk(id); return
 
 func _spawn_init() -> void:
+  if wav == 1:
+    # Wave 1: fixed shots matching intro animation (no regeneration)
+    for id in WAVE1_SHOTS: _am(id)
+    return
+  # Wave 2+: random selection with regeneration
   var h=[]; var m=[]; var e=[]
   for id in MIG_DEFS:
     match MIG_DEFS[id]["difficulty"]:
@@ -326,7 +356,7 @@ func _destroy(id: String) -> void:
     # Cancel any active lockon (super overrides it)
     if gs==GS.LOCKON: gs=GS.PLAY; lkId=""; evId=""
   elif not supLit:
-    call_deferred("_srm")
+    if wav > 1: call_deferred("_srm")
 
 func _slk(id: String) -> void:
   gs=GS.LOCKON; lkT=LT; lkId=id; ms[id]["dist"]=CT
@@ -336,20 +366,35 @@ func _slk(id: String) -> void:
 
 func _on_evade(_msg = null) -> void:
   if gs!=GS.LOCKON: return
+  var evaded_id = lkId
   _dm(lkId); gs=GS.PLAY; lkId=""; evId=""
   _ev("radar_evasion_success")
   # Reward: push ALL active MIGs back by 20 seconds of movement
   for id in ms:
     if ms[id]["on"]:
       ms[id]["dist"] = min(ms[id]["dist"] + ms[id]["spd"] * _ws() * 20.0, SD)
-  if not supLit: call_deferred("_srm")
+  if not supLit:
+    if wav == 1:
+      # Wave 1: re-activate evaded MIG at edge (no regen, can't lose targets)
+      _am(evaded_id)
+    else:
+      call_deferred("_srm")
 
 func _efail() -> void:
+  var failed_id = lkId
   _dm(lkId); lkId=""; evId=""
   var pd = PENALTY_DEFS[randi()%PENALTY_DEFS.size()]
   lastPen=pd["name"]
-  if pd["id"]=="progress_reset": kwav=0; _ev(pd["se"])
-  else: pens.append({"id":pd["id"],"n":pd["name"],"t":pd["dur"],"ee":pd["ee"]}); _ev(pd["se"])
+  if pd["id"]=="progress_reset":
+    kwav=0; _ev(pd["se"])
+    # Wave 1: re-activate all fixed MIGs since there's no regeneration
+    if wav == 1:
+      _clear_all_migs()
+      for id in WAVE1_SHOTS: _am(id)
+  else:
+    pens.append({"id":pd["id"],"n":pd["name"],"t":pd["dur"],"ee":pd["ee"]}); _ev(pd["se"])
+    # Wave 1: re-activate the failed MIG at edge (can't lose targets)
+    if wav == 1: _am(failed_id)
   # Push ALL active MIGs back by 20 seconds on penalty (same as evade success)
   for id in ms:
     if ms[id]["on"]:
@@ -365,7 +410,12 @@ func _on_shot(_msg, id: String) -> void:
     if id in ms and ms[id]["on"]:
       _spawn_explosion(_mp(id)); _dm(id)
       _ev("radar_mig_destroyed_no_score")
-      if not supLit: call_deferred("_srm")
+      if not supLit:
+        if wav == 1:
+          # Wave 1: re-activate (no score = no credit, MIG comes back)
+          call_deferred("_am", id)
+        else:
+          call_deferred("_srm")
     return
   _destroy(id)
 

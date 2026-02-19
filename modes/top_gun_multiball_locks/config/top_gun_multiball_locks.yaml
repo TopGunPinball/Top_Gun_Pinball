@@ -647,10 +647,11 @@ event_player:
   mode_top_gun_multiball_locks_started{(current_player.lock_goose_lit==1 and current_player.lock_goose_locked==0) or (current_player.lock_mav_lit==1 and current_player.lock_mav_locked==0)}:
     - lock_restore_lock_lit
 
-  # Restore multiball qualified state
+  # Restore multiball qualified state (re-enable ball_hold for scoop)
   mode_top_gun_multiball_locks_started{current_player.multiball_qualified==1}:
     - lock_restore_mb_qualified
     - barrier_drop
+    - multiball_now_qualified
 
   # Restore partial letter flash states (3rd+ attempt, letters with 1 hit)
   mode_top_gun_multiball_locks_started{current_player.multiball_times_played>=2 and current_player.lock_l_hits==1}:

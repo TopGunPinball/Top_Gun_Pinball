@@ -37,7 +37,7 @@ mode:
   start_events: start_mode_top_gun_multiball
   stop_events: 
     - top_gun_multiball_ended
-    - multiball_top_gun_multiball_ended
+    - mb_multiball_final_end
   priority: 400
   game_mode: true
 
@@ -53,6 +53,40 @@ multiballs:
     shoot_again: 15s
     start_events: mb_balls_release
     ball_locks: bd_lock_goose, bd_lock_mav
+    add_a_ball_events: mb_add_a_ball_activate
+
+  top_gun_multiball_extender:
+    ball_count: 1
+    ball_count_type: add
+    shoot_again: 15s
+    start_events: mb_extender_start
+
+##############################################################################
+# BALL SAVES - Add-a-ball and extender callout protection
+##############################################################################
+ball_saves:
+  # 15 second ball save on each add-a-ball activation
+  mb_add_a_ball_save:
+    active_time: 15s
+    hurry_up_time: 2s
+    grace_period: 500ms
+    auto_launch: true
+    balls_to_save: -1
+    enable_events: mb_add_a_ball_activate
+    disable_events: mode_top_gun_multiball_will_stop
+    debug: true
+
+  # 5 second safety save during extender callout (protects last ball)
+  mb_extender_callout_save:
+    active_time: 5s
+    grace_period: 500ms
+    auto_launch: true
+    balls_to_save: 1
+    enable_events: mb_extender_activate
+    disable_events:
+      - mb_extender_start
+      - mode_top_gun_multiball_will_stop
+    debug: true
 
 ##############################################################################
 # SHOWS - GI Explosion (4 seconds, red/yellow/orange flicker)
@@ -312,6 +346,18 @@ shows:
         l_gi_light_pop_right: yellow
         l_gi_light_pop_bottom: orange
 
+  # ICEMAN completion celebration - all letters solid orange
+  # Uses a show to override light_player timing (prevents last letter staying green)
+  mb_iceman_celebration:
+    - duration: -1
+      lights:
+        l_iceman_i: orange
+        l_iceman_c: orange
+        l_iceman_e: orange
+        l_iceman_m: orange
+        l_iceman_a: orange
+        l_iceman_n: orange
+
 ##############################################################################
 # VARIABLE PLAYER
 ##############################################################################
@@ -374,6 +420,38 @@ variable_player:
       action: set
       int: 0
     multiball_intro_done:
+      action: set
+      int: 0
+    # ICEMAN add-a-ball tracking (separate from main ICEMAN progress)
+    mb_iceman_i:
+      action: set
+      int: 0
+    mb_iceman_c:
+      action: set
+      int: 0
+    mb_iceman_e:
+      action: set
+      int: 0
+    mb_iceman_m:
+      action: set
+      int: 0
+    mb_iceman_a:
+      action: set
+      int: 0
+    mb_iceman_n:
+      action: set
+      int: 0
+    mb_iceman_completions:
+      action: set
+      int: 0
+    mb_add_a_ball_ready:
+      action: set
+      int: 0
+    mb_add_a_balls_used:
+      action: set
+      int: 0
+    # Multiball extender tracking
+    mb_extender_used:
       action: set
       int: 0
     # Jackpot decay tracking (MPF-side scoring)
@@ -870,6 +948,99 @@ variable_player:
       action: set
       int: 0
 
+  ##############################################
+  ## ICEMAN ADD-A-BALL LETTER COLLECTION
+  ## Only collects when: add-a-ball not ready AND fewer than 2 used
+  ##############################################
+  s_i_iceman_target_active{current_player.mb_iceman_i==0 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+    mb_iceman_i:
+      action: set
+      int: 1
+  s_c_iceman_target_active{current_player.mb_iceman_c==0 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+    mb_iceman_c:
+      action: set
+      int: 1
+  s_e_iceman_target_active{current_player.mb_iceman_e==0 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+    mb_iceman_e:
+      action: set
+      int: 1
+  s_m_iceman_target_active{current_player.mb_iceman_m==0 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+    mb_iceman_m:
+      action: set
+      int: 1
+  s_a_iceman_target_active{current_player.mb_iceman_a==0 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+    mb_iceman_a:
+      action: set
+      int: 1
+  s_n_iceman_target_active{current_player.mb_iceman_n==0 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+    mb_iceman_n:
+      action: set
+      int: 1
+
+  # ICEMAN completion: increment completions, reset letters for next round
+  mb_iceman_complete:
+    mb_iceman_completions:
+      action: add
+      int: 1
+    # Reset ICEMAN letters for next completion
+    mb_iceman_i:
+      action: set
+      int: 0
+    mb_iceman_c:
+      action: set
+      int: 0
+    mb_iceman_e:
+      action: set
+      int: 0
+    mb_iceman_m:
+      action: set
+      int: 0
+    mb_iceman_a:
+      action: set
+      int: 0
+    mb_iceman_n:
+      action: set
+      int: 0
+
+  # Add-a-ball QUALIFIED (completions 1 and 3 only): set ready flag
+  mb_add_a_ball_qualified:
+    mb_add_a_ball_ready:
+      action: set
+      int: 1
+
+  # Add-a-ball activated: clear ready flag, increment used, reset letters
+  mb_add_a_ball_activate:
+    mb_add_a_ball_ready:
+      action: set
+      int: 0
+    mb_add_a_balls_used:
+      action: add
+      int: 1
+    mb_iceman_i:
+      action: set
+      int: 0
+    mb_iceman_c:
+      action: set
+      int: 0
+    mb_iceman_e:
+      action: set
+      int: 0
+    mb_iceman_m:
+      action: set
+      int: 0
+    mb_iceman_a:
+      action: set
+      int: 0
+    mb_iceman_n:
+      action: set
+      int: 0
+
+  # Extender activated: mark as used
+  mb_extender_activate:
+    mb_extender_used:
+      action: set
+      int: 1
+
 ##############################################################################
 # EVENT PLAYER - Shot Detection & Penalty Routing
 ##############################################################################
@@ -968,6 +1139,7 @@ event_player:
     - mb_gameplay_start
     - mb_balls_release
     - mb_start_music
+    - mb_play_intro_instructions
 
   # ===== SKIP INTRO (both flippers) =====
   s_flipper_left_active{current_player.multiball_intro_done==0 and device.timers.mb_intro_video_delay.running}:
@@ -983,6 +1155,7 @@ event_player:
     - mb_gameplay_start
     - mb_balls_release
     - mb_start_music
+    - mb_stop_preview_lights
 
   # Music starts at 56 seconds into intro video
   timer_mb_intro_music_delay_complete:
@@ -993,6 +1166,7 @@ event_player:
     - barrier_drop
     - mb_gameplay_start
     - mb_balls_release
+    - mb_stop_preview_lights
 
   # Barrier raise after scoop ball clears
   timer_mb_barrier_delay_complete:
@@ -1038,6 +1212,67 @@ event_player:
   # GI explosion show stops 3 seconds after it starts
   timer_mb_explosion_gi_stop_complete:
     - mb_stop_explosion_gi
+
+  # ===== INTRO PREVIEW LIGHT TIMERS =====
+  # At 23.5s: light RR + TWR preview
+  timer_mb_intro_preview_2_complete:
+    - mb_preview_group_2
+
+  # At 34s: light SP preview
+  timer_mb_intro_preview_3_complete:
+    - mb_preview_group_3
+
+  # At 38s: play instructions voice callout
+  timer_mb_intro_instructions_delay_complete:
+    - mb_play_intro_instructions
+
+  # ===== ICEMAN ADD-A-BALL COMPLETION CHECK =====
+  # Each letter check: the letter being hit is 0, other 5 must be 1
+  s_i_iceman_target_active{current_player.mb_iceman_i==0 and current_player.mb_iceman_c==1 and current_player.mb_iceman_e==1 and current_player.mb_iceman_m==1 and current_player.mb_iceman_a==1 and current_player.mb_iceman_n==1 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+    - mb_iceman_complete
+  s_c_iceman_target_active{current_player.mb_iceman_i==1 and current_player.mb_iceman_c==0 and current_player.mb_iceman_e==1 and current_player.mb_iceman_m==1 and current_player.mb_iceman_a==1 and current_player.mb_iceman_n==1 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+    - mb_iceman_complete
+  s_e_iceman_target_active{current_player.mb_iceman_i==1 and current_player.mb_iceman_c==1 and current_player.mb_iceman_e==0 and current_player.mb_iceman_m==1 and current_player.mb_iceman_a==1 and current_player.mb_iceman_n==1 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+    - mb_iceman_complete
+  s_m_iceman_target_active{current_player.mb_iceman_i==1 and current_player.mb_iceman_c==1 and current_player.mb_iceman_e==1 and current_player.mb_iceman_m==0 and current_player.mb_iceman_a==1 and current_player.mb_iceman_n==1 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+    - mb_iceman_complete
+  s_a_iceman_target_active{current_player.mb_iceman_i==1 and current_player.mb_iceman_c==1 and current_player.mb_iceman_e==1 and current_player.mb_iceman_m==1 and current_player.mb_iceman_a==0 and current_player.mb_iceman_n==1 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+    - mb_iceman_complete
+  s_n_iceman_target_active{current_player.mb_iceman_i==1 and current_player.mb_iceman_c==1 and current_player.mb_iceman_e==1 and current_player.mb_iceman_m==1 and current_player.mb_iceman_a==1 and current_player.mb_iceman_n==0 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+    - mb_iceman_complete
+
+  # ===== PILOT GEAR TARGET: ACTIVATE ADD-A-BALL =====
+  s_flight_gear_target_active{current_player.mb_add_a_ball_ready==1}:
+    - mb_add_a_ball_activate
+
+  # Add-a-ball QUALIFIES on completions 1 and 3 (like inverted pattern)
+  # Uses player variable change event which fires AFTER the increment
+  player_mb_iceman_completions{value==1}:
+    - mb_add_a_ball_qualified
+  player_mb_iceman_completions{value==3}:
+    - mb_add_a_ball_qualified
+
+  # ICEMAN celebration timer complete: reset lights ONLY if NOT qualified
+  # When qualified (ready=1), lights stay orange until pilot gear hit
+  timer_mb_iceman_celebration_timer_complete{current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+    - mb_iceman_reset_lights
+
+  # ===== MULTIBALL END ROUTING (Extender Perk) =====
+  # Normal end: no wingman perk or extender already used
+  multiball_top_gun_multiball_ended{current_player.wingman_perk_active==0 or current_player.mb_extender_used==1}:
+    - mb_multiball_final_end
+
+  # Extender perk active and not yet used: activate extension
+  multiball_top_gun_multiball_ended{current_player.wingman_perk_active==1 and current_player.mb_extender_used==0}:
+    - mb_extender_activate
+
+  # Extender callout delay complete: start extender multiball
+  timer_mb_extender_callout_delay_complete:
+    - mb_extender_start
+
+  # Extender multiball ends: mode is truly over
+  multiball_top_gun_multiball_extender_ended:
+    - mb_multiball_final_end
 
 ##############################################################################
 # TIMERS - One per stackable penalty
@@ -1221,6 +1456,103 @@ timers:
       - event: radar_super_jackpot_lit
         action: start
 
+  ##############################################################################
+  # INTRO PREVIEW TIMERS - Stagger shot insert lighting during intro video
+  ##############################################################################
+
+  # Preview group 2 at 23.5 seconds (RR + TWR)
+  mb_intro_preview_2:
+    start_value: 0
+    end_value: 47
+    direction: up
+    tick_interval: 500ms
+    start_running: false
+    control_events:
+      - event: mb_intro_start
+        action: start
+      - event: mb_skip_intro
+        action: stop
+      - event: mode_top_gun_multiball_will_stop
+        action: stop
+
+  # Preview group 3 at 34 seconds (SP)
+  mb_intro_preview_3:
+    start_value: 0
+    end_value: 68
+    direction: up
+    tick_interval: 500ms
+    start_running: false
+    control_events:
+      - event: mb_intro_start
+        action: start
+      - event: mb_skip_intro
+        action: stop
+      - event: mode_top_gun_multiball_will_stop
+        action: stop
+
+  # Instructions voice callout at 38 seconds
+  mb_intro_instructions_delay:
+    start_value: 0
+    end_value: 76
+    direction: up
+    tick_interval: 500ms
+    start_running: false
+    control_events:
+      - event: mb_intro_start
+        action: start
+      - event: mb_skip_intro
+        action: stop
+      - event: mode_top_gun_multiball_will_stop
+        action: stop
+
+  ##############################################################################
+  # ICEMAN CELEBRATION TIMER - 1 second flash before resetting lights
+  ##############################################################################
+  mb_iceman_celebration_timer:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: mb_iceman_complete
+        action: restart
+      - event: mode_top_gun_multiball_will_stop
+        action: stop
+
+  ##############################################################################
+  # EXTENDER CALLOUT DELAY - 5 seconds for voice + slide before adding ball
+  ##############################################################################
+  mb_extender_callout_delay:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: mb_extender_activate
+        action: start
+      - event: mode_top_gun_multiball_will_stop
+        action: stop
+
+  ##############################################################################
+  # AUTO-PLUNGER DELAY - 1 second after ball settles on shooter lane
+  # Handles add-a-ball and ball save balls returning to shooter lane
+  ##############################################################################
+  mb_auto_plunger_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: s_shooter_lane_active
+        action: restart
+      - event: s_shooter_lane_inactive
+        action: stop
+      - event: mode_top_gun_multiball_will_stop
+        action: stop
+
 ##############################################################################
 # SHOW PLAYER - MIG Insert Pulsing + GI Explosion
 ##############################################################################
@@ -1354,6 +1686,137 @@ show_player:
       loops: -1
       priority: 200
 
+  # --- INTRO PREVIEW LIGHTS (dark military green, additive) ---
+  # Group 1: LO + LR (immediate on intro start)
+  mb_intro_start:
+    preview_lo_flash:
+      show: sync_flash_mb
+      key: mb_preview_l_shot_left_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_orbit
+        color: "006400"
+    preview_lr_flash:
+      show: sync_flash_mb
+      key: mb_preview_l_shot_left_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+        color: "006400"
+
+  # Group 2: RR + TWR (at 23.5 seconds)
+  mb_preview_group_2:
+    preview_rr_flash:
+      show: sync_flash_mb
+      key: mb_preview_l_shot_right_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
+        color: "006400"
+    preview_twr_flash:
+      show: sync_flash_mb
+      key: mb_preview_l_shot_tower_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_tower_ramp
+        color: "006400"
+
+  # Group 3: SP (at 34 seconds)
+  mb_preview_group_3:
+    preview_sp_flash:
+      show: sync_flash_mb
+      key: mb_preview_l_shot_spinner
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_spinner
+        color: "006400"
+
+  # Stop all preview lights (on skip or normal intro complete)
+  mb_stop_preview_lights:
+    stop_preview_lo:
+      show: sync_flash_mb
+      action: stop
+      key: mb_preview_l_shot_left_orbit
+    stop_preview_lr:
+      show: sync_flash_mb
+      action: stop
+      key: mb_preview_l_shot_left_ramp
+    stop_preview_rr:
+      show: sync_flash_mb
+      action: stop
+      key: mb_preview_l_shot_right_orbit
+    stop_preview_twr:
+      show: sync_flash_mb
+      action: stop
+      key: mb_preview_l_shot_tower_ramp
+    stop_preview_sp:
+      show: sync_flash_mb
+      action: stop
+      key: mb_preview_l_shot_spinner
+
+  # --- ICEMAN COMPLETION: play celebration show (all orange, overrides green) ---
+  # Priority 10 ensures show (at 610) beats the green light_player entry (at 600)
+  # that fires from player_mb_iceman_X{value==1} AFTER mb_iceman_complete
+  mb_iceman_complete:
+    iceman_celebration:
+      show: mb_iceman_celebration
+      key: mb_iceman_celebration
+      loops: 0
+      priority: 10
+
+  # --- ICEMAN COMPLETION: pilot gear flash only on QUALIFIED completions (1 and 3) ---
+  mb_add_a_ball_qualified:
+    pilot_gear_flash:
+      show: sync_flash_mb
+      key: mb_pilot_gear_flash
+      sync_ms: 400
+      loops: -1
+      priority: 10
+      show_tokens:
+        led: l_shot_pilot_gear
+        color: orange
+
+  # Stop pilot gear flash + celebration show when add-a-ball is used
+  mb_add_a_ball_activate:
+    stop_pilot_gear:
+      show: sync_flash_mb
+      action: stop
+      key: mb_pilot_gear_flash
+    stop_celebration:
+      show: mb_iceman_celebration
+      action: stop
+      key: mb_iceman_celebration
+
+  # --- BALL SAVE: flash l_shoot_again during multiball ball save ---
+  multiball_top_gun_multiball_started:
+    shoot_again_flash:
+      show: sync_flash_mb
+      key: mb_shoot_again_flash
+      sync_ms: 500
+      loops: -1
+      priority: 10
+      show_tokens:
+        led: l_shoot_again
+        color: white
+
+  multiball_top_gun_multiball_shoot_again_ended:
+    shoot_again_stop:
+      show: sync_flash_mb
+      action: stop
+      key: mb_shoot_again_flash
+
+  # Stop celebration show when lights reset (non-qualifying completions)
+  mb_iceman_reset_lights:
+    stop_celebration_reset:
+      show: mb_iceman_celebration
+      action: stop
+      key: mb_iceman_celebration
+
   mb_stop_explosion_gi:
     gi_stop:
       show: gi_mig_explosion
@@ -1472,6 +1935,7 @@ show_player:
 ##############################################################################
 light_player:
   # GI turns red during multiball (including pop bumper lights)
+  # Clear ICEMAN lights for add-a-ball tracking
   mode_top_gun_multiball_started:
     gi_lights:
       color: red
@@ -1485,6 +1949,30 @@ light_player:
     l_gi_light_pop_bottom:
       color: red
       fade: 500ms
+    l_iceman_i:
+      color: off
+      fade: 0ms
+    l_iceman_c:
+      color: off
+      fade: 0ms
+    l_iceman_e:
+      color: off
+      fade: 0ms
+    l_iceman_m:
+      color: off
+      fade: 0ms
+    l_iceman_a:
+      color: off
+      fade: 0ms
+    l_iceman_n:
+      color: off
+      fade: 0ms
+    l_shot_pilot_gear:
+      color: off
+      fade: 0ms
+    l_shoot_again:
+      color: off
+      fade: 0ms
 
   # GI penalty: turn off (including pops)
   radar_penalty_gi_off:
@@ -1530,6 +2018,149 @@ light_player:
     l_gi_light_pop_bottom:
       color: white
       fade: 0ms
+    # Clear ICEMAN lights on mode stop
+    l_iceman_i:
+      color: off
+      fade: 0ms
+    l_iceman_c:
+      color: off
+      fade: 0ms
+    l_iceman_e:
+      color: off
+      fade: 0ms
+    l_iceman_m:
+      color: off
+      fade: 0ms
+    l_iceman_a:
+      color: off
+      fade: 0ms
+    l_iceman_n:
+      color: off
+      fade: 0ms
+    # Clear pilot gear light
+    l_shot_pilot_gear:
+      color: off
+      fade: 0ms
+    # Clear shoot again light
+    l_shoot_again:
+      color: off
+      fade: 0ms
+
+  # ICEMAN letter collection: green inserts (player variable change events)
+  player_mb_iceman_i{value==1 and current_player.mb_add_a_balls_used<2}:
+    l_iceman_i:
+      color: green
+      fade: 0ms
+  player_mb_iceman_c{value==1 and current_player.mb_add_a_balls_used<2}:
+    l_iceman_c:
+      color: green
+      fade: 0ms
+  player_mb_iceman_e{value==1 and current_player.mb_add_a_balls_used<2}:
+    l_iceman_e:
+      color: green
+      fade: 0ms
+  player_mb_iceman_m{value==1 and current_player.mb_add_a_balls_used<2}:
+    l_iceman_m:
+      color: green
+      fade: 0ms
+  player_mb_iceman_a{value==1 and current_player.mb_add_a_balls_used<2}:
+    l_iceman_a:
+      color: green
+      fade: 0ms
+  player_mb_iceman_n{value==1 and current_player.mb_add_a_balls_used<2}:
+    l_iceman_n:
+      color: green
+      fade: 0ms
+
+  # ICEMAN completion: all letters flash orange (handled by show, then light_player sets static)
+  mb_iceman_complete:
+    l_iceman_i:
+      color: orange
+      fade: 0ms
+    l_iceman_c:
+      color: orange
+      fade: 0ms
+    l_iceman_e:
+      color: orange
+      fade: 0ms
+    l_iceman_m:
+      color: orange
+      fade: 0ms
+    l_iceman_a:
+      color: orange
+      fade: 0ms
+    l_iceman_n:
+      color: orange
+      fade: 0ms
+
+  # Reset ICEMAN lights after celebration (if more add-a-balls available)
+  mb_iceman_reset_lights:
+    l_iceman_i:
+      color: off
+      fade: 0ms
+    l_iceman_c:
+      color: off
+      fade: 0ms
+    l_iceman_e:
+      color: off
+      fade: 0ms
+    l_iceman_m:
+      color: off
+      fade: 0ms
+    l_iceman_a:
+      color: off
+      fade: 0ms
+    l_iceman_n:
+      color: off
+      fade: 0ms
+
+  # After 1st add-a-ball used: reset ICEMAN lights for next collection round
+  player_mb_add_a_balls_used{value==1}:
+    l_iceman_i:
+      color: off
+      fade: 0ms
+    l_iceman_c:
+      color: off
+      fade: 0ms
+    l_iceman_e:
+      color: off
+      fade: 0ms
+    l_iceman_m:
+      color: off
+      fade: 0ms
+    l_iceman_a:
+      color: off
+      fade: 0ms
+    l_iceman_n:
+      color: off
+      fade: 0ms
+
+  # After 2nd add-a-ball used: all ICEMAN lights stay solid orange permanently
+  player_mb_add_a_balls_used{value>=2}:
+    l_iceman_i:
+      color: orange
+      fade: 0ms
+    l_iceman_c:
+      color: orange
+      fade: 0ms
+    l_iceman_e:
+      color: orange
+      fade: 0ms
+    l_iceman_m:
+      color: orange
+      fade: 0ms
+    l_iceman_a:
+      color: orange
+      fade: 0ms
+    l_iceman_n:
+      color: orange
+      fade: 0ms
+
+  # Add-a-ball activated: turn off pilot gear light
+  mb_add_a_ball_activate:
+    l_shot_pilot_gear:
+      color: off
+      fade: 0ms
 
 ##############################################################################
 # SOUND PLAYER - Callouts
@@ -1545,11 +2176,16 @@ light_player:
 #   top_gun_mb_super_hit.ogg
 ##############################################################################
 sound_player:
-  # Instructions callout when gameplay begins (after intro or immediately if stacked)
-  mb_gameplay_start:
+  # Instructions callout at 38 seconds into intro video
+  mb_play_intro_instructions:
     top_gun_mb_instructions:
       bus: voice
       loops: 0
+
+  # Stop instructions voice if player skips intro
+  mb_skip_intro:
+    top_gun_mb_instructions:
+      action: stop
 
   # "You've been locked on!"
   radar_mig_lockon:
@@ -1592,6 +2228,18 @@ sound_player:
   # Super jackpot collected
   radar_super_jackpot_collected:
     top_gun_mb_super_hit:
+      bus: voice
+      loops: 0
+
+  # Add-a-ball activated via pilot gear target
+  mb_add_a_ball_activate:
+    multiball_ball_added:
+      bus: voice
+      loops: 0
+
+  # Multiball extender activated (wingman perk)
+  mb_extender_activate:
+    multiball_extended_voice:
       bus: voice
       loops: 0
 
@@ -1680,3 +2328,27 @@ slide_player:
     mode_points_scored:
       action: play
       priority: 840
+
+  # Add-a-ball activated - show slide
+  mb_add_a_ball_activate:
+    multiball_add_a_ball:
+      action: play
+      priority: 850
+      expire: 3s
+
+  # Multiball extender activated - show slide
+  mb_extender_activate:
+    multiball_extended:
+      action: play
+      priority: 850
+      expire: 5s
+
+##############################################################################
+# COIL PLAYER - Auto-plunger for add-a-ball and ball saves
+##############################################################################
+coil_player:
+  # Auto-plunger: fires 1 second after ball settles on shooter lane
+  # Handles add-a-ball launches and saved balls returning to shooter lane
+  timer_mb_auto_plunger_delay_complete:
+    c_plunger:
+      action: pulse
