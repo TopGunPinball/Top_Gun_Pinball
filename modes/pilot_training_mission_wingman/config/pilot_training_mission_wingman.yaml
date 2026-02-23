@@ -1,0 +1,2195 @@
+#config_version=6
+
+####################################################################################
+# PILOT TRAINING MISSION: WINGMAN
+# 
+# A multiball training mission with tug-of-war zone-based shot mechanic.
+# 
+# THEME: Stay on ICEMAN's wing - make shots in the active "good zone"
+# BALLS: 2 balls at start, 1 add-a-ball from ICEMAN completion (max 3)
+# GI: Blue (odd lights) and Cyan (even lights)
+#   - Good shots: strobe GI at current blue/cyan for 2 seconds
+#   - Bad shots: strobe blue→red, cyan→orange for 2 seconds
+# INSERT COLOR: (l_mode_wingman)
+# POP BUMPERS: Cyan
+# PERK: Earned when position reaches +6, stays active for rest of ball
+#
+# ZONE MECHANIC (Tug-of-War):
+#   Position ranges from -6 (LOSE) to +6 (WIN)
+#   Three shot zones rotate every 20 seconds:
+#     LEFT:   LL, LO, LR
+#     MIDDLE: SP, TWR, TL
+#     RIGHT:  TL, TO, RR
+#   TL is in BOTH Middle and Right - good if EITHER is the active zone
+#   Good zone shots: green lights, +1 position, add to points bank
+#   Bad zone shots:  red lights, -1 position, subtract from points bank
+#
+# SCORING (Points Bank):
+#   Position 0-1: 250,000 per good shot
+#   Position 2-3: 500,000 per good shot
+#   Position 4-5: 1,000,000 per good shot
+#   Perfect run (0 bad shots): 3,500,000 bank + 1,500,000 bonus = 5,000,000
+#   Bad shot penalty: -250,000 from bank (floor at 0)
+#   WIN: full bank awarded to score (+ perfect bonus if applicable)
+#   LOSE by bad shots (-6): 500,000 consolation
+#   LOSE by drain: bank awarded (minimum 500,000)
+#
+# ADD-A-BALL: ICEMAN letters (cleared at mode start)
+#   1st completion: Add a ball, ICEMAN lights go orange permanently
+#   Max 1 add-a-ball for this mode
+#
+# BALL SAVE: 15 seconds for initial launch and add-a-ball
+#
+# WIN CELEBRATION:
+#   Position +6 → disable flippers/pops/slings → balls drain
+#   Beaten animation (5s) + voice_wingman_won simultaneously
+#   Then pilot_training_mission_wingman_won video (18s)
+#   Mode stops → base game → auto-plunge + left MiG post
+#
+# LOSS BY BAD SHOTS:
+#   Position -6 → pilot_training_mission_wingman_lost_2 slide (9.1s)
+#   Mode stops → base game
+#
+# LOSS BY DRAIN:
+#   Multiball ends → pilot_training_mission_wingman_lost_1 slide (9.1s)
+#   Mode stops → base game
+#
+# Adjustable Timing Values:
+#   - Intro video delay: 13 seconds (line ~134)
+#   - Ball save duration: 15 seconds (line ~96)
+#   - Zone shift interval: 20 seconds (line ~142)
+#   - Win beaten animation: 5 seconds (line ~172)
+#   - Win video: 18 seconds (line ~182)
+#   - Lost slide duration: 10 seconds (lines ~192, ~202)
+####################################################################################
+
+mode:
+  start_events: start_mode_training_wingman
+  stop_events: 
+    - wingman_drain_cleanup_complete
+  priority: 600
+  game_mode: true
+  use_wait_queue: true
+
+mode_settings:
+  can_stack_with_multiball: false
+
+####################################################################################
+# BALL HOLD NOTE
+####################################################################################
+# Ball hold during intro is handled via coil_player (c_left_lane_up_post)
+# The post is enabled on mode start and disabled on ball_released event
+
+####################################################################################
+# MULTIBALL DEVICE - 2 balls, add-a-ball from ICEMAN
+####################################################################################
+
+multiballs:
+  wingman_multiball:
+    ball_count: 2
+    ball_count_type: total
+    shoot_again: 15s
+    start_events: wingman_start_multiball
+    stop_events: 
+      - wingman_won_trigger
+      - wingman_lost_bad_shots
+      - mode_pilot_training_mission_wingman_will_stop
+    add_a_ball_events: wingman_add_a_ball
+    ball_locks: 
+    source_playfield: playfield
+
+####################################################################################
+# BALL SAVES - 15 second multiball ball save
+####################################################################################
+
+ball_saves:
+  wingman_multiball_ball_save:
+    active_time: 15s
+    hurry_up_time: 2s
+    grace_period: 500ms
+    auto_launch: true
+    balls_to_save: -1
+    enable_events: 
+      - wingman_start_multiball
+      - wingman_add_a_ball
+    disable_events: 
+      - wingman_won_trigger
+      - wingman_lost_bad_shots
+      - wingman_lost_drain
+      - ball_will_end
+    debug: true
+
+  # DRAIN BALL SAVE: Catches the last ball when flippers are disabled
+  # after a WIN or LOSS by bad shots.  This prevents ball_ending from
+  # firing so the player does NOT lose their ball.
+  # auto_launch: false → ball sits in shooter lane during video
+  # We fire the plunger manually after the video completes.
+  wingman_drain_ball_save:
+    active_time: 30s
+    grace_period: 2s
+    auto_launch: false
+    balls_to_save: 1
+    enable_events:
+      - wingman_won_trigger
+      - wingman_lost_bad_shots
+    disable_events:
+      - wingman_post_mode_plunge
+      - mode_pilot_training_mission_wingman_will_stop
+
+####################################################################################
+# QUEUE RELAY PLAYER - Hold ball_ending until mode cleanup completes
+####################################################################################
+# This is CRITICAL for proper drain handling:
+# - When ball drains, we need time to play the failure/victory video BEFORE bonus starts
+# - queue_relay_player intercepts ball_ending and holds it
+# - We release it when wingman_drain_cleanup_complete fires
+# - Priority 1000 ensures this runs BEFORE bonus mode (priority 500) can start
+
+queue_relay_player:
+  ball_ending{mode.pilot_training_mission_wingman.active==True}:
+    post: wingman_ball_ending_hold
+    wait_for: wingman_drain_cleanup_complete
+    priority: 1000
+
+####################################################################################
+# TIMERS
+####################################################################################
+
+timers:
+  # Intro video delay - 13 seconds for instruction video
+  wingman_intro_delay:
+    start_value: 0
+    end_value: 19
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: mode_pilot_training_mission_wingman_started
+        action: start
+      - event: wingman_skip_intro
+        action: stop
+
+  # Zone shift timer - 20 seconds per zone
+  wingman_zone_shift_timer:
+    start_value: 0
+    end_value: 20
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: wingman_ball_released
+        action: start
+      - event: wingman_zone_shifted
+        action: restart
+      - event: wingman_won_trigger
+        action: stop
+      - event: wingman_lost_bad_shots
+        action: stop
+      - event: wingman_lost_drain
+        action: stop
+      - event: mode_pilot_training_mission_wingman_will_stop
+        action: stop
+
+  # Auto-plunger delay - 1 second after ball settles on shooter lane switch
+  # Handles multiball start, add-a-balls, and saved balls returning
+  # GUARD: Only restarts when mode_active==1 (disabled during win/loss drain phase)
+  wingman_auto_plunger_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: s_shooter_lane_active{current_player.wingman_mode_active==1}
+        action: restart
+      - event: s_shooter_lane_inactive
+        action: stop
+      - event: wingman_won_trigger
+        action: stop
+      - event: wingman_lost_bad_shots
+        action: stop
+      - event: mode_pilot_training_mission_wingman_will_stop
+        action: stop
+
+  # ICEMAN completion celebration - 1 second delay before resetting lights
+  wingman_iceman_celebration_timer:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: wingman_iceman_complete
+        action: restart
+
+  # Win beaten animation delay - 5 seconds
+  wingman_beaten_animation_delay:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: wingman_won_trigger
+        action: start
+
+  # Win video delay - 18 seconds
+  wingman_won_video_delay:
+    start_value: 0
+    end_value: 18
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: timer_wingman_beaten_animation_delay_complete
+        action: start
+
+  # Lost by bad shots - drain delay (5s for balls to drain with flippers disabled)
+  wingman_lost_bad_shots_drain_delay:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: wingman_lost_bad_shots
+        action: start
+      - event: mode_pilot_training_mission_wingman_will_stop
+        action: stop
+
+  # Lost by bad shots - callout delay (3s for voice callout to play before video)
+  wingman_lost_callout_delay:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: wingman_lost_bad_shots
+        action: start
+      - event: wingman_emergency_resume
+        action: stop
+      - event: mode_pilot_training_mission_wingman_will_stop
+        action: stop
+
+  # Lost by bad shots video delay - 10 seconds (9.1s video + margin)
+  # Starts when video actually plays (after callout finishes)
+  wingman_lost_bad_shots_delay:
+    start_value: 0
+    end_value: 10
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: wingman_play_lost_bad_shots_video
+        action: start
+
+  # Lost by drain delay - 10 seconds (9.1s video + margin)
+  wingman_lost_drain_delay:
+    start_value: 0
+    end_value: 10
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: wingman_lost_drain
+        action: start
+
+  # Plunge orbit lockout - 2 seconds after ball passes shooter lane
+  # Prevents orbit shots from counting when ball auto-plunges
+  wingman_plunge_lockout:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: wingman_start_plunge_lockout
+        action: restart
+      - event: mode_pilot_training_mission_wingman_will_stop
+        action: stop
+
+  # Pre-plunge delay - 3 seconds between "ball returning" callout and actual plunge
+  # Gives the player warning before the ball comes back into play
+  wingman_pre_plunge_delay:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: wingman_ball_returning
+        action: start
+
+  # Manual plunge detection - 500ms debounce
+  # If shooter lane goes inactive during drain phase and stays inactive for 500ms,
+  # the player manually plunged. Emergency resume: kill video, re-enable game.
+  # Switch going active again (flicker/shake) stops the timer.
+  wingman_manual_plunge_detect:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 500ms
+    start_running: false
+    control_events:
+      - event: s_shooter_lane_inactive{current_player.wingman_balls_draining==1}
+        action: restart
+      - event: s_shooter_lane_active{current_player.wingman_balls_draining==1}
+        action: stop
+      - event: wingman_emergency_resume
+        action: stop
+      - event: mode_pilot_training_mission_wingman_will_stop
+        action: stop
+
+####################################################################################
+# VARIABLE PLAYER - Initialize and track mode variables
+####################################################################################
+
+variable_player:
+  ##############################################
+  ## MODE INITIALIZATION
+  ##############################################
+  mode_pilot_training_mission_wingman_started:
+    # Training mission tracking
+    training_mission_active:
+      action: set
+      int: 1
+    multiball_active:
+      action: set
+      int: 1
+    letter_collection_paused:
+      action: set
+      int: 1
+    
+    # Tug-of-war position (-6 to +6)
+    wingman_position:
+      action: set
+      int: 0
+    
+    # Display state flags
+    wingman_balls_draining:
+      action: set
+      int: 0
+    wingman_lost_bad_shots_flag:
+      action: set
+      int: 0
+    
+    # Zone tracking (1=LEFT, 2=MIDDLE, 3=RIGHT) - starts MIDDLE
+    wingman_good_zone:
+      action: set
+      int: 2
+    
+    # Zone direction for ping-pong: 1=going right, 0=going left
+    wingman_zone_direction:
+      action: set
+      int: 1
+    
+    # Mode active flag (0=intro, 1=playing)
+    wingman_mode_active:
+      action: set
+      int: 0
+    
+    # Points bank (accumulated during mode, awarded at end)
+    wingman_points_bank:
+      action: set
+      int: 0
+    
+    # Mode won/perk tracking
+    wingman_won:
+      action: set
+      int: 0
+    
+    # Ball tracking
+    wingman_balls_in_play:
+      action: set
+      int: 2
+    
+    # ICEMAN add-a-ball tracking (separate from main ICEMAN progress)
+    wingman_iceman_i:
+      action: set
+      int: 0
+    wingman_iceman_c:
+      action: set
+      int: 0
+    wingman_iceman_e:
+      action: set
+      int: 0
+    wingman_iceman_m:
+      action: set
+      int: 0
+    wingman_iceman_a:
+      action: set
+      int: 0
+    wingman_iceman_n:
+      action: set
+      int: 0
+    wingman_iceman_completions:
+      action: set
+      int: 0
+    
+    # Mode points display variable
+    mode_points_scored:
+      action: set
+      int: 0
+    
+    # Bad shot counter for perfect run bonus
+    wingman_bad_shots_count:
+      action: set
+      int: 0
+    
+    # Good shot counter for HUD display
+    wingman_good_shots_count:
+      action: set
+      int: 0
+    
+    # Drain handling guard - prevents double-triggering lost video
+    wingman_drain_handled:
+      action: set
+      int: 0
+    
+    # Orbit lockout after plunge (prevents false orbit shots)
+    wingman_orbit_locked_out:
+      action: set
+      int: 0
+    
+    # Post-win plunge flag (for base.yaml)
+    wingman_post_win_plunge:
+      action: set
+      int: 0
+    
+    # Training mission played count
+    training_missions_played:
+      action: add
+      int: 1
+
+  ##############################################
+  ## MODE ACTIVE FLAG
+  ##############################################
+  wingman_ball_released:
+    wingman_mode_active:
+      action: set
+      int: 1
+
+  ##############################################
+  ## BALL DRAIN - Mark drain pending for qualifier
+  ##############################################
+  ball_will_end{mode.pilot_training_mission_wingman.active==True}:
+    pilot_mode_drain_pending:
+      action: set
+      int: 1
+
+  ##############################################
+  ## ORBIT LOCKOUT - Prevent false shots after plunge
+  ##############################################
+  wingman_start_plunge_lockout:
+    wingman_orbit_locked_out:
+      action: set
+      int: 1
+
+  timer_wingman_plunge_lockout_complete:
+    wingman_orbit_locked_out:
+      action: set
+      int: 0
+
+  ##############################################
+  ## DRAIN HANDLING GUARD - Set in existing entries below
+  ##############################################
+
+  ##############################################
+  ## GOOD SHOT SCORING (by current position)
+  ## Position checked BEFORE increment
+  ##############################################
+  
+  # Position 0-1: 250,000 per good shot
+  wingman_score_good{current_player.wingman_position>=0 and current_player.wingman_position<=1}:
+    wingman_points_bank:
+      action: add
+      int: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 250000 * current_player.total_scoring_multiplier
+  
+  # Position 2-3: 500,000 per good shot
+  wingman_score_good{current_player.wingman_position>=2 and current_player.wingman_position<=3}:
+    wingman_points_bank:
+      action: add
+      int: 500000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 500000 * current_player.total_scoring_multiplier
+  
+  # Position 4-5: 1,000,000 per good shot
+  wingman_score_good{current_player.wingman_position>=4 and current_player.wingman_position<=5}:
+    wingman_points_bank:
+      action: add
+      int: 1000000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 1000000 * current_player.total_scoring_multiplier
+
+  # Position is negative (recovering from bad shots): 250,000 per good shot
+  wingman_score_good{current_player.wingman_position<0}:
+    wingman_points_bank:
+      action: add
+      int: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 250000 * current_player.total_scoring_multiplier
+
+  ##############################################
+  ## POSITION CHANGES
+  ##############################################
+  
+  # Good shot: position +1 (capped at 6) and count
+  wingman_position_up{current_player.wingman_position<6}:
+    wingman_position:
+      action: add
+      int: 1
+    wingman_good_shots_count:
+      action: add
+      int: 1
+
+  # Bad shot: position -1 (capped at -6)
+  wingman_position_down{current_player.wingman_position>-6}:
+    wingman_position:
+      action: add
+      int: -1
+
+  ##############################################
+  ## BAD SHOT SCORING
+  ##############################################
+  
+  wingman_score_bad:
+    wingman_points_bank:
+      action: add
+      int: -250000
+    wingman_bad_shots_count:
+      action: add
+      int: 1
+    mode_points_scored:
+      action: set
+      int: -250000
+  
+  # Floor bank at 0
+  wingman_check_bank_floor{current_player.wingman_points_bank<0}:
+    wingman_points_bank:
+      action: set
+      int: 0
+
+  ##############################################
+  ## ZONE SHIFT
+  ##############################################
+  
+  wingman_shift_to_zone_1:
+    wingman_good_zone:
+      action: set
+      int: 1
+  
+  wingman_shift_to_zone_2:
+    wingman_good_zone:
+      action: set
+      int: 2
+  
+  wingman_shift_to_zone_3:
+    wingman_good_zone:
+      action: set
+      int: 3
+
+  # Direction reversals for ping-pong
+  wingman_reverse_to_left:
+    wingman_zone_direction:
+      action: set
+      int: 0
+  
+  wingman_reverse_to_right:
+    wingman_zone_direction:
+      action: set
+      int: 1
+
+  ##############################################
+  ## WIN SCORING - Full bank awarded
+  ##############################################
+  
+  wingman_won_trigger:
+    wingman_won:
+      action: set
+      int: 1
+    wingman_mode_active:
+      action: set
+      int: 0
+    wingman_drain_handled:
+      action: set
+      int: 1
+    wingman_balls_draining:
+      action: set
+      int: 1
+    wingman_perk_active:
+      action: set
+      int: 1
+    training_wingman_complete:
+      action: set
+      int: 1
+    score:
+      action: add
+      int: current_player.wingman_points_bank
+
+  # Perfect run bonus: 1,500,000 if no bad shots were hit
+  wingman_perfect_run_bonus:
+    score:
+      action: add
+      int: 1500000 * current_player.total_scoring_multiplier
+    wingman_points_bank:
+      action: add
+      int: 1500000
+
+  ##############################################
+  ## POST-VIDEO PLUNGE FLAG
+  ## Set ONLY after pre-plunge delay ends so base mode
+  ## doesn't auto-plunge the saved ball during video
+  ##############################################
+  timer_wingman_pre_plunge_delay_complete:
+    wingman_post_win_plunge:
+      action: set
+      int: 1
+
+  ##############################################
+  ## EMERGENCY RESUME - Player manually plunged
+  ## Ball is already in play, set plunge flag so
+  ## base mode doesn't interfere
+  ##############################################
+  wingman_emergency_resume:
+    wingman_post_win_plunge:
+      action: set
+      int: 1
+    wingman_balls_draining:
+      action: set
+      int: 0
+
+  ##############################################
+  ## LOSE BY BAD SHOTS - 500K consolation
+  ##############################################
+  
+  wingman_lost_bad_shots:
+    wingman_mode_active:
+      action: set
+      int: 0
+    wingman_drain_handled:
+      action: set
+      int: 1
+    wingman_balls_draining:
+      action: set
+      int: 1
+    wingman_lost_bad_shots_flag:
+      action: set
+      int: 1
+    training_wingman_complete:
+      action: set
+      int: 1
+    score:
+      action: add
+      int: 500000
+
+  ##############################################
+  ## LOSE BY DRAIN - Bank awarded (min 500K)
+  ##############################################
+  
+  wingman_lost_drain{current_player.wingman_points_bank>=500000}:
+    wingman_mode_active:
+      action: set
+      int: 0
+    wingman_drain_handled:
+      action: set
+      int: 1
+    training_wingman_complete:
+      action: set
+      int: 1
+    score:
+      action: add
+      int: current_player.wingman_points_bank
+
+  wingman_lost_drain{current_player.wingman_points_bank<500000}:
+    wingman_mode_active:
+      action: set
+      int: 0
+    wingman_drain_handled:
+      action: set
+      int: 1
+    training_wingman_complete:
+      action: set
+      int: 1
+    score:
+      action: add
+      int: 500000
+
+  ##############################################
+  ## ADD-A-BALL TRACKING
+  ##############################################
+  
+  wingman_add_a_ball_qualified:
+    wingman_add_a_ball_ready:
+      action: set
+      int: 1
+
+  wingman_add_a_ball:
+    wingman_balls_in_play:
+      action: add
+      int: 1
+    wingman_add_a_ball_ready:
+      action: set
+      int: 0
+
+  ##############################################
+  ## CLEANUP - Clear perk slide (perk is ball-only)
+  ##############################################
+  
+  # wingman_perk_active is NOT cleared here - it persists for rest of ball
+  # Cleared by qualifier on ball_ending instead
+
+  ##############################################
+  ## ICEMAN LETTER COLLECTION
+  ##############################################
+  
+  s_i_iceman_target_active{current_player.wingman_iceman_i==0 and current_player.wingman_mode_active==1}:
+    wingman_iceman_i:
+      action: set
+      int: 1
+
+  s_c_iceman_target_active{current_player.wingman_iceman_c==0 and current_player.wingman_mode_active==1}:
+    wingman_iceman_c:
+      action: set
+      int: 1
+
+  s_e_iceman_target_active{current_player.wingman_iceman_e==0 and current_player.wingman_mode_active==1}:
+    wingman_iceman_e:
+      action: set
+      int: 1
+
+  s_m_iceman_target_active{current_player.wingman_iceman_m==0 and current_player.wingman_mode_active==1}:
+    wingman_iceman_m:
+      action: set
+      int: 1
+
+  s_a_iceman_target_active{current_player.wingman_iceman_a==0 and current_player.wingman_mode_active==1}:
+    wingman_iceman_a:
+      action: set
+      int: 1
+
+  s_n_iceman_target_active{current_player.wingman_iceman_n==0 and current_player.wingman_mode_active==1}:
+    wingman_iceman_n:
+      action: set
+      int: 1
+
+  # ICEMAN completion - reset letters for display purposes
+  wingman_iceman_complete:
+    wingman_iceman_completions:
+      action: add
+      int: 1
+    wingman_iceman_i:
+      action: set
+      int: 0
+    wingman_iceman_c:
+      action: set
+      int: 0
+    wingman_iceman_e:
+      action: set
+      int: 0
+    wingman_iceman_m:
+      action: set
+      int: 0
+    wingman_iceman_a:
+      action: set
+      int: 0
+    wingman_iceman_n:
+      action: set
+      int: 0
+
+####################################################################################
+# EVENT PLAYER - Mode flow and shot detection
+####################################################################################
+
+event_player:
+  ##############################################
+  ## MODE START SEQUENCE
+  ##############################################
+  
+  # Delayed GI reset and play instructions voice during ball hold
+  mode_pilot_training_mission_wingman_started:
+    - wingman_set_gi|200ms
+    - wingman_play_instructions_voice
+    - ball_search_block
+  
+  # Skip intro with both flippers
+  s_flipper_left_active{current_player.wingman_mode_active==0 and device.timers.wingman_intro_delay.running}:
+    - wingman_check_skip_intro
+  s_flipper_right_active{current_player.wingman_mode_active==0 and device.timers.wingman_intro_delay.running}:
+    - wingman_check_skip_intro
+    
+  wingman_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - wingman_skip_intro
+
+  wingman_skip_intro:
+    - wingman_ball_released
+    - wingman_setup_zone_2
+
+  # Intro timer complete - release ball and start gameplay
+  timer_wingman_intro_delay_complete:
+    - wingman_ball_released
+    - wingman_setup_zone_2
+
+  # Ball released - start multiball, raise top ramp for TO shot
+  wingman_ball_released:
+    - wingman_start_multiball
+    - top_ramp_up
+    - ball_search_unblock
+
+  ##############################################
+  ## ORBIT LOCKOUT ON PLUNGE
+  ## Prevents false shots when ball auto-launches through orbit
+  ##############################################
+  s_shooter_lane_active{current_player.wingman_mode_active==1}:
+    - wingman_start_plunge_lockout
+
+  ##############################################
+  ## ZONE SHIFT LOGIC (Ping-pong: M→R→M→L→M→R...)
+  ##############################################
+  
+  # From MIDDLE going right → go to RIGHT
+  timer_wingman_zone_shift_timer_complete{current_player.wingman_good_zone==2 and current_player.wingman_zone_direction==1}:
+    - wingman_setup_zone_3
+    - wingman_zone_shifted
+  
+  # From RIGHT → back to MIDDLE, reverse direction to left
+  timer_wingman_zone_shift_timer_complete{current_player.wingman_good_zone==3}:
+    - wingman_setup_zone_2
+    - wingman_reverse_to_left
+    - wingman_zone_shifted
+  
+  # From MIDDLE going left → go to LEFT
+  timer_wingman_zone_shift_timer_complete{current_player.wingman_good_zone==2 and current_player.wingman_zone_direction==0}:
+    - wingman_setup_zone_1
+    - wingman_zone_shifted
+  
+  # From LEFT → back to MIDDLE, reverse direction to right
+  timer_wingman_zone_shift_timer_complete{current_player.wingman_good_zone==1}:
+    - wingman_setup_zone_2
+    - wingman_reverse_to_right
+    - wingman_zone_shifted
+  
+  # Zone setup events set the variable AND update lights
+  wingman_setup_zone_1:
+    - wingman_shift_to_zone_1
+    - wingman_light_zone_1
+  
+  wingman_setup_zone_2:
+    - wingman_shift_to_zone_2
+    - wingman_light_zone_2
+  
+  wingman_setup_zone_3:
+    - wingman_shift_to_zone_3
+    - wingman_light_zone_3
+
+  ##############################################
+  ## ZONE WARNING - Green → Orange at 4 seconds remaining
+  ##############################################
+  
+  timer_wingman_zone_shift_timer_tick{ticks==16 and current_player.wingman_good_zone==1}:
+    - wingman_warn_zone_1
+  timer_wingman_zone_shift_timer_tick{ticks==16 and current_player.wingman_good_zone==2}:
+    - wingman_warn_zone_2
+  timer_wingman_zone_shift_timer_tick{ticks==16 and current_player.wingman_good_zone==3}:
+    - wingman_warn_zone_3
+
+  ##############################################
+  ## SHOT DETECTION - Per-shot resolution
+  ## GREEN=good, RED=bad, NEUTRAL=ignored (no event)
+  ##############################################
+  
+  # LL (s_lane_left): LEFT=GOOD, MIDDLE=BAD, RIGHT=BAD
+  s_lane_left_active{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==1}:
+    - wingman_good_shot
+  s_lane_left_active{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==2}:
+    - wingman_bad_shot
+  s_lane_left_active{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==3}:
+    - wingman_bad_shot
+
+  # LO (left_orbit_shot_hit): LEFT=GOOD, MIDDLE=BAD, RIGHT=BAD
+  left_orbit_shot_hit{current_player.wingman_mode_active==1 and current_player.wingman_orbit_locked_out==0 and current_player.wingman_good_zone==1}:
+    - wingman_good_shot
+  left_orbit_shot_hit{current_player.wingman_mode_active==1 and current_player.wingman_orbit_locked_out==0 and current_player.wingman_good_zone==2}:
+    - wingman_bad_shot
+  left_orbit_shot_hit{current_player.wingman_mode_active==1 and current_player.wingman_orbit_locked_out==0 and current_player.wingman_good_zone==3}:
+    - wingman_bad_shot
+
+  # LR (s_ramp_left_exit): LEFT=GOOD, MIDDLE=NEUTRAL, RIGHT=BAD
+  s_ramp_left_exit_active{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==1}:
+    - wingman_good_shot
+  s_ramp_left_exit_active{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==3}:
+    - wingman_bad_shot
+
+  # SP (spinner_shot_made): LEFT=NEUTRAL, MIDDLE=GOOD, RIGHT=NEUTRAL
+  spinner_shot_made{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==2}:
+    - wingman_good_shot
+
+  # TWR (s_ramp_tower_exit): LEFT=NEUTRAL, MIDDLE=GOOD, RIGHT=NEUTRAL
+  s_ramp_tower_exit_active{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==2}:
+    - wingman_good_shot
+
+  # TL (s_orbit_upper): LEFT=NEUTRAL, MIDDLE=GOOD, RIGHT=GOOD
+  s_orbit_upper_active{current_player.wingman_mode_active==1 and current_player.wingman_orbit_locked_out==0 and current_player.wingman_good_zone==2}:
+    - wingman_good_shot
+  s_orbit_upper_active{current_player.wingman_mode_active==1 and current_player.wingman_orbit_locked_out==0 and current_player.wingman_good_zone==3}:
+    - wingman_good_shot
+
+  # TO (s_orbit_lower): LEFT=BAD, MIDDLE=NEUTRAL, RIGHT=GOOD
+  s_orbit_lower_active{current_player.wingman_mode_active==1 and current_player.wingman_orbit_locked_out==0 and current_player.wingman_good_zone==3}:
+    - wingman_good_shot
+  s_orbit_lower_active{current_player.wingman_mode_active==1 and current_player.wingman_orbit_locked_out==0 and current_player.wingman_good_zone==1}:
+    - wingman_bad_shot
+
+  # RR (s_ramp_right_exit): LEFT=BAD, MIDDLE=BAD, RIGHT=GOOD
+  s_ramp_right_exit_active{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==3}:
+    - wingman_good_shot
+  s_ramp_right_exit_active{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==1}:
+    - wingman_bad_shot
+  s_ramp_right_exit_active{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==2}:
+    - wingman_bad_shot
+
+  ##############################################
+  ## GOOD/BAD SHOT PROCESSING
+  ##############################################
+  
+  # Good shot: score first, then increment position
+  wingman_good_shot:
+    - wingman_score_good
+    - wingman_position_up
+    - wingman_good_shot_gi_flash
+    - wingman_check_good_callout
+
+  # Bad shot: score first, then decrement position, then floor check
+  wingman_bad_shot:
+    - wingman_score_bad
+    - wingman_position_down
+    - wingman_check_bank_floor
+    - wingman_bad_shot_gi_flash
+    - wingman_check_bad_callout
+
+  # Only play random callouts if position didn't reach a milestone or endpoint
+  wingman_check_good_callout{current_player.wingman_position!=4 and current_player.wingman_position!=6}:
+    - play_shot_made_callout
+  wingman_check_bad_callout{current_player.wingman_position!=-4 and current_player.wingman_position!=-6}:
+    - play_shot_missed_callout
+
+  ##############################################
+  ## POSITION MILESTONE CHECKS
+  ##############################################
+  
+  # Position +4 milestone slide
+  player_wingman_position{value==4}:
+    - wingman_position_4_reached
+  
+  # Position -4 milestone slide
+  player_wingman_position{value==-4}:
+    - wingman_position_neg_4_reached
+
+  ##############################################
+  ## WIN CHECK (position +6)
+  ##############################################
+  
+  player_wingman_position{value>=6}:
+    - wingman_won_trigger
+
+  # Perfect run bonus - only if zero bad shots
+  wingman_won_trigger{current_player.wingman_bad_shots_count==0}:
+    - wingman_perfect_run_bonus
+
+  wingman_won_trigger:
+    - disable_normal_flippers
+    - disable_autofires
+    - wingman_cleanup_lights
+
+  # Beaten animation finishes → play won video
+  timer_wingman_beaten_animation_delay_complete:
+    - wingman_play_won_video
+
+  # Won video finishes → fire "ball returning" callout, start 2s pre-plunge delay
+  timer_wingman_won_video_delay_complete:
+    - wingman_ball_returning
+
+  # Pre-plunge delay complete → clean up mode FIRST, then plunge saved ball
+  # Cleanup must happen before plunge so display is clear when ball launches
+  timer_wingman_pre_plunge_delay_complete:
+    - wingman_cleanup
+    - pilot_mode_cleanup_complete
+    - wingman_drain_cleanup_complete
+    - enable_normal_flippers
+    - enable_autofires
+    - wingman_post_mode_plunge
+
+  ##############################################
+  ## LOSE BY BAD SHOTS (position -6)
+  ## Same drain sequence as won: disable flippers → balls drain →
+  ## ball_save catches last ball → video plays → plunge ball → continue
+  ##############################################
+  
+  player_wingman_position{value<=-6}:
+    - wingman_lost_bad_shots
+
+  # Disable flippers and play callout immediately (video comes after callout delay)
+  wingman_lost_bad_shots:
+    - disable_normal_flippers
+    - disable_autofires
+    - wingman_cleanup_lights
+
+  # Callout finishes → now play the lost video
+  timer_wingman_lost_callout_delay_complete:
+    - wingman_play_lost_bad_shots_video
+
+  # Lost video finishes → pre-plunge timer handles the rest
+  timer_wingman_lost_bad_shots_delay_complete:
+    - wingman_ball_returning
+
+  ##############################################
+  ## LOSE BY DRAIN (multiball ended)
+  ##############################################
+  
+  # Check for multiball ending (only if not already won/lost)
+  multiball_wingman_multiball_ended{current_player.wingman_won==0 and current_player.wingman_mode_active==1}:
+    - wingman_lost_drain
+
+  wingman_lost_drain:
+    - wingman_cleanup
+
+  timer_wingman_lost_drain_delay_complete:
+    - wingman_cleanup
+    - pilot_mode_cleanup_complete
+    - wingman_drain_cleanup_complete
+
+  ##############################################
+  ## BALL ENDING HOLD - Safety catch
+  ## If ball_ending fires and no loss has been triggered yet,
+  ## start the drain loss flow
+  ##############################################
+  wingman_ball_ending_hold{current_player.wingman_won==0 and current_player.wingman_drain_handled==0}:
+    - wingman_lost_drain
+
+  ##############################################
+  ## EMERGENCY RESUME - Player manually plunged during video
+  ## Shooter lane went inactive for 500ms = ball is in play
+  ## Skip remaining video/timers, re-enable everything immediately
+  ## Do NOT fire wingman_post_mode_plunge (ball already launched)
+  ##############################################
+  timer_wingman_manual_plunge_detect_complete:
+    - wingman_emergency_resume
+
+  wingman_emergency_resume:
+    - wingman_cleanup
+    - pilot_mode_cleanup_complete
+    - wingman_drain_cleanup_complete
+    - enable_normal_flippers
+    - enable_autofires
+
+  ##############################################
+  ## ICEMAN ADD-A-BALL CHECK
+  ##############################################
+  
+  # Check for ICEMAN completion after any letter hit
+  s_i_iceman_target_active{current_player.wingman_iceman_i==0 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==1 and current_player.wingman_mode_active==1}:
+    - wingman_iceman_complete
+  s_c_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==0 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==1 and current_player.wingman_mode_active==1}:
+    - wingman_iceman_complete
+  s_e_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==0 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==1 and current_player.wingman_mode_active==1}:
+    - wingman_iceman_complete
+  s_m_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==0 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==1 and current_player.wingman_mode_active==1}:
+    - wingman_iceman_complete
+  s_a_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==0 and current_player.wingman_iceman_n==1 and current_player.wingman_mode_active==1}:
+    - wingman_iceman_complete
+  s_n_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==0 and current_player.wingman_mode_active==1}:
+    - wingman_iceman_complete
+
+  # Add-a-ball QUALIFIED on 1st ICEMAN completion only (max 3 balls)
+  # Lights pilot gear target flashing orange - player must hit it to collect
+  player_wingman_iceman_completions{value==1 and current_player.wingman_balls_in_play<3}:
+    - wingman_add_a_ball_qualified
+
+  # Pilot gear target hit while add-a-ball is ready → collect add-a-ball
+  s_flight_gear_target_active{current_player.wingman_add_a_ball_ready==1 and current_player.wingman_mode_active==1}:
+    - wingman_add_a_ball
+
+  ##############################################
+  ## GI FLASH ANIMATIONS
+  ##############################################
+  
+  # Pop bumper hits - cyan flash
+  s_bumper_left_active{current_player.wingman_mode_active==1}:
+    - wingman_pop_bumper_flash
+  s_bumper_center_active{current_player.wingman_mode_active==1}:
+    - wingman_pop_bumper_flash
+  s_bumper_right_active{current_player.wingman_mode_active==1}:
+    - wingman_pop_bumper_flash
+
+  ##############################################
+  ## MODE CLEANUP
+  ##############################################
+  
+  wingman_cleanup:
+    - wingman_cleanup_lights
+    - barrier_raise
+    - top_ramp_down
+    - ball_search_unblock
+
+  ##############################################
+  ## AUTO-PLUNGER
+  ##############################################
+  
+  # Auto-plunger fires 1 second after ball settles on shooter lane
+  # (same pattern as inverted mode)
+
+####################################################################################
+# SOUND PLAYER - Mode Voice Callouts
+####################################################################################
+# Music is handled in base.yaml (NOT here)
+# Sound files in: modes/pilot_training_mission_wingman/sounds/voice/
+####################################################################################
+
+sound_player:
+  # Instructions voice - plays during intro ball hold
+  wingman_play_instructions_voice:
+    voice_wingman_instructions:
+      bus: voice
+      loops: 0
+
+  # Won voice callout - plays simultaneously with beaten animation
+  wingman_won_trigger:
+    voice_wingman_won:
+      bus: voice
+      loops: 0
+
+  # Lost by bad shots voice - plays immediately on loss (video follows after callout delay)
+  wingman_lost_bad_shots:
+    voice_wingman_lost:
+      bus: voice
+      loops: 0
+
+####################################################################################
+# SLIDE PLAYER
+####################################################################################
+
+slide_player:
+  # Main gameplay HUD - plays during entire mode at lower priority
+  # Covered by instructions (800) during intro, becomes visible when instructions removed
+  # Covered by win/loss videos (900) at end
+  mode_pilot_training_mission_wingman_started:
+    wingman_beaten_animation:
+      action: play
+      priority: 700
+    pilot_training_mission_wingman_instructions:
+      action: play
+      priority: 800
+
+  # Skip intro removes instructions (HUD becomes visible)
+  wingman_skip_intro:
+    pilot_training_mission_wingman_instructions:
+      action: remove
+
+  # Timer complete removes instructions (normal path, HUD becomes visible)
+  timer_wingman_intro_delay_complete:
+    pilot_training_mission_wingman_instructions:
+      action: remove
+
+  # Position +4 milestone
+  wingman_position_4_reached:
+    wingman_positive_4:
+      action: play
+      priority: 850
+      expire: 9.1s
+
+  # Position -4 milestone
+  wingman_position_neg_4_reached:
+    wingman_negative_4:
+      action: play
+      priority: 850
+      expire: 9.1s
+
+  # Good shot points display
+  wingman_good_shot:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  # Bad shot points display
+  wingman_bad_shot:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  # Add-a-ball notification (shared slide)
+  wingman_add_a_ball:
+    multiball_add_a_ball:
+      action: play
+      priority: 850
+      expire: 3s
+
+  # WIN: Won video (18 seconds) - starts after beaten animation timer
+  # beaten_animation is already playing as HUD; won video covers it at higher priority
+  wingman_play_won_video:
+    pilot_training_mission_wingman_won:
+      action: play
+      priority: 900
+      expire: 18s
+
+  # LOSE by bad shots: lost_2 slide (9.1 seconds) - starts AFTER drain delay
+  wingman_play_lost_bad_shots_video:
+    pilot_training_mission_wingman_lost_2:
+      action: play
+      priority: 900
+      expire: 9.1s
+
+  # LOSE by drain: lost_1 slide (9.1 seconds)
+  wingman_lost_drain:
+    pilot_training_mission_wingman_lost_1:
+      action: play
+      priority: 900
+      expire: 9.1s
+
+  # Cleanup - remove all slides on mode end
+  # NOTE: wingman_perk_active is NOT removed here - qualifier owns that slide's
+  # lifecycle via player_wingman_perk_active{value==0/1} and clears on ball_ending
+  wingman_cleanup:
+    pilot_training_mission_wingman_instructions:
+      action: remove
+    wingman_beaten_animation:
+      action: remove
+    mode_points_scored:
+      action: remove
+
+####################################################################################
+# LIGHT PLAYER - GI, Shot Lights, ICEMAN, Pop Bumpers
+####################################################################################
+
+light_player:
+  ##############################################
+  ## GI PATTERN: Odd=Blue, Even=Cyan
+  ##############################################
+  
+  mode_pilot_training_mission_wingman_started:
+    # Set all GI to blue first, then override evens to cyan
+    gi_lights:
+      color: blue
+      fade: 0ms
+    l_gi_light_1:
+      color: blue
+      fade: 0ms
+    l_gi_light_2:
+      color: cyan
+      fade: 0ms
+    l_gi_light_3:
+      color: blue
+      fade: 0ms
+    l_gi_light_4:
+      color: cyan
+      fade: 0ms
+    l_gi_light_5:
+      color: blue
+      fade: 0ms
+    l_gi_light_6:
+      color: cyan
+      fade: 0ms
+    l_gi_light_7:
+      color: blue
+      fade: 0ms
+    l_gi_light_8:
+      color: cyan
+      fade: 0ms
+    l_gi_light_9:
+      color: blue
+      fade: 0ms
+    l_gi_light_10:
+      color: cyan
+      fade: 0ms
+    l_gi_light_11:
+      color: blue
+      fade: 0ms
+    l_gi_light_12:
+      color: cyan
+      fade: 0ms
+    l_gi_light_13:
+      color: blue
+      fade: 0ms
+    l_gi_light_14:
+      color: cyan
+      fade: 0ms
+    l_gi_light_15:
+      color: blue
+      fade: 0ms
+    l_gi_light_16:
+      color: cyan
+      fade: 0ms
+    l_gi_light_17:
+      color: blue
+      fade: 0ms
+    l_gi_light_18:
+      color: cyan
+      fade: 0ms
+    l_gi_light_19:
+      color: blue
+      fade: 0ms
+    l_gi_light_20:
+      color: cyan
+      fade: 0ms
+    l_gi_light_21:
+      color: blue
+      fade: 0ms
+    l_gi_light_22:
+      color: cyan
+      fade: 0ms
+    l_gi_light_23:
+      color: blue
+      fade: 0ms
+    l_gi_light_24:
+      color: cyan
+      fade: 0ms
+    l_gi_light_25:
+      color: blue
+      fade: 0ms
+    l_gi_light_26:
+      color: cyan
+      fade: 0ms
+    l_gi_light_27:
+      color: blue
+      fade: 0ms
+    # Apron lights
+    l_apron_light_1:
+      color: blue
+      fade: 0ms
+    l_apron_light_2:
+      color: cyan
+      fade: 0ms
+    l_apron_light_3:
+      color: blue
+      fade: 0ms
+    l_apron_light_4:
+      color: cyan
+      fade: 0ms
+    # Pop bumper lights - cyan
+    l_gi_light_pop_left:
+      color: cyan
+      fade: 0ms
+    l_gi_light_pop_right:
+      color: cyan
+      fade: 0ms
+    l_gi_light_pop_bottom:
+      color: cyan
+      fade: 0ms
+    # Clear ICEMAN lights at mode start
+    l_iceman_i:
+      color: off
+      fade: 0ms
+    l_iceman_c:
+      color: off
+      fade: 0ms
+    l_iceman_e:
+      color: off
+      fade: 0ms
+    l_iceman_m:
+      color: off
+      fade: 0ms
+    l_iceman_a:
+      color: off
+      fade: 0ms
+    l_iceman_n:
+      color: off
+      fade: 0ms
+    # Extra ball light - explicitly OFF (gi_lights tag catches it)
+    l_extra_ball_lit:
+      color: off
+      fade: 0ms
+
+  # Delayed GI reset - fires 200ms after mode start
+  wingman_set_gi:
+    l_gi_light_1:
+      color: blue
+      fade: 0ms
+    l_gi_light_2:
+      color: cyan
+      fade: 0ms
+    l_gi_light_3:
+      color: blue
+      fade: 0ms
+    l_gi_light_4:
+      color: cyan
+      fade: 0ms
+    l_gi_light_5:
+      color: blue
+      fade: 0ms
+    l_gi_light_6:
+      color: cyan
+      fade: 0ms
+    l_gi_light_7:
+      color: blue
+      fade: 0ms
+    l_gi_light_8:
+      color: cyan
+      fade: 0ms
+    l_gi_light_9:
+      color: blue
+      fade: 0ms
+    l_gi_light_10:
+      color: cyan
+      fade: 0ms
+    l_gi_light_11:
+      color: blue
+      fade: 0ms
+    l_gi_light_12:
+      color: cyan
+      fade: 0ms
+    l_gi_light_13:
+      color: blue
+      fade: 0ms
+    l_gi_light_14:
+      color: cyan
+      fade: 0ms
+    l_gi_light_15:
+      color: blue
+      fade: 0ms
+    l_gi_light_16:
+      color: cyan
+      fade: 0ms
+    l_gi_light_17:
+      color: blue
+      fade: 0ms
+    l_gi_light_18:
+      color: cyan
+      fade: 0ms
+    l_gi_light_19:
+      color: blue
+      fade: 0ms
+    l_gi_light_20:
+      color: cyan
+      fade: 0ms
+    l_gi_light_21:
+      color: blue
+      fade: 0ms
+    l_gi_light_22:
+      color: cyan
+      fade: 0ms
+    l_gi_light_23:
+      color: blue
+      fade: 0ms
+    l_gi_light_24:
+      color: cyan
+      fade: 0ms
+    l_gi_light_25:
+      color: blue
+      fade: 0ms
+    l_gi_light_26:
+      color: cyan
+      fade: 0ms
+    l_gi_light_27:
+      color: blue
+      fade: 0ms
+    l_apron_light_1:
+      color: blue
+      fade: 0ms
+    l_apron_light_2:
+      color: cyan
+      fade: 0ms
+    l_apron_light_3:
+      color: blue
+      fade: 0ms
+    l_apron_light_4:
+      color: cyan
+      fade: 0ms
+    # Ensure extra ball light stays OFF (gi_lights tag may catch it)
+    l_extra_ball_lit:
+      color: off
+      fade: 0ms
+
+  ##############################################
+  ## SHOT LIGHTS - Zone 1 (LEFT is good)
+  ##############################################
+  
+  wingman_light_zone_1:
+    # Good (green): LL, LO, LR
+    l_shot_left_lane:
+      color: green
+      fade: 0ms
+    l_shot_left_orbit:
+      color: green
+      fade: 0ms
+    l_shot_left_ramp:
+      color: green
+      fade: 0ms
+    # Neutral (off): SP, TWR, TL
+    l_shot_spinner:
+      color: off
+      fade: 0ms
+    l_shot_tower_ramp:
+      color: off
+      fade: 0ms
+    l_shot_upper_orbit:
+      color: off
+      fade: 0ms
+    # Bad (red): TO, RR
+    l_shot_middle_ramp:
+      color: red
+      fade: 0ms
+    l_shot_right_orbit:
+      color: red
+      fade: 0ms
+
+  ##############################################
+  ## SHOT LIGHTS - Zone 2 (MIDDLE is good)
+  ##############################################
+  
+  wingman_light_zone_2:
+    # Bad (red): LL, LO
+    l_shot_left_lane:
+      color: red
+      fade: 0ms
+    l_shot_left_orbit:
+      color: red
+      fade: 0ms
+    # Neutral (off): LR
+    l_shot_left_ramp:
+      color: off
+      fade: 0ms
+    # Good (green): SP, TWR, TL
+    l_shot_spinner:
+      color: green
+      fade: 0ms
+    l_shot_tower_ramp:
+      color: green
+      fade: 0ms
+    l_shot_upper_orbit:
+      color: green
+      fade: 0ms
+    # Neutral (off): TO
+    l_shot_middle_ramp:
+      color: off
+      fade: 0ms
+    # Bad (red): RR
+    l_shot_right_orbit:
+      color: red
+      fade: 0ms
+
+  ##############################################
+  ## SHOT LIGHTS - Zone 3 (RIGHT is good)
+  ## TL shares l_shot_tower_ramp → green (TL is good when zone 3)
+  ##############################################
+  
+  wingman_light_zone_3:
+    # Bad (red): LL, LO, LR
+    l_shot_left_lane:
+      color: red
+      fade: 0ms
+    l_shot_left_orbit:
+      color: red
+      fade: 0ms
+    l_shot_left_ramp:
+      color: red
+      fade: 0ms
+    # Neutral (off): SP, TWR
+    l_shot_spinner:
+      color: off
+      fade: 0ms
+    l_shot_tower_ramp:
+      color: off
+      fade: 0ms
+    # Good (green): TL, TO, RR
+    l_shot_upper_orbit:
+      color: green
+      fade: 0ms
+    l_shot_middle_ramp:
+      color: green
+      fade: 0ms
+    l_shot_right_orbit:
+      color: green
+      fade: 0ms
+
+  ##############################################
+  ## ZONE WARNING - Orange at 4 seconds remaining
+  ##############################################
+  
+  wingman_warn_zone_1:
+    l_shot_left_lane:
+      color: orange
+      fade: 0ms
+    l_shot_left_orbit:
+      color: orange
+      fade: 0ms
+    l_shot_left_ramp:
+      color: orange
+      fade: 0ms
+
+  wingman_warn_zone_2:
+    l_shot_spinner:
+      color: orange
+      fade: 0ms
+    l_shot_tower_ramp:
+      color: orange
+      fade: 0ms
+    l_shot_upper_orbit:
+      color: orange
+      fade: 0ms
+
+  wingman_warn_zone_3:
+    l_shot_upper_orbit:
+      color: orange
+      fade: 0ms
+    l_shot_middle_ramp:
+      color: orange
+      fade: 0ms
+    l_shot_right_orbit:
+      color: orange
+      fade: 0ms
+
+  ##############################################
+  ## CLEANUP - Restore GI and clear lights
+  ##############################################
+  
+  wingman_cleanup_lights:
+    gi_lights:
+      color: white
+      fade: 0ms
+    l_shoot_again:
+      color: off
+      fade: 0ms
+    l_shot_left_lane:
+      color: off
+      fade: 0ms
+    l_shot_left_orbit:
+      color: off
+      fade: 0ms
+    l_shot_left_ramp:
+      color: off
+      fade: 0ms
+    l_shot_spinner:
+      color: off
+      fade: 0ms
+    l_shot_tower_ramp:
+      color: off
+      fade: 0ms
+    l_shot_upper_orbit:
+      color: off
+      fade: 0ms
+    l_shot_middle_ramp:
+      color: off
+      fade: 0ms
+    l_shot_right_orbit:
+      color: off
+      fade: 0ms
+    l_iceman_i:
+      color: off
+      fade: 0ms
+    l_iceman_c:
+      color: off
+      fade: 0ms
+    l_iceman_e:
+      color: off
+      fade: 0ms
+    l_iceman_m:
+      color: off
+      fade: 0ms
+    l_iceman_a:
+      color: off
+      fade: 0ms
+    l_iceman_n:
+      color: off
+      fade: 0ms
+    l_gi_light_pop_left:
+      color: white
+      fade: 0ms
+    l_gi_light_pop_right:
+      color: white
+      fade: 0ms
+    l_gi_light_pop_bottom:
+      color: white
+      fade: 0ms
+    l_extra_ball_lit:
+      color: off
+      fade: 0ms
+
+  ##############################################
+  ## ICEMAN LIGHTS - Green while collecting
+  ##############################################
+  
+  player_wingman_iceman_i{value==1 and current_player.wingman_iceman_completions<1}:
+    l_iceman_i:
+      color: green
+      fade: 0ms
+  player_wingman_iceman_c{value==1 and current_player.wingman_iceman_completions<1}:
+    l_iceman_c:
+      color: green
+      fade: 0ms
+  player_wingman_iceman_e{value==1 and current_player.wingman_iceman_completions<1}:
+    l_iceman_e:
+      color: green
+      fade: 0ms
+  player_wingman_iceman_m{value==1 and current_player.wingman_iceman_completions<1}:
+    l_iceman_m:
+      color: green
+      fade: 0ms
+  player_wingman_iceman_a{value==1 and current_player.wingman_iceman_completions<1}:
+    l_iceman_a:
+      color: green
+      fade: 0ms
+  player_wingman_iceman_n{value==1 and current_player.wingman_iceman_completions<1}:
+    l_iceman_n:
+      color: green
+      fade: 0ms
+
+  # After 1st completion (add-a-ball collected), all ICEMAN lights stay orange
+  player_wingman_iceman_completions{value>=1}:
+    l_iceman_i:
+      color: orange
+      fade: 0ms
+    l_iceman_c:
+      color: orange
+      fade: 0ms
+    l_iceman_e:
+      color: orange
+      fade: 0ms
+    l_iceman_m:
+      color: orange
+      fade: 0ms
+    l_iceman_a:
+      color: orange
+      fade: 0ms
+    l_iceman_n:
+      color: orange
+      fade: 0ms
+
+  # Reset ICEMAN lights after celebration timer (only if completions < 1)
+  timer_wingman_iceman_celebration_timer_complete{current_player.wingman_iceman_completions<1}:
+    l_iceman_i:
+      color: off
+      fade: 0ms
+    l_iceman_c:
+      color: off
+      fade: 0ms
+    l_iceman_e:
+      color: off
+      fade: 0ms
+    l_iceman_m:
+      color: off
+      fade: 0ms
+    l_iceman_a:
+      color: off
+      fade: 0ms
+    l_iceman_n:
+      color: off
+      fade: 0ms
+
+  ##############################################
+  ## SHOOT AGAIN LIGHT (Ball Save)
+  ##############################################
+  
+  ball_save_wingman_multiball_ball_save_enabled:
+    l_shoot_again:
+      color: white
+      fade: 0ms
+  
+  ball_save_wingman_multiball_ball_save_disabled:
+    l_shoot_again:
+      color: off
+      fade: 0ms
+
+####################################################################################
+# SHOW PLAYER - GI Animations and Mode Insert
+####################################################################################
+
+show_player:
+  ##############################################
+  ## SHOOT AGAIN FLASH
+  ##############################################
+  
+  ball_save_wingman_multiball_ball_save_enabled:
+    wingman_shoot_again_flash:
+      show: sync_flash_mode
+      key: wingman_shoot_again
+      sync_ms: 500
+      loops: -1
+      show_tokens:
+        led: l_shoot_again
+        color: white
+  
+  ball_save_wingman_multiball_ball_save_disabled:
+    stop_wingman_shoot_again:
+      show: sync_flash_mode
+      action: stop
+      key: wingman_shoot_again
+
+  ##############################################
+  ## STATIC GI PATTERN
+  ##############################################
+  
+  mode_pilot_training_mission_wingman_started:
+    wingman_static_gi_show:
+      show: wingman_static_gi
+      key: wingman_static_gi
+      loops: -1
+      priority: 1000
+    # Pulse the mode insert light during gameplay
+    wingman_insert_pulse:
+      show: sync_flash_mode
+      key: wingman_insert_pulse
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_mode_wingman
+        color: white
+      priority: 900
+
+  ##############################################
+  ## GOOD SHOT GI STROBE (blue/cyan, 2 seconds)
+  ##############################################
+  
+  wingman_good_shot_gi_flash:
+    wingman_good_gi_animation:
+      show: wingman_good_shot_gi_strobe
+      key: wingman_gi_animation
+      loops: 11
+      priority: 1100
+
+  ##############################################
+  ## BAD SHOT GI STROBE (red/orange, 2 seconds)
+  ##############################################
+  
+  wingman_bad_shot_gi_flash:
+    wingman_bad_gi_animation:
+      show: wingman_bad_shot_gi_strobe
+      key: wingman_gi_animation
+      loops: 11
+      priority: 1100
+
+  ##############################################
+  ## POP BUMPER FLASH
+  ##############################################
+  
+  wingman_pop_bumper_flash:
+    wingman_pop_flash:
+      show: wingman_pop_bumper_gi_flash
+      key: wingman_pop_flash
+      loops: 0
+      priority: 1100
+
+  ##############################################
+  ## ICEMAN COMPLETION CELEBRATION
+  ##############################################
+  
+  wingman_iceman_complete:
+    wingman_iceman_celebration:
+      show: wingman_iceman_complete_flash
+      key: wingman_iceman_celebration
+      loops: 0
+  
+  timer_wingman_iceman_celebration_timer_complete:
+    stop_wingman_iceman_celebration:
+      show: wingman_iceman_complete_flash
+      action: stop
+      key: wingman_iceman_celebration
+
+  ##############################################
+  ## ADD-A-BALL PILOT GEAR TARGET (flashing orange)
+  ##############################################
+
+  wingman_add_a_ball_qualified:
+    wingman_pilot_gear_flash:
+      show: sync_flash_mode
+      key: wingman_pilot_gear_flash
+      sync_ms: 500
+      loops: -1
+      show_tokens:
+        led: l_shot_pilot_gear
+        color: FFA500
+
+  wingman_add_a_ball:
+    stop_wingman_pilot_gear_flash:
+      show: sync_flash_mode
+      action: stop
+      key: wingman_pilot_gear_flash
+
+  ##############################################
+  ## CLEANUP
+  ##############################################
+  
+  wingman_cleanup:
+    stop_wingman_static_gi:
+      show: wingman_static_gi
+      action: stop
+      key: wingman_static_gi
+    stop_wingman_shoot_again_cleanup:
+      show: sync_flash_mode
+      action: stop
+      key: wingman_shoot_again
+    stop_wingman_insert:
+      show: sync_flash_mode
+      action: stop
+      key: wingman_insert_pulse
+    stop_wingman_pilot_gear_cleanup:
+      show: sync_flash_mode
+      action: stop
+      key: wingman_pilot_gear_flash
+
+####################################################################################
+# COIL PLAYER - Left lane post and auto-plunger
+####################################################################################
+
+coil_player:
+  # Left lane post - hold ball during intro video
+  mode_pilot_training_mission_wingman_started:
+    c_left_lane_up_post:
+      action: enable
+
+  # Release ball after intro (or skip)
+  wingman_ball_released:
+    c_left_lane_up_post:
+      action: disable
+
+  # Auto-plunger - fires 1 second after ball settles on shooter lane
+  timer_wingman_auto_plunger_delay_complete:
+    c_plunger:
+      action: pulse
+
+  # Post-mode plunge - fires plunger to launch saved ball after video ends
+  wingman_post_mode_plunge:
+    c_plunger:
+      action: pulse
+
+  # Mode cleanup - disable all coils
+  wingman_cleanup:
+    c_left_lane_up_post:
+      action: disable
+
+  # Safety - disable post on mode stop
+  mode_pilot_training_mission_wingman_will_stop:
+    c_left_lane_up_post:
+      action: disable
+
+####################################################################################
+# SHOWS - GI Animation Definitions
+####################################################################################
+
+shows:
+  # Static GI pattern - blue/cyan alternating, loops forever
+  wingman_static_gi:
+    - duration: 1s
+      lights:
+        l_gi_light_1: blue
+        l_gi_light_2: cyan
+        l_gi_light_3: blue
+        l_gi_light_4: cyan
+        l_gi_light_5: blue
+        l_gi_light_6: cyan
+        l_gi_light_7: blue
+        l_gi_light_8: cyan
+        l_gi_light_9: blue
+        l_gi_light_10: cyan
+        l_gi_light_11: blue
+        l_gi_light_12: cyan
+        l_gi_light_13: blue
+        l_gi_light_14: cyan
+        l_gi_light_15: blue
+        l_gi_light_16: cyan
+        l_gi_light_17: blue
+        l_gi_light_18: cyan
+        l_gi_light_19: blue
+        l_gi_light_20: cyan
+        l_gi_light_21: blue
+        l_gi_light_22: cyan
+        l_gi_light_23: blue
+        l_gi_light_24: cyan
+        l_gi_light_25: blue
+        l_gi_light_26: cyan
+        l_gi_light_27: blue
+
+  # Good shot GI strobe - flash blue/cyan on/off
+  # 12 loops × 166ms = ~2 seconds
+  wingman_good_shot_gi_strobe:
+    - duration: 83ms
+      lights:
+        l_gi_light_1: blue
+        l_gi_light_2: cyan
+        l_gi_light_3: blue
+        l_gi_light_4: cyan
+        l_gi_light_5: blue
+        l_gi_light_6: cyan
+        l_gi_light_7: blue
+        l_gi_light_8: cyan
+        l_gi_light_9: blue
+        l_gi_light_10: cyan
+        l_gi_light_11: blue
+        l_gi_light_12: cyan
+        l_gi_light_13: blue
+        l_gi_light_14: cyan
+        l_gi_light_15: blue
+        l_gi_light_16: cyan
+        l_gi_light_17: blue
+        l_gi_light_18: cyan
+        l_gi_light_19: blue
+        l_gi_light_20: cyan
+        l_gi_light_21: blue
+        l_gi_light_22: cyan
+        l_gi_light_23: blue
+        l_gi_light_24: cyan
+        l_gi_light_25: blue
+        l_gi_light_26: cyan
+        l_gi_light_27: blue
+    - duration: 83ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: off
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: off
+
+  # Bad shot GI strobe - blue lights flash RED, cyan lights flash ORANGE
+  # 12 loops × 166ms = ~2 seconds
+  wingman_bad_shot_gi_strobe:
+    - duration: 83ms
+      lights:
+        l_gi_light_1: red
+        l_gi_light_2: orange
+        l_gi_light_3: red
+        l_gi_light_4: orange
+        l_gi_light_5: red
+        l_gi_light_6: orange
+        l_gi_light_7: red
+        l_gi_light_8: orange
+        l_gi_light_9: red
+        l_gi_light_10: orange
+        l_gi_light_11: red
+        l_gi_light_12: orange
+        l_gi_light_13: red
+        l_gi_light_14: orange
+        l_gi_light_15: red
+        l_gi_light_16: orange
+        l_gi_light_17: red
+        l_gi_light_18: orange
+        l_gi_light_19: red
+        l_gi_light_20: orange
+        l_gi_light_21: red
+        l_gi_light_22: orange
+        l_gi_light_23: red
+        l_gi_light_24: orange
+        l_gi_light_25: red
+        l_gi_light_26: orange
+        l_gi_light_27: red
+    - duration: 83ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: off
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: off
+
+  # Pop bumper flash - quick cyan flash
+  wingman_pop_bumper_gi_flash:
+    - duration: 75ms
+      lights:
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 75ms
+      lights:
+        l_gi_light_pop_left: cyan
+        l_gi_light_pop_right: cyan
+        l_gi_light_pop_bottom: cyan
+    - duration: 75ms
+      lights:
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 75ms
+      lights:
+        l_gi_light_pop_left: cyan
+        l_gi_light_pop_right: cyan
+        l_gi_light_pop_bottom: cyan
+
+  # ICEMAN completion celebration - all letters solid green
+  wingman_iceman_complete_flash:
+    - duration: 1s
+      lights:
+        l_iceman_i:
+          color: green
+        l_iceman_c:
+          color: green
+        l_iceman_e:
+          color: green
+        l_iceman_m:
+          color: green
+        l_iceman_a:
+          color: green
+        l_iceman_n:
+          color: green
+
+####################################################################################
+# GODOT SLIDES AND SOUND FILES REFERENCE
+####################################################################################
+#
+# GODOT SLIDES TO CREATE:
+# - pilot_training_mission_wingman_instructions: Instructions overlay during intro
+# - wingman_beaten_animation: 5s win animation (canvas animation from prototype)
+# - pilot_training_mission_wingman_won: 18s won celebration video
+# - pilot_training_mission_wingman_lost_1: 9.1s lost by drain video
+# - pilot_training_mission_wingman_lost_2: 9.1s lost by bad shots video
+# - wingman_positive_4: 9.1s "+4 milestone" overlay
+# - wingman_negative_4: 9.1s "-4 milestone" overlay
+# - multiball_add_a_ball: Add-a-ball notification (shared with inverted)
+# - mode_points_scored: Points display (shared)
+#
+# VOICE CALLOUTS (modes/pilot_training_mission_wingman/sounds/voice/):
+# - voice_wingman_instructions: Plays during intro ball hold
+# - voice_wingman_won: Plays simultaneously with beaten animation
+#
+# MUSIC (handled in base.yaml):
+# - pilot_training_mission_wingman: Mode music (loops during gameplay)
+#
+# MPF VARIABLES FOR GODOT DISPLAY:
+# - wingman_position: Current tug-of-war position (-6 to +6)
+# - wingman_good_zone: Active good zone (1=LEFT, 2=MIDDLE, 3=RIGHT)
+# - wingman_points_bank: Accumulated points bank
+# - wingman_mode_active: Whether gameplay is active (0 or 1)
+# - mode_points_scored: Points just scored (for shot feedback)
+# - wingman_iceman_completions: ICEMAN completions count

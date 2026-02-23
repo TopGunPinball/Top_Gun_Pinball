@@ -450,6 +450,9 @@ variable_player:
     mb_add_a_balls_used:
       action: set
       int: 0
+    mb_add_a_ball_save_active:
+      action: set
+      int: 0
     # Multiball extender tracking
     mb_extender_used:
       action: set
@@ -1041,6 +1044,16 @@ variable_player:
       action: set
       int: 1
 
+  # Track add-a-ball ball save state (for shoot_again light control)
+  ball_save_mb_add_a_ball_save_enabled:
+    mb_add_a_ball_save_active:
+      action: set
+      int: 1
+  ball_save_mb_add_a_ball_save_disabled:
+    mb_add_a_ball_save_active:
+      action: set
+      int: 0
+
 ##############################################################################
 # EVENT PLAYER - Shot Detection & Penalty Routing
 ##############################################################################
@@ -1097,20 +1110,20 @@ event_player:
 
   # ===== PENALTY: NO HOLD FLIPPERS =====
   radar_penalty_no_hold:
-    - disable_flippers
+    - disable_normal_flippers
     - enable_no_hold_flippers
   timer_penalty_no_hold_timer_complete:
     - disable_no_hold_flippers
-    - enable_flippers
+    - enable_normal_flippers
     - radar_penalty_no_hold_ended
 
   # ===== PENALTY: REVERSED FLIPPERS =====
   radar_penalty_reversed:
-    - disable_flippers
+    - disable_normal_flippers
     - enable_reversed_flippers
   timer_penalty_reversed_timer_complete:
     - disable_reversed_flippers
-    - enable_flippers
+    - enable_normal_flippers
     - radar_penalty_reversed_ended
 
   # ===== PENALTY: GI OFF =====
@@ -1126,7 +1139,7 @@ event_player:
   mode_top_gun_multiball_will_stop:
     - disable_reversed_flippers
     - disable_no_hold_flippers
-    - enable_flippers
+    - enable_normal_flippers
 
   # ===== INTRO VIDEO FLOW =====
   # If no pilot mission active: play intro video, raise barrier
@@ -1792,7 +1805,8 @@ show_player:
       action: stop
       key: mb_iceman_celebration
 
-  # --- BALL SAVE: flash l_shoot_again during multiball ball save ---
+  # --- BALL SAVE: flash l_shoot_again during ANY active ball save ---
+  # Start flash on multiball start (initial 15s ball save)
   multiball_top_gun_multiball_started:
     shoot_again_flash:
       show: sync_flash_mb
@@ -1804,8 +1818,48 @@ show_player:
         led: l_shoot_again
         color: white
 
-  multiball_top_gun_multiball_shoot_again_ended:
+  # Start/restart flash on add-a-ball save (same key = seamless)
+  ball_save_mb_add_a_ball_save_enabled:
+    shoot_again_flash_aab:
+      show: sync_flash_mb
+      key: mb_shoot_again_flash
+      sync_ms: 500
+      loops: -1
+      priority: 10
+      show_tokens:
+        led: l_shoot_again
+        color: white
+
+  # Stop flash when multiball shoot_again ends, ONLY if add-a-ball save isn't active
+  multiball_top_gun_multiball_shoot_again_ended{current_player.mb_add_a_ball_save_active==0}:
     shoot_again_stop:
+      show: sync_flash_mb
+      action: stop
+      key: mb_shoot_again_flash
+
+  # Stop flash when add-a-ball save expires
+  ball_save_mb_add_a_ball_save_disabled:
+    shoot_again_stop_aab:
+      show: sync_flash_mb
+      action: stop
+      key: mb_shoot_again_flash
+
+  # --- EXTENDER MULTIBALL: flash l_shoot_again during extender's ball save ---
+  # Start flash when extender multiball starts (has its own 15s shoot_again)
+  multiball_top_gun_multiball_extender_started:
+    shoot_again_flash_ext:
+      show: sync_flash_mb
+      key: mb_shoot_again_flash
+      sync_ms: 500
+      loops: -1
+      priority: 10
+      show_tokens:
+        led: l_shoot_again
+        color: white
+
+  # Stop flash when extender shoot_again ends
+  multiball_top_gun_multiball_extender_shoot_again_ended:
+    shoot_again_stop_ext:
       show: sync_flash_mb
       action: stop
       key: mb_shoot_again_flash

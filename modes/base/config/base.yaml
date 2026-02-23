@@ -9,6 +9,40 @@ mode:
   stop_events: ball_ending
   priority: 100
 
+##############################################
+## TIMERS - Post-Win Plunge Sequence
+##############################################
+timers:
+  # Wingman post-win: 1 second delay before auto-plunge
+  wingman_post_win_plunge_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: wingman_post_win_plunge_start
+        action: start
+
+  # Wingman post-win: 1 second delay after plunge before MiG fires
+  wingman_post_win_mig_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: timer_wingman_post_win_plunge_delay_complete
+        action: start
+
+  # Wingman post-win: 2 second MiG hold duration
+  wingman_post_win_mig_hold:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: timer_wingman_post_win_mig_delay_complete
+        action: start
+
 event_player:
   mode_base_started:
     - start_mode_bumpers
@@ -29,6 +63,14 @@ event_player:
     - right_ramp_down
     - top_ramp_down
     - lock_released
+
+  ##############################################
+  ## WINGMAN POST-WIN PLUNGE + MIG SEQUENCE
+  ## After wingman win celebration, next ball gets auto-plunged
+  ## with left MiG post fired to send ball to pop bumpers
+  ##############################################
+  s_shooter_lane_active{current_player.wingman_post_win_plunge==1}:
+    - wingman_post_win_plunge_start
 
 variable_player:
   ##############################################
@@ -56,6 +98,9 @@ variable_player:
       action: set
       int: 0
     hard_deck_active:
+      action: set
+      int: 0
+    wingman_post_win_plunge:
       action: set
       int: 0
     ##########################################################################
@@ -502,6 +547,20 @@ variable_player:
       action: set
       int: 1
 
+  # Clear wingman post-win flag after plunge fires (prevents re-triggering)
+  wingman_post_win_plunge_start:
+    wingman_post_win_plunge:
+      action: set
+      int: 0
+
+  # Safety clear: if wingman mode plunged directly via coil_player while ball was
+  # already in shooter lane, s_shooter_lane_active never transitions so the flag
+  # never clears via wingman_post_win_plunge_start. Clear it when ball departs.
+  s_shooter_lane_inactive{current_player.wingman_post_win_plunge==1}:
+    wingman_post_win_plunge:
+      action: set
+      int: 0
+
 ##############################################
 ## SERVO-LINKED COIL CONTROL
 ## When servos move, automatically control linked coils
@@ -539,6 +598,25 @@ coil_player:
     c_coin_door_led:
       action: disable
     c_start_button_led:
+      action: disable
+
+  ##############################################
+  ## WINGMAN POST-WIN PLUNGE + MIG COIL SEQUENCE
+  ##############################################
+  
+  # Auto-plunge after 1 second delay
+  timer_wingman_post_win_plunge_delay_complete:
+    c_plunger:
+      action: pulse
+
+  # Enable left MiG post 1 second after plunge
+  timer_wingman_post_win_mig_delay_complete:
+    c_left_mig_up_post:
+      action: enable
+
+  # Disable left MiG post after 2 second hold
+  timer_wingman_post_win_mig_hold_complete:
+    c_left_mig_up_post:
       action: disable
 
 ##############################################
@@ -1007,6 +1085,47 @@ sound_player:
   # Play completed voice when inverted mode stops after winning
   mode_pilot_training_mission_inverted_stopped{current_player.pilot_training_mission_inverted_won==1}:
     voice_inverted_completed:
+      bus: voice
+      loops: 0
+
+#################################################################################### 
+  # Wingman Training Mission Music Handler
+####################################################################################
+
+  # Start mode music immediately when mode starts (during intro hold)
+  mode_pilot_training_mission_wingman_started:
+    pilot_training_mission_wingman:
+      bus: music
+      loops: -1
+
+  # Silence music on win (beaten animation + won video)
+  wingman_won_trigger:
+    silence:
+      bus: music
+      loops: 0
+
+  # Silence music on loss by bad shots
+  wingman_lost_bad_shots:
+    silence:
+      bus: music
+      loops: 0
+
+  # Silence music on loss by drain
+  wingman_lost_drain:
+    silence:
+      bus: music
+      loops: 0
+
+  # Restart base music when mode stops
+  mode_pilot_training_mission_wingman_stopped:
+    music_danger_zone:
+      bus: music
+      loops: -1
+
+  # Play completed voice 3 seconds before ball plunges (wingman_ball_returning
+  # fires when won video ends, pre_plunge_delay gives 3s before actual plunge)
+  wingman_ball_returning{current_player.wingman_won==1}:
+    voice_wingman_completed:
       bus: voice
       loops: 0
 
