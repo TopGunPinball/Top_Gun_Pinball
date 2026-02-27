@@ -863,14 +863,16 @@ event_player:
   ##############################################################################
   # MULTIBALL START SEQUENCE
   # Ball enters mode scoop while multiball is qualified
+  # BLOCKED when hard_deck_active==1 (hard deck modes cannot stack with MB)
+  # Lock qualification still works during hard deck — only MB start is blocked
   ##############################################################################
   
-  # MB qualified, NO mode qualified → start MB directly
-  s_mode_start_active{current_player.multiball_qualified==1 and current_player.multiball_starting==0 and current_player.qualified_mode_number==0}:
+  # MB qualified, NO mode qualified, NOT in hard deck → start MB directly
+  s_mode_start_active{current_player.multiball_qualified==1 and current_player.multiball_starting==0 and current_player.qualified_mode_number==0 and current_player.hard_deck_active==0}:
     - multiball_start_sequence
 
-  # MB qualified AND mode qualified → show choice to player
-  s_mode_start_active{current_player.multiball_qualified==1 and current_player.multiball_starting==0 and current_player.qualified_mode_number>0 and current_player.mb_mode_choice_active==0}:
+  # MB qualified AND mode qualified, NOT in hard deck → show choice to player
+  s_mode_start_active{current_player.multiball_qualified==1 and current_player.multiball_starting==0 and current_player.qualified_mode_number>0 and current_player.mb_mode_choice_active==0 and current_player.hard_deck_active==0}:
     - mb_mode_choice_start
 
   ##############################################################################
@@ -1520,4 +1522,4 @@ sound_player:
   lock_partial_play_5:
     lock_letter_partial_5:
       bus: effects
-      loops: 0
+      loops: 0    

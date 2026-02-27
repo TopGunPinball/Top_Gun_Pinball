@@ -1,0 +1,2147 @@
+#config_version=6
+
+####################################################################################
+# HARD DECK: PLAYING WITH THE BOYS
+#
+# Two-phase hard deck mode:
+#   Phase 1 — Playing with the Boys (pop bumper rallies + spike shots)
+#   Phase 2 — Dogfight Football (optional switch frenzy multiball)
+#
+# PRIORITY: 600 (same as pilot missions — higher than bonus mode's 500)
+# START EVENT: start_mode_hard_deck_playing_with_the_boys (from hard_deck_qualifiers)
+# BALL HOLD: Left lane post (c_left_lane_up_post) for intro
+#            Mode scoop (bd_mode_scoop) for step 7+ victory sequence
+#
+# PHASE 1 STEP PROGRESSION (ptb_step values):
+#   0  = Intro (ball held at left lane, instructions slide + callout)
+#   1  = Rally 1 (hit 5 pop bumpers, 50K × multiplier each)
+#   2  = Spike 1 (hit 1 of 3 shots: TO, TL, LR — spike value = rally hits × 50K × multiplier)
+#   3  = Rally 2 (hit 15 pop bumpers)
+#   4  = Spike 2 (hit 2 of 3 shots)
+#   5  = Rally 3 (hit 25 pop bumpers)
+#   6  = Spike 3 (hit all 3 shots)
+#   7  = Scoop shot (barrier drops, shoot mode scoop to win)
+#   8  = Victory sequence (ended video → continue/end decision)
+#
+# PHASE 2 (DOGFIGHT FOOTBALL):
+#   9  = Team choice (red vs blue, 30s — voice callout plays simultaneously)
+#   10 = Dogfight post-team-choice (lights setup, dogfight slide shown, brief delay)
+#   11 = Dogfight active (3-ball multiball, unlimited ball save, 121s)
+#   12 = Dogfight ending (flippers off, balls drain, results)
+#
+# ALL SCORING uses total_scoring_multiplier (playfield X + mach scoring)
+# Spike value (ptb_spike_value) accumulates RAW 50K per bumper hit
+# Multiplier applied when spike shot is scored (not during accumulation)
+# Dogfight banks accumulate multiplied values per-hit; cash-out is raw bank total
+#
+# GI COLORS:
+#   Phase 1: Yellow/White alternating (odd=yellow, even=white), pops=yellow
+#   Phase 2: Red/White/Blue (1,4,7=white; 2,5,8=red; 3,6,9=blue)
+#
+# DOGFIGHT TEAM SHOTS (FIXED — no swapping):
+#   Red: LL, LR, CNT(barrier), TL, RR, I,C,E (iceman)
+#   Blue: LO, Spinner, TWR, TR, M,A,N (iceman)
+#   Teams stay fixed for the entire mode. 50K start, +5K per hit.
+#   Winner gets both banks. Loser gets half their bank.
+#
+# MODE TIMER: 120s (phase 1), reused as 121s (dogfight)
+# MUSIC: hard_deck_playing_with_the_boys_music (controlled in base.yaml)
+#        Dogfight slide has built-in music (mode music silenced)
+####################################################################################
+
+mode:
+  start_events: start_mode_hard_deck_playing_with_the_boys
+  stop_events:
+    - timer_ptb_complete_delay_complete          # Player chose to end (no dogfight)
+    - timer_ptb_failed_delay_complete            # Timer expired during phase 1
+    - ptb_drain_cleanup_complete                 # Ball drain during phase 1
+    - ptb_dogfight_drain_cleanup_complete         # Dogfight end sequence complete (after plunge)
+  priority: 600
+  game_mode: true
+  use_wait_queue: true
+
+mode_settings:
+  can_stack_with_multiball: true
+
+####################################################################################
+# BALL HOLDS - Scoop hold for step 7+ victory/decision/dogfight sequence
+####################################################################################
+ball_holds:
+  ptb_scoop_hold:
+    balls_to_hold: 1
+    hold_devices: bd_mode_scoop
+    enable_events:
+      - ptb_setup_step_7
+    release_one_events:
+      - ptb_end_mode_release_ball
+      - ptb_dogfight_release_ball
+    release_all_events:
+      - mode_hard_deck_playing_with_the_boys_will_stop
+
+####################################################################################
+# MULTIBALLS - Dogfight football 3-ball multiball
+####################################################################################
+multiballs:
+  ptb_dogfight_multiball:
+    ball_count: 3
+    ball_count_type: total
+    shoot_again: 0
+    start_events: ptb_dogfight_mb_start
+
+####################################################################################
+# BALL SAVES
+####################################################################################
+ball_saves:
+  # Unlimited ball save during dogfight gameplay (auto-launches replacements)
+  ptb_dogfight_ball_save:
+    active_time: 125s
+    hurry_up_time: 0
+    grace_period: 500ms
+    auto_launch: true
+    balls_to_save: -1
+    enable_events: ptb_dogfight_ball_save_enable
+    disable_events:
+      - ptb_dogfight_time_up
+      - mode_hard_deck_playing_with_the_boys_will_stop
+
+  # Drain ball save: catches the LAST ball when flippers are disabled after
+  # dogfight ends. auto_launch: false → ball sits in shooter lane during video.
+  # We pulse the plunger manually after the end video completes.
+  ptb_dogfight_drain_save:
+    active_time: 30s
+    grace_period: 2s
+    auto_launch: false
+    balls_to_save: 1
+    enable_events:
+      - ptb_dogfight_time_up
+    disable_events:
+      - ptb_post_mode_plunge
+      - mode_hard_deck_playing_with_the_boys_will_stop
+
+####################################################################################
+# TIMERS
+####################################################################################
+timers:
+
+  # Intro video delay (18 seconds for instructions slide + voice callout)
+  ptb_intro_delay:
+    start_value: 0
+    end_value: 18
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: mode_hard_deck_playing_with_the_boys_started
+        action: start
+      - event: ptb_skip_intro
+        action: stop
+
+  # Main mode timer — 120s for phase 1, reused as 121s for dogfight
+  ptb_mode_timer:
+    start_value: 120
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    control_events:
+      - event: ptb_start_timer
+        action: start
+      - event: ptb_step_7_scoop_entered
+        action: stop
+      - event: ptb_dogfight_start_timer
+        action: restart
+      - event: ptb_dogfight_jump_timer
+        action: jump
+        value: 121
+      - event: ptb_failed
+        action: stop
+      - event: ptb_complete
+        action: stop
+      - event: ptb_dogfight_time_up
+        action: stop
+      - event: ptb_bumper_entered
+        action: pause
+      - event: ptb_bumper_left
+        action: start
+
+  # Bumper inactivity timer — 2 seconds without a bumper hit = ball left area
+  ptb_bumper_inactivity:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: ptb_bumper_hit_restart_inactivity
+        action: restart
+
+  # Barrier delay — wait before raising barrier after scoop eject
+  ptb_barrier_delay:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: ptb_end_mode_release_ball
+        action: restart
+      - event: ptb_dogfight_release_ball
+        action: restart
+
+  # Ended video delay — 11 seconds for ended video
+  ptb_ended_video_delay:
+    start_value: 0
+    end_value: 11
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: ptb_play_ended_video
+        action: start
+
+  # Decision timer — 15 seconds to choose continue or end (left flipper = end, default)
+  ptb_decision_timer:
+    start_value: 15
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    control_events:
+      - event: ptb_show_decision
+        action: restart
+      - event: ptb_decision_end_mode
+        action: stop
+      - event: ptb_decision_dogfight
+        action: stop
+      - event: ptb_decision_start_tgmb
+        action: stop
+
+  # Team choice timer — 30 seconds to choose red or blue
+  # Starts immediately when player selects dogfight
+  # Left flipper = red (default on timeout), Right flipper = blue
+  ptb_team_choice_timer:
+    start_value: 30
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    control_events:
+      - event: ptb_show_team_choice
+        action: restart
+      - event: ptb_choose_red
+        action: stop
+      - event: ptb_choose_blue
+        action: stop
+
+  # Dogfight post-team-choice delay — brief pause for lights setup before multiball
+  # Brief pause after team selection for lights setup before multiball launch
+  ptb_dogfight_instructions_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: ptb_dogfight_instructions_start
+        action: start
+
+  # Dogfight end delay — 12 seconds for end slide + results + voice
+  ptb_dogfight_end_delay:
+    start_value: 0
+    end_value: 12
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: ptb_dogfight_end_sequence
+        action: start
+
+  # Drain delay timer (phase 1) — holds ball_ending until video plays
+  ptb_drain_delay:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: ptb_drain_detected
+        action: start
+
+  # Failed delay timer (phase 1 timer expired) — holds mode until video plays
+  ptb_failed_delay:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: ptb_failed_timer_expired
+        action: start
+
+  # Complete delay timer (player chose to end mode after victory)
+  ptb_complete_delay:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: ptb_complete
+        action: start
+
+  # Spike shot cooldown — prevents a single ball trajectory from counting
+  # two spike switches (e.g. orbit_lower + orbit_upper within 30ms)
+  ptb_spike_cooldown:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: ptb_spike_shot_scored
+        action: restart
+
+  # Spinner cooldown for dogfight (1 second between counting spinner hits)
+  ptb_spinner_cooldown:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: ptb_dogfight_spinner_scored
+        action: restart
+
+  # Left MIG post hold — 3 seconds (spinner or TL hit during rally)
+  ptb_left_mig_hold:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: ptb_raise_left_mig
+        action: restart
+      - event: ptb_cleanup
+        action: stop
+
+  # Right MIG post hold — 3 seconds (LO hit during rally)
+  ptb_right_mig_hold:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: ptb_raise_right_mig
+        action: restart
+      - event: ptb_cleanup
+        action: stop
+
+  # Dogfight drain delay — holds ball_ending during dogfight end sequence
+  ptb_dogfight_drain_delay:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: ptb_dogfight_drain_detected
+        action: start
+
+  # Dogfight auto-plunger delay — fires c_plunger 2 seconds after ball reaches shooter lane
+  ptb_dogfight_plunger_delay:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: ptb_dogfight_plunger_start
+        action: restart
+      - event: s_shooter_lane_inactive{current_player.ptb_step==11}
+        action: stop
+      - event: ptb_dogfight_time_up
+        action: stop
+      - event: mode_hard_deck_playing_with_the_boys_will_stop
+        action: stop
+
+  # Pre-plunge delay — 3 seconds between "ball returning" and plunge
+  # Gives player warning before ball comes back into play
+  ptb_pre_plunge_delay:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: ptb_ball_returning
+        action: start
+
+  # Manual plunge detection — if shooter lane goes inactive during drain phase
+  # for 500ms, player manually plunged. Emergency resume: kill video, re-enable.
+  ptb_manual_plunge_detect:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 500ms
+    control_events:
+      - event: s_shooter_lane_inactive{current_player.ptb_balls_draining==1}
+        action: restart
+      - event: s_shooter_lane_active{current_player.ptb_balls_draining==1}
+        action: stop
+      - event: ptb_emergency_resume
+        action: stop
+      - event: mode_hard_deck_playing_with_the_boys_will_stop
+        action: stop
+
+####################################################################################
+# QUEUE RELAY PLAYER — Hold ball_ending until mode cleanup completes
+####################################################################################
+queue_relay_player:
+  ball_ending{mode.hard_deck_playing_with_the_boys.active==True}:
+    post: ptb_ball_ending_hold
+    wait_for: ptb_drain_cleanup_complete
+    priority: 1000
+
+####################################################################################
+# VARIABLE PLAYER
+####################################################################################
+variable_player:
+
+  ##############################################
+  ## MODE INITIALIZATION (on mode_started)
+  ##############################################
+  mode_hard_deck_playing_with_the_boys_started:
+    hard_deck_active:
+      action: set
+      int: 1
+    letter_collection_paused:
+      action: set
+      int: 1
+    ptb_step:
+      action: set
+      int: 0
+    ptb_complete_flag:
+      action: set
+      int: 0
+    ptb_rally_hits:
+      action: set
+      int: 0
+    ptb_rally_target:
+      action: set
+      int: 5
+    ptb_rally_remaining:
+      action: set
+      int: 5
+    ptb_spike_value:
+      action: set
+      int: 0
+    ptb_spike_shots_needed:
+      action: set
+      int: 1
+    ptb_spike_shots_hit:
+      action: set
+      int: 0
+    ptb_bumper_active:
+      action: set
+      int: 0
+    ptb_dogfight_active:
+      action: set
+      int: 0
+    ptb_team_choice:
+      action: set
+      int: 0
+    ptb_red_bank:
+      action: set
+      int: 0
+    ptb_blue_bank:
+      action: set
+      int: 0
+    ptb_dogfight_shot_value:
+      action: set
+      int: 50000
+    ptb_dogfight_won_flag:
+      action: set
+      int: 0
+    ptb_balls_draining:
+      action: set
+      int: 0
+    mode_points_scored:
+      action: set
+      int: 0
+
+  ##############################################
+  ## PHASE 1: BUMPER RALLY SCORING
+  ## 50K × total_scoring_multiplier per pop hit during steps 1-6
+  ## Bumpers keep scoring during spike phases for bonus value
+  ## ptb_spike_value accumulates RAW 50K (unmultiplied) — multiplier applied at spike scoring
+  ##############################################
+  s_bumper_left_active{current_player.ptb_step>=1 and current_player.ptb_step<=6}:
+    score:
+      action: add
+      int: 50000 * current_player.total_scoring_multiplier
+    ptb_rally_hits:
+      action: add
+      int: 1
+    ptb_spike_value:
+      action: add
+      int: 50000
+    mode_points_scored:
+      action: set
+      int: 50000 * current_player.total_scoring_multiplier
+
+  s_bumper_center_active{current_player.ptb_step>=1 and current_player.ptb_step<=6}:
+    score:
+      action: add
+      int: 50000 * current_player.total_scoring_multiplier
+    ptb_rally_hits:
+      action: add
+      int: 1
+    ptb_spike_value:
+      action: add
+      int: 50000
+    mode_points_scored:
+      action: set
+      int: 50000 * current_player.total_scoring_multiplier
+
+  s_bumper_right_active{current_player.ptb_step>=1 and current_player.ptb_step<=6}:
+    score:
+      action: add
+      int: 50000 * current_player.total_scoring_multiplier
+    ptb_rally_hits:
+      action: add
+      int: 1
+    ptb_spike_value:
+      action: add
+      int: 50000
+    mode_points_scored:
+      action: set
+      int: 50000 * current_player.total_scoring_multiplier
+
+  ##############################################
+  ## PHASE 1: SPIKE SHOT SCORING
+  ## Awards ptb_spike_value × total_scoring_multiplier on each spike shot hit
+  ##############################################
+
+  ##############################################
+  ## PHASE 1: RALLY REMAINING COUNTDOWN
+  ## Decrements only during rally steps (1, 3, 5)
+  ## Shows how many pops still needed to light spike shots
+  ##############################################
+  s_bumper_left_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5}:
+    ptb_rally_remaining:
+      action: add
+      int: -1
+
+  s_bumper_center_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5}:
+    ptb_rally_remaining:
+      action: add
+      int: -1
+
+  s_bumper_right_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5}:
+    ptb_rally_remaining:
+      action: add
+      int: -1
+
+  ##############################################
+  ## PHASE 1: SPIKE SHOT SCORING (actual scoring)
+  ##############################################
+  ptb_spike_shot_scored:
+    score:
+      action: add
+      int: current_player.ptb_spike_value * current_player.total_scoring_multiplier
+    ptb_spike_shots_hit:
+      action: add
+      int: 1
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_spike_value * current_player.total_scoring_multiplier
+
+  ##############################################
+  ## PHASE 1: STEP SETUP — Set step variable when setup events fire
+  ##############################################
+  ptb_setup_step_1:
+    ptb_step:
+      action: set
+      int: 1
+
+  ##############################################
+  ## PHASE 1: STEP PROGRESSION
+  ##############################################
+  # Rally 1 complete → Spike 1
+  ptb_step_1_complete:
+    ptb_step:
+      action: set
+      int: 2
+    ptb_rally_remaining:
+      action: set
+      int: 0
+    ptb_spike_shots_needed:
+      action: set
+      int: 1
+    ptb_spike_shots_hit:
+      action: set
+      int: 0
+
+  # Spike 1 complete → Rally 2
+  ptb_step_2_complete:
+    ptb_step:
+      action: set
+      int: 3
+    ptb_rally_hits:
+      action: set
+      int: 0
+    ptb_rally_target:
+      action: set
+      int: 15
+    ptb_rally_remaining:
+      action: set
+      int: 15
+    ptb_spike_value:
+      action: set
+      int: 0
+
+  # Rally 2 complete → Spike 2
+  ptb_step_3_complete:
+    ptb_step:
+      action: set
+      int: 4
+    ptb_rally_remaining:
+      action: set
+      int: 0
+    ptb_spike_shots_needed:
+      action: set
+      int: 2
+    ptb_spike_shots_hit:
+      action: set
+      int: 0
+
+  # Spike 2 complete → Rally 3
+  ptb_step_4_complete:
+    ptb_step:
+      action: set
+      int: 5
+    ptb_rally_hits:
+      action: set
+      int: 0
+    ptb_rally_target:
+      action: set
+      int: 25
+    ptb_rally_remaining:
+      action: set
+      int: 25
+    ptb_spike_value:
+      action: set
+      int: 0
+
+  # Rally 3 complete → Spike 3
+  ptb_step_5_complete:
+    ptb_step:
+      action: set
+      int: 6
+    ptb_rally_remaining:
+      action: set
+      int: 0
+    ptb_spike_shots_needed:
+      action: set
+      int: 3
+    ptb_spike_shots_hit:
+      action: set
+      int: 0
+
+  # Spike 3 complete → Scoop shot
+  ptb_step_6_complete:
+    ptb_step:
+      action: set
+      int: 7
+
+  # Scoop entered → Victory sequence
+  ptb_step_7_scoop_entered:
+    ptb_step:
+      action: set
+      int: 8
+    ptb_complete_flag:
+      action: set
+      int: 1
+    hard_deck_missions_won:
+      action: add
+      int: 1
+
+  ##############################################
+  ## PHASE 1: BUMPER AREA TRACKING
+  ##############################################
+  ptb_bumper_entered:
+    ptb_bumper_active:
+      action: set
+      int: 1
+
+  ptb_bumper_left:
+    ptb_bumper_active:
+      action: set
+      int: 0
+
+  ##############################################
+  ## PHASE 1: DRAIN / TIMER EXPIRED
+  ##############################################
+  ball_will_end{mode.hard_deck_playing_with_the_boys.active==True}:
+    pilot_mode_drain_pending:
+      action: set
+      int: 1
+
+  ##############################################
+  ## PHASE 2: DOGFIGHT SETUP
+  ##############################################
+  # Step 9 set when team choice appears (immediately on dogfight selection)
+  ptb_show_team_choice:
+    ptb_step:
+      action: set
+      int: 9
+
+  ptb_choose_red:
+    ptb_team_choice:
+      action: set
+      int: 0
+  ptb_choose_blue:
+    ptb_team_choice:
+      action: set
+      int: 1
+
+  # Dogfight activation
+  ptb_dogfight_activate:
+    ptb_step:
+      action: set
+      int: 11
+    ptb_dogfight_active:
+      action: set
+      int: 1
+
+  # Dogfight instructions phase
+  ptb_dogfight_instructions_start:
+    ptb_step:
+      action: set
+      int: 10
+
+  ##############################################
+  ## PHASE 2: DOGFIGHT INIT
+  ## Teams are fixed (no swapping) — init not needed for team vars
+  ## Light colors set in light_player at ptb_dogfight_lights_setup
+  ##############################################
+
+  ##############################################
+  ## PHASE 2: DOGFIGHT SHOT SCORING
+  ## NO team swapping — shots stay with their starting team
+  ## Red shots: LL, LR, CNT, TL, RR, ICE I/C/E
+  ## Blue shots: LO, SP, TWR, TR, ICE M/A/N
+  ## Each hit: add value × multiplier to the shot's team bank, increase value
+  ##############################################
+
+  # --- RED TEAM SHOTS ---
+
+  # LL (s_lane_left) — Red
+  s_lane_left_active{current_player.ptb_step==11}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # LR (s_ramp_left_exit) — Red
+  s_ramp_left_exit_active{current_player.ptb_step==11}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # CNT/Barrier (s_barrier_target) — Red
+  s_barrier_target_active{current_player.ptb_step==11}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # TL (s_orbit_upper) — Red
+  s_orbit_upper_active{current_player.ptb_step==11}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # RR (s_ramp_right_exit) — Red
+  s_ramp_right_exit_active{current_player.ptb_step==11}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # ICEMAN I (s_i_iceman_target) — Red
+  s_i_iceman_target_active{current_player.ptb_step==11}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # ICEMAN C (s_c_iceman_target) — Red
+  s_c_iceman_target_active{current_player.ptb_step==11}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # ICEMAN E (s_e_iceman_target) — Red
+  s_e_iceman_target_active{current_player.ptb_step==11}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # --- BLUE TEAM SHOTS ---
+
+  # LO (s_orbit_left) — Blue
+  s_orbit_left_active{current_player.ptb_step==11}:
+    ptb_blue_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # SP (s_spinner) — Blue — uses cooldown timer
+  ptb_dogfight_spinner_scored:
+    ptb_blue_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # TWR (s_ramp_tower_exit) — Blue
+  s_ramp_tower_exit_active{current_player.ptb_step==11}:
+    ptb_blue_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # TR (s_ramp_inner_exit) — Blue
+  s_ramp_inner_exit_active{current_player.ptb_step==11}:
+    ptb_blue_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # ICEMAN M (s_m_iceman_target) — Blue
+  s_m_iceman_target_active{current_player.ptb_step==11}:
+    ptb_blue_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # ICEMAN A (s_a_iceman_target) — Blue
+  s_a_iceman_target_active{current_player.ptb_step==11}:
+    ptb_blue_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # ICEMAN N (s_n_iceman_target) — Blue
+  s_n_iceman_target_active{current_player.ptb_step==11}:
+    ptb_blue_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  ##############################################
+  ## PHASE 2: DOGFIGHT ENDING — SCORE RESULTS
+  ## Banks already contain per-hit multiplied values
+  ## Won: raw bank total (no re-multiplication)
+  ## Lost: half of raw bank total
+  ##############################################
+
+  # Won: score = red_bank + blue_bank (added in two steps)
+  ptb_dogfight_won_event:
+    score:
+      action: add
+      int: current_player.ptb_red_bank
+    ptb_dogfight_won_flag:
+      action: set
+      int: 1
+
+  ptb_dogfight_add_second_bank:
+    score:
+      action: add
+      int: current_player.ptb_blue_bank
+
+  # Lost (chose red): score = red_bank * 0.5
+  ptb_dogfight_lost_event{current_player.ptb_team_choice==0}:
+    score:
+      action: add
+      int: current_player.ptb_red_bank * 0.5
+
+  # Lost (chose blue): score = blue_bank * 0.5
+  ptb_dogfight_lost_event{current_player.ptb_team_choice==1}:
+    score:
+      action: add
+      int: current_player.ptb_blue_bank * 0.5
+
+  # Dogfight ending step
+  ptb_dogfight_time_up:
+    ptb_step:
+      action: set
+      int: 12
+    ptb_balls_draining:
+      action: set
+      int: 1
+
+  # Emergency resume — player manually plunged during end video
+  ptb_emergency_resume:
+    ptb_balls_draining:
+      action: set
+      int: 0
+
+####################################################################################
+# EVENT PLAYER
+####################################################################################
+event_player:
+
+  ##############################################
+  ## INTRO — Ball search block and skip with both flippers
+  ##############################################
+  mode_hard_deck_playing_with_the_boys_started:
+    - ball_search_block
+
+  s_flipper_left_active{current_player.ptb_step==0 and device.timers.ptb_intro_delay.running}:
+    - ptb_check_skip_intro
+  s_flipper_right_active{current_player.ptb_step==0 and device.timers.ptb_intro_delay.running}:
+    - ptb_check_skip_intro
+  ptb_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - ptb_skip_intro
+
+  # Both paths (skip and normal) release ball and start step 1
+  ptb_skip_intro:
+    - ptb_ball_released
+    - ptb_setup_step_1
+  timer_ptb_intro_delay_complete:
+    - ptb_ball_released
+    - ptb_setup_step_1
+
+  # Start the mode timer when ball is released
+  ptb_ball_released:
+    - ptb_start_timer
+    - ball_search_unblock
+
+  ##############################################
+  ## PHASE 1: RALLY STEPS — Bumper hit detection
+  ## First hit after inactivity = bumper entered
+  ## 2s without hit = bumper left
+  ##############################################
+
+  # Any bumper hit during rally steps — restart inactivity timer
+  s_bumper_left_active{current_player.ptb_step>=1 and current_player.ptb_step<=6}:
+    - ptb_bumper_hit_restart_inactivity
+  s_bumper_center_active{current_player.ptb_step>=1 and current_player.ptb_step<=6}:
+    - ptb_bumper_hit_restart_inactivity
+  s_bumper_right_active{current_player.ptb_step>=1 and current_player.ptb_step<=6}:
+    - ptb_bumper_hit_restart_inactivity
+
+  # First bumper hit when ball was NOT in bumper area — ball entered bumpers
+  s_bumper_left_active{current_player.ptb_bumper_active==0 and (current_player.ptb_step>=1 and current_player.ptb_step<=6)}:
+    - ptb_bumper_entered
+  s_bumper_center_active{current_player.ptb_bumper_active==0 and (current_player.ptb_step>=1 and current_player.ptb_step<=6)}:
+    - ptb_bumper_entered
+  s_bumper_right_active{current_player.ptb_bumper_active==0 and (current_player.ptb_step>=1 and current_player.ptb_step<=6)}:
+    - ptb_bumper_entered
+
+  # Play rally slide on bumper entry (step-specific slides)
+  ptb_bumper_entered{current_player.ptb_step==1}:
+    - ptb_play_rally_1_slide
+  ptb_bumper_entered{current_player.ptb_step==3}:
+    - ptb_play_rally_2_slide
+  ptb_bumper_entered{current_player.ptb_step==5}:
+    - ptb_play_rally_3_slide
+
+  # Bumper inactivity expired — ball left bumpers
+  timer_ptb_bumper_inactivity_complete:
+    - ptb_bumper_left
+
+  ##############################################
+  ## PHASE 1: IMMEDIATE RALLY THRESHOLD CHECK
+  ## Spike shots light IMMEDIATELY when target reached
+  ## Bumpers keep scoring during spike phase for bonus value
+  ## Inactivity timer is just for rally slide timing, NOT for gating step change
+  ##############################################
+  # Rally 1: threshold = 5
+  player_ptb_rally_hits{value>=current_player.ptb_rally_target and current_player.ptb_step==1}:
+    - ptb_step_1_complete
+    - ptb_setup_step_2
+  # Rally 2: threshold = 15
+  player_ptb_rally_hits{value>=current_player.ptb_rally_target and current_player.ptb_step==3}:
+    - ptb_step_3_complete
+    - ptb_setup_step_4
+  # Rally 3: threshold = 25
+  player_ptb_rally_hits{value>=current_player.ptb_rally_target and current_player.ptb_step==5}:
+    - ptb_step_5_complete
+    - ptb_setup_step_6
+
+  # Legacy: Also check on bumper_left (inactivity) in case threshold was ALREADY met
+  # (step would already be 2/4/6 so these won't double-fire)
+  # Rally 1: 5+ hits
+  ptb_bumper_left{current_player.ptb_step==1 and current_player.ptb_rally_hits>=5}:
+    - ptb_step_1_complete
+    - ptb_setup_step_2
+  # Rally 2: 15+ hits (fallback — normally already handled by immediate check)
+  ptb_bumper_left{current_player.ptb_step==3 and current_player.ptb_rally_hits>=15}:
+    - ptb_step_3_complete
+    - ptb_setup_step_4
+  # Rally 3: 25+ hits (fallback)
+  ptb_bumper_left{current_player.ptb_step==5 and current_player.ptb_rally_hits>=25}:
+    - ptb_step_5_complete
+    - ptb_setup_step_6
+
+  ##############################################
+  ## PHASE 1: SPIKE STEPS — Shot detection
+  ## Shots: TO (s_orbit_upper for TL), TL (s_orbit_upper), LR (s_ramp_left_exit)
+  ## Wait — TL = s_orbit_upper, TO = s_orbit_lower (top ramp UP)
+  ## Spike shots: TO, TL, LR → s_orbit_lower, s_orbit_upper, s_ramp_left_exit
+  ## But TO requires top ramp UP. TL is s_orbit_upper (own light).
+  ##############################################
+
+  # Spike shot hits — Steps 2, 4, 6 (spike phases)
+  # TO (s_orbit_lower — top ramp is UP during spike)
+  # Cooldown prevents double-counting when ball hits two spike switches in quick succession
+  s_orbit_lower_active{(current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6) and device.timers.ptb_spike_cooldown.running==False}:
+    - ptb_spike_shot_scored
+    - ptb_spike_shot_check_complete
+
+  # TL (s_orbit_upper)
+  s_orbit_upper_active{(current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6) and device.timers.ptb_spike_cooldown.running==False}:
+    - ptb_spike_shot_scored
+    - ptb_spike_shot_check_complete
+
+  # LR (s_ramp_left_exit)
+  s_ramp_left_exit_active{(current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6) and device.timers.ptb_spike_cooldown.running==False}:
+    - ptb_spike_shot_scored
+    - ptb_spike_shot_check_complete
+
+  # Check if enough spike shots hit to complete the step
+  ptb_spike_shot_check_complete{current_player.ptb_spike_shots_hit>=current_player.ptb_spike_shots_needed and current_player.ptb_step==2}:
+    - ptb_step_2_complete
+    - ptb_setup_step_3
+  ptb_spike_shot_check_complete{current_player.ptb_spike_shots_hit>=current_player.ptb_spike_shots_needed and current_player.ptb_step==4}:
+    - ptb_step_4_complete
+    - ptb_setup_step_5
+  ptb_spike_shot_check_complete{current_player.ptb_spike_shots_hit>=current_player.ptb_spike_shots_needed and current_player.ptb_step==6}:
+    - ptb_step_6_complete
+    - ptb_setup_step_7
+
+  ##############################################
+  ## PHASE 1: STEP 7 — Scoop shot (barrier drops)
+  ##############################################
+  ptb_setup_step_7:
+    - barrier_drop
+
+  s_mode_start_active{current_player.ptb_step==7}:
+    - ptb_step_7_scoop_entered
+    - ptb_step_7_keep_music
+    - ptb_play_ended_video
+
+  ##############################################
+  ## PHASE 1: VICTORY SEQUENCE (step 8)
+  ##############################################
+  # Ended video finishes → show decision slide
+  timer_ptb_ended_video_delay_complete:
+    - ptb_show_decision
+
+  # Decision: Left flipper
+  #   TGMB NOT qualified → end mode (back to base)
+  #   TGMB qualified → end mode + start Top Gun Multiball
+  s_flipper_left_active{current_player.ptb_step==8 and device.timers.ptb_decision_timer.running and current_player.multiball_qualified==0}:
+    - ptb_decision_end_mode
+  s_flipper_left_active{current_player.ptb_step==8 and device.timers.ptb_decision_timer.running and current_player.multiball_qualified==1}:
+    - ptb_decision_start_tgmb
+
+  # Timer expires:
+  #   TGMB NOT qualified → end mode (same as left flipper default)
+  #   TGMB qualified → dogfight
+  timer_ptb_decision_timer_complete{current_player.multiball_qualified==0}:
+    - ptb_decision_end_mode
+  timer_ptb_decision_timer_complete{current_player.multiball_qualified==1}:
+    - ptb_decision_dogfight
+
+  # Decision: Right flipper = dogfight
+  s_flipper_right_active{current_player.ptb_step==8 and device.timers.ptb_decision_timer.running}:
+    - ptb_decision_dogfight
+
+  # End mode path — release ball, raise barrier after delay
+  ptb_decision_end_mode:
+    - ptb_complete
+    - ptb_end_mode_release_ball
+
+  # Start TGMB path — end this mode AND fire multiball_start_sequence
+  # Locks mode picks up multiball_start_sequence → 500ms delay → start_mode_top_gun_multiball
+  # PTB's ball_hold releases scoop ball on mode stop
+  ptb_decision_start_tgmb:
+    - ptb_complete
+    - ptb_end_mode_release_ball
+    - multiball_start_sequence
+  timer_ptb_barrier_delay_complete:
+    - barrier_raise
+  timer_ptb_complete_delay_complete:
+    - ptb_cleanup
+
+  ##############################################
+  ## PHASE 2: DOGFIGHT — Team choice shown immediately
+  ## Voice callout + 30s team choice timer start together
+  ##############################################
+  ptb_decision_dogfight:
+    - ptb_show_team_choice
+
+  # Team choice: Left flipper = red (default on timeout)
+  s_flipper_left_active{current_player.ptb_step==9}:
+    - ptb_choose_red
+    - ptb_dogfight_instructions_start
+  timer_ptb_team_choice_timer_complete:
+    - ptb_choose_red
+    - ptb_dogfight_instructions_start
+
+  # Team choice: Right flipper = blue
+  s_flipper_right_active{current_player.ptb_step==9}:
+    - ptb_choose_blue
+    - ptb_dogfight_instructions_start
+
+  ##############################################
+  ## PHASE 2: DOGFIGHT — Instructions (step 10)
+  ## Ball held in scoop, voice callout + dogfight slide plays
+  ## Timer complete → release ball and start multiball
+  ##############################################
+  ptb_dogfight_instructions_start:
+    - ptb_dogfight_lights_setup
+
+  timer_ptb_dogfight_instructions_delay_complete:
+    - ptb_dogfight_activate
+
+  ##############################################
+  ## PHASE 2: DOGFIGHT — Activation sequence
+  ##############################################
+  ptb_dogfight_activate:
+    - ptb_dogfight_release_ball
+    - ptb_dogfight_ball_save_enable
+    - ptb_dogfight_mb_start
+    - ptb_dogfight_start_timer
+    - ptb_dogfight_jump_timer|100ms
+
+  ##############################################
+  ## PHASE 2: DOGFIGHT — Spinner cooldown
+  ## Only counts once per 1s (must stop spinning)
+  ##############################################
+  s_spinner_active{current_player.ptb_step==11 and device.timers.ptb_spinner_cooldown.running==False}:
+    - ptb_dogfight_spinner_scored
+
+  ##############################################
+  ## PHASE 2: DOGFIGHT — Suppress skillshot during end sequence
+  ## Trough serves ball to plunger during end delay, triggering skillshot.
+  ## Stop it immediately — ball will be auto-plunged back into play.
+  ##############################################
+  mode_skillshot_started{current_player.ptb_step>=8}:
+    - stop_mode_skillshot
+
+  ##############################################
+  ## PHASE 2: DOGFIGHT — Auto-plunger for balls in shooter lane
+  ##############################################
+  s_shooter_lane_active{current_player.ptb_step==11}:
+    - ptb_dogfight_plunger_start
+
+  ##############################################
+  ## PHASE 2: DOGFIGHT — Timer expired
+  ##############################################
+  timer_ptb_mode_timer_complete{current_player.ptb_step==11}:
+    - ptb_dogfight_time_up
+
+  ptb_dogfight_time_up:
+    - disable_normal_flippers
+    - disable_autofires
+    - ptb_check_dogfight_result|500ms
+    - ptb_dogfight_end_sequence
+
+  # Check results (500ms delay ensures step variable is updated)
+  ptb_check_dogfight_result{current_player.ptb_team_choice==0 and current_player.ptb_red_bank>current_player.ptb_blue_bank}:
+    - ptb_dogfight_won_event
+  ptb_check_dogfight_result{current_player.ptb_team_choice==0 and current_player.ptb_red_bank<=current_player.ptb_blue_bank}:
+    - ptb_dogfight_lost_event
+  ptb_check_dogfight_result{current_player.ptb_team_choice==1 and current_player.ptb_blue_bank>current_player.ptb_red_bank}:
+    - ptb_dogfight_won_event
+  ptb_check_dogfight_result{current_player.ptb_team_choice==1 and current_player.ptb_blue_bank<=current_player.ptb_red_bank}:
+    - ptb_dogfight_lost_event
+
+  # Add second bank for won (delayed to ensure first bank scored)
+  ptb_dogfight_won_event:
+    - ptb_dogfight_add_second_bank|200ms
+
+  # End video delay complete → start pre-plunge sequence
+  timer_ptb_dogfight_end_delay_complete:
+    - ptb_ball_returning
+
+  # Pre-plunge delay complete → cleanup, re-enable, plunge saved ball
+  timer_ptb_pre_plunge_delay_complete:
+    - ptb_cleanup
+    - enable_normal_flippers
+    - enable_autofires
+    - ptb_post_mode_plunge
+    - ptb_dogfight_drain_cleanup_complete
+
+  ##############################################
+  ## EMERGENCY RESUME — Player manually plunged during end video
+  ## Shooter lane went inactive for 500ms = ball is in play
+  ## Skip remaining video/timers, re-enable everything immediately
+  ##############################################
+  timer_ptb_manual_plunge_detect_complete:
+    - ptb_emergency_resume
+
+  ptb_emergency_resume:
+    - ptb_cleanup
+    - enable_normal_flippers
+    - enable_autofires
+    - ptb_dogfight_drain_cleanup_complete
+
+  ##############################################
+  ## PHASE 1: TIMER EXPIRED (not during dogfight)
+  ##############################################
+  timer_ptb_mode_timer_complete{current_player.ptb_step<8}:
+    - ptb_failed_timer_expired
+    - ptb_play_ended_video
+
+  ##############################################
+  ## DRAIN HANDLING — Phase 1
+  ##############################################
+  ptb_ball_ending_hold{current_player.ptb_step<8}:
+    - ptb_failed
+    - ptb_drain_detected
+    - ptb_play_ended_video
+
+  timer_ptb_drain_delay_complete:
+    - ptb_drain_cleanup_complete
+    - ptb_cleanup
+
+  ##############################################
+  ## DRAIN HANDLING — Dogfight phase (safety catch)
+  ## Normally drain_save prevents ball_ending during dogfight end
+  ## This is the fallback if ball_ending fires unexpectedly
+  ##############################################
+  ptb_ball_ending_hold{current_player.ptb_step>=11}:
+    - ptb_dogfight_drain_detected
+
+  timer_ptb_dogfight_drain_delay_complete:
+    - enable_normal_flippers
+    - enable_autofires
+    - ptb_dogfight_drain_cleanup_complete
+    - ptb_cleanup
+
+  ##############################################
+  ## RAMP CONTROL
+  ##############################################
+
+  ##############################################
+  ## MIG POST CONTROL — Guide ball into pops during rally phases
+  ## Spinner or TL hit → left MIG post up 3s
+  ## LO hit → right MIG post up 3s
+  ##############################################
+  s_spinner_active{current_player.ptb_step>=1 and current_player.ptb_step<=6}:
+    - ptb_raise_left_mig
+
+  s_orbit_upper_active{current_player.ptb_step>=1 and current_player.ptb_step<=6}:
+    - ptb_raise_left_mig
+
+  s_orbit_left_active{current_player.ptb_step>=1 and current_player.ptb_step<=6}:
+    - ptb_raise_right_mig
+  # Spike phases: raise top ramp (TO shot needs it UP)
+  ptb_setup_step_2:
+    - top_ramp_up
+  ptb_setup_step_4:
+    - top_ramp_up
+  ptb_setup_step_6:
+    - top_ramp_up
+
+  # After spike complete: lower top ramp
+  ptb_step_2_complete:
+    - top_ramp_down
+  ptb_step_4_complete:
+    - top_ramp_down
+  ptb_step_6_complete:
+    - top_ramp_down
+
+  ##############################################
+  ## BARRIER CONTROL
+  ##############################################
+  ptb_cleanup:
+    - barrier_raise
+    - top_ramp_down
+    - ball_search_unblock
+
+####################################################################################
+# SLIDE PLAYER
+####################################################################################
+slide_player:
+  # Intro slide
+  mode_hard_deck_playing_with_the_boys_started:
+    hard_deck_playing_with_the_boys_instructions:
+      action: play
+      priority: 900
+
+  # Timer slide (persistent, shows throughout mode)
+  ptb_ball_released:
+    hard_deck_playing_with_the_boys_timer:
+      action: play
+      priority: 1000
+
+  # NOTE: Instructions slide persists through all rally/spike phases as background
+  # Rally and spike slides play OVER it and expire/remove — instructions shows between phases
+  # Instructions slide is removed when ended video plays (won or failed)
+
+  # Rally 1 slide (6 second video, replays on bumper re-entry)
+  ptb_play_rally_1_slide:
+    hard_deck_playing_with_the_boys_rally_1:
+      action: play
+      priority: 900
+      expire: 6s
+
+  # Rally 2 slide (6 second video)
+  ptb_play_rally_2_slide:
+    hard_deck_playing_with_the_boys_rally_2:
+      action: play
+      priority: 900
+      expire: 6s
+
+  # Rally 3 slide (18 second video)
+  ptb_play_rally_3_slide:
+    hard_deck_playing_with_the_boys_rally_3:
+      action: play
+      priority: 900
+      expire: 18s
+
+  # Spike 1 slide
+  ptb_setup_step_2:
+    hard_deck_playing_with_the_boys_spike_1:
+      action: play
+      priority: 900
+  ptb_step_2_complete:
+    hard_deck_playing_with_the_boys_spike_1:
+      action: remove
+
+  # Spike 2 slide
+  ptb_setup_step_4:
+    hard_deck_playing_with_the_boys_spike_2:
+      action: play
+      priority: 900
+  ptb_step_4_complete:
+    hard_deck_playing_with_the_boys_spike_2:
+      action: remove
+
+  # Spike 3 slide
+  ptb_setup_step_6:
+    hard_deck_playing_with_the_boys_spike_3:
+      action: play
+      priority: 900
+  ptb_step_6_complete:
+    hard_deck_playing_with_the_boys_spike_3:
+      action: remove
+
+  # Phase 1: mode_points_scored — show bank payout on spike shot completion
+  ptb_spike_shot_scored:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  # Phase 2: mode_points_scored — show per-hit value on dogfight shots
+  # player_mode_points_scored fires whenever the variable changes;
+  # dogfight shot values always increment so consecutive hits won't match
+  player_mode_points_scored{value>0 and current_player.ptb_step==11}:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  # Ended video (victory OR failed)
+  ptb_play_ended_video:
+    hard_deck_playing_with_the_boys_instructions:
+      action: remove
+    hard_deck_playing_with_the_boys_timer:
+      action: remove
+    hard_deck_playing_with_the_boys_rally_1:
+      action: remove
+    hard_deck_playing_with_the_boys_rally_2:
+      action: remove
+    hard_deck_playing_with_the_boys_rally_3:
+      action: remove
+    hard_deck_playing_with_the_boys_spike_1:
+      action: remove
+    hard_deck_playing_with_the_boys_spike_2:
+      action: remove
+    hard_deck_playing_with_the_boys_spike_3:
+      action: remove
+    hard_deck_playing_with_the_boys_ended:
+      action: play
+      priority: 900
+
+  # Decision slide — branch by TGMB qualification
+  ptb_show_decision{current_player.multiball_qualified==0}:
+    hard_deck_playing_with_the_boys_ended:
+      action: remove
+    hard_deck_playing_with_the_boys_decision:
+      action: play
+      priority: 900
+
+  ptb_show_decision{current_player.multiball_qualified==1}:
+    hard_deck_playing_with_the_boys_ended:
+      action: remove
+    hard_deck_playing_with_the_boys_decision_with_tgmb:
+      action: play
+      priority: 900
+
+  # Remove decision on choice (covers all three paths)
+  ptb_decision_end_mode:
+    hard_deck_playing_with_the_boys_decision:
+      action: remove
+    hard_deck_playing_with_the_boys_decision_with_tgmb:
+      action: remove
+
+  ptb_decision_start_tgmb:
+    hard_deck_playing_with_the_boys_decision_with_tgmb:
+      action: remove
+
+  # Team choice slide — shown immediately when player selects dogfight
+  # Voice callout plays simultaneously
+  ptb_show_team_choice:
+    hard_deck_playing_with_the_boys_decision:
+      action: remove
+    hard_deck_playing_with_the_boys_decision_with_tgmb:
+      action: remove
+    hard_deck_dogfight_football_decision:
+      action: play
+      priority: 950
+
+  # Team chosen → remove team choice, show dogfight football slide
+  ptb_dogfight_instructions_start:
+    hard_deck_dogfight_football_decision:
+      action: remove
+    hard_deck_playing_with_the_boys_dogfight_football:
+      action: play
+      priority: 900
+
+  # Dogfight active — show timer
+  ptb_dogfight_activate:
+    hard_deck_playing_with_the_boys_timer:
+      action: play
+      priority: 1000
+
+  # Dogfight end slide
+  ptb_dogfight_end_sequence:
+    hard_deck_playing_with_the_boys_dogfight_football:
+      action: remove
+    hard_deck_playing_with_the_boys_timer:
+      action: remove
+    hard_deck_dogfight_football_end:
+      action: play
+      priority: 900
+
+  # Failed slide (phase 1 timer expired — reuses ended video)
+  ptb_failed_timer_expired:
+    hard_deck_playing_with_the_boys_instructions:
+      action: remove
+    hard_deck_playing_with_the_boys_timer:
+      action: remove
+    hard_deck_playing_with_the_boys_rally_1:
+      action: remove
+    hard_deck_playing_with_the_boys_rally_2:
+      action: remove
+    hard_deck_playing_with_the_boys_rally_3:
+      action: remove
+    hard_deck_playing_with_the_boys_spike_1:
+      action: remove
+    hard_deck_playing_with_the_boys_spike_2:
+      action: remove
+    hard_deck_playing_with_the_boys_spike_3:
+      action: remove
+
+####################################################################################
+# SOUND PLAYER — Voice callouts only (music controlled in base.yaml)
+####################################################################################
+sound_player:
+  # Intro callout
+  mode_hard_deck_playing_with_the_boys_started:
+    voice_playing_with_the_boys_instructions:
+      bus: voice
+      loops: 0
+
+  # Dogfight instructions callout (plays when team choice appears)
+  ptb_show_team_choice:
+    voice_dogfight_football_frenzy_instructions:
+      bus: voice
+      loops: 0
+
+  # Dogfight won callout
+  ptb_dogfight_won_event:
+    voice_hard_deck_dogfight_football_won:
+      bus: voice
+      loops: 0
+
+  # Dogfight lost callout
+  ptb_dogfight_lost_event:
+    voice_hard_deck_dogfight_football_lost:
+      bus: voice
+      loops: 0
+
+####################################################################################
+# SHOW PLAYER — Flashing lights for active shots
+####################################################################################
+show_player:
+
+  ##############################################
+  ## RALLY PHASES — Flash bumper lights yellow
+  ##############################################
+  ptb_setup_step_1:
+    flash_pop_left:
+      show: ptb_flash_yellow
+      key: ptb_pop_left
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_gi_light_pop_left
+    flash_pop_right:
+      show: ptb_flash_yellow
+      key: ptb_pop_right
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_gi_light_pop_right
+    flash_pop_bottom:
+      show: ptb_flash_yellow
+      key: ptb_pop_bottom
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_gi_light_pop_bottom
+
+  # Rally complete → bumpers steady on yellow
+  ptb_step_1_complete:
+    flash_pop_left:
+      show: ptb_solid_yellow
+      key: ptb_pop_left
+      loops: -1
+      show_tokens:
+        led: l_gi_light_pop_left
+    flash_pop_right:
+      show: ptb_solid_yellow
+      key: ptb_pop_right
+      loops: -1
+      show_tokens:
+        led: l_gi_light_pop_right
+    flash_pop_bottom:
+      show: ptb_solid_yellow
+      key: ptb_pop_bottom
+      loops: -1
+      show_tokens:
+        led: l_gi_light_pop_bottom
+
+  # Rally 2 — flash bumpers again
+  ptb_setup_step_3:
+    flash_pop_left:
+      show: ptb_flash_yellow
+      key: ptb_pop_left
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_gi_light_pop_left
+    flash_pop_right:
+      show: ptb_flash_yellow
+      key: ptb_pop_right
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_gi_light_pop_right
+    flash_pop_bottom:
+      show: ptb_flash_yellow
+      key: ptb_pop_bottom
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_gi_light_pop_bottom
+
+  ptb_step_3_complete:
+    flash_pop_left:
+      show: ptb_solid_yellow
+      key: ptb_pop_left
+      loops: -1
+      show_tokens:
+        led: l_gi_light_pop_left
+    flash_pop_right:
+      show: ptb_solid_yellow
+      key: ptb_pop_right
+      loops: -1
+      show_tokens:
+        led: l_gi_light_pop_right
+    flash_pop_bottom:
+      show: ptb_solid_yellow
+      key: ptb_pop_bottom
+      loops: -1
+      show_tokens:
+        led: l_gi_light_pop_bottom
+
+  # Rally 3 — flash bumpers again
+  ptb_setup_step_5:
+    flash_pop_left:
+      show: ptb_flash_yellow
+      key: ptb_pop_left
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_gi_light_pop_left
+    flash_pop_right:
+      show: ptb_flash_yellow
+      key: ptb_pop_right
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_gi_light_pop_right
+    flash_pop_bottom:
+      show: ptb_flash_yellow
+      key: ptb_pop_bottom
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_gi_light_pop_bottom
+
+  ptb_step_5_complete:
+    flash_pop_left:
+      show: ptb_solid_yellow
+      key: ptb_pop_left
+      loops: -1
+      show_tokens:
+        led: l_gi_light_pop_left
+    flash_pop_right:
+      show: ptb_solid_yellow
+      key: ptb_pop_right
+      loops: -1
+      show_tokens:
+        led: l_gi_light_pop_right
+    flash_pop_bottom:
+      show: ptb_solid_yellow
+      key: ptb_pop_bottom
+      loops: -1
+      show_tokens:
+        led: l_gi_light_pop_bottom
+
+  ##############################################
+  ## SPIKE PHASES — Flash active shot inserts orange
+  ##############################################
+  ptb_setup_step_2:
+    flash_spike_to:
+      show: ptb_flash_orange
+      key: ptb_spike_to
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_middle_ramp
+    flash_spike_tl:
+      show: ptb_flash_orange
+      key: ptb_spike_tl
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
+    flash_spike_lr:
+      show: ptb_flash_orange
+      key: ptb_spike_lr
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+
+  ptb_step_2_complete:
+    stop_spike_to:
+      show: ptb_flash_orange
+      action: stop
+      key: ptb_spike_to
+    stop_spike_tl:
+      show: ptb_flash_orange
+      action: stop
+      key: ptb_spike_tl
+    stop_spike_lr:
+      show: ptb_flash_orange
+      action: stop
+      key: ptb_spike_lr
+
+  ptb_setup_step_4:
+    flash_spike_to_s4:
+      show: ptb_flash_orange
+      key: ptb_spike_to
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_middle_ramp
+    flash_spike_tl_s4:
+      show: ptb_flash_orange
+      key: ptb_spike_tl
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
+    flash_spike_lr_s4:
+      show: ptb_flash_orange
+      key: ptb_spike_lr
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+
+  ptb_step_4_complete:
+    stop_spike_to_s4:
+      show: ptb_flash_orange
+      action: stop
+      key: ptb_spike_to
+    stop_spike_tl_s4:
+      show: ptb_flash_orange
+      action: stop
+      key: ptb_spike_tl
+    stop_spike_lr_s4:
+      show: ptb_flash_orange
+      action: stop
+      key: ptb_spike_lr
+
+  ptb_setup_step_6:
+    flash_spike_to_s6:
+      show: ptb_flash_orange
+      key: ptb_spike_to
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_middle_ramp
+    flash_spike_tl_s6:
+      show: ptb_flash_orange
+      key: ptb_spike_tl
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
+    flash_spike_lr_s6:
+      show: ptb_flash_orange
+      key: ptb_spike_lr
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+
+  ptb_step_6_complete:
+    stop_spike_to_s6:
+      show: ptb_flash_orange
+      action: stop
+      key: ptb_spike_to
+    stop_spike_tl_s6:
+      show: ptb_flash_orange
+      action: stop
+      key: ptb_spike_tl
+    stop_spike_lr_s6:
+      show: ptb_flash_orange
+      action: stop
+      key: ptb_spike_lr
+
+  ##############################################
+  ## STEP 7 — Flash barrier insert
+  ##############################################
+  ptb_setup_step_7:
+    flash_barrier:
+      show: ptb_flash_orange
+      key: ptb_barrier
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_barrier
+
+  ptb_step_7_scoop_entered:
+    stop_barrier:
+      show: ptb_flash_orange
+      action: stop
+      key: ptb_barrier
+
+  ##############################################
+  ## DOGFIGHT — Ball save light flash
+  ##############################################
+  ptb_dogfight_ball_save_enable:
+    flash_shoot_again:
+      show: ptb_flash_yellow
+      key: ptb_shoot_again
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shoot_again
+
+  ptb_dogfight_time_up:
+    stop_shoot_again:
+      show: ptb_flash_yellow
+      action: stop
+      key: ptb_shoot_again
+
+  ##############################################
+  ## CLEANUP — Stop all shows
+  ##############################################
+  ptb_cleanup:
+    cleanup_pop_left:
+      action: stop
+      key: ptb_pop_left
+    cleanup_pop_right:
+      action: stop
+      key: ptb_pop_right
+    cleanup_pop_bottom:
+      action: stop
+      key: ptb_pop_bottom
+    cleanup_spike_to:
+      action: stop
+      key: ptb_spike_to
+    cleanup_spike_tl:
+      action: stop
+      key: ptb_spike_tl
+    cleanup_spike_lr:
+      action: stop
+      key: ptb_spike_lr
+    cleanup_barrier:
+      action: stop
+      key: ptb_barrier
+    cleanup_shoot_again:
+      action: stop
+      key: ptb_shoot_again
+
+####################################################################################
+# LIGHT PLAYER — GI colors and shot inserts
+####################################################################################
+light_player:
+
+  ##############################################
+  ## PHASE 1 GI — Yellow/White alternating, pops yellow
+  ##############################################
+  mode_hard_deck_playing_with_the_boys_started:
+    # Odd GI lights = yellow
+    l_gi_light_1: { color: FFFF00, fade: 0ms }
+    l_gi_light_3: { color: FFFF00, fade: 0ms }
+    l_gi_light_5: { color: FFFF00, fade: 0ms }
+    l_gi_light_7: { color: FFFF00, fade: 0ms }
+    l_gi_light_9: { color: FFFF00, fade: 0ms }
+    l_gi_light_11: { color: FFFF00, fade: 0ms }
+    l_gi_light_13: { color: FFFF00, fade: 0ms }
+    l_gi_light_15: { color: FFFF00, fade: 0ms }
+    l_gi_light_17: { color: FFFF00, fade: 0ms }
+    l_gi_light_19: { color: FFFF00, fade: 0ms }
+    l_gi_light_21: { color: FFFF00, fade: 0ms }
+    l_gi_light_23: { color: FFFF00, fade: 0ms }
+    l_gi_light_25: { color: FFFF00, fade: 0ms }
+    l_gi_light_27: { color: FFFF00, fade: 0ms }
+    # Even GI lights = white
+    l_gi_light_2: { color: FFFFFF, fade: 0ms }
+    l_gi_light_4: { color: FFFFFF, fade: 0ms }
+    l_gi_light_6: { color: FFFFFF, fade: 0ms }
+    l_gi_light_8: { color: FFFFFF, fade: 0ms }
+    l_gi_light_10: { color: FFFFFF, fade: 0ms }
+    l_gi_light_12: { color: FFFFFF, fade: 0ms }
+    l_gi_light_14: { color: FFFFFF, fade: 0ms }
+    l_gi_light_16: { color: FFFFFF, fade: 0ms }
+    l_gi_light_18: { color: FFFFFF, fade: 0ms }
+    l_gi_light_20: { color: FFFFFF, fade: 0ms }
+    l_gi_light_22: { color: FFFFFF, fade: 0ms }
+    l_gi_light_24: { color: FFFFFF, fade: 0ms }
+    l_gi_light_26: { color: FFFFFF, fade: 0ms }
+    # Pop bumpers = yellow
+    l_gi_light_pop_left: { color: FFFF00, fade: 0ms }
+    l_gi_light_pop_right: { color: FFFF00, fade: 0ms }
+    l_gi_light_pop_bottom: { color: FFFF00, fade: 0ms }
+    # Apron lights (odd=yellow, even=white)
+    l_apron_light_1: { color: FFFF00, fade: 0ms }
+    l_apron_light_2: { color: FFFFFF, fade: 0ms }
+    l_apron_light_3: { color: FFFF00, fade: 0ms }
+    l_apron_light_4: { color: FFFFFF, fade: 0ms }
+
+  ##############################################
+  ## PHASE 2 GI — Red/White/Blue pattern
+  ## 1,4,7,10,13,16,19,22,25 = white
+  ## 2,5,8,11,14,17,20,23,26 = red
+  ## 3,6,9,12,15,18,21,24,27 = blue
+  ##############################################
+  ptb_dogfight_lights_setup:
+    # White (mod 3 == 1)
+    l_gi_light_1: { color: FFFFFF, fade: 0ms }
+    l_gi_light_4: { color: FFFFFF, fade: 0ms }
+    l_gi_light_7: { color: FFFFFF, fade: 0ms }
+    l_gi_light_10: { color: FFFFFF, fade: 0ms }
+    l_gi_light_13: { color: FFFFFF, fade: 0ms }
+    l_gi_light_16: { color: FFFFFF, fade: 0ms }
+    l_gi_light_19: { color: FFFFFF, fade: 0ms }
+    l_gi_light_22: { color: FFFFFF, fade: 0ms }
+    l_gi_light_25: { color: FFFFFF, fade: 0ms }
+    # Red (mod 3 == 2)
+    l_gi_light_2: { color: FF0000, fade: 0ms }
+    l_gi_light_5: { color: FF0000, fade: 0ms }
+    l_gi_light_8: { color: FF0000, fade: 0ms }
+    l_gi_light_11: { color: FF0000, fade: 0ms }
+    l_gi_light_14: { color: FF0000, fade: 0ms }
+    l_gi_light_17: { color: FF0000, fade: 0ms }
+    l_gi_light_20: { color: FF0000, fade: 0ms }
+    l_gi_light_23: { color: FF0000, fade: 0ms }
+    l_gi_light_26: { color: FF0000, fade: 0ms }
+    # Blue (mod 3 == 0)
+    l_gi_light_3: { color: 0000FF, fade: 0ms }
+    l_gi_light_6: { color: 0000FF, fade: 0ms }
+    l_gi_light_9: { color: 0000FF, fade: 0ms }
+    l_gi_light_12: { color: 0000FF, fade: 0ms }
+    l_gi_light_15: { color: 0000FF, fade: 0ms }
+    l_gi_light_18: { color: 0000FF, fade: 0ms }
+    l_gi_light_21: { color: 0000FF, fade: 0ms }
+    l_gi_light_24: { color: 0000FF, fade: 0ms }
+    l_gi_light_27: { color: 0000FF, fade: 0ms }
+    # Aprons: 1=white, 2=red, 3=blue, 4=white
+    l_apron_light_1: { color: FFFFFF, fade: 0ms }
+    l_apron_light_2: { color: FF0000, fade: 0ms }
+    l_apron_light_3: { color: 0000FF, fade: 0ms }
+    l_apron_light_4: { color: FFFFFF, fade: 0ms }
+    # Pops = white
+    l_gi_light_pop_left: { color: FFFFFF, fade: 0ms }
+    l_gi_light_pop_right: { color: FFFFFF, fade: 0ms }
+    l_gi_light_pop_bottom: { color: FFFFFF, fade: 0ms }
+    # --- Initial dogfight shot colors ---
+    # Red team starting shots
+    l_shot_left_lane: { color: FF0000, fade: 0ms }
+    l_shot_left_ramp: { color: FF0000, fade: 0ms }
+    l_shot_barrier: { color: FF0000, fade: 0ms }
+    l_shot_upper_orbit: { color: FF0000, fade: 0ms }
+    l_shot_right_orbit: { color: FF0000, fade: 0ms }
+    l_iceman_i: { color: FF0000, fade: 0ms }
+    l_iceman_c: { color: FF0000, fade: 0ms }
+    l_iceman_e: { color: FF0000, fade: 0ms }
+    # Blue team starting shots
+    l_shot_left_orbit: { color: 0000FF, fade: 0ms }
+    l_shot_spinner: { color: 0000FF, fade: 0ms }
+    l_shot_tower_ramp: { color: 0000FF, fade: 0ms }
+    l_shot_middle_ramp: { color: 0000FF, fade: 0ms }
+    l_iceman_m: { color: 0000FF, fade: 0ms }
+    l_iceman_a: { color: 0000FF, fade: 0ms }
+    l_iceman_n: { color: 0000FF, fade: 0ms }
+
+  ##############################################
+  ## CLEANUP — Turn off all shot inserts
+  ##############################################
+  ptb_cleanup:
+    l_shot_left_lane: { color: off, fade: 0ms }
+    l_shot_left_orbit: { color: off, fade: 0ms }
+    l_shot_left_ramp: { color: off, fade: 0ms }
+    l_shot_spinner: { color: off, fade: 0ms }
+    l_shot_barrier: { color: off, fade: 0ms }
+    l_shot_tower_ramp: { color: off, fade: 0ms }
+    l_shot_upper_orbit: { color: off, fade: 0ms }
+    l_shot_middle_ramp: { color: off, fade: 0ms }
+    l_shot_right_orbit: { color: off, fade: 0ms }
+    l_shot_pilot_gear: { color: off, fade: 0ms }
+    l_iceman_i: { color: off, fade: 0ms }
+    l_iceman_c: { color: off, fade: 0ms }
+    l_iceman_e: { color: off, fade: 0ms }
+    l_iceman_m: { color: off, fade: 0ms }
+    l_iceman_a: { color: off, fade: 0ms }
+    l_iceman_n: { color: off, fade: 0ms }
+    l_shoot_again: { color: off, fade: 0ms }
+
+####################################################################################
+# COIL PLAYER — Left lane post for intro ball hold
+####################################################################################
+coil_player:
+  # Hold ball at left lane on mode start (for intro video)
+  mode_hard_deck_playing_with_the_boys_started:
+    c_left_lane_up_post:
+      action: enable
+
+  # Release ball after intro (or skip)
+  ptb_ball_released:
+    c_left_lane_up_post:
+      action: disable
+
+  # Safety: release post on mode stop
+  mode_hard_deck_playing_with_the_boys_will_stop:
+    c_left_lane_up_post:
+      action: disable
+    c_left_mig_up_post:
+      action: disable
+    c_right_mig_up_post:
+      action: disable
+
+  # Post-mode plunge — fires plunger to launch saved ball after end video
+  ptb_post_mode_plunge:
+    c_plunger:
+      action: pulse
+
+  # Dogfight auto-plunger — fires plunger 2s after ball reaches shooter lane during multiball
+  timer_ptb_dogfight_plunger_delay_complete:
+    c_plunger:
+      action: pulse
+
+  # Left MIG post — raise on spinner/TL hit during rally, lower after 3s
+  ptb_raise_left_mig:
+    c_left_mig_up_post:
+      action: enable
+  timer_ptb_left_mig_hold_complete:
+    c_left_mig_up_post:
+      action: disable
+
+  # Right MIG post — raise on LO hit during rally, lower after 3s
+  ptb_raise_right_mig:
+    c_right_mig_up_post:
+      action: enable
+  timer_ptb_right_mig_hold_complete:
+    c_right_mig_up_post:
+      action: disable
+
+  # Cleanup — disable both MIG posts
+  ptb_cleanup:
+    c_left_mig_up_post:
+      action: disable
+    c_right_mig_up_post:
+      action: disable
+
+####################################################################################
+# SHOWS — Light animation patterns
+####################################################################################
+shows:
+  ptb_flash_yellow:
+    - duration: 500ms
+      lights:
+        (led):
+          color: FFFF00
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: off
+          fade: 0ms
+
+  ptb_solid_yellow:
+    - duration: 1s
+      lights:
+        (led):
+          color: FFFF00
+          fade: 0ms
+
+  ptb_flash_orange:
+    - duration: 500ms
+      lights:
+        (led):
+          color: FFA500
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: off
+          fade: 0ms
+
+####################################################################################
+# GODOT SLIDE SETUP
+####################################################################################
+#
+# SLIDES NEEDED (14 total):
+#
+# PERSISTENT (1):
+#   hard_deck_playing_with_the_boys_timer
+#     - Variable Type: device
+#     - Variable Name: timers.ptb_mode_timer.ticks
+#     - Countdown timer (reused for both phase 1 and dogfight)
+#
+# VIDEO/INSTRUCTION SLIDES (11 — all already created):
+#   hard_deck_playing_with_the_boys_instructions
+#   hard_deck_playing_with_the_boys_rally_1   (6s video)
+#   hard_deck_playing_with_the_boys_rally_2   (6s video)
+#   hard_deck_playing_with_the_boys_rally_3   (18s video)
+#   hard_deck_playing_with_the_boys_spike_1
+#   hard_deck_playing_with_the_boys_spike_2
+#   hard_deck_playing_with_the_boys_spike_3
+#   hard_deck_playing_with_the_boys_ended     (11s video — used for both win and fail)
+#   hard_deck_playing_with_the_boys_decision
+#     - Timer Variable Type: device
+#     - Timer Variable Name: timers.ptb_decision_timer.ticks
+#     - Shown when TGMB is NOT qualified
+#     - Left flipper: End mode (back to base)
+#     - Right flipper: Dogfight
+#     - Timeout: End mode
+#   hard_deck_playing_with_the_boys_decision_with_tgmb
+#     - Timer Variable Type: device
+#     - Timer Variable Name: timers.ptb_decision_timer.ticks
+#     - Shown when TGMB IS qualified (multiball_qualified==1)
+#     - Left flipper: End mode + Start Top Gun Multiball
+#     - Right flipper: Dogfight
+#     - Timeout: Dogfight
+#   hard_deck_dogfight_football_decision
+#     - Timer Variable Type: device
+#     - Timer Variable Name: timers.ptb_team_choice_timer.ticks
+#     - 30 second timer, shown immediately on dogfight selection
+#   hard_deck_playing_with_the_boys_dogfight_football
+#     - Variable: player_var / ptb_red_bank (Red team score)
+#     - Variable: player_var / ptb_blue_bank (Blue team score)
+#   hard_deck_dogfight_football_end
+#
+# MODE POINTS DISPLAY:
+#   Any slide that should show per-hit scoring needs a text widget with:
+#     - Variable Type: player_var
+#     - Variable Name: mode_points_scored
+#   The variable is SET (not added) on each scoring event, so it reflects
+#   the most recent hit value. Display with a brief visibility timer in Godot.
+#
+# SOUNDS NEEDED (4):
+#   voice_playing_with_the_boys_instructions   (intro callout)
+#   voice_dogfight_football_frenzy_instructions (dogfight instructions, plays during scoop hold)
+#   voice_hard_deck_dogfight_football_won      (player's team won)
+#   voice_hard_deck_dogfight_football_lost     (player's team lost)
+#   hard_deck_playing_with_the_boys_music      (phase 1 music, defined in machine config)
+#
+####################################################################################v

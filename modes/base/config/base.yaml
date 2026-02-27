@@ -871,8 +871,9 @@ sound_player:
   # EXCEPTION: battle_jester step 6 - music keeps playing during that scoop entry
 ####################################################################################
 
-  # Silence for all modes EXCEPT battle_jester step 6
-  s_mode_start_active{mode.battle_jester.active==False or current_player.battle_jester_step!=5}:
+  # Silence for all modes EXCEPT battle_jester step 6 and playing_with_the_boys step 7
+  # (PTB step 7: ball enters scoop for victory — music restarts 200ms later via ptb_step_7_keep_music)
+  s_mode_start_active{(mode.battle_jester.active==False or current_player.battle_jester_step!=5) and (mode.hard_deck_playing_with_the_boys.active==False or current_player.ptb_step!=7)}:
     silence:
       bus: music
       loops: 0
@@ -994,6 +995,53 @@ sound_player:
   # Restart base music when battle_jester mode stops (but NOT if drain pending - bonus will handle it)
   # This handles both won (where bonus doesn't run) and lost scenarios
   mode_battle_jester_stopped{current_player.pilot_mode_drain_pending==0}:
+    music_danger_zone:
+      bus: music
+      loops: -1
+
+#################################################################################### 
+  # Playing with the Boys (Hard Deck) Music Handler
+####################################################################################
+
+  # Start music when mode starts (during intro hold, not after ball release)
+  mode_hard_deck_playing_with_the_boys_started:
+    hard_deck_playing_with_the_boys_music:
+      bus: music
+      loops: -1
+
+  # Keep music playing after scoop entry at step 7 (belt-and-suspenders with
+  # scoop silence exception above — this fires 200ms later as backup)
+  ptb_step_7_keep_music|200ms:
+    hard_deck_playing_with_the_boys_music:
+      bus: music
+      loops: -1
+
+  # Silence for dogfight instructions (slide has built-in music, starts at instructions)
+  ptb_dogfight_instructions_start:
+    silence:
+      bus: music
+      loops: 0
+
+  # Silence for failed (ball drain during phase 1)
+  ptb_failed:
+    silence:
+      bus: music
+      loops: 0
+
+  # Silence for failed (timer expired during phase 1 — separate event for slide_player)
+  ptb_failed_timer_expired:
+    silence:
+      bus: music
+      loops: 0
+
+  # Silence for complete (player chose to end mode after victory)
+  ptb_complete:
+    silence:
+      bus: music
+      loops: 0
+
+  # Restart base music when mode stops (but NOT if drain pending - bonus will handle it)
+  mode_hard_deck_playing_with_the_boys_stopped{current_player.pilot_mode_drain_pending==0}:
     music_danger_zone:
       bus: music
       loops: -1

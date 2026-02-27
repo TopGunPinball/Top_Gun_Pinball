@@ -1,0 +1,875 @@
+#config_version=6
+
+####################################################################################
+# HARD DECK MODE QUALIFIERS
+#
+# Always-running mode that tracks hard deck mode qualification progress,
+# handles mode rotation via slingshots, and manages the left-lane start
+# including decision slides when training missions are also qualified.
+#
+# PRIORITY: 200 (same as pilot_mission_qualifier and locks - base game layer)
+#
+# HARD DECK MODES:
+#   1 = maverick_and_charlie (pink)    - Beat pilot + training + super jackpot
+#   2 = playing_with_the_boys (yellow) - 50 pop bumper hits
+#   3 = maverick_and_penny (purple)    - Play hard deck + hit all switches 2x
+#   4 = honoring_iceman (ice blue)     - ICEMAN completed 10 times
+#
+# QUALIFICATION CRITERIA:
+#   Mode 1 (maverick_and_charlie):
+#     - Win (not just play) at least 1 pilot mission
+#     - Win (not just play) at least 1 training mission
+#     - Collect at least 1 super jackpot in Top Gun Multiball
+#
+#   Mode 2 (playing_with_the_boys):
+#     - 50 total pop bumper hits (s_bumper_left + s_bumper_center + s_bumper_right)
+#
+#   Mode 3 (maverick_and_penny):
+#     - Play any hard deck mission (hard_deck_missions_played >= 1)
+#     - Hit all 31 tracked playfield switches at least 2 times each
+#
+#   Mode 4 (honoring_iceman):
+#     - ICEMAN completed 10 times total (base game + multiball completions)
+#
+# ROTATION: Slingshot hits rotate forward through qualified (and unplayed) modes
+# START: Left lane (s_lane_left) with c_left_lane_up_post ball hold
+# DECISION: If training AND hard deck both qualified, show choice slide
+#   Left flipper = Training (default on timeout)
+#   Right flipper = Hard Deck
+#   15 second timer
+#
+# LIGHT: l_hard_deck_lit with mode-specific color (pulsing when qualified)
+#
+# TRACKED SWITCHES FOR MAVERICK_AND_PENNY (31 total):
+#   Shots: s_lane_left, s_orbit_left, s_ramp_left_exit, s_spinner,
+#          s_barrier_target, s_ramp_tower_exit, s_orbit_upper,
+#          s_ramp_inner_exit, s_orbit_right, s_ramp_right_exit,
+#          s_flight_gear_target
+#   Bumpers: s_bumper_left, s_bumper_center, s_bumper_right
+#   Slingshots: s_slingshot_left, s_slingshot_right
+#   Lanes: s_inlane_left, s_inner_inlane_right, s_outer_inlane_right
+#   MIG lanes: s_mig_lane_left, s_mig_lane_right
+#   ICEMAN targets: s_i/c/e/m/a/n_iceman_target
+#   LOCK targets: s_l/o/c/k_lock_target
+#
+# EXCLUDED: s_mode_start, s_outlane_left, s_outlane_right, s_orbit_lower,
+#           s_lock_goose, s_lock_mav, s_lock_plunger, s_shooter_lane,
+#           trough/jam switches
+####################################################################################
+
+mode:
+  start_events: mode_base_started
+  stop_events: mode_base_stopped
+  priority: 200
+  game_mode: true
+
+####################################################################################
+# TIMERS
+####################################################################################
+timers:
+  # Training vs Hard Deck decision timer (15 seconds)
+  hd_training_choice_timer:
+    start_value: 15
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: hd_training_choice_start
+        action: restart
+      - event: hd_training_choice_training
+        action: stop
+      - event: hd_training_choice_hard_deck
+        action: stop
+      - event: mode_hard_deck_qualifiers_will_stop
+        action: stop
+
+####################################################################################
+# VARIABLE PLAYER
+####################################################################################
+variable_player:
+
+  ##############################################################################
+  # POP BUMPER HIT TRACKING (for playing_with_the_boys qualification)
+  ##############################################################################
+  s_bumper_left_active:
+    pop_bumper_hits_total:
+      action: add
+      int: 1
+
+  s_bumper_center_active:
+    pop_bumper_hits_total:
+      action: add
+      int: 1
+
+  s_bumper_right_active:
+    pop_bumper_hits_total:
+      action: add
+      int: 1
+
+  ##############################################################################
+  # SWITCH TRACKING FOR MAVERICK_AND_PENNY (31 switches, capped at 2 each)
+  ##############################################################################
+
+  # --- Shots (11) ---
+  s_lane_left_active{current_player.hd_sw_lane_left<2}:
+    hd_sw_lane_left:
+      action: add
+      int: 1
+
+  s_orbit_left_active{current_player.hd_sw_orbit_left<2}:
+    hd_sw_orbit_left:
+      action: add
+      int: 1
+
+  s_ramp_left_exit_active{current_player.hd_sw_ramp_left<2}:
+    hd_sw_ramp_left:
+      action: add
+      int: 1
+
+  s_spinner_active{current_player.hd_sw_spinner<2}:
+    hd_sw_spinner:
+      action: add
+      int: 1
+
+  s_barrier_target_active{current_player.hd_sw_barrier<2}:
+    hd_sw_barrier:
+      action: add
+      int: 1
+
+  s_ramp_tower_exit_active{current_player.hd_sw_ramp_tower<2}:
+    hd_sw_ramp_tower:
+      action: add
+      int: 1
+
+  s_orbit_upper_active{current_player.hd_sw_orbit_upper<2}:
+    hd_sw_orbit_upper:
+      action: add
+      int: 1
+
+  s_ramp_inner_exit_active{current_player.hd_sw_ramp_inner<2}:
+    hd_sw_ramp_inner:
+      action: add
+      int: 1
+
+  s_orbit_right_active{current_player.hd_sw_orbit_right<2}:
+    hd_sw_orbit_right:
+      action: add
+      int: 1
+
+  s_ramp_right_exit_active{current_player.hd_sw_ramp_right<2}:
+    hd_sw_ramp_right:
+      action: add
+      int: 1
+
+  s_flight_gear_target_active{current_player.hd_sw_flight_gear<2}:
+    hd_sw_flight_gear:
+      action: add
+      int: 1
+
+  # --- Bumpers (3) ---
+  s_bumper_left_active{current_player.hd_sw_bump_left<2}:
+    hd_sw_bump_left:
+      action: add
+      int: 1
+
+  s_bumper_center_active{current_player.hd_sw_bump_center<2}:
+    hd_sw_bump_center:
+      action: add
+      int: 1
+
+  s_bumper_right_active{current_player.hd_sw_bump_right<2}:
+    hd_sw_bump_right:
+      action: add
+      int: 1
+
+  # --- Slingshots (2) ---
+  s_slingshot_left_active{current_player.hd_sw_sling_left<2}:
+    hd_sw_sling_left:
+      action: add
+      int: 1
+
+  s_slingshot_right_active{current_player.hd_sw_sling_right<2}:
+    hd_sw_sling_right:
+      action: add
+      int: 1
+
+  # --- Lanes (3) ---
+  s_inlane_left_active{current_player.hd_sw_inlane_left<2}:
+    hd_sw_inlane_left:
+      action: add
+      int: 1
+
+  s_inner_inlane_right_active{current_player.hd_sw_inlane_inner_r<2}:
+    hd_sw_inlane_inner_r:
+      action: add
+      int: 1
+
+  s_outer_inlane_right_active{current_player.hd_sw_inlane_outer_r<2}:
+    hd_sw_inlane_outer_r:
+      action: add
+      int: 1
+
+  # --- MIG Lanes (2) ---
+  s_mig_lane_left_active{current_player.hd_sw_mig_left<2}:
+    hd_sw_mig_left:
+      action: add
+      int: 1
+
+  s_mig_lane_right_active{current_player.hd_sw_mig_right<2}:
+    hd_sw_mig_right:
+      action: add
+      int: 1
+
+  # --- ICEMAN Targets (6) ---
+  s_i_iceman_target_active{current_player.hd_sw_iceman_i<2}:
+    hd_sw_iceman_i:
+      action: add
+      int: 1
+
+  s_c_iceman_target_active{current_player.hd_sw_iceman_c<2}:
+    hd_sw_iceman_c:
+      action: add
+      int: 1
+
+  s_e_iceman_target_active{current_player.hd_sw_iceman_e<2}:
+    hd_sw_iceman_e:
+      action: add
+      int: 1
+
+  s_m_iceman_target_active{current_player.hd_sw_iceman_m<2}:
+    hd_sw_iceman_m:
+      action: add
+      int: 1
+
+  s_a_iceman_target_active{current_player.hd_sw_iceman_a<2}:
+    hd_sw_iceman_a:
+      action: add
+      int: 1
+
+  s_n_iceman_target_active{current_player.hd_sw_iceman_n<2}:
+    hd_sw_iceman_n:
+      action: add
+      int: 1
+
+  # --- LOCK Targets (4) ---
+  s_l_lock_target_active{current_player.hd_sw_lock_l<2}:
+    hd_sw_lock_l:
+      action: add
+      int: 1
+
+  s_o_lock_target_active{current_player.hd_sw_lock_o<2}:
+    hd_sw_lock_o:
+      action: add
+      int: 1
+
+  s_c_lock_target_active{current_player.hd_sw_lock_c<2}:
+    hd_sw_lock_c:
+      action: add
+      int: 1
+
+  s_k_lock_target_active{current_player.hd_sw_lock_k<2}:
+    hd_sw_lock_k:
+      action: add
+      int: 1
+
+  ##############################################################################
+  # SWITCH COMPLETION COUNTING (fires when any switch reaches 2 hits)
+  # Increments hd_switches_completed toward the goal of 31
+  ##############################################################################
+  player_hd_sw_lane_left{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_orbit_left{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_ramp_left{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_spinner{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_barrier{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_ramp_tower{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_orbit_upper{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_ramp_inner{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_orbit_right{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_ramp_right{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_flight_gear{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_bump_left{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_bump_center{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_bump_right{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_sling_left{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_sling_right{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_inlane_left{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_inlane_inner_r{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_inlane_outer_r{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_mig_left{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_mig_right{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_iceman_i{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_iceman_c{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_iceman_e{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_iceman_m{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_iceman_a{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_iceman_n{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_lock_l{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_lock_o{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_lock_c{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+  player_hd_sw_lock_k{value==2}:
+    hd_switches_completed:
+      action: add
+      int: 1
+
+  ##############################################################################
+  # QUALIFICATION STATE - Set flags when modes qualify
+  ##############################################################################
+  hd_qualify_maverick_and_charlie:
+    hd_mc_qualified:
+      action: set
+      int: 1
+
+  # Light this mode if nothing currently lit
+  hd_qualify_maverick_and_charlie{current_player.hard_deck_qualified_mode==0}:
+    hard_deck_qualified_mode:
+      action: set
+      int: 1
+
+  hd_qualify_playing_with_the_boys:
+    hd_ptb_qualified:
+      action: set
+      int: 1
+
+  hd_qualify_playing_with_the_boys{current_player.hard_deck_qualified_mode==0}:
+    hard_deck_qualified_mode:
+      action: set
+      int: 2
+
+  hd_qualify_maverick_and_penny:
+    hd_mp_qualified:
+      action: set
+      int: 1
+
+  hd_qualify_maverick_and_penny{current_player.hard_deck_qualified_mode==0}:
+    hard_deck_qualified_mode:
+      action: set
+      int: 3
+
+  hd_qualify_honoring_iceman:
+    hd_hi_qualified:
+      action: set
+      int: 1
+
+  hd_qualify_honoring_iceman{current_player.hard_deck_qualified_mode==0}:
+    hard_deck_qualified_mode:
+      action: set
+      int: 4
+
+  ##############################################################################
+  # ROTATION - Slingshot forward rotation
+  # Single increment only. Wrap handled by player_hard_deck_qualified_mode{value==5}
+  ##############################################################################
+  hd_reset_rotation_guard:
+    hd_rotation_attempts:
+      action: set
+      int: 0
+
+  rotate_hard_deck_mode:
+    hd_rotation_attempts:
+      action: add
+      int: 1
+    hard_deck_qualified_mode:
+      action: add
+      int: 1
+
+  # Wrap from 5 back to 1 (separate from rotate event to avoid same-event condition race)
+  player_hard_deck_qualified_mode{value==5}:
+    hard_deck_qualified_mode:
+      action: set
+      int: 1
+
+  ##############################################################################
+  # DECISION SLIDE TRACKING
+  ##############################################################################
+  hd_training_choice_start:
+    hd_training_choice_active:
+      action: set
+      int: 1
+    hard_deck_qualifiers_hd_training_choice_timer_tick:
+      action: set
+      int: 15
+
+  timer_hd_training_choice_timer_tick:
+    hard_deck_qualifiers_hd_training_choice_timer_tick:
+      action: add
+      int: -1
+
+  hd_training_choice_training:
+    hd_training_choice_active:
+      action: set
+      int: 0
+
+  hd_training_choice_hard_deck:
+    hd_training_choice_active:
+      action: set
+      int: 0
+
+  ##############################################################################
+  # HARD DECK MODE START/STOP TRACKING
+  # (Modes will also set hard_deck_active=1 and letter_collection_paused=1 
+  #  on their own mode_started, like pilot missions do)
+  ##############################################################################
+  mode_hard_deck_maverick_and_charlie_started:
+    hard_deck_qualified_mode:
+      action: set
+      int: 0
+    hd_mc_played:
+      action: set
+      int: 1
+    hard_deck_missions_played:
+      action: add
+      int: 1
+
+  mode_hard_deck_playing_with_the_boys_started:
+    hard_deck_qualified_mode:
+      action: set
+      int: 0
+    hd_ptb_played:
+      action: set
+      int: 1
+    hard_deck_missions_played:
+      action: add
+      int: 1
+
+  mode_hard_deck_maverick_and_penny_started:
+    hard_deck_qualified_mode:
+      action: set
+      int: 0
+    hd_mp_played:
+      action: set
+      int: 1
+    hard_deck_missions_played:
+      action: add
+      int: 1
+
+  mode_hard_deck_honoring_iceman_started:
+    hard_deck_qualified_mode:
+      action: set
+      int: 0
+    hd_hi_played:
+      action: set
+      int: 1
+    hard_deck_missions_played:
+      action: add
+      int: 1
+
+  ##############################################################################
+  # RESTORE HARD DECK LIGHT AFTER OTHER MODES END
+  # When multiball or pilot mission ends, if hard deck is still qualified,
+  # re-light the insert
+  ##############################################################################
+  mode_top_gun_multiball_stopped{current_player.hard_deck_qualified_mode>0}:
+    _hd_restore_trigger:
+      action: set
+      int: 1
+
+####################################################################################
+# EVENT PLAYER
+####################################################################################
+event_player:
+
+  ##############################################################################
+  # QUALIFICATION CHECKS
+  # Use player_xxx variable change events to detect when conditions are met
+  ##############################################################################
+
+  # --- MAVERICK AND CHARLIE (mode 1) ---
+  # All three: pilot_missions_won>=1, training_missions_won>=1, super_jackpots_collected>=1
+  player_pilot_missions_won{value>=1 and current_player.training_missions_won>=1 and current_player.super_jackpots_collected>=1 and current_player.hd_mc_qualified==0 and current_player.hd_mc_played==0}:
+    - hd_qualify_maverick_and_charlie
+
+  player_training_missions_won{value>=1 and current_player.pilot_missions_won>=1 and current_player.super_jackpots_collected>=1 and current_player.hd_mc_qualified==0 and current_player.hd_mc_played==0}:
+    - hd_qualify_maverick_and_charlie
+
+  player_super_jackpots_collected{value>=1 and current_player.pilot_missions_won>=1 and current_player.training_missions_won>=1 and current_player.hd_mc_qualified==0 and current_player.hd_mc_played==0}:
+    - hd_qualify_maverick_and_charlie
+
+  # --- PLAYING WITH THE BOYS (mode 2) ---
+  player_pop_bumper_hits_total{value==5 and current_player.hd_ptb_qualified==0 and current_player.hd_ptb_played==0}:
+    - hd_qualify_playing_with_the_boys
+
+  # --- MAVERICK AND PENNY (mode 3) ---
+  player_hard_deck_missions_played{value>=1 and current_player.hd_switches_completed>=31 and current_player.hd_mp_qualified==0 and current_player.hd_mp_played==0}:
+    - hd_qualify_maverick_and_penny
+
+  player_hd_switches_completed{value==31 and current_player.hard_deck_missions_played>=1 and current_player.hd_mp_qualified==0 and current_player.hd_mp_played==0}:
+    - hd_qualify_maverick_and_penny
+
+  # --- HONORING ICEMAN (mode 4) ---
+  player_iceman_total_completions{value==10 and current_player.hd_hi_qualified==0 and current_player.hd_hi_played==0}:
+    - hd_qualify_honoring_iceman
+
+  ##############################################################################
+  # SLINGSHOT ROTATION (forward only, skip unavailable modes)
+  ##############################################################################
+  s_slingshot_left_active{current_player.hard_deck_qualified_mode>0 and current_player.hard_deck_active==0 and current_player.hd_training_choice_active==0}:
+    - hd_reset_rotation_guard
+    - rotate_hard_deck_mode
+
+  s_slingshot_right_active{current_player.hard_deck_qualified_mode>0 and current_player.hard_deck_active==0 and current_player.hd_training_choice_active==0}:
+    - hd_reset_rotation_guard
+    - rotate_hard_deck_mode
+
+  # Auto-skip modes that are not qualified or already played
+  # Guard: hd_rotation_attempts<5 prevents infinite loop if all modes unavailable
+  player_hard_deck_qualified_mode{value==1 and (current_player.hd_mc_qualified==0 or current_player.hd_mc_played==1) and current_player.hd_rotation_attempts>0 and current_player.hd_rotation_attempts<5}:
+    - rotate_hard_deck_mode
+
+  player_hard_deck_qualified_mode{value==2 and (current_player.hd_ptb_qualified==0 or current_player.hd_ptb_played==1) and current_player.hd_rotation_attempts>0 and current_player.hd_rotation_attempts<5}:
+    - rotate_hard_deck_mode
+
+  player_hard_deck_qualified_mode{value==3 and (current_player.hd_mp_qualified==0 or current_player.hd_mp_played==1) and current_player.hd_rotation_attempts>0 and current_player.hd_rotation_attempts<5}:
+    - rotate_hard_deck_mode
+
+  player_hard_deck_qualified_mode{value==4 and (current_player.hd_hi_qualified==0 or current_player.hd_hi_played==1) and current_player.hd_rotation_attempts>0 and current_player.hd_rotation_attempts<5}:
+    - rotate_hard_deck_mode
+
+  ##############################################################################
+  # LEFT LANE START - DECISION SYSTEM
+  # Case 1: Both training AND hard deck qualified → show decision slide
+  # Case 2: Only hard deck qualified → start hard deck mode directly
+  # (Case 3: Only training qualified → handled by iceman_letters.yaml)
+  ##############################################################################
+
+  # Case 1: Both qualified - show decision slide
+  s_lane_left_active{current_player.training_mission_qualified>0 and current_player.hard_deck_qualified_mode>0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.training_mission_active==0 and current_player.hd_training_choice_active==0}:
+    - hd_training_choice_start
+
+  # Case 2: Only hard deck qualified (no training qualified)
+  s_lane_left_active{current_player.training_mission_qualified==0 and current_player.hard_deck_qualified_mode>0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.training_mission_active==0 and current_player.hd_training_choice_active==0}:
+    - hd_start_qualified_mode
+
+  ##############################################################################
+  # DECISION SLIDE - Flipper choices and timeout
+  ##############################################################################
+
+  # Left flipper during choice → TRAINING (default)
+  s_flipper_left_active{current_player.hd_training_choice_active==1}:
+    - hd_training_choice_training
+
+  # Right flipper during choice → HARD DECK
+  s_flipper_right_active{current_player.hd_training_choice_active==1}:
+    - hd_training_choice_hard_deck
+
+  # Timeout → default to TRAINING
+  timer_hd_training_choice_timer_complete:
+    - hd_training_choice_training
+
+  ##############################################################################
+  # TRAINING CHOICE PATH - Start the qualified training mission
+  ##############################################################################
+  hd_training_choice_training{current_player.training_mission_qualified==1 and current_player.training_inverted_complete==0}:
+    - start_mode_pilot_training_mission_inverted
+
+  hd_training_choice_training{current_player.training_mission_qualified==2 and current_player.training_missles_complete==0}:
+    - start_mode_pilot_training_mission_missiles
+
+  hd_training_choice_training{current_player.training_mission_qualified==3 and current_player.training_afterburner_complete==0}:
+    - start_mode_pilot_training_mission_afterburner
+
+  hd_training_choice_training{current_player.training_mission_qualified==4 and current_player.training_wingman_complete==0}:
+    - start_mode_training_wingman
+
+  hd_training_choice_training{current_player.training_mission_qualified==5}:
+    - start_mode_training_dogfight
+
+  ##############################################################################
+  # HARD DECK CHOICE PATH - Start the qualified hard deck mode
+  ##############################################################################
+  hd_training_choice_hard_deck{current_player.hard_deck_qualified_mode==1}:
+    - start_mode_hard_deck_maverick_and_charlie
+
+  hd_training_choice_hard_deck{current_player.hard_deck_qualified_mode==2}:
+    - start_mode_hard_deck_playing_with_the_boys
+
+  hd_training_choice_hard_deck{current_player.hard_deck_qualified_mode==3}:
+    - start_mode_hard_deck_maverick_and_penny
+
+  hd_training_choice_hard_deck{current_player.hard_deck_qualified_mode==4}:
+    - start_mode_hard_deck_honoring_iceman
+
+  ##############################################################################
+  # DIRECT START (no training qualified, just start the hard deck mode)
+  ##############################################################################
+  hd_start_qualified_mode{current_player.hard_deck_qualified_mode==1}:
+    - start_mode_hard_deck_maverick_and_charlie
+
+  hd_start_qualified_mode{current_player.hard_deck_qualified_mode==2}:
+    - start_mode_hard_deck_playing_with_the_boys
+
+  hd_start_qualified_mode{current_player.hard_deck_qualified_mode==3}:
+    - start_mode_hard_deck_maverick_and_penny
+
+  hd_start_qualified_mode{current_player.hard_deck_qualified_mode==4}:
+    - start_mode_hard_deck_honoring_iceman
+
+  ##############################################################################
+  # RESTORE HARD DECK LIGHT ON MODE START (each ball)
+  ##############################################################################
+  mode_hard_deck_qualifiers_started{current_player.hard_deck_qualified_mode>0}:
+    - hd_restore_qualified_light
+
+  ##############################################################################
+  # RESTORE AFTER OTHER MODES END
+  # Re-light hard deck insert after multiball or pilot missions end
+  ##############################################################################
+  mode_top_gun_multiball_stopped{current_player.hard_deck_qualified_mode>0}:
+    - hd_restore_qualified_light
+
+  mode_rescue_cougar_stopped{current_player.hard_deck_qualified_mode>0}:
+    - hd_restore_qualified_light
+
+  mode_battle_jester_stopped{current_player.hard_deck_qualified_mode>0}:
+    - hd_restore_qualified_light
+
+  mode_rise_of_phoenix_stopped{current_player.hard_deck_qualified_mode>0}:
+    - hd_restore_qualified_light
+
+  mode_hard_deck_playing_with_the_boys_stopped{current_player.hard_deck_qualified_mode>0}:
+    - hd_restore_qualified_light
+
+  # Stop pulse shows when any hard deck mode starts
+  mode_hard_deck_maverick_and_charlie_started:
+    - hd_stop_pulse_show
+  mode_hard_deck_playing_with_the_boys_started:
+    - hd_stop_pulse_show
+  mode_hard_deck_maverick_and_penny_started:
+    - hd_stop_pulse_show
+  mode_hard_deck_honoring_iceman_started:
+    - hd_stop_pulse_show
+
+####################################################################################
+# COIL PLAYER - Left lane post control during decision
+####################################################################################
+coil_player:
+  # Hold ball at left lane post during decision
+  hd_training_choice_start:
+    c_left_lane_up_post:
+      action: enable
+
+  # Release post when training chosen (training mode takes over hold on its mode_started)
+  # NOTE: Training modes enable c_left_lane_up_post on mode_started, so no gap
+  # The mode starts synchronously before the post could release the ball
+  hd_training_choice_training:
+    c_left_lane_up_post:
+      action: disable
+
+  # Release post when hard deck chosen (hard deck mode takes over hold)
+  hd_training_choice_hard_deck:
+    c_left_lane_up_post:
+      action: disable
+
+  # Safety: release post when qualifier mode stops
+  mode_hard_deck_qualifiers_will_stop:
+    c_left_lane_up_post:
+      action: disable
+
+####################################################################################
+# SLIDE PLAYER - Decision slide
+####################################################################################
+slide_player:
+  hd_training_choice_start:
+    hard_deck_training_choice:
+      action: play
+      priority: 900
+
+  hd_training_choice_training:
+    hard_deck_training_choice:
+      action: remove
+
+  hd_training_choice_hard_deck:
+    hard_deck_training_choice:
+      action: remove
+
+####################################################################################
+# SOUND PLAYER
+####################################################################################
+sound_player:
+  hd_qualify_maverick_and_charlie:
+    voice_hard_deck_qualified:
+      bus: voice
+      loops: 0
+
+  hd_qualify_playing_with_the_boys:
+    voice_hard_deck_qualified:
+      bus: voice
+      loops: 0
+
+  hd_qualify_maverick_and_penny:
+    voice_hard_deck_qualified:
+      bus: voice
+      loops: 0
+
+  hd_qualify_honoring_iceman:
+    voice_hard_deck_qualified:
+      bus: voice
+      loops: 0
+
+####################################################################################
+# LIGHT PLAYER - Hard deck qualified light (solid color, not flashing)
+####################################################################################
+light_player:
+  # Qualification lights - solid color on l_hard_deck_lit
+  hd_qualify_maverick_and_charlie:
+    l_hard_deck_lit:
+      color: FF69B4
+      fade: 0ms
+
+  hd_qualify_playing_with_the_boys:
+    l_hard_deck_lit:
+      color: FFFF00
+      fade: 0ms
+
+  hd_qualify_maverick_and_penny:
+    l_hard_deck_lit:
+      color: 9932CC
+      fade: 0ms
+
+  hd_qualify_honoring_iceman:
+    l_hard_deck_lit:
+      color: 88DDFF
+      fade: 0ms
+
+  # Rotation lights - update color when rotating to a valid mode
+  player_hard_deck_qualified_mode{value==1 and current_player.hd_mc_qualified==1 and current_player.hd_mc_played==0}:
+    l_hard_deck_lit:
+      color: FF69B4
+      fade: 0ms
+
+  player_hard_deck_qualified_mode{value==2 and current_player.hd_ptb_qualified==1 and current_player.hd_ptb_played==0}:
+    l_hard_deck_lit:
+      color: FFFF00
+      fade: 0ms
+
+  player_hard_deck_qualified_mode{value==3 and current_player.hd_mp_qualified==1 and current_player.hd_mp_played==0}:
+    l_hard_deck_lit:
+      color: 9932CC
+      fade: 0ms
+
+  player_hard_deck_qualified_mode{value==4 and current_player.hd_hi_qualified==1 and current_player.hd_hi_played==0}:
+    l_hard_deck_lit:
+      color: 88DDFF
+      fade: 0ms
+
+  # Restore light on ball start
+  hd_restore_qualified_light{current_player.hard_deck_qualified_mode==1}:
+    l_hard_deck_lit:
+      color: FF69B4
+      fade: 0ms
+
+  hd_restore_qualified_light{current_player.hard_deck_qualified_mode==2}:
+    l_hard_deck_lit:
+      color: FFFF00
+      fade: 0ms
+
+  hd_restore_qualified_light{current_player.hard_deck_qualified_mode==3}:
+    l_hard_deck_lit:
+      color: 9932CC
+      fade: 0ms
+
+  hd_restore_qualified_light{current_player.hard_deck_qualified_mode==4}:
+    l_hard_deck_lit:
+      color: 88DDFF
+      fade: 0ms
+
+  # Turn off light when mode starts or mode stops
+  hd_stop_pulse_show:
+    l_hard_deck_lit:
+      color: off
+      fade: 0ms
+
+  mode_hard_deck_qualifiers_stopped:
+    l_hard_deck_lit:
+      color: off
+      fade: 0ms

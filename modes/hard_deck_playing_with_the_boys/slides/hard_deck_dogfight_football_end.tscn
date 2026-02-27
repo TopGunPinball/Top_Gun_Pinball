@@ -1,0 +1,81 @@
+[gd_scene load_steps=8 format=3 uid="uid://bccagjfytnswd"]
+
+[ext_resource type="Script" uid="uid://dru3usokwlhd3" path="res://addons/mpf-gmc/classes/mpf_slide.gd" id="1_6kskh"]
+[ext_resource type="VideoStream" uid="uid://dyq7eo1xonwam" path="res://addons/artwork/videos/playing_with_the_boys/dog_fight_multiball_ended.ogv" id="2_k8134"]
+[ext_resource type="Script" uid="uid://bov7mrgxslshq" path="res://addons/mpf-gmc/classes/mpf_video_player.gd" id="3_n77s2"]
+[ext_resource type="FontFile" uid="uid://bmeoubu4ga0gt" path="res://fonts/ITCMachine-Medium Medium.ttf" id="4_t2c5l"]
+[ext_resource type="Script" uid="uid://bfvhmv2eirpua" path="res://addons/mpf-gmc/classes/mpf_variable.gd" id="5_g4ohl"]
+[ext_resource type="Texture2D" uid="uid://b6n7hnumg4e5d" path="res://addons/artwork/images/scoreboard_background_with_video_updated.png" id="6_usw5i"]
+
+[sub_resource type="FontVariation" id="FontVariation_ld38g"]
+base_font = ExtResource("4_t2c5l")
+spacing_glyph = 5
+spacing_space = -2
+
+[node name="dogflight_footbal" type="Control"]
+process_priority = 200
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_6kskh")
+
+[node name="TextureRect" type="VideoStreamPlayer" parent="."]
+z_index = 48
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_right = 1280.0
+offset_bottom = 720.0
+grow_horizontal = 2
+grow_vertical = 2
+stream = ExtResource("2_k8134")
+volume_db = 3.0
+autoplay = true
+expand = true
+bus = &"voice"
+script = ExtResource("3_n77s2")
+end_behavior = 1
+preview_in_editor = true
+
+[node name="screen label" type="Label" parent="."]
+z_index = 53
+layout_mode = 0
+offset_left = 451.0
+offset_top = 416.0
+offset_right = 887.0
+offset_bottom = 479.0
+theme_override_colors/font_color = Color(0.7764706, 0.77254903, 0.70980394, 0.54509807)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.34117648)
+theme_override_constants/line_spacing = -9
+theme_override_constants/shadow_outline_size = 3
+theme_override_fonts/font = ExtResource("4_t2c5l")
+theme_override_font_sizes/font_size = 60
+text = "Points awarded"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="points" type="Label" parent="."]
+z_index = 53
+layout_mode = 0
+offset_left = 83.0
+offset_top = 411.0
+offset_right = 552.0
+offset_bottom = 482.0
+theme_override_colors/font_color = Color(0.7764706, 0.77254903, 0.70980394, 0.54509807)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.34117648)
+theme_override_constants/line_spacing = -9
+theme_override_constants/shadow_outline_size = 3
+theme_override_fonts/font = SubResource("FontVariation_ld38g")
+theme_override_font_sizes/font_size = 60
+text = "1,250,000"
+horizontal_alignment = 1
+vertical_alignment = 1
+script = ExtResource("5_g4ohl")
+variable_name = "ptb_dogfight_payout"
+comma_separate = true
+
+[node name="background_video_opening" type="Sprite2D" parent="."]
+visible = false
+z_index = 50
+texture = ExtResource("6_usw5i")
+centered = false
