@@ -620,6 +620,10 @@ timers:
       - event: afterburner_extend_rescue_cougar_timer
         action: jump
         value: 9999
+      - event: lock_sequence_timer_pause
+        action: pause
+      - event: lock_sequence_timer_resume
+        action: start
 
   # INTRO VIDEO TIMER - Match battle_jester pattern EXACTLY
   # Auto-starts on mode_started, tick_interval in seconds, control_events to start
@@ -779,16 +783,19 @@ event_player:
 
   mode_rescue_cougar_started:
     - reset_topgun_letters  # Reset TOPGUN collection for duration of mode
+    - barrier_raise          # Raise barrier during intro video (ball held, coil stays cool)
     # Timer auto-starts via control_events (like battle_jester)
     # Shots setup when timer_rescue_cougar_intro_video_delay_complete fires
 
-  # NORMAL PATH: Intro video delay completes → release ball AND setup shots
+  # NORMAL PATH: Intro video delay completes → drop barrier, release ball, setup shots
   timer_rescue_cougar_intro_video_delay_complete:
+    - barrier_drop
     - rescue_cougar_ball_released
     - rescue_cougar_setup_shots
 
-  # SKIP PATH: Both flippers pressed → stop intro timer, release ball, setup shots
+  # SKIP PATH: Both flippers pressed → drop barrier, release ball, setup shots
   rescue_cougar_skip_intro:
+    - barrier_drop
     - rescue_cougar_ball_released  # Release ball immediately
     - rescue_cougar_setup_shots  # Setup shots immediately
 

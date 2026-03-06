@@ -46,7 +46,9 @@
 #
 # MODE TIMER: 120s (phase 1), reused as 121s (dogfight)
 # MUSIC: hard_deck_playing_with_the_boys_music (controlled in base.yaml)
-#        Dogfight slide has built-in music (mode music silenced)
+#        Plays through decision + team choice screens
+#        Silenced on team selection (ptb_dogfight_instructions_start)
+#        Dogfight slide has built-in music
 ####################################################################################
 
 mode:
@@ -56,6 +58,7 @@ mode:
     - timer_ptb_failed_delay_complete            # Timer expired during phase 1
     - ptb_drain_cleanup_complete                 # Ball drain during phase 1
     - ptb_dogfight_drain_cleanup_complete         # Dogfight end sequence complete (after plunge)
+    - mb_balls_release                            # TGMB handoff: ball released, PTB done
   priority: 600
   game_mode: true
   use_wait_queue: true
@@ -87,6 +90,9 @@ multiballs:
     ball_count_type: total
     shoot_again: 0
     start_events: ptb_dogfight_mb_start
+    stop_events:
+      - ptb_dogfight_time_up
+      - mode_hard_deck_playing_with_the_boys_will_stop
 
 ####################################################################################
 # BALL SAVES
@@ -451,6 +457,9 @@ variable_player:
     mode_points_scored:
       action: set
       int: 0
+    ptb_post_mode_plunge_active:
+      action: set
+      int: 0
 
   ##############################################
   ## PHASE 1: BUMPER RALLY SCORING
@@ -694,6 +703,10 @@ variable_player:
       action: set
       int: 11
     ptb_dogfight_active:
+      action: set
+      int: 1
+    # Block lock letter collection and ball locking during dogfight multiball
+    multiball_active:
       action: set
       int: 1
 
@@ -948,6 +961,15 @@ variable_player:
     ptb_balls_draining:
       action: set
       int: 0
+    ptb_post_mode_plunge_active:
+      action: set
+      int: 1
+
+  # Pre-plunge delay complete — set plunge flag so qualifier can suppress skillshot
+  timer_ptb_pre_plunge_delay_complete:
+    ptb_post_mode_plunge_active:
+      action: set
+      int: 1
 
 ####################################################################################
 # EVENT PLAYER
@@ -1094,6 +1116,7 @@ event_player:
     - ptb_step_7_scoop_entered
     - ptb_step_7_keep_music
     - ptb_play_ended_video
+    - barrier_raise
 
   ##############################################
   ## PHASE 1: VICTORY SEQUENCE (step 8)
@@ -1122,18 +1145,18 @@ event_player:
   s_flipper_right_active{current_player.ptb_step==8 and device.timers.ptb_decision_timer.running}:
     - ptb_decision_dogfight
 
-  # End mode path — release ball, raise barrier after delay
+  # End mode path — drop barrier, then release ball after 500ms
   ptb_decision_end_mode:
-    - ptb_complete
-    - ptb_end_mode_release_ball
+    - barrier_drop
+    - ptb_complete|500ms
+    - ptb_end_mode_release_ball|500ms
 
-  # Start TGMB path — end this mode AND fire multiball_start_sequence
-  # Locks mode picks up multiball_start_sequence → 500ms delay → start_mode_top_gun_multiball
-  # PTB's ball_hold releases scoop ball on mode stop
+  # Start TGMB path — fire multiball_start_sequence but keep ball held in scoop.
+  # PTB stays alive holding the ball. TGMB starts → plays intro → fires mb_balls_release.
+  # mb_balls_release is in stop_events so PTB stops → release_all_events frees the ball.
   ptb_decision_start_tgmb:
-    - ptb_complete
-    - ptb_end_mode_release_ball
     - multiball_start_sequence
+    - ptb_cleanup
   timer_ptb_barrier_delay_complete:
     - barrier_raise
   timer_ptb_complete_delay_complete:
@@ -1174,7 +1197,8 @@ event_player:
   ## PHASE 2: DOGFIGHT — Activation sequence
   ##############################################
   ptb_dogfight_activate:
-    - ptb_dogfight_release_ball
+    - barrier_drop
+    - ptb_dogfight_release_ball|500ms
     - ptb_dogfight_ball_save_enable
     - ptb_dogfight_mb_start
     - ptb_dogfight_start_timer
@@ -1291,17 +1315,19 @@ event_player:
   ##############################################
 
   ##############################################
-  ## MIG POST CONTROL — Guide ball into pops during rally phases
+  ## MIG POST CONTROL — Guide ball into pops during rally phases ONLY
   ## Spinner or TL hit → left MIG post up 3s
   ## LO hit → right MIG post up 3s
+  ## ONLY active on rally steps (1,3,5). Spike steps (2,4,6) light LR/TL/TO
+  ## instead — MIG posts would interfere with those shots.
   ##############################################
-  s_spinner_active{current_player.ptb_step>=1 and current_player.ptb_step<=6}:
+  s_spinner_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5}:
     - ptb_raise_left_mig
 
-  s_orbit_upper_active{current_player.ptb_step>=1 and current_player.ptb_step<=6}:
+  s_orbit_upper_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5}:
     - ptb_raise_left_mig
 
-  s_orbit_left_active{current_player.ptb_step>=1 and current_player.ptb_step<=6}:
+  s_orbit_left_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5}:
     - ptb_raise_right_mig
   # Spike phases: raise top ramp (TO shot needs it UP)
   ptb_setup_step_2:
@@ -1523,6 +1549,12 @@ sound_player:
       bus: voice
       loops: 0
 
+  # Decision callout (plays when decision slide appears — either variant)
+  ptb_show_decision:
+    voice_dogfight_football_whats_your_plan:
+      bus: voice
+      loops: 0
+
   # Dogfight instructions callout (plays when team choice appears)
   ptb_show_team_choice:
     voice_dogfight_football_frenzy_instructions:
@@ -1549,6 +1581,47 @@ show_player:
   ##############################################
   ## RALLY PHASES — Flash bumper lights yellow
   ##############################################
+
+  ##############################################
+  ## RALLY — Pop bumper area GI energy + hit feedback
+  ##############################################
+
+  # Ball enters pop bumper area — start pulsing GI energy near pops
+  ptb_bumper_entered:
+    pop_energy:
+      show: ptb_pop_energy
+      key: ptb_pop_energy
+      loops: -1
+      priority: 1
+
+  # Ball leaves pop bumper area — stop energy show
+  ptb_bumper_left:
+    stop_pop_energy:
+      show: ptb_pop_energy
+      action: stop
+      key: ptb_pop_energy
+
+  # Each bumper hit — brief white flash on apron + backboard
+  ptb_bumper_hit_restart_inactivity:
+    hit_flash:
+      show: ptb_bumper_hit_flash
+      key: ptb_hit_flash
+      loops: 0
+      priority: 2
+
+  ##############################################
+  ## SPIKE — Celebration on each spike shot scored
+  ##############################################
+  ptb_spike_shot_scored:
+    spike_celebrate:
+      show: ptb_spike_celebration
+      key: ptb_spike_celebrate
+      loops: 0
+      priority: 2
+
+  ##############################################
+  ## RALLY — Flash pop bumper inserts yellow
+  ##############################################
   ptb_setup_step_1:
     flash_pop_left:
       show: ptb_flash_yellow
@@ -1572,7 +1645,7 @@ show_player:
       show_tokens:
         led: l_gi_light_pop_bottom
 
-  # Rally complete → bumpers steady on yellow
+  # Rally complete → bumpers steady on yellow + celebration burst
   ptb_step_1_complete:
     flash_pop_left:
       show: ptb_solid_yellow
@@ -1592,6 +1665,15 @@ show_player:
       loops: -1
       show_tokens:
         led: l_gi_light_pop_bottom
+    rally_burst:
+      show: ptb_rally_complete_burst
+      key: ptb_rally_burst
+      loops: 0
+      priority: 2
+    stop_pop_energy_r1:
+      show: ptb_pop_energy
+      action: stop
+      key: ptb_pop_energy
 
   # Rally 2 — flash bumpers again
   ptb_setup_step_3:
@@ -1636,6 +1718,15 @@ show_player:
       loops: -1
       show_tokens:
         led: l_gi_light_pop_bottom
+    rally_burst_r2:
+      show: ptb_rally_complete_burst
+      key: ptb_rally_burst
+      loops: 0
+      priority: 2
+    stop_pop_energy_r2:
+      show: ptb_pop_energy
+      action: stop
+      key: ptb_pop_energy
 
   # Rally 3 — flash bumpers again
   ptb_setup_step_5:
@@ -1680,6 +1771,15 @@ show_player:
       loops: -1
       show_tokens:
         led: l_gi_light_pop_bottom
+    rally_burst_r3:
+      show: ptb_rally_complete_burst
+      key: ptb_rally_burst
+      loops: 0
+      priority: 2
+    stop_pop_energy_r3:
+      show: ptb_pop_energy
+      action: stop
+      key: ptb_pop_energy
 
   ##############################################
   ## SPIKE PHASES — Flash active shot inserts orange
@@ -1859,6 +1959,18 @@ show_player:
     cleanup_shoot_again:
       action: stop
       key: ptb_shoot_again
+    cleanup_pop_energy:
+      action: stop
+      key: ptb_pop_energy
+    cleanup_hit_flash:
+      action: stop
+      key: ptb_hit_flash
+    cleanup_spike_celebrate:
+      action: stop
+      key: ptb_spike_celebrate
+    cleanup_rally_burst:
+      action: stop
+      key: ptb_rally_burst
 
 ####################################################################################
 # LIGHT PLAYER — GI colors and shot inserts
@@ -2086,6 +2198,352 @@ shows:
           color: off
           fade: 0ms
 
+  ##############################################
+  ## POP ENERGY — Looping GI pulse near pop bumpers
+  ## 4-step rotating wave across pop zone + nearby GI
+  ## Faster cycle (150ms) with wider coverage for intensity
+  ##############################################
+  ptb_pop_energy:
+    - duration: 150ms
+      lights:
+        l_gi_light_11: { color: FFFFFF, fade: 0ms }
+        l_gi_light_12: { color: FFFF00, fade: 0ms }
+        l_gi_light_13: { color: FFFFFF, fade: 0ms }
+        l_gi_light_14: { color: FFFF00, fade: 0ms }
+        l_gi_light_15: { color: FFFFFF, fade: 0ms }
+        l_gi_light_16: { color: FFFF00, fade: 0ms }
+        l_gi_light_10: { color: FFFF00, fade: 0ms }
+    - duration: 150ms
+      lights:
+        l_gi_light_11: { color: FFFF00, fade: 0ms }
+        l_gi_light_12: { color: FFFFFF, fade: 0ms }
+        l_gi_light_13: { color: FFFF00, fade: 0ms }
+        l_gi_light_14: { color: FFFFFF, fade: 0ms }
+        l_gi_light_15: { color: FFFF00, fade: 0ms }
+        l_gi_light_16: { color: FFFFFF, fade: 0ms }
+        l_gi_light_10: { color: FFFFFF, fade: 0ms }
+    - duration: 150ms
+      lights:
+        l_gi_light_11: { color: FFFFFF, fade: 0ms }
+        l_gi_light_12: { color: FFA500, fade: 0ms }
+        l_gi_light_13: { color: FFFFFF, fade: 0ms }
+        l_gi_light_14: { color: FFA500, fade: 0ms }
+        l_gi_light_15: { color: FFFFFF, fade: 0ms }
+        l_gi_light_16: { color: FFA500, fade: 0ms }
+        l_gi_light_10: { color: FFA500, fade: 0ms }
+    - duration: 150ms
+      lights:
+        l_gi_light_11: { color: FFA500, fade: 0ms }
+        l_gi_light_12: { color: FFFFFF, fade: 0ms }
+        l_gi_light_13: { color: FFA500, fade: 0ms }
+        l_gi_light_14: { color: FFFFFF, fade: 0ms }
+        l_gi_light_15: { color: FFA500, fade: 0ms }
+        l_gi_light_16: { color: FFFFFF, fade: 0ms }
+        l_gi_light_10: { color: FFFFFF, fade: 0ms }
+
+  ##############################################
+  ## BUMPER HIT FLASH — Punchy white-to-orange pulse
+  ## Expanded to include pop area GI + wider backboard
+  ## 3 steps: white flash → orange hit → quick fade
+  ##############################################
+  ptb_bumper_hit_flash:
+    - duration: 60ms
+      lights:
+        l_apron_light_1: { color: FFFFFF, fade: 0ms }
+        l_apron_light_2: { color: FFFFFF, fade: 0ms }
+        l_apron_light_3: { color: FFFFFF, fade: 0ms }
+        l_apron_light_4: { color: FFFFFF, fade: 0ms }
+        l_gi_light_20: { color: FFFFFF, fade: 0ms }
+        l_gi_light_21: { color: FFFFFF, fade: 0ms }
+        l_gi_light_22: { color: FFFFFF, fade: 0ms }
+        l_gi_light_23: { color: FFFFFF, fade: 0ms }
+        l_gi_light_pop_left: { color: FFFFFF, fade: 0ms }
+        l_gi_light_pop_right: { color: FFFFFF, fade: 0ms }
+        l_gi_light_pop_bottom: { color: FFFFFF, fade: 0ms }
+    - duration: 80ms
+      lights:
+        l_apron_light_1: { color: FFA500, fade: 0ms }
+        l_apron_light_2: { color: FFA500, fade: 0ms }
+        l_apron_light_3: { color: FFA500, fade: 0ms }
+        l_apron_light_4: { color: FFA500, fade: 0ms }
+        l_gi_light_20: { color: FFA500, fade: 0ms }
+        l_gi_light_21: { color: FFA500, fade: 0ms }
+        l_gi_light_22: { color: FFFF00, fade: 0ms }
+        l_gi_light_23: { color: FFFF00, fade: 0ms }
+        l_gi_light_pop_left: { color: FFFF00, fade: 0ms }
+        l_gi_light_pop_right: { color: FFFF00, fade: 0ms }
+        l_gi_light_pop_bottom: { color: FFFF00, fade: 0ms }
+    - duration: 60ms
+      lights:
+        l_apron_light_1: { color: FFFF00, fade: 0ms }
+        l_apron_light_2: { color: FFFF00, fade: 0ms }
+        l_apron_light_3: { color: FFFF00, fade: 0ms }
+        l_apron_light_4: { color: FFFF00, fade: 0ms }
+        l_gi_light_20: { color: FFFF00, fade: 0ms }
+        l_gi_light_21: { color: FFFF00, fade: 0ms }
+
+  ##############################################
+  ## RALLY COMPLETE BURST — Big cascading white/yellow explosion
+  ## 5 steps: center flash → expand mid → expand outer → full field → settle
+  ## ~700ms total — really sells the "rally complete" moment
+  ##############################################
+  ptb_rally_complete_burst:
+    # Step 1: White core flash at pops + apron
+    - duration: 100ms
+      lights:
+        l_gi_light_pop_left: { color: FFFFFF, fade: 0ms }
+        l_gi_light_pop_right: { color: FFFFFF, fade: 0ms }
+        l_gi_light_pop_bottom: { color: FFFFFF, fade: 0ms }
+        l_gi_light_11: { color: FFFFFF, fade: 0ms }
+        l_gi_light_12: { color: FFFFFF, fade: 0ms }
+        l_gi_light_13: { color: FFFFFF, fade: 0ms }
+        l_gi_light_14: { color: FFFFFF, fade: 0ms }
+        l_gi_light_15: { color: FFFFFF, fade: 0ms }
+        l_apron_light_1: { color: FFFFFF, fade: 0ms }
+        l_apron_light_2: { color: FFFFFF, fade: 0ms }
+        l_apron_light_3: { color: FFFFFF, fade: 0ms }
+        l_apron_light_4: { color: FFFFFF, fade: 0ms }
+    # Step 2: Core → yellow, mid ring → white
+    - duration: 120ms
+      lights:
+        l_gi_light_pop_left: { color: FFFF00, fade: 0ms }
+        l_gi_light_pop_right: { color: FFFF00, fade: 0ms }
+        l_gi_light_pop_bottom: { color: FFFF00, fade: 0ms }
+        l_gi_light_11: { color: FFFF00, fade: 0ms }
+        l_gi_light_12: { color: FFFF00, fade: 0ms }
+        l_gi_light_13: { color: FFFF00, fade: 0ms }
+        l_gi_light_14: { color: FFFF00, fade: 0ms }
+        l_gi_light_15: { color: FFFF00, fade: 0ms }
+        l_apron_light_1: { color: FFA500, fade: 0ms }
+        l_apron_light_2: { color: FFA500, fade: 0ms }
+        l_apron_light_3: { color: FFA500, fade: 0ms }
+        l_apron_light_4: { color: FFA500, fade: 0ms }
+        l_gi_light_16: { color: FFFFFF, fade: 0ms }
+        l_gi_light_17: { color: FFFFFF, fade: 0ms }
+        l_gi_light_18: { color: FFFFFF, fade: 0ms }
+        l_gi_light_19: { color: FFFFFF, fade: 0ms }
+        l_gi_light_20: { color: FFFFFF, fade: 0ms }
+        l_gi_light_21: { color: FFFFFF, fade: 0ms }
+    # Step 3: Mid → yellow, outer ring → white
+    - duration: 120ms
+      lights:
+        l_gi_light_16: { color: FFFF00, fade: 0ms }
+        l_gi_light_17: { color: FFFF00, fade: 0ms }
+        l_gi_light_18: { color: FFFF00, fade: 0ms }
+        l_gi_light_19: { color: FFFF00, fade: 0ms }
+        l_gi_light_20: { color: FFFF00, fade: 0ms }
+        l_gi_light_21: { color: FFFF00, fade: 0ms }
+        l_gi_light_22: { color: FFFFFF, fade: 0ms }
+        l_gi_light_23: { color: FFFFFF, fade: 0ms }
+        l_gi_light_24: { color: FFFFFF, fade: 0ms }
+        l_gi_light_25: { color: FFFFFF, fade: 0ms }
+        l_gi_light_26: { color: FFFFFF, fade: 0ms }
+        l_gi_light_27: { color: FFFFFF, fade: 0ms }
+        l_apron_light_1: { color: FFFFFF, fade: 0ms }
+        l_apron_light_2: { color: FFFFFF, fade: 0ms }
+        l_apron_light_3: { color: FFFFFF, fade: 0ms }
+        l_apron_light_4: { color: FFFFFF, fade: 0ms }
+    # Step 4: Everything white — peak moment
+    - duration: 150ms
+      lights:
+        l_gi_light_11: { color: FFFFFF, fade: 0ms }
+        l_gi_light_12: { color: FFFFFF, fade: 0ms }
+        l_gi_light_13: { color: FFFFFF, fade: 0ms }
+        l_gi_light_14: { color: FFFFFF, fade: 0ms }
+        l_gi_light_15: { color: FFFFFF, fade: 0ms }
+        l_gi_light_16: { color: FFFFFF, fade: 0ms }
+        l_gi_light_17: { color: FFFFFF, fade: 0ms }
+        l_gi_light_18: { color: FFFFFF, fade: 0ms }
+        l_gi_light_19: { color: FFFFFF, fade: 0ms }
+        l_gi_light_20: { color: FFFFFF, fade: 0ms }
+        l_gi_light_21: { color: FFFFFF, fade: 0ms }
+        l_gi_light_22: { color: FFFFFF, fade: 0ms }
+        l_gi_light_23: { color: FFFFFF, fade: 0ms }
+        l_gi_light_24: { color: FFFFFF, fade: 0ms }
+        l_gi_light_25: { color: FFFFFF, fade: 0ms }
+        l_gi_light_26: { color: FFFFFF, fade: 0ms }
+        l_gi_light_27: { color: FFFFFF, fade: 0ms }
+        l_gi_light_pop_left: { color: FFFFFF, fade: 0ms }
+        l_gi_light_pop_right: { color: FFFFFF, fade: 0ms }
+        l_gi_light_pop_bottom: { color: FFFFFF, fade: 0ms }
+        l_apron_light_1: { color: FFFFFF, fade: 0ms }
+        l_apron_light_2: { color: FFFFFF, fade: 0ms }
+        l_apron_light_3: { color: FFFFFF, fade: 0ms }
+        l_apron_light_4: { color: FFFFFF, fade: 0ms }
+    # Step 5: Settle to yellow — back to mode color
+    - duration: 200ms
+      lights:
+        l_gi_light_22: { color: FFFF00, fade: 0ms }
+        l_gi_light_23: { color: FFFF00, fade: 0ms }
+        l_gi_light_24: { color: FFFF00, fade: 0ms }
+        l_gi_light_25: { color: FFFF00, fade: 0ms }
+        l_gi_light_26: { color: FFFF00, fade: 0ms }
+        l_gi_light_27: { color: FFFF00, fade: 0ms }
+        l_apron_light_1: { color: FFFF00, fade: 0ms }
+        l_apron_light_2: { color: FFFF00, fade: 0ms }
+        l_apron_light_3: { color: FFFF00, fade: 0ms }
+        l_apron_light_4: { color: FFFF00, fade: 0ms }
+
+  ##############################################
+  ## SPIKE CELEBRATION — Full-playfield orange/white fireworks
+  ## 6 steps: white core → orange wave outward → white peak →
+  ##          orange/white strobe → full white → settle to orange
+  ## ~850ms total — THE big payoff moment for landing a spike shot
+  ##############################################
+  ptb_spike_celebration:
+    # Step 1: White flash on spike inserts + pop zone
+    - duration: 80ms
+      lights:
+        l_shot_middle_ramp: { color: FFFFFF, fade: 0ms }
+        l_shot_upper_orbit: { color: FFFFFF, fade: 0ms }
+        l_shot_left_ramp: { color: FFFFFF, fade: 0ms }
+        l_gi_light_pop_left: { color: FFFFFF, fade: 0ms }
+        l_gi_light_pop_right: { color: FFFFFF, fade: 0ms }
+        l_gi_light_pop_bottom: { color: FFFFFF, fade: 0ms }
+        l_gi_light_11: { color: FFFFFF, fade: 0ms }
+        l_gi_light_12: { color: FFFFFF, fade: 0ms }
+        l_gi_light_13: { color: FFFFFF, fade: 0ms }
+        l_gi_light_14: { color: FFFFFF, fade: 0ms }
+        l_gi_light_15: { color: FFFFFF, fade: 0ms }
+        l_apron_light_1: { color: FFA500, fade: 0ms }
+        l_apron_light_2: { color: FFA500, fade: 0ms }
+        l_apron_light_3: { color: FFA500, fade: 0ms }
+        l_apron_light_4: { color: FFA500, fade: 0ms }
+    # Step 2: Orange wave expanding — mid GI ring lights up
+    - duration: 100ms
+      lights:
+        l_shot_middle_ramp: { color: FFA500, fade: 0ms }
+        l_shot_upper_orbit: { color: FFA500, fade: 0ms }
+        l_shot_left_ramp: { color: FFA500, fade: 0ms }
+        l_gi_light_11: { color: FFA500, fade: 0ms }
+        l_gi_light_12: { color: FFA500, fade: 0ms }
+        l_gi_light_13: { color: FFA500, fade: 0ms }
+        l_gi_light_14: { color: FFA500, fade: 0ms }
+        l_gi_light_15: { color: FFA500, fade: 0ms }
+        l_gi_light_16: { color: FFFFFF, fade: 0ms }
+        l_gi_light_17: { color: FFFFFF, fade: 0ms }
+        l_gi_light_18: { color: FFFFFF, fade: 0ms }
+        l_gi_light_19: { color: FFFFFF, fade: 0ms }
+        l_gi_light_20: { color: FFFFFF, fade: 0ms }
+        l_gi_light_21: { color: FFFFFF, fade: 0ms }
+        l_apron_light_1: { color: FFFFFF, fade: 0ms }
+        l_apron_light_2: { color: FFFFFF, fade: 0ms }
+        l_apron_light_3: { color: FFFFFF, fade: 0ms }
+        l_apron_light_4: { color: FFFFFF, fade: 0ms }
+    # Step 3: Full expansion — outer ring joins, all shot inserts orange
+    - duration: 120ms
+      lights:
+        l_gi_light_16: { color: FFA500, fade: 0ms }
+        l_gi_light_17: { color: FFA500, fade: 0ms }
+        l_gi_light_18: { color: FFA500, fade: 0ms }
+        l_gi_light_19: { color: FFA500, fade: 0ms }
+        l_gi_light_20: { color: FFA500, fade: 0ms }
+        l_gi_light_21: { color: FFA500, fade: 0ms }
+        l_gi_light_22: { color: FFFFFF, fade: 0ms }
+        l_gi_light_23: { color: FFFFFF, fade: 0ms }
+        l_gi_light_24: { color: FFFFFF, fade: 0ms }
+        l_gi_light_25: { color: FFFFFF, fade: 0ms }
+        l_gi_light_26: { color: FFFFFF, fade: 0ms }
+        l_gi_light_27: { color: FFFFFF, fade: 0ms }
+        l_shot_left_lane: { color: FFA500, fade: 0ms }
+        l_shot_left_orbit: { color: FFA500, fade: 0ms }
+        l_shot_spinner: { color: FFA500, fade: 0ms }
+        l_shot_barrier: { color: FFA500, fade: 0ms }
+        l_shot_tower_ramp: { color: FFA500, fade: 0ms }
+        l_shot_right_orbit: { color: FFA500, fade: 0ms }
+        l_shot_pilot_gear: { color: FFA500, fade: 0ms }
+        l_apron_light_1: { color: FFA500, fade: 0ms }
+        l_apron_light_2: { color: FFA500, fade: 0ms }
+        l_apron_light_3: { color: FFA500, fade: 0ms }
+        l_apron_light_4: { color: FFA500, fade: 0ms }
+    # Step 4: Quick strobe — everything white (peak impact)
+    - duration: 100ms
+      lights:
+        l_gi_light_1: { color: FFFFFF, fade: 0ms }
+        l_gi_light_2: { color: FFFFFF, fade: 0ms }
+        l_gi_light_3: { color: FFFFFF, fade: 0ms }
+        l_gi_light_4: { color: FFFFFF, fade: 0ms }
+        l_gi_light_5: { color: FFFFFF, fade: 0ms }
+        l_gi_light_6: { color: FFFFFF, fade: 0ms }
+        l_gi_light_7: { color: FFFFFF, fade: 0ms }
+        l_gi_light_8: { color: FFFFFF, fade: 0ms }
+        l_gi_light_9: { color: FFFFFF, fade: 0ms }
+        l_gi_light_10: { color: FFFFFF, fade: 0ms }
+        l_gi_light_11: { color: FFFFFF, fade: 0ms }
+        l_gi_light_12: { color: FFFFFF, fade: 0ms }
+        l_gi_light_13: { color: FFFFFF, fade: 0ms }
+        l_gi_light_14: { color: FFFFFF, fade: 0ms }
+        l_gi_light_15: { color: FFFFFF, fade: 0ms }
+        l_gi_light_16: { color: FFFFFF, fade: 0ms }
+        l_gi_light_17: { color: FFFFFF, fade: 0ms }
+        l_gi_light_18: { color: FFFFFF, fade: 0ms }
+        l_gi_light_19: { color: FFFFFF, fade: 0ms }
+        l_gi_light_20: { color: FFFFFF, fade: 0ms }
+        l_gi_light_21: { color: FFFFFF, fade: 0ms }
+        l_gi_light_22: { color: FFFFFF, fade: 0ms }
+        l_gi_light_23: { color: FFFFFF, fade: 0ms }
+        l_gi_light_24: { color: FFFFFF, fade: 0ms }
+        l_gi_light_25: { color: FFFFFF, fade: 0ms }
+        l_gi_light_26: { color: FFFFFF, fade: 0ms }
+        l_gi_light_27: { color: FFFFFF, fade: 0ms }
+        l_gi_light_pop_left: { color: FFFFFF, fade: 0ms }
+        l_gi_light_pop_right: { color: FFFFFF, fade: 0ms }
+        l_gi_light_pop_bottom: { color: FFFFFF, fade: 0ms }
+        l_apron_light_1: { color: FFFFFF, fade: 0ms }
+        l_apron_light_2: { color: FFFFFF, fade: 0ms }
+        l_apron_light_3: { color: FFFFFF, fade: 0ms }
+        l_apron_light_4: { color: FFFFFF, fade: 0ms }
+    # Step 5: Orange strobe — contrast pop
+    - duration: 100ms
+      lights:
+        l_gi_light_1: { color: FFA500, fade: 0ms }
+        l_gi_light_2: { color: FFA500, fade: 0ms }
+        l_gi_light_3: { color: FFA500, fade: 0ms }
+        l_gi_light_4: { color: FFA500, fade: 0ms }
+        l_gi_light_5: { color: FFA500, fade: 0ms }
+        l_gi_light_6: { color: FFA500, fade: 0ms }
+        l_gi_light_7: { color: FFA500, fade: 0ms }
+        l_gi_light_8: { color: FFA500, fade: 0ms }
+        l_gi_light_9: { color: FFA500, fade: 0ms }
+        l_gi_light_10: { color: FFA500, fade: 0ms }
+        l_gi_light_11: { color: FFA500, fade: 0ms }
+        l_gi_light_12: { color: FFA500, fade: 0ms }
+        l_gi_light_13: { color: FFA500, fade: 0ms }
+        l_gi_light_14: { color: FFA500, fade: 0ms }
+        l_gi_light_15: { color: FFA500, fade: 0ms }
+        l_gi_light_16: { color: FFA500, fade: 0ms }
+        l_gi_light_17: { color: FFA500, fade: 0ms }
+        l_gi_light_18: { color: FFA500, fade: 0ms }
+        l_gi_light_19: { color: FFA500, fade: 0ms }
+        l_gi_light_20: { color: FFA500, fade: 0ms }
+        l_gi_light_21: { color: FFA500, fade: 0ms }
+        l_gi_light_22: { color: FFA500, fade: 0ms }
+        l_gi_light_23: { color: FFA500, fade: 0ms }
+        l_gi_light_24: { color: FFA500, fade: 0ms }
+        l_gi_light_25: { color: FFA500, fade: 0ms }
+        l_gi_light_26: { color: FFA500, fade: 0ms }
+        l_gi_light_27: { color: FFA500, fade: 0ms }
+        l_gi_light_pop_left: { color: FFA500, fade: 0ms }
+        l_gi_light_pop_right: { color: FFA500, fade: 0ms }
+        l_gi_light_pop_bottom: { color: FFA500, fade: 0ms }
+        l_apron_light_1: { color: FFA500, fade: 0ms }
+        l_apron_light_2: { color: FFA500, fade: 0ms }
+        l_apron_light_3: { color: FFA500, fade: 0ms }
+        l_apron_light_4: { color: FFA500, fade: 0ms }
+    # Step 6: Settle back — white on outer, orange on inner
+    - duration: 350ms
+      lights:
+        l_gi_light_22: { color: FFFFFF, fade: 0ms }
+        l_gi_light_23: { color: FFFFFF, fade: 0ms }
+        l_gi_light_24: { color: FFFFFF, fade: 0ms }
+        l_gi_light_25: { color: FFFFFF, fade: 0ms }
+        l_gi_light_26: { color: FFFFFF, fade: 0ms }
+        l_gi_light_27: { color: FFFFFF, fade: 0ms }
+        l_apron_light_1: { color: FFA500, fade: 0ms }
+        l_apron_light_2: { color: FFA500, fade: 0ms }
+        l_apron_light_3: { color: FFA500, fade: 0ms }
+        l_apron_light_4: { color: FFA500, fade: 0ms }
+
 ####################################################################################
 # GODOT SLIDE SETUP
 ####################################################################################
@@ -2137,11 +2595,12 @@ shows:
 #   The variable is SET (not added) on each scoring event, so it reflects
 #   the most recent hit value. Display with a brief visibility timer in Godot.
 #
-# SOUNDS NEEDED (4):
+# SOUNDS NEEDED (5):
 #   voice_playing_with_the_boys_instructions   (intro callout)
+#   voice_dogfight_football_whats_your_plan    (decision callout — plays on decision slide)
 #   voice_dogfight_football_frenzy_instructions (dogfight instructions, plays during scoop hold)
 #   voice_hard_deck_dogfight_football_won      (player's team won)
 #   voice_hard_deck_dogfight_football_lost     (player's team lost)
 #   hard_deck_playing_with_the_boys_music      (phase 1 music, defined in machine config)
 #
-####################################################################################v
+####################################################################################

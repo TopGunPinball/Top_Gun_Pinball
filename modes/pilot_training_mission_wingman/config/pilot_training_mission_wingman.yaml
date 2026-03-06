@@ -24,15 +24,15 @@
 #   Good zone shots: green lights, +1 position, add to points bank
 #   Bad zone shots:  red lights, -1 position, subtract from points bank
 #
-# SCORING (Points Bank):
+# SCORING (Live - points awarded immediately):
 #   Position 0-1: 250,000 per good shot
 #   Position 2-3: 500,000 per good shot
 #   Position 4-5: 1,000,000 per good shot
-#   Perfect run (0 bad shots): 3,500,000 bank + 1,500,000 bonus = 5,000,000
-#   Bad shot penalty: -250,000 from bank (floor at 0)
-#   WIN: full bank awarded to score (+ perfect bonus if applicable)
+#   Perfect run (0 bad shots): 3,500,000 scored + 5,000,000 bonus = 8,500,000
+#   Bad shot penalty: -250,000 from score
+#   WIN: perfect run bonus if applicable (points already scored live)
 #   LOSE by bad shots (-6): 500,000 consolation
-#   LOSE by drain: bank awarded (minimum 500,000)
+#   LOSE by drain: 500,000 consolation (points already scored live)
 #
 # ADD-A-BALL: ICEMAN letters (cleared at mode start)
 #   1st completion: Add a ball, ICEMAN lights go orange permanently
@@ -500,6 +500,9 @@ variable_player:
     wingman_points_bank:
       action: add
       int: 250000 * current_player.total_scoring_multiplier
+    score:
+      action: add
+      int: 250000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
       int: 250000 * current_player.total_scoring_multiplier
@@ -507,6 +510,9 @@ variable_player:
   # Position 2-3: 500,000 per good shot
   wingman_score_good{current_player.wingman_position>=2 and current_player.wingman_position<=3}:
     wingman_points_bank:
+      action: add
+      int: 500000 * current_player.total_scoring_multiplier
+    score:
       action: add
       int: 500000 * current_player.total_scoring_multiplier
     mode_points_scored:
@@ -518,6 +524,9 @@ variable_player:
     wingman_points_bank:
       action: add
       int: 1000000 * current_player.total_scoring_multiplier
+    score:
+      action: add
+      int: 1000000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
       int: 1000000 * current_player.total_scoring_multiplier
@@ -525,6 +534,9 @@ variable_player:
   # Position is negative (recovering from bad shots): 250,000 per good shot
   wingman_score_good{current_player.wingman_position<0}:
     wingman_points_bank:
+      action: add
+      int: 250000 * current_player.total_scoring_multiplier
+    score:
       action: add
       int: 250000 * current_player.total_scoring_multiplier
     mode_points_scored:
@@ -556,6 +568,9 @@ variable_player:
   
   wingman_score_bad:
     wingman_points_bank:
+      action: add
+      int: -250000
+    score:
       action: add
       int: -250000
     wingman_bad_shots_count:
@@ -602,7 +617,7 @@ variable_player:
       int: 1
 
   ##############################################
-  ## WIN SCORING - Full bank awarded
+  ## WIN SCORING - Points already scored live
   ##############################################
   
   wingman_won_trigger:
@@ -630,18 +645,16 @@ variable_player:
     training_wingman_complete:
       action: set
       int: 1
-    score:
-      action: add
-      int: current_player.wingman_points_bank
+    # Points already scored live - no bank payout needed
 
-  # Perfect run bonus: 1,500,000 if no bad shots were hit
+  # Perfect run bonus: 5,000,000 if no bad shots were hit
   wingman_perfect_run_bonus:
     score:
       action: add
-      int: 1500000 * current_player.total_scoring_multiplier
+      int: 5000000 * current_player.total_scoring_multiplier
     wingman_points_bank:
       action: add
-      int: 1500000
+      int: 5000000
 
   ##############################################
   ## POST-VIDEO PLUNGE FLAG
@@ -691,24 +704,10 @@ variable_player:
       int: 500000
 
   ##############################################
-  ## LOSE BY DRAIN - Bank awarded (min 500K)
+  ## LOSE BY DRAIN - 500K consolation (points already scored live)
   ##############################################
   
-  wingman_lost_drain{current_player.wingman_points_bank>=500000}:
-    wingman_mode_active:
-      action: set
-      int: 0
-    wingman_drain_handled:
-      action: set
-      int: 1
-    training_wingman_complete:
-      action: set
-      int: 1
-    score:
-      action: add
-      int: current_player.wingman_points_bank
-
-  wingman_lost_drain{current_player.wingman_points_bank<500000}:
+  wingman_lost_drain:
     wingman_mode_active:
       action: set
       int: 0

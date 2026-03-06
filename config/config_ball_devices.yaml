@@ -34,22 +34,26 @@ ball_devices:
   # Lock position 1 (Goose) - first ball lands here
   bd_lock_goose:
     ball_switches: s_lock_goose
-    mechanical_eject: true
     entrance_count_delay: 500ms
     eject_timeouts: 5s
     eject_targets: playfield
     auto_fire_on_unexpected_ball: false
-    eject_all_events: tilt, game_ending, lock_mech_release
+    eject_all_events: game_ending
+    ejector:
+      class: mpf.devices.ball_device.event_ejector.EventEjector
+      events_when_eject_try: lock_released
 
   # Lock position 2 (Mav) - second ball lands here
   bd_lock_mav:
     ball_switches: s_lock_mav
-    mechanical_eject: true
     entrance_count_delay: 500ms
     eject_timeouts: 5s
     eject_targets: playfield
     auto_fire_on_unexpected_ball: false
-    eject_all_events: tilt, game_ending, lock_mech_release
+    eject_all_events: game_ending
+    ejector:
+      class: mpf.devices.ball_device.event_ejector.EventEjector
+      events_when_eject_try: lock_released
 
   bd_mode_scoop:
     ball_switches: s_mode_start
@@ -60,3 +64,34 @@ ball_devices:
     # CRITICAL: Prevent auto-eject of unexpected balls
     # The scoop should HOLD balls until a mode/event releases them
     auto_fire_on_unexpected_ball: false
+
+####################################################################################
+# MACHINE-WIDE BALL HOLDS FOR LOCK DEVICES
+# Claims balls entering locks so MPF doesn't create eject chains.
+# Persists across mode restarts and player changes.
+#
+# CRITICAL DESIGN:
+# - enable_events: lock_servo_to_held (servo in hold position = ready to catch)
+# - disable_events: lock_mech_release (multiball starting, stop claiming)
+# - release_all_events: game_ending ONLY (not lock_mech_release — multiball
+#   device handles eject via ball_locks, adding here causes double eject)
+# - reset_events: includes mode_top_gun_multiball_stopped to zero balls_held
+#   counter after multiball. Without this, the counter stays stale at 1 and
+#   the hold thinks it's full, refusing to claim future balls.
+####################################################################################
+ball_holds:
+  lock_goose_hold:
+    balls_to_hold: 1
+    hold_devices: bd_lock_goose
+    enable_events: lock_servo_to_held
+    disable_events: lock_mech_release
+    release_all_events: game_ending
+    reset_events: machine_reset_phase_3, service_mode_entered, mode_top_gun_multiball_stopped
+
+  lock_mav_hold:
+    balls_to_hold: 1
+    hold_devices: bd_lock_mav
+    enable_events: lock_servo_to_held
+    disable_events: lock_mech_release
+    release_all_events: game_ending
+    reset_events: machine_reset_phase_3, service_mode_entered, mode_top_gun_multiball_stopped

@@ -45,7 +45,7 @@ timers:
   # Example: ball_save_mode_timer_start with time: 15 sets 15 second save
   # NOTE: Timer does NOT stop when ball is saved - continues for full duration
   mode_ball_save_countdown:
-    start_value: 10               # Default, overridden by event parameter
+    start_value: 30               # Default 30s; overridden by 'time' param on ball_save_mode_timer_start
     end_value: 0
     direction: down
     tick_interval: 1s
@@ -68,14 +68,14 @@ timers:
       - event: ball_save_scoop_eject_save_disabled
         action: stop
 
-  # Auto-plunger delay - 2 seconds after saved ball settles on shooter lane
+  # Auto-plunger delay - 1.25 seconds after saved ball settles on shooter lane
   # Gated by ball_just_saved==1 so it does NOT fire during skillshot
   # If MPF's auto_launch fires first, ball leaves and s_shooter_lane_inactive stops timer
   ball_save_auto_plunger_delay:
     start_value: 0
-    end_value: 2
+    end_value: 5
     direction: up
-    tick_interval: 1s
+    tick_interval: 250ms
     control_events:
       - event: s_shooter_lane_active{current_player.ball_just_saved==1}
         action: restart
@@ -252,6 +252,11 @@ variable_player:
       int: 1
 
   ball_save_scoop_eject_save_saving_ball:
+    ball_just_saved:
+      action: set
+      int: 1
+
+  ball_save_ejection_seat_ball_save_saving_ball:
     ball_just_saved:
       action: set
       int: 1

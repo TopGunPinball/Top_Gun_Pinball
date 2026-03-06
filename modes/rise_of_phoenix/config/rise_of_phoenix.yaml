@@ -380,6 +380,10 @@ timers:
       - event: afterburner_extend_rise_of_phoenix_timer
         action: jump
         value: 9999
+      - event: lock_sequence_timer_pause
+        action: pause
+      - event: lock_sequence_timer_resume
+        action: start
 
   # Shot lockout (prevent rapid-fire hits)
   shot_lockout:
@@ -484,16 +488,19 @@ event_player:
 
   mode_rise_of_phoenix_started:
     - reset_topgun_letters  # Reset TOPGUN collection for duration of mode
+    - barrier_raise          # Raise barrier during intro video (ball held, coil stays cool)
     # Timer auto-starts via control_events (like battle_jester)
     # Shots setup when timer_rise_of_phoenix_intro_video_delay_complete fires
 
-  # NORMAL PATH: Intro video delay completes → release ball AND setup shots
+  # NORMAL PATH: Intro video delay completes → drop barrier, release ball, setup shots
   timer_rise_of_phoenix_intro_video_delay_complete:
+    - barrier_drop
     - rise_of_phoenix_ball_released
     - rise_of_phoenix_setup_step_1
 
-  # SKIP PATH: Both flippers pressed → stop intro timer, release ball, setup shots
+  # SKIP PATH: Both flippers pressed → drop barrier, release ball, setup shots
   rise_of_phoenix_skip_intro:
+    - barrier_drop
     - rise_of_phoenix_ball_released  # Release ball immediately
     - rise_of_phoenix_setup_step_1  # Setup shots immediately
 

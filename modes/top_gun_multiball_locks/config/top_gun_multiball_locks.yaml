@@ -54,44 +54,9 @@ mode:
   game_mode: true
 
 ####################################################################################
-# MULTIBALL LOCKS - Claims balls entering lock devices, auto-serves replacements
-#
-# This is the key to proper ball accounting. When enabled, multiball_lock
-# "claims" any ball entering the lock device. MPF then automatically:
-#   1. Holds the ball in the device (no "unexpected ball" eject attempts)
-#   2. Serves a replacement ball from the trough to the plunger
-#
-# Two separate locks (one per position) because goose and mav light
-# independently based on the difficulty progression.
+# MULTIBALL LOCKS - REMOVED
+# Ball claiming handled by machine-wide ball_holds in config_ball_devices.yaml.
 ####################################################################################
-multiball_locks:
-  cockpit_lock_goose:
-    balls_to_lock: 1
-    lock_devices: bd_lock_goose
-    balls_to_replace: 0
-    debug: true
-    enable_events:
-      - lock_goose_now_lit
-      - lock_restore_goose_lock_enabled
-    disable_events:
-      - multiball_lock_cockpit_lock_goose_locked_ball
-      - multiball_start_sequence
-      - mode_top_gun_multiball_locks_will_stop
-    reset_count_for_current_player_events: mode_top_gun_multiball_stopped
-
-  cockpit_lock_mav:
-    balls_to_lock: 1
-    lock_devices: bd_lock_mav
-    balls_to_replace: 0
-    debug: true
-    enable_events:
-      - lock_mav_now_lit
-      - lock_restore_mav_lock_enabled
-    disable_events:
-      - multiball_lock_cockpit_lock_mav_locked_ball
-      - multiball_start_sequence
-      - mode_top_gun_multiball_locks_will_stop
-    reset_count_for_current_player_events: mode_top_gun_multiball_stopped
 
 ####################################################################################
 # BALL HOLDS - Scoop hold for MB start + plunger hold during lock video
@@ -102,7 +67,11 @@ ball_holds:
   multiball_scoop_hold:
     balls_to_hold: 1
     hold_devices: bd_mode_scoop
-    enable_events: multiball_now_qualified
+    enable_events:
+      - multiball_now_qualified
+      - lock_restore_scoop_hold
+    disable_events:
+      - lock_disable_scoop_for_mode
     release_one_events:
       - mb_balls_release
     release_all_events:
@@ -303,6 +272,25 @@ timers:
       - event: mode_top_gun_multiball_locks_will_stop
         action: stop
 
+  # Lock sequence timer pause arm delay
+  # Prevents sw_playfield_active from immediately resuming timers
+  # (s_lock_plunger has "playfield" tag, so sw_playfield_active fires in same cycle)
+  # After 3 seconds, arm timer completes → lock_timer_paused changes to 2 (armed)
+  # → next sw_playfield_active hit triggers the actual resume
+  lock_resume_arm:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: lock_sequence_timer_pause
+        action: restart
+      - event: lock_sequence_timer_resume
+        action: stop
+      - event: mode_top_gun_multiball_locks_will_stop
+        action: stop
+
 ####################################################################################
 # VARIABLE PLAYER
 ####################################################################################
@@ -329,6 +317,9 @@ variable_player:
     lock_collection_paused:
       action: set
       int: 0
+    lock_timer_paused:
+      action: set
+      int: 0
 
   # Restore lock_collection_paused if any lock is lit but not locked on mode restart
   mode_top_gun_multiball_locks_started{(current_player.lock_goose_lit==1 and current_player.lock_goose_locked==0) or (current_player.lock_mav_lit==1 and current_player.lock_mav_locked==0)}:
@@ -340,87 +331,62 @@ variable_player:
   # LETTER COLLECTION - L TARGET
   # 1st/2nd attempt: 1 hit to collect (lock_l_hits goes 0→1)
   ##############################################################################
-  s_l_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played<2 and current_player.lock_l_hits==0}:
+  s_l_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_active==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played<2 and current_player.lock_l_hits==0}:
     lock_l_hits:
       action: set
       int: 1
     score: 5000
 
-  # 3rd+ attempt: first hit (0→1)
-  s_l_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_l_hits==0}:
+  # 3rd+ attempt: each hit adds 1 (need 2 hits total to collect)
+  s_l_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_active==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_l_hits<2}:
     lock_l_hits:
-      action: set
+      action: add
       int: 1
-    score: 5000
-
-  # 3rd+ attempt: second hit (1→2)
-  s_l_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_l_hits==1}:
-    lock_l_hits:
-      action: set
-      int: 2
     score: 5000
 
   ##############################################################################
   # LETTER COLLECTION - O TARGET
   ##############################################################################
-  s_o_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played<2 and current_player.lock_o_hits==0}:
+  s_o_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_active==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played<2 and current_player.lock_o_hits==0}:
     lock_o_hits:
       action: set
       int: 1
     score: 5000
 
-  s_o_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_o_hits==0}:
+  s_o_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_active==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_o_hits<2}:
     lock_o_hits:
-      action: set
+      action: add
       int: 1
-    score: 5000
-
-  s_o_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_o_hits==1}:
-    lock_o_hits:
-      action: set
-      int: 2
     score: 5000
 
   ##############################################################################
   # LETTER COLLECTION - C TARGET
   ##############################################################################
-  s_c_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played<2 and current_player.lock_c_hits==0}:
+  s_c_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_active==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played<2 and current_player.lock_c_hits==0}:
     lock_c_hits:
       action: set
       int: 1
     score: 5000
 
-  s_c_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_c_hits==0}:
+  s_c_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_active==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_c_hits<2}:
     lock_c_hits:
-      action: set
+      action: add
       int: 1
-    score: 5000
-
-  s_c_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_c_hits==1}:
-    lock_c_hits:
-      action: set
-      int: 2
     score: 5000
 
   ##############################################################################
   # LETTER COLLECTION - K TARGET
   ##############################################################################
-  s_k_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played<2 and current_player.lock_k_hits==0}:
+  s_k_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_active==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played<2 and current_player.lock_k_hits==0}:
     lock_k_hits:
       action: set
       int: 1
     score: 5000
 
-  s_k_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_k_hits==0}:
+  s_k_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_active==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_k_hits<2}:
     lock_k_hits:
-      action: set
+      action: add
       int: 1
-    score: 5000
-
-  s_k_lock_target_active{current_player.lock_collection_paused==0 and current_player.multiball_qualified==0 and current_player.multiball_times_played>=2 and current_player.lock_k_hits==1}:
-    lock_k_hits:
-      action: set
-      int: 2
     score: 5000
 
   ##############################################################################
@@ -482,6 +448,53 @@ variable_player:
   # Resume collection after mav locked IF no other lit-but-unlocked positions
   lock_mav_now_locked{current_player.lock_goose_lit==0 or current_player.lock_goose_locked==1}:
     lock_collection_paused:
+      action: set
+      int: 0
+
+  ##############################################################################
+  # VIRTUAL LOCK STATE UPDATES
+  # Virtual locks give credit without physically diverting the ball.
+  # Used in multiplayer when the lock position is occupied by another
+  # player's ball. Same downstream effects as physical locks.
+  ##############################################################################
+  lock_goose_virtual_locked:
+    lock_goose_locked:
+      action: set
+      int: 1
+
+  # Resume LOCK letter collection if no other lock is lit-but-unlocked
+  lock_goose_virtual_locked{current_player.lock_mav_lit==0 or current_player.lock_mav_locked==1}:
+    lock_collection_paused:
+      action: set
+      int: 0
+
+  lock_mav_virtual_locked:
+    lock_mav_locked:
+      action: set
+      int: 1
+
+  lock_mav_virtual_locked{current_player.lock_goose_lit==0 or current_player.lock_goose_locked==1}:
+    lock_collection_paused:
+      action: set
+      int: 0
+
+  ##############################################################################
+  # LOCK SEQUENCE TIMER PAUSE TRACKING
+  # Tracks whether mode timers are paused for a lock sequence so the
+  # resume event only fires once (on next playfield_active).
+  ##############################################################################
+  lock_sequence_timer_pause:
+    lock_timer_paused:
+      action: set
+      int: 1
+
+  lock_sequence_resume_armed:
+    lock_timer_paused:
+      action: set
+      int: 2
+
+  lock_sequence_timer_resume:
+    lock_timer_paused:
       action: set
       int: 0
 
@@ -571,6 +584,9 @@ variable_player:
     mb_mode_choice_active:
       action: set
       int: 0
+    lock_timer_paused:
+      action: set
+      int: 0
 
   # --- PARTIAL CALLOUT INDEX: Cycles 0→1→2→3→4→0 ---
   lock_advance_partial_index{current_player.lock_partial_callout_index==0}:
@@ -623,7 +639,11 @@ event_player:
   # but ball_holds and lights reset. Restore visual and mechanical state.
   ##############################################################################
 
-  # Re-enable servo hold and ball hold if any balls are locked
+  # Re-enable servo hold if any balls are PHYSICALLY in locks (any player)
+  mode_top_gun_multiball_locks_started{device.switches.s_lock_goose.state or device.switches.s_lock_mav.state}:
+    - lock_servo_to_held
+
+  # Re-enable servo hold if CURRENT PLAYER has locked balls
   mode_top_gun_multiball_locks_started{current_player.lock_goose_locked==1 or current_player.lock_mav_locked==1}:
     - lock_servo_to_held
 
@@ -650,7 +670,11 @@ event_player:
     - lock_servo_to_held
 
   # Restore multiball qualified state (re-enable ball_hold for scoop)
-  mode_top_gun_multiball_locks_started{current_player.multiball_qualified==1}:
+  # IMPORTANT: Uses ball_started, NOT mode_started, because the coil_player
+  # for barrier_drop lives in pilot_mission_qualifier which starts AFTER the
+  # locks mode. On mode_started, barrier_drop fires but nobody's listening.
+  # ball_started fires after ALL modes have started.
+  ball_started{current_player.multiball_qualified==1 and current_player.hard_deck_active==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0}:
     - lock_restore_mb_qualified
     - barrier_drop
     - multiball_now_qualified
@@ -804,6 +828,13 @@ event_player:
   timer_lock_mav_debounce_complete{current_player.lock_mav_lit==1 and current_player.lock_mav_locked==0}:
     - lock_mav_now_locked
 
+  # CROSS-CREDIT: Ball settled at goose but player already has goose locked and needs mav.
+  # This happens when both lock positions are empty (after another player's multiball released
+  # the balls). The ball enters the lock mech and falls through mav to goose (gravity) because
+  # nothing is blocking it. Credit the mav lock since the ball IS in the lock mechanism.
+  timer_lock_goose_debounce_complete{current_player.lock_goose_locked==1 and current_player.lock_mav_lit==1 and current_player.lock_mav_locked==0}:
+    - lock_mav_now_locked
+
   # 1ST ATTEMPT: After both balls locked → qualify multiball
   lock_goose_now_locked{current_player.multiball_times_played==0 and current_player.lock_mav_locked==1}:
     - multiball_now_qualified
@@ -820,11 +851,61 @@ event_player:
     - multiball_now_qualified
 
   ##############################################################################
+  # VIRTUAL LOCK SEQUENCES
+  # Same downstream effects as physical lock but: no debounce needed,
+  # no ball serving, no multiball_lock device interaction.
+  # Used in multiplayer when lock position is occupied by another player.
+  ##############################################################################
+
+  # Virtual goose lock: voice callout only (no slide — ball is in play)
+  # lock_goose_virtual_locked sound_player entry still fires the callout
+
+  # Virtual mav lock: voice callout only (no slide — ball is in play)
+  # lock_mav_virtual_locked sound_player entry still fires the callout
+
+  # Virtual goose: qualify MB if mav already locked (1st attempt)
+  lock_goose_virtual_locked{current_player.multiball_times_played==0 and current_player.lock_mav_locked==1}:
+    - multiball_now_qualified
+
+  # Virtual mav: qualify MB if goose already locked (1st attempt)
+  lock_mav_virtual_locked{current_player.multiball_times_played==0 and current_player.lock_goose_locked==1}:
+    - multiball_now_qualified
+
+  # Virtual goose: qualify MB (2nd+ attempt)
+  lock_goose_virtual_locked{current_player.multiball_times_played>=1 and current_player.lock_mav_locked==1}:
+    - multiball_now_qualified
+
+  # Virtual mav: qualify MB (2nd+ attempt)
+  lock_mav_virtual_locked{current_player.multiball_times_played>=1 and current_player.lock_goose_locked==1}:
+    - multiball_now_qualified
+
+  ##############################################################################
   # DIVERTER CONTROL
   # Fire when ramp is hit AND a lock position is lit but not yet locked
   ##############################################################################
-  s_ramp_inner_exit_active{(current_player.lock_goose_lit==1 and current_player.lock_goose_locked==0) or (current_player.lock_mav_lit==1 and current_player.lock_mav_locked==0)}:
+  ##############################################################################
+  # DIVERTER / VIRTUAL LOCK ROUTING
+  # Physical lock: position empty → fire diverter, ball enters lock mech
+  # Virtual lock: position occupied (other player's ball) → give credit,
+  #               ball continues through ramp, no divert, no replacement serve
+  # Blocked entirely during any multiball (multiball_active==1)
+  ##############################################################################
+
+  # PHYSICAL LOCK GOOSE: position lit, physically empty → DIVERT
+  s_ramp_inner_exit_active{current_player.multiball_active==0 and current_player.lock_goose_lit==1 and current_player.lock_goose_locked==0 and not device.switches.s_lock_goose.state}:
     - lock_diverter_fired
+
+  # VIRTUAL LOCK GOOSE: position lit, physically occupied → CREDIT ONLY
+  s_ramp_inner_exit_active{current_player.multiball_active==0 and current_player.lock_goose_lit==1 and current_player.lock_goose_locked==0 and device.switches.s_lock_goose.state}:
+    - lock_goose_virtual_locked
+
+  # PHYSICAL LOCK MAV: goose done, mav lit, mav position empty → DIVERT
+  s_ramp_inner_exit_active{current_player.multiball_active==0 and current_player.lock_goose_locked==1 and current_player.lock_mav_lit==1 and current_player.lock_mav_locked==0 and not device.switches.s_lock_mav.state}:
+    - lock_diverter_fired
+
+  # VIRTUAL LOCK MAV: goose done, mav lit, mav position occupied → CREDIT ONLY
+  s_ramp_inner_exit_active{current_player.multiball_active==0 and current_player.lock_goose_locked==1 and current_player.lock_mav_lit==1 and current_player.lock_mav_locked==0 and device.switches.s_lock_mav.state}:
+    - lock_mav_virtual_locked
 
   # Disable diverter when ball arrives at elevator OR timeout
   timer_lock_diverter_timeout_complete:
@@ -832,6 +913,28 @@ event_player:
 
   s_lock_plunger_active{mode.top_gun_multiball_locks.active}:
     - lock_diverter_disable
+
+  ##############################################################################
+  # LOCK SEQUENCE TIMER PAUSE/RESUME (Two-Phase Arm)
+  # Phase 1: s_lock_plunger hit → pause timers, start 3s arm timer
+  # Phase 2: arm timer completes → set lock_timer_paused=2 (armed)
+  # Phase 3: sw_playfield_active with lock_timer_paused==2 → resume timers
+  #
+  # WHY two-phase: s_lock_plunger has the "playfield" tag, so sw_playfield_active
+  # fires in the SAME event cycle as s_lock_plunger_active. Without the arm
+  # delay, the resume fires immediately (0ms after pause). The 3s arm timer
+  # ensures the replacement ball is being served before we listen for playfield hits.
+  ##############################################################################
+  s_lock_plunger_active{(current_player.lock_goose_lit==1 and current_player.lock_goose_locked==0) or (current_player.lock_mav_lit==1 and current_player.lock_mav_locked==0)}:
+    - lock_sequence_timer_pause
+
+  # Phase 2: Arm timer completes → ready for resume
+  timer_lock_resume_arm_complete{current_player.lock_timer_paused==1}:
+    - lock_sequence_resume_armed
+
+  # Phase 3: Resume on first playfield switch hit after armed
+  sw_playfield_active{current_player.lock_timer_paused==2}:
+    - lock_sequence_timer_resume
 
   ##############################################################################
   # GOOSE LOCK SEQUENCE
@@ -857,22 +960,47 @@ event_player:
   ##############################################################################
   # MULTIBALL QUALIFICATION
   ##############################################################################
-  multiball_now_qualified:
+  # Only drop barrier if NOT in any active mode (mode blocks MB start,
+  # so dropping the barrier during one is confusing and wastes the solenoid)
+  multiball_now_qualified{current_player.hard_deck_active==0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0}:
     - barrier_drop
+
+  # When any mode ends and MB is still qualified, drop barrier now
+  player_hard_deck_active{value==0 and current_player.multiball_qualified==1}:
+    - barrier_drop
+
+  player_training_mission_active{value==0 and current_player.multiball_qualified==1 and current_player.hard_deck_active==0 and current_player.pilot_mode_active==0}:
+    - barrier_drop
+    - lock_restore_scoop_hold
+
+  player_pilot_mode_active{value==0 and current_player.multiball_qualified==1 and current_player.hard_deck_active==0 and current_player.training_mission_active==0}:
+    - barrier_drop
+    - lock_restore_scoop_hold
+
+  # When mystery award stops and MB-only is qualified (no pilot mode lit)
+  # Auto-start multiball sequence — player already paid the scoop hit.
+  # Both-qualified case (qualified_mode_number>0) is handled in pilot_mission_qualifier.yaml
+  # via mb_mode_choice_start so player can still choose MB vs MB+mode.
+  mode_mystery_award_stopped{current_player.multiball_qualified==1 and current_player.qualified_mode_number==0 and current_player.hard_deck_active==0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0}:
+    - barrier_drop
+    - lock_restore_scoop_hold
+    - multiball_start_sequence
 
   ##############################################################################
   # MULTIBALL START SEQUENCE
   # Ball enters mode scoop while multiball is qualified
-  # BLOCKED when hard_deck_active==1 (hard deck modes cannot stack with MB)
-  # Lock qualification still works during hard deck — only MB start is blocked
+  # BLOCKED when any mode is active (training, pilot, or hard deck)
+  # Lock qualification still works during non-multiball modes — only MB start
+  # is blocked. Lock progress (letters + locking) is blocked only during
+  # active multiballs via multiball_active==0 checks on letters/diverter.
   ##############################################################################
   
-  # MB qualified, NO mode qualified, NOT in hard deck → start MB directly
-  s_mode_start_active{current_player.multiball_qualified==1 and current_player.multiball_starting==0 and current_player.qualified_mode_number==0 and current_player.hard_deck_active==0}:
+  # MB qualified, NO mode qualified, NOT in any mode → start MB directly
+  s_mode_start_active{current_player.multiball_qualified==1 and current_player.multiball_starting==0 and current_player.qualified_mode_number==0 and current_player.hard_deck_active==0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.mystery_qualified==0}:
     - multiball_start_sequence
 
-  # MB qualified AND mode qualified, NOT in hard deck → show choice to player
-  s_mode_start_active{current_player.multiball_qualified==1 and current_player.multiball_starting==0 and current_player.qualified_mode_number>0 and current_player.mb_mode_choice_active==0 and current_player.hard_deck_active==0}:
+  # MB qualified AND mode qualified, NOT in any mode → show choice to player
+  s_mode_start_active{current_player.multiball_qualified==1 and current_player.multiball_starting==0 and current_player.qualified_mode_number>0 and current_player.mb_mode_choice_active==0 and current_player.hard_deck_active==0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.mystery_qualified==0}:
     - mb_mode_choice_start
 
   ##############################################################################
@@ -911,6 +1039,18 @@ event_player:
   # MB mode posts this when ready (after intro video or immediately if stacked)
   mb_balls_release:
     - lock_mech_release
+
+  ##############################################################################
+  # SCOOP HOLD DISABLE/RESTORE DURING ACTIVE MODES
+  # Safety: prevents stuck ball if scoop is reached during a mode while
+  # TGMB is qualified (barrier normally up, but belt-and-suspenders).
+  # Uses player variable change events so we don't need to list every mode.
+  ##############################################################################
+  player_training_mission_active{value==1 and current_player.multiball_qualified==1}:
+    - lock_disable_scoop_for_mode
+
+  player_pilot_mode_active{value==1 and current_player.multiball_qualified==1}:
+    - lock_disable_scoop_for_mode
 
   # After barrier delay: raise barrier
   timer_lock_mb_barrier_delay_complete:
@@ -1106,6 +1246,30 @@ light_player:
       color: green
       fade: 0ms
 
+  ##############################################################################
+  # VIRTUAL LOCK LIGHTS
+  ##############################################################################
+  lock_goose_virtual_locked:
+    l_lock_goose:
+      color: green
+      fade: 0ms
+
+  lock_mav_virtual_locked:
+    l_lock_mav:
+      color: green
+      fade: 0ms
+
+  # Turn off lock lit when last lit-but-unlocked position is virtually filled
+  lock_goose_virtual_locked{current_player.lock_mav_lit==0 or current_player.lock_mav_locked==1}:
+    l_lock_lit:
+      color: off
+      fade: 0ms
+
+  lock_mav_virtual_locked{current_player.lock_goose_lit==0 or current_player.lock_goose_locked==1}:
+    l_lock_lit:
+      color: off
+      fade: 0ms
+
   # Turn off lock lit when the last lit-but-unlocked position is filled
   # Goose locked: turn off lock_lit if mav is NOT lit, or mav is already locked
   lock_goose_now_locked{current_player.lock_mav_lit==0 or current_player.lock_mav_locked==1}:
@@ -1223,6 +1387,7 @@ show_player:
     lock_flash_l:
       show: sync_flash_mb
       key: lock_l_flash
+      priority: 1
       sync_ms: 1000
       loops: -1
       show_tokens:
@@ -1233,6 +1398,7 @@ show_player:
     lock_flash_o:
       show: sync_flash_mb
       key: lock_o_flash
+      priority: 1
       sync_ms: 1000
       loops: -1
       show_tokens:
@@ -1243,6 +1409,7 @@ show_player:
     lock_flash_c:
       show: sync_flash_mb
       key: lock_c_flash
+      priority: 1
       sync_ms: 1000
       loops: -1
       show_tokens:
@@ -1253,6 +1420,7 @@ show_player:
     lock_flash_k:
       show: sync_flash_mb
       key: lock_k_flash
+      priority: 1
       sync_ms: 1000
       loops: -1
       show_tokens:
@@ -1387,6 +1555,19 @@ show_player:
       action: stop
       key: lock_lit_flash
 
+  # Virtual lock: stop lock lit flash
+  lock_goose_virtual_locked{current_player.lock_mav_lit==0 or current_player.lock_mav_locked==1}:
+    stop_lock_lit_flash_virt_goose:
+      show: sync_flash_mb
+      action: stop
+      key: lock_lit_flash
+
+  lock_mav_virtual_locked{current_player.lock_goose_lit==0 or current_player.lock_goose_locked==1}:
+    stop_lock_lit_flash_virt_mav:
+      show: sync_flash_mb
+      action: stop
+      key: lock_lit_flash
+
   lock_lights_restore:
     stop_lock_lit_flash_restore:
       show: sync_flash_mb
@@ -1410,6 +1591,9 @@ slide_player:
       action: play
       priority: 800
       expire: 5s
+
+  # Virtual lock slides removed — callout-only for virtual locks
+  # (ball stays in play during virtual lock, video was distracting)
 
   # Multiball + Mode stack choice slide
   mb_mode_choice_start:
@@ -1471,8 +1655,15 @@ sound_player:
       loops: 0
 
   # Multiball qualified - only play if mav lock sequence is NOT handling it
-  multiball_now_qualified{not device.timers.lock_mav_mb_lit_callout_delay.running}:
+  # Not in a pilot mode: play standard callout
+  multiball_now_qualified{not device.timers.lock_mav_mb_lit_callout_delay.running and current_player.pilot_mode_active==0}:
     lock_multiball_lit:
+      bus: effects
+      loops: 0
+
+  # In a pilot mode: play mode-aware callout (tells player to finish mode first)
+  multiball_now_qualified{not device.timers.lock_mav_mb_lit_callout_delay.running and current_player.pilot_mode_active==1}:
+    multiball_locks_multiball_lit_in_mode:
       bus: effects
       loops: 0
 
@@ -1492,9 +1683,30 @@ sound_player:
       bus: effects
       loops: 0
 
+  ##############################################################################
+  # VIRTUAL LOCK CALLOUTS
+  # Play immediately since no physical ball to wait for
+  ##############################################################################
+  lock_goose_virtual_locked:
+    lock_goose_locked:
+      bus: effects
+      loops: 0
+
+  lock_mav_virtual_locked:
+    lock_maverick_locked:
+      bus: effects
+      loops: 0
+
   # Mav: "multiball lit" callout plays AFTER 4s video+callout finishes
-  lock_mav_mb_lit_callout_play:
+  # Not in a pilot mode: play standard callout
+  lock_mav_mb_lit_callout_play{current_player.pilot_mode_active==0}:
     lock_multiball_lit:
+      bus: effects
+      loops: 0
+
+  # In a pilot mode: play mode-aware callout
+  lock_mav_mb_lit_callout_play{current_player.pilot_mode_active==1}:
+    multiball_locks_multiball_lit_in_mode:
       bus: effects
       loops: 0
 
@@ -1522,4 +1734,4 @@ sound_player:
   lock_partial_play_5:
     lock_letter_partial_5:
       bus: effects
-      loops: 0    
+      loops: 0

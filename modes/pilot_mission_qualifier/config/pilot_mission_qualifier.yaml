@@ -118,6 +118,22 @@ timers:
       - event: mode_top_gun_multiball_stopped{current_player.qualified_mode_number>0}
         action: restart
 
+  ##############################################
+  ## LEFT DIVERTER TL HOLD
+  ## When hard deck or training mission is lit, hitting TL (s_orbit_upper)
+  ## opens the left diverter for 2 seconds to feed ball to left lane.
+  ## Shared event tl_open_left_diverter fired from both qualifiers.
+  ##############################################
+  left_diverter_tl_hold:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: tl_open_left_diverter
+        action: restart
+      - event: ball_ending
+        action: stop
 
 
 slide_player:
@@ -329,6 +345,26 @@ variable_player:
     ##########################################################################
     # Placeholder variable to prevent empty player_added section
     _pmq_initialized:
+      action: set
+      int: 1
+
+  ##############################################
+  ## ALL PILOT MODES PLAYED FLAG
+  ## Set to 1 when every pilot mission's played flag is 1.
+  ## Cleared automatically on new game (new player objects default all vars to 0).
+  ##############################################
+  all_pilot_modes_played_set:
+    all_pilot_modes_played:
+      action: set
+      int: 1
+
+  ##############################################
+  ## MYSTERY AWARD QUALIFICATION
+  ## Set mystery_qualified=1 when GOOSE milestone fires light_mystery_award.
+  ## Lives here (not goose_letters) because qualifier is always running.
+  ##############################################
+  light_mystery_award:
+    mystery_qualified:
       action: set
       int: 1
 
@@ -545,6 +581,10 @@ variable_player:
       action: set
       int: 0
     hard_deck_active:
+      action: set
+      int: 0
+    # Clear multiball_active (set during dogfight football phase)
+    multiball_active:
       action: set
       int: 0
 
@@ -1513,6 +1553,34 @@ coil_player:
     c_mode_barrier:
       action: disable
 
+  # RAISE barrier when any hard deck mode starts (prevent scoop access)
+  mode_hard_deck_maverick_and_charlie_started:
+    c_mode_barrier:
+      action: disable
+  mode_hard_deck_playing_with_the_boys_started:
+    c_mode_barrier:
+      action: disable
+  mode_hard_deck_maverick_and_penny_started:
+    c_mode_barrier:
+      action: disable
+  mode_hard_deck_honoring_iceman_started:
+    c_mode_barrier:
+      action: disable
+
+  # RAISE barrier when any training mission starts (prevent scoop access)
+  mode_pilot_training_mission_inverted_started:
+    c_mode_barrier:
+      action: disable
+  mode_pilot_training_mission_missiles_started:
+    c_mode_barrier:
+      action: disable
+  mode_pilot_training_mission_afterburner_started:
+    c_mode_barrier:
+      action: disable
+  mode_pilot_training_mission_wingman_started:
+    c_mode_barrier:
+      action: disable
+
   # DROP barrier when multiball ends - ONLY if qualified and not in a mode
   multiball_ended{current_player.qualified_mode_number>0}:
     c_mode_barrier:
@@ -1535,6 +1603,20 @@ coil_player:
       action: enable
 
   mode_pilot_training_mission_wingman_stopped{current_player.qualified_mode_number>0}:
+    c_mode_barrier:
+      action: enable
+
+  # DROP barrier when hard deck mode ends - if pilot mission is qualified
+  mode_hard_deck_maverick_and_charlie_stopped{current_player.qualified_mode_number>0}:
+    c_mode_barrier:
+      action: enable
+  mode_hard_deck_playing_with_the_boys_stopped{current_player.qualified_mode_number>0}:
+    c_mode_barrier:
+      action: enable
+  mode_hard_deck_maverick_and_penny_stopped{current_player.qualified_mode_number>0}:
+    c_mode_barrier:
+      action: enable
+  mode_hard_deck_honoring_iceman_stopped{current_player.qualified_mode_number>0}:
     c_mode_barrier:
       action: enable
 
@@ -1569,6 +1651,7 @@ event_player:
   ##############################################
   mode_pilot_mission_qualifier_started:
     - set_uncoded_mode_lights|200ms
+    - check_all_pilot_modes_played
 
   ##############################################
   ## 5th+ QUALIFICATION - RANDOM VIDEO SELECTION
@@ -1610,6 +1693,26 @@ event_player:
   s_orbit_left_active{device.timers.right_orbit_shot_timeout.running and current_player.orbit_shot_lockout==0}:
     - right_orbit_shot_hit
     - timer_right_orbit_shot_timeout_stop
+
+  ##############################################
+  ## LEFT DIVERTER ON TL HIT
+  ## When hard deck or training mission is lit, hitting TL (s_orbit_upper)
+  ## opens the left diverter for 2 seconds to feed ball to left lane.
+  ## Hard deck qualifier also posts tl_open_left_diverter for its condition.
+  ## Timer left_diverter_tl_hold manages the 2-second hold.
+  ##############################################
+
+  # Training mission lit + TL hit → open left diverter
+  s_orbit_upper_active{current_player.training_mission_qualified>0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
+    - tl_open_left_diverter
+
+  # Open diverter and start/restart 3s hold timer
+  tl_open_left_diverter:
+    - left_orbit_diverter_open
+
+  # Close diverter when 3s timer expires
+  timer_left_diverter_tl_hold_complete:
+    - left_orbit_diverter_closed
 
   ##############################################
   ## SNEAKY SHOT DETECTION
@@ -2247,35 +2350,120 @@ event_player:
   # Mode selection based on qualified mode when scoop is hit
   # Training mission must not be active
   # multiball_qualified must be 0 (if both qualified, choice system handles it)
-  s_mode_start_active{current_player.qualified_mode_number==1 and current_player.mode_rescue_cougar_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==1 and current_player.mode_rescue_cougar_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
     - start_mode_rescue_cougar
   
-  s_mode_start_active{current_player.qualified_mode_number==2 and current_player.mode_balls_of_fire_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==2 and current_player.mode_balls_of_fire_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
     - start_mode_balls_of_fire
   
-  s_mode_start_active{current_player.qualified_mode_number==3 and current_player.mode_cool_under_pressure_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==3 and current_player.mode_cool_under_pressure_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
     - start_mode_cool_under_pressure
   
-  s_mode_start_active{current_player.qualified_mode_number==4 and current_player.mode_battle_jester_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==4 and current_player.mode_battle_jester_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
     - start_mode_battle_jester
   
-  s_mode_start_active{current_player.qualified_mode_number==5 and current_player.mode_no_points_for_second_place_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==5 and current_player.mode_no_points_for_second_place_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
     - start_mode_no_points_for_second_place
   
-  s_mode_start_active{current_player.qualified_mode_number==6 and current_player.mode_edge_of_space_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==6 and current_player.mode_edge_of_space_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
     - start_mode_edge_of_space
   
-  s_mode_start_active{current_player.qualified_mode_number==7 and current_player.mode_below_the_hard_deck_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==7 and current_player.mode_below_the_hard_deck_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
     - start_mode_below_the_hard_deck
   
-  s_mode_start_active{current_player.qualified_mode_number==8 and current_player.mode_canyon_run_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==8 and current_player.mode_canyon_run_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
     - start_mode_canyon_run
   
-  s_mode_start_active{current_player.qualified_mode_number==9 and current_player.mode_rise_of_phoenix_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==9 and current_player.mode_rise_of_phoenix_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
     - start_mode_rise_of_phoenix
   
-  s_mode_start_active{current_player.qualified_mode_number==10 and current_player.mode_no_margin_for_error_played==0 and current_player.training_mission_active==0 and current_player.multiball_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==10 and current_player.mode_no_margin_for_error_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
     - start_mode_no_margin_for_error
+
+  ##############################################
+  ## MYSTERY AWARD - Scoop Routing
+  ## Mystery fires FIRST even when pilot mission or TGMB is also qualified.
+  ## pilot/MB scoop entries all have mystery_qualified==0 added so they
+  ## cannot fire when mystery is pending. After mystery stops, the
+  ## mode_mystery_award_stopped handlers below restart whatever was waiting.
+  ##############################################
+  s_mode_start_active{current_player.mystery_qualified==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
+    - start_mode_mystery_award
+
+  ##############################################
+  ## MYSTERY AWARD - Auto-start pending mode after mystery stops
+  ## The player already "paid" the scoop hit; after mystery completes
+  ## the pending mode/MB fires automatically without re-hitting the scoop.
+  ##
+  ## HANDOFF FLOW (pilot pending, no MB):
+  ##   - Barrier stayed UP throughout mystery (never dropped)
+  ##   - Ball was ejected into barrier wall, bounced back, captured by pilot mode's hold
+  ##   - mystery stopped 150ms after ball left (via s_mode_start_inactive conditional)
+  ##   - mode_mystery_award_stopped fires → start_mode_xxx (NO barrier_drop — already UP)
+  ##   - Intro video plays with barrier UP (coil stays cool — desired behavior)
+  ##   - Intro ends → xxx_setup_step_1 fires → barrier_drop → ball ejects normally
+  ##
+  ## NORMAL FLOW (MB + pilot both, or no mode pending):
+  ##   - Barrier dropped/raised normally during mystery eject
+  ##   - barrier_drop fired here to restore scoop access
+  ##
+  ## Three cases:
+  ##   Pilot only → here, no barrier_drop
+  ##   Both qualified → here, barrier_drop + choice screen
+  ##   TGMB only → top_gun_multiball_locks.yaml
+  ##############################################
+
+  ## Pilot only — barrier already UP, just start the mode
+  mode_mystery_award_stopped{current_player.qualified_mode_number==1 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0}:
+    - start_mode_rescue_cougar
+  mode_mystery_award_stopped{current_player.qualified_mode_number==2 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0}:
+    - start_mode_balls_of_fire
+  mode_mystery_award_stopped{current_player.qualified_mode_number==3 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0}:
+    - start_mode_cool_under_pressure
+  mode_mystery_award_stopped{current_player.qualified_mode_number==4 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0}:
+    - start_mode_battle_jester
+  mode_mystery_award_stopped{current_player.qualified_mode_number==5 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0}:
+    - start_mode_no_points_for_second_place
+  mode_mystery_award_stopped{current_player.qualified_mode_number==6 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0}:
+    - start_mode_edge_of_space
+  mode_mystery_award_stopped{current_player.qualified_mode_number==7 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0}:
+    - start_mode_below_the_hard_deck
+  mode_mystery_award_stopped{current_player.qualified_mode_number==8 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0}:
+    - start_mode_canyon_run
+  mode_mystery_award_stopped{current_player.qualified_mode_number==9 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0}:
+    - start_mode_rise_of_phoenix
+  mode_mystery_award_stopped{current_player.qualified_mode_number==10 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0}:
+    - start_mode_no_margin_for_error
+
+  ## Both pilot mode AND TGMB qualified → choice screen.
+  ## Normal eject path: barrier dropped + raised by mystery, so drop it again for scoop access.
+  mode_mystery_award_stopped{current_player.qualified_mode_number>0 and current_player.multiball_qualified==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0}:
+    - barrier_drop
+    - mb_mode_choice_start
+
+  ##############################################
+  ## MYSTERY AWARD - Barrier Control
+  ## Drop barrier when mystery qualifies, restore on ball start.
+  ## Guarded: don't drop mid-mode (barrier is up for mode, would confuse)
+  ##############################################
+  player_mystery_qualified{value==1 and current_player.multiball_active==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0}:
+    - barrier_drop
+
+  # Restore barrier-down state on ball start when mystery is qualified
+  # (only if no pilot mission is also qualified, which handles its own barrier)
+  mode_pilot_mission_qualifier_started{current_player.mystery_qualified==1 and current_player.qualified_mode_number==0}:
+    - barrier_drop
+
+  # Restore barrier for mystery when modes end (mystery qualified during mode)
+  # Only if no pilot mode or multiball is also qualified (they handle their own barrier)
+  player_pilot_mode_active{value==0 and current_player.mystery_qualified==1 and current_player.qualified_mode_number==0 and current_player.multiball_qualified==0}:
+    - barrier_drop
+
+  player_training_mission_active{value==0 and current_player.mystery_qualified==1 and current_player.qualified_mode_number==0 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0}:
+    - barrier_drop
+
+  player_hard_deck_active{value==0 and current_player.mystery_qualified==1 and current_player.qualified_mode_number==0 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0}:
+    - barrier_drop
 
   ##############################################
   ## MULTIBALL + MODE CHOICE - Start Qualified Mode
@@ -2311,6 +2499,10 @@ event_player:
   mode_top_gun_multiball_stopped{current_player.qualified_mode_number>0}:
     - restore_qualified_mode_light
   
+  # Also restore barrier for mystery award after multiball (uses same delayed drop)
+  mode_top_gun_multiball_stopped{current_player.mystery_qualified==1 and current_player.qualified_mode_number==0}:
+    - restore_qualified_mode_light
+
   timer_post_mb_barrier_restore_complete:
     - barrier_drop
   
@@ -2330,39 +2522,60 @@ event_player:
     - topgun_letters_reset
   
   # TOPGUN reset when any pilot mission mode starts
+  # Also check if all pilot modes have now been played (for mystery award)
   mode_rescue_cougar_started:
     - reset_topgun_letters
+    - check_all_pilot_modes_played
   
   mode_balls_of_fire_started:
     - reset_topgun_letters
+    - check_all_pilot_modes_played
   
   mode_cool_under_pressure_started:
     - reset_topgun_letters
+    - check_all_pilot_modes_played
   
   mode_battle_jester_started:
     - reset_topgun_letters
+    - check_all_pilot_modes_played
   
   mode_no_points_for_second_place_started:
     - reset_topgun_letters
+    - check_all_pilot_modes_played
   
   mode_edge_of_space_started:
     - reset_topgun_letters
+    - check_all_pilot_modes_played
   
   mode_below_the_hard_deck_started:
     - reset_topgun_letters
+    - check_all_pilot_modes_played
   
   mode_canyon_run_started:
     - reset_topgun_letters
+    - check_all_pilot_modes_played
   
   mode_rise_of_phoenix_started:
     - reset_topgun_letters
+    - check_all_pilot_modes_played
   
   mode_no_margin_for_error_started:
     - reset_topgun_letters
+    - check_all_pilot_modes_played
 
   # Reset letters when new ball starts
   ball_will_end:
     topgun_letters_reset
+
+  ##############################################
+  ## ALL PILOT MODES PLAYED TRACKING
+  ## Sets all_pilot_modes_played=1 when every pilot mission has been played.
+  ## Used by mystery award to exclude "Light Pilot Mission" from award pool.
+  ## Also checks on qualifier start since uncoded modes are force-marked played there.
+  ##############################################
+
+  check_all_pilot_modes_played{current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_no_margin_for_error_played==1}:
+    - all_pilot_modes_played_set
 
   ##############################################
   ## QUALIFYING SHOW UPDATE TRIGGERS
@@ -3050,6 +3263,20 @@ light_player:
       fade: 0ms
     l_mode_no_margin_for_error:
       color: yellow
+      fade: 0ms
+
+  ##############################################
+  ## MYSTERY AWARD - Light Control
+  ## Turn on l_mystery_lit when qualified, off when consumed.
+  ##############################################
+  player_mystery_qualified{value==1}:
+    l_mystery_lit:
+      color: green
+      fade: 0ms
+
+  player_mystery_qualified{value==0}:
+    l_mystery_lit:
+      color: off
       fade: 0ms
 
   # Turn on pilot mission lit indicator AND turn off all shot lights when qualified

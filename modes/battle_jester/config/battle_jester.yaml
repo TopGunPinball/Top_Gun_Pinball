@@ -119,6 +119,10 @@ timers:
       - event: afterburner_extend_battle_jester_timer
         action: jump
         value: 9999
+      - event: lock_sequence_timer_pause
+        action: pause
+      - event: lock_sequence_timer_resume
+        action: start
 
   # Intro video delay timer - 5 seconds
   battle_jester_intro_video_delay:
@@ -222,6 +226,10 @@ timers:
     control_events:
       - event: battle_jester_tower_ball_released
         action: restart
+      - event: lock_sequence_timer_pause
+        action: pause
+      - event: lock_sequence_timer_resume
+        action: start
 
   # Shot color change timers (adjustable per step)
   # Default: 10 second total, change to orange at 8s, change to red at 10s
@@ -307,6 +315,10 @@ timers:
         action: start
       - event: battle_jester_step_1_complete
         action: stop
+      - event: lock_sequence_timer_pause
+        action: pause
+      - event: lock_sequence_timer_resume
+        action: start
 
   # Step 2 shot timer (30 seconds - 3 shots turn off)
   battle_jester_step_2_timer:
@@ -319,6 +331,10 @@ timers:
         action: start
       - event: battle_jester_step_2_complete
         action: stop
+      - event: lock_sequence_timer_pause
+        action: pause
+      - event: lock_sequence_timer_resume
+        action: start
 
   # Step 3 shot timer (30 seconds - 3 shots turn off)
   battle_jester_step_3_timer:
@@ -331,6 +347,10 @@ timers:
         action: start
       - event: battle_jester_step_3_complete
         action: stop
+      - event: lock_sequence_timer_pause
+        action: pause
+      - event: lock_sequence_timer_resume
+        action: start
 
   # Step 4 shot timer (20 seconds - 2 shots turn off)
   battle_jester_step_4_timer:
@@ -343,6 +363,10 @@ timers:
         action: start
       - event: battle_jester_step_4_complete
         action: stop
+      - event: lock_sequence_timer_pause
+        action: pause
+      - event: lock_sequence_timer_resume
+        action: start
 
   # Step 5 shot timer (20 seconds - 2 shots turn off)
   battle_jester_step_5_timer:
@@ -355,6 +379,10 @@ timers:
         action: start
       - event: battle_jester_step_5_complete
         action: stop
+      - event: lock_sequence_timer_pause
+        action: pause
+      - event: lock_sequence_timer_resume
+        action: start
 
   # Servo stagger delays - prevent power contention when moving 2 servos
   battle_jester_servo_step3_setup_delay:
@@ -794,6 +822,11 @@ variable_player:
 ####################################################################################
 
 event_player:
+  # Raise barrier during intro video (ball held, coil stays cool).
+  # Idempotent: in normal flow qualifier already raised it; in mystery handoff it's already up.
+  mode_battle_jester_started:
+    - barrier_raise
+
   ##############################################
   ## AFTERBURNER PERK: Pause Mode Timer
   ## Jumps timer to 9999s making it effectively infinite
@@ -876,11 +909,13 @@ event_player:
     - battle_jester_skip_intro
     
   battle_jester_skip_intro:
+    - barrier_drop
     - battle_jester_ball_released
     - battle_jester_setup_step_1
   
   # Intro video timer complete - release ball automatically
   timer_battle_jester_intro_video_delay_complete:
+    - barrier_drop
     - battle_jester_ball_released
     - battle_jester_setup_step_1
 

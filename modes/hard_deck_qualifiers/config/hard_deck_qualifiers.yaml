@@ -554,6 +554,47 @@ variable_player:
       action: set
       int: 1
 
+  ##############################################################################
+  # HARD DECK MODE STOPPED — Clear pause flags
+  # Same pattern as pilot_mission_qualifier clears pilot_mode_active.
+  # Must happen HERE (priority 200) not in the mode file (priority 600)
+  # because the mode is already stopped when these fire.
+  ##############################################################################
+  mode_hard_deck_maverick_and_charlie_stopped:
+    hard_deck_active:
+      action: set
+      int: 0
+    letter_collection_paused:
+      action: set
+      int: 0
+
+  mode_hard_deck_playing_with_the_boys_stopped:
+    hard_deck_active:
+      action: set
+      int: 0
+    letter_collection_paused:
+      action: set
+      int: 0
+    ptb_post_mode_plunge_active:
+      action: set
+      int: 0
+
+  mode_hard_deck_maverick_and_penny_stopped:
+    hard_deck_active:
+      action: set
+      int: 0
+    letter_collection_paused:
+      action: set
+      int: 0
+
+  mode_hard_deck_honoring_iceman_stopped:
+    hard_deck_active:
+      action: set
+      int: 0
+    letter_collection_paused:
+      action: set
+      int: 0
+
 ####################################################################################
 # EVENT PLAYER
 ####################################################################################
@@ -616,6 +657,15 @@ event_player:
     - rotate_hard_deck_mode
 
   ##############################################################################
+  # LEFT DIVERTER ON TL HIT
+  # When hard deck mode is lit, hitting TL (s_orbit_upper) opens the left
+  # diverter for 2 seconds to feed ball to left lane for mode start.
+  # Timer managed by pilot_mission_qualifier (left_diverter_tl_hold).
+  ##############################################################################
+  s_orbit_upper_active{current_player.hard_deck_qualified_mode>0 and current_player.hard_deck_active==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.multiball_active==0}:
+    - tl_open_left_diverter
+
+  ##############################################################################
   # LEFT LANE START - DECISION SYSTEM
   # Case 1: Both training AND hard deck qualified → show decision slide
   # Case 2: Only hard deck qualified → start hard deck mode directly
@@ -623,11 +673,12 @@ event_player:
   ##############################################################################
 
   # Case 1: Both qualified - show decision slide
-  s_lane_left_active{current_player.training_mission_qualified>0 and current_player.hard_deck_qualified_mode>0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.training_mission_active==0 and current_player.hd_training_choice_active==0}:
+  # Guard: extra_ball_lit==0 prevents firing while extra ball collect sequence runs
+  s_lane_left_active{current_player.training_mission_qualified>0 and current_player.hard_deck_qualified_mode>0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.training_mission_active==0 and current_player.hd_training_choice_active==0 and current_player.extra_ball_lit==0}:
     - hd_training_choice_start
 
   # Case 2: Only hard deck qualified (no training qualified)
-  s_lane_left_active{current_player.training_mission_qualified==0 and current_player.hard_deck_qualified_mode>0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.training_mission_active==0 and current_player.hd_training_choice_active==0}:
+  s_lane_left_active{current_player.training_mission_qualified==0 and current_player.hard_deck_qualified_mode>0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.training_mission_active==0 and current_player.hd_training_choice_active==0 and current_player.extra_ball_lit==0}:
     - hd_start_qualified_mode
 
   ##############################################################################
@@ -728,6 +779,15 @@ event_player:
     - hd_stop_pulse_show
   mode_hard_deck_honoring_iceman_started:
     - hd_stop_pulse_show
+
+  ##############################################################################
+  # SKILLSHOT SUPPRESSION — PTB post-mode plunge
+  # After dogfight ends, the saved ball is plunged back into play.
+  # This triggers skillshot mode (shooter lane → inactive). Suppress it
+  # using a persistent player variable that survives PTB mode stop.
+  ##############################################################################
+  mode_skillshot_started{current_player.ptb_post_mode_plunge_active==1}:
+    - stop_mode_skillshot
 
 ####################################################################################
 # COIL PLAYER - Left lane post control during decision

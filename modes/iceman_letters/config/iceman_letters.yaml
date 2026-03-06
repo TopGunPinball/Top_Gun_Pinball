@@ -285,6 +285,16 @@ variable_player:
       int: 1
 
   ##############################################
+  ## ALL TRAINING MISSIONS COMPLETE FLAG
+  ## Set to 1 when all 5 training missions are complete.
+  ## Cleared automatically on new game (new player objects default all vars to 0).
+  ##############################################
+  all_training_missions_complete_set:
+    all_training_missions_complete:
+      action: set
+      int: 1
+
+  ##############################################
   ## INVERTED PERK: Double ICEMAN Letters
   ## Awards the next uncollected letter in I→C→E→M→A→N chain
   ## Each target that sets a letter also triggers the bonus chain
@@ -423,26 +433,43 @@ event_player:
   
   # Start Inverted training mission when left lane hit with mission 1 qualified
   # Only start if not already completed and no pilot mode active
-  s_lane_left_active{current_player.training_mission_qualified==1 and current_player.training_inverted_complete==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_qualified_mode==0}:
+  # Guard: extra_ball_lit==0 prevents firing while extra ball collect sequence runs
+  s_lane_left_active{current_player.training_mission_qualified==1 and current_player.training_inverted_complete==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_qualified_mode==0 and current_player.extra_ball_lit==0}:
     - start_mode_pilot_training_mission_inverted
   
   # Start Missiles training mission when left lane hit with mission 2 qualified
   # Only start if not already completed and no pilot mode active
-  s_lane_left_active{current_player.training_mission_qualified==2 and current_player.training_missles_complete==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_qualified_mode==0}:
+  s_lane_left_active{current_player.training_mission_qualified==2 and current_player.training_missles_complete==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_qualified_mode==0 and current_player.extra_ball_lit==0}:
     - start_mode_pilot_training_mission_missiles
   
   # Start Afterburner training mission when left lane hit with mission 3 qualified
   # Only start if not already completed and no pilot mode active
-  s_lane_left_active{current_player.training_mission_qualified==3 and current_player.training_afterburner_complete==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_qualified_mode==0}:
+  s_lane_left_active{current_player.training_mission_qualified==3 and current_player.training_afterburner_complete==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_qualified_mode==0 and current_player.extra_ball_lit==0}:
     - start_mode_pilot_training_mission_afterburner
   
   # Start Wingman training mission when left lane hit with mission 4 qualified
-  s_lane_left_active{current_player.training_mission_qualified==4 and current_player.training_wingman_complete==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_qualified_mode==0}:
+  s_lane_left_active{current_player.training_mission_qualified==4 and current_player.training_wingman_complete==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_qualified_mode==0 and current_player.extra_ball_lit==0}:
     - start_mode_training_wingman
   
   # Start Dogfight training mission when left lane hit with mission 5 qualified
-  s_lane_left_active{current_player.training_mission_qualified==5 and current_player.pilot_mode_active==0 and current_player.hard_deck_qualified_mode==0}:
+  s_lane_left_active{current_player.training_mission_qualified==5 and current_player.pilot_mode_active==0 and current_player.hard_deck_qualified_mode==0 and current_player.extra_ball_lit==0}:
     - start_mode_training_dogfight
+
+  ##############################################
+  ## ALL TRAINING MISSIONS COMPLETE TRACKING
+  ## Sets all_training_missions_complete=1 when all 5 training missions are done.
+  ## Used by mystery award to exclude "Light Training Mission" from award pool.
+  ## Checks whenever any training_xxx_complete flag changes to 1.
+  ##############################################
+
+  player_training_inverted_complete{value==1}: check_all_training_complete
+  player_training_missles_complete{value==1}: check_all_training_complete
+  player_training_afterburner_complete{value==1}: check_all_training_complete
+  player_training_wingman_complete{value==1}: check_all_training_complete
+  player_training_dogfight_complete{value==1}: check_all_training_complete
+
+  check_all_training_complete{current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1 and current_player.training_dogfight_complete==1}:
+    - all_training_missions_complete_set
 
   # Timer completion triggers the reset
   timer_iceman_reset_complete:

@@ -1,0 +1,244 @@
+#config_version=6
+##############################################################################
+# EXTRA BALL MODE
+# Priority: 150 (below qualifier 200, below pilot modes 600)
+#
+# FLOW:
+#   1. light_extra_ball fires (from goose milestone or mystery award)
+#      → MPF extra_balls device registers as "lit"
+#      → l_extra_ball_lit turns orange (goose_letters handles light)
+#      → extra_ball_lit_video slide plays (goose_letters handles slide)
+#      → voice_extra_ball_lit callout plays (sound_player here)
+#
+#   2. Player shoots Left Lane (s_lane_left) while extra_ball_lit==1
+#      → c_left_lane_up_post raises/holds ball
+#      → extra_ball_awarded slide plays (4s)
+#      → voice_extra_ball callout plays
+#      → extra_ball_show plays at speed 30, looping for 4s
+#
+#   3. 4-second timer completes → extra_ball_collect_now fires
+#      → MPF device awards the extra ball → extra_ball_main_awarded fires
+#      → slide/show cleared, extra_ball_lit/collecting cleared
+#
+#   COIL HANDOFF:
+#      NO mode pending:    post disables on timer_extra_ball_hold_complete
+#      Training pending:   post stays UP → extra_ball_main_awarded fires
+#                          start_mode_xxx → mode_xxx_started re-enables
+#                          post (idempotent) → mode's ball_released disables
+#      Hard deck pending:  same pattern — mode owns the post from start
+#      Both pending:       hd_training_choice_start fires, player picks via
+#                          flippers, chosen mode starts and owns the post
+#
+# RACE CONDITION GUARD:
+#   iceman_letters.yaml and hard_deck_qualifiers.yaml s_lane_left_active
+#   handlers all have extra_ball_lit==0 guard so they don't fire while
+#   extra ball collect sequence is running.
+##############################################################################
+
+mode:
+  start_events: ball_started
+  stop_events: ball_will_end
+  priority: 150
+  game_mode: true
+
+##############################################################################
+## EXTRA BALLS DEVICE
+##############################################################################
+
+extra_balls:
+  main:
+    award_events: extra_ball_collect_now
+    max_per_game: 5
+
+##############################################################################
+## TIMERS
+##############################################################################
+
+timers:
+  extra_ball_hold:
+    start_value: 5
+    end_value: 0
+    direction: down
+    tick_interval: 500ms
+    start_running: false
+    control_events:
+      - event: extra_ball_shot_hit
+        action: restart
+
+##############################################################################
+## VARIABLE PLAYER
+##############################################################################
+
+variable_player:
+  # MPF rule: can't use the mode's start_event (ball_started) inside variable_player.
+  # Use mode_extra_ball_started instead — fires immediately after mode starts.
+  mode_extra_ball_started:
+    extra_ball_collecting:
+      action: set
+      int: 0
+
+  # Set the flag that gates the collect shot — fires from goose_letters AND mystery_award
+  light_extra_ball:
+    extra_ball_lit:
+      action: set
+      int: 1
+
+  extra_ball_shot_hit:
+    extra_ball_collecting:
+      action: set
+      int: 1
+
+  extra_ball_main_awarded:
+    extra_ball_lit:
+      action: set
+      int: 0
+    extra_ball_collecting:
+      action: set
+      int: 0
+
+##############################################################################
+## EVENT PLAYER
+##############################################################################
+
+event_player:
+  # Collect shot
+  s_lane_left_active{current_player.extra_ball_lit==1 and current_player.extra_ball_collecting==0}:
+    - extra_ball_shot_hit
+
+  # Timer complete: award ball
+  timer_extra_ball_hold_complete:
+    - extra_ball_collect_now
+
+  # Drain safety
+  ball_drain:
+    - extra_ball_drain_cleanup
+
+  ##############################################################################
+  ## POST-AWARD HANDOFF
+  ## After MPF confirms the award, start any pending training/hard deck mode.
+  ## Post stays up (no coil disable when mode is pending — see coil_player).
+  ## The started mode's own coil_player owns the post from here on.
+  ##############################################################################
+
+  # Both training AND hard deck qualified → flipper choice slide
+  extra_ball_main_awarded{current_player.training_mission_qualified>0 and current_player.hard_deck_qualified_mode>0}:
+    - hd_training_choice_start
+
+  # Hard deck only
+  extra_ball_main_awarded{current_player.training_mission_qualified==0 and current_player.hard_deck_qualified_mode>0}:
+    - hd_start_qualified_mode
+
+  # Training only — mirrors iceman_letters.yaml routing per mission level
+  extra_ball_main_awarded{current_player.training_mission_qualified==1 and current_player.hard_deck_qualified_mode==0 and current_player.training_inverted_complete==0}:
+    - start_mode_pilot_training_mission_inverted
+
+  extra_ball_main_awarded{current_player.training_mission_qualified==2 and current_player.hard_deck_qualified_mode==0 and current_player.training_missles_complete==0}:
+    - start_mode_pilot_training_mission_missiles
+
+  extra_ball_main_awarded{current_player.training_mission_qualified==3 and current_player.hard_deck_qualified_mode==0 and current_player.training_afterburner_complete==0}:
+    - start_mode_pilot_training_mission_afterburner
+
+  extra_ball_main_awarded{current_player.training_mission_qualified==4 and current_player.hard_deck_qualified_mode==0 and current_player.training_wingman_complete==0}:
+    - start_mode_training_wingman
+
+  extra_ball_main_awarded{current_player.training_mission_qualified==5 and current_player.hard_deck_qualified_mode==0}:
+    - start_mode_training_dogfight
+
+##############################################################################
+## COIL PLAYER
+## enable = raise/hold    disable = lower/release
+##
+## CRITICAL: only disable post on timer_complete when NO mode is pending.
+## When training or hard deck is pending the post stays up — the started
+## mode's mode_xxx_started enable is idempotent and its ball_released
+## disables the post after intro video.
+##############################################################################
+
+coil_player:
+  extra_ball_shot_hit:
+    c_left_lane_up_post:
+      action: enable
+
+  # No mode pending — release post after collect sequence
+  timer_extra_ball_hold_complete{current_player.training_mission_qualified==0 and current_player.hard_deck_qualified_mode==0}:
+    c_left_lane_up_post:
+      action: disable
+
+  # Safety — always release on drain or ball end
+  extra_ball_drain_cleanup:
+    c_left_lane_up_post:
+      action: disable
+
+  ball_will_end:
+    c_left_lane_up_post:
+      action: disable
+
+##############################################################################
+## SLIDE PLAYER
+##############################################################################
+
+slide_player:
+  extra_ball_shot_hit:
+    extra_ball_awarded:
+      action: play
+      priority: 500
+
+  timer_extra_ball_hold_complete:
+    extra_ball_awarded:
+      action: remove
+
+  extra_ball_drain_cleanup:
+    extra_ball_awarded:
+      action: remove
+
+##############################################################################
+## SHOW PLAYER
+##############################################################################
+
+show_player:
+  extra_ball_shot_hit:
+    extra_ball_show:
+      show: extra_ball_show
+      loops: -1
+      speed: 30
+
+  timer_extra_ball_hold_complete:
+    extra_ball_show:
+      action: stop
+
+  extra_ball_drain_cleanup:
+    extra_ball_show:
+      action: stop
+
+##############################################################################
+## SOUND PLAYER
+##############################################################################
+
+sound_player:
+  light_extra_ball:
+    voice_extra_ball_lit:
+      bus: voice
+      loops: 0
+
+  extra_ball_shot_hit:
+    voice_extra_ball:
+      bus: voice
+      loops: 0
+
+##############################################################################
+## LIGHT PLAYER
+##############################################################################
+
+light_player:
+  # Extra ball awarded — light shoot again solid white
+  extra_ball_main_awarded:
+    l_shoot_again:
+      color: white
+      fade: 0ms
+  # l_extra_ball_lit is owned by goose_letters — turned off there on extra_ball_main_awarded
+
+  # Player drains and gets their extra ball — turn off shoot again
+  ball_will_start{is_extra_ball==True}:
+    l_shoot_again:
+      color: off
+      fade: 0ms

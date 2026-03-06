@@ -1,0 +1,604 @@
+#config_version=6
+
+##############################################################################
+## MYSTERY AWARD MODE
+##############################################################################
+##
+## Qualified by GOOSE letter milestones (light_mystery_award event).
+## Activated at center mode start scoop (s_mode_start).
+## Ball is held while animations play, then ejected after barrier drops.
+##
+## PRIORITY: 300 (above qualifier 200, below bonus 500 and pilot modes 600)
+##
+## EJECT SEQUENCE (matches rescue_cougar.yaml pattern exactly):
+##   1. mystery_award_selected → barrier_raise (UP during animation)
+##   2. mystery_display_delay (9s) completes → barrier_drop
+##   3. mystery_barrier_eject_wait (500ms, 1ms tick) → mystery_ball_release
+##   4. MPF ejects ball → s_mode_start_inactive fires
+##   5. mystery_eject_debounce (150ms, 1ms tick) — cancelled if ball bounces back
+##   6. mystery_barrier_delay (750ms, 1ms tick)
+##   7. barrier_raise + mystery_eject_confirmed → mode stops
+##
+## BARRIER BEHAVIOR:
+##   UP during entire animation (prevents other traffic reaching scoop)
+##   DOWN before eject (ball must exit through scoop path)
+##   UP again after ball confirmed clear
+##
+## ANIMATION TIMELINE (total ~9s from mystery_award_selected):
+##   0.0 - 3.0s:  Base slide holds (full pilot image, no movement)
+##   3.0s:        mystery_voice_callout_start fires → voice plays, zoom begins in .gd
+##   3.0 - 6.0s:  Zoom + pan + rotate to dog tag (3.0s, eased)
+##   5.5 - 6.0s:  Award text fades in (overlaps end of zoom)
+##   6.2 - 6.7s:  Metallic glint sweeps across text
+##   6.0 - 9.0s:  Hold on final zoomed screen
+##   9.0s:        display_delay complete → barrier_drop, eject sequence begins
+##
+## "MYSTERY FIRST" BEHAVIOR:
+##   Mystery fires at scoop even when a pilot mission or TGMB is also lit.
+##   After mystery stops, pilot_mission_qualifier.yaml handles pending mode
+##   starts via mode_mystery_award_stopped handlers (see integration notes).
+##
+## GODOT SLIDE SETUP:
+## - mystery_award_animation: Reads player var "mystery_award_id" for award type
+##   Award IDs:
+##     1  = Light Pilot Mission      7  = +10% of Score
+##     2  = Light Training Mission   8  = 30 Seconds Ball Save
+##     3  = Light Lock               9  = Award Afterburner Perk
+##     4  = Light Ejection Seat     10  = Award Missiles Perk
+##     5  = Light Extra Ball        11  = Award Wingman Perk
+##     6  = +5X Bonus Multiplier    12  = Award Inverted Perk
+##                                  13  = Remove One Danger
+##
+##############################################################################
+
+mode:
+  start_events: start_mode_mystery_award
+  stop_events: mystery_eject_confirmed   # Fires after ball clears scoop and barrier raises
+  priority: 300
+  game_mode: true
+
+##############################################################################
+## BALL HOLD - Capture at Scoop
+##############################################################################
+
+ball_holds:
+  mystery_scoop_hold:
+    balls_to_hold: 1
+    hold_devices: bd_mode_scoop
+    enable_events: [mode_mystery_award_started]
+    # Ball releases when eject sequence fires mystery_ball_release
+    release_one_events: [mystery_ball_release]
+    # Normal path: mystery_safe_release fires from event_player on mode_will_stop.
+    # Handoff path (mode/MB pending): mystery stops after ball already ejected — hold has 0 balls.
+    release_all_events: [mystery_safe_release]
+
+##############################################################################
+## TIMERS
+##############################################################################
+
+timers:
+  # ── ANIMATION DISPLAY TIMER ─────────────────────────────────────────────
+  # 11 seconds from award selected to end of final hold.
+  # Matches .gd timeline: 3s hold + 3s zoom + 5s final hold.
+  mystery_display_delay:
+    start_value: 0
+    end_value: 11
+    tick_interval: 1s
+    direction: up
+    control_events:
+      - event: mystery_award_selected
+        action: restart
+
+  # ── VOICE CALLOUT TRIGGER ────────────────────────────────────────────────
+  # Fires mystery_voice_callout_start at the 3-second mark when zoom begins.
+  # base.yaml plays mystery_voice_talk_to_me_goose on mystery_voice_callout_start.
+  mystery_voice_delay:
+    start_value: 0
+    end_value: 3
+    tick_interval: 1s
+    direction: up
+    control_events:
+      - event: mystery_award_selected
+        action: restart
+
+  # ── BARRIER EJECT WAIT ───────────────────────────────────────────────────
+  # 500ms after barrier_drop to allow barrier to physically lower
+  # before MPF fires the scoop kick coil.
+  # Uses 1ms tick for precision (matches rescue_cougar pattern).
+  mystery_barrier_eject_wait:
+    start_value: 0
+    end_value: 500
+    tick_interval: 1ms
+    direction: up
+    start_running: false
+    control_events:
+      - event: timer_mystery_display_delay_complete
+        action: restart
+
+  # ── EJECT DEBOUNCE ───────────────────────────────────────────────────────
+  # 150ms debounce confirming ball actually left the scoop.
+  # Cancels if ball bounces back (s_mode_start_active fires).
+  # Restarts on each s_mode_start_inactive in case of multiple bounces.
+  # Matches rescue_cougar_eject_debounce exactly.
+  mystery_eject_debounce:
+    start_value: 0
+    end_value: 150
+    tick_interval: 1ms
+    direction: up
+    start_running: false
+    control_events:
+      - event: s_mode_start_inactive
+        action: restart   # Restart on each inactive — handles ball bouncing back
+      - event: s_mode_start_active
+        action: stop      # Cancel if ball returns to switch
+
+  # ── BARRIER RAISE DELAY ──────────────────────────────────────────────────
+  # 750ms after debounce confirms ball cleared before raising barrier.
+  # Gives ball time to clear the physical barrier area.
+  # Matches rescue_cougar_barrier_delay exactly.
+  mystery_barrier_delay:
+    start_value: 0
+    end_value: 750
+    tick_interval: 1ms
+    direction: up
+    start_running: false
+    control_events:
+      - event: timer_mystery_eject_debounce_complete
+        action: restart
+
+##############################################################################
+## RANDOM EVENT PLAYER - Weighted Award Selection
+##############################################################################
+## Weights add to 100 (read as approximate percentages).
+## Conditions auto-exclude awards from pool; remaining weights re-normalize.
+## fallback_event fires if ALL conditional awards are excluded.
+##############################################################################
+
+random_event_player:
+  mode_mystery_award_started:
+    scope: player
+    force_different: true
+    fallback_event: mystery_award_bonus_x
+    events:
+      ##--- Light Pilot Mission (17%) ---##
+      mystery_award_light_pilot{current_player.qualified_mode_number==0 and current_player.all_pilot_modes_played==0}: 17
+
+      ##--- Light Training Mission (17%) ---##
+      mystery_award_light_training{current_player.training_mission_qualified==0 and current_player.all_training_missions_complete==0}: 17
+
+      ##--- Light Lock (10%) ---##
+      mystery_award_light_lock{current_player.lock_goose_lit==0 and current_player.lock_mav_lit==0 and current_player.multiball_qualified==0}: 10
+
+      ##--- Light Ejection Seat (10%) ---##
+      mystery_award_light_eject{current_player.eject_mode_qualified==0}: 10
+
+      ##--- Light Extra Ball (2%) ---##
+      mystery_award_light_extra_ball{current_player.extra_ball_lit==0}: 2
+
+      ##--- +5X Bonus Multiplier (11%) ---##
+      mystery_award_bonus_x: 11
+
+      ##--- +10% of Score (score >= 10M only) (10%) ---##
+      mystery_award_score_percent{current_player.score>=10000000}: 10
+
+      ##--- +1,000,000 Score flat (score < 10M) (10%) ---##
+      mystery_award_score_flat{current_player.score<10000000}: 10
+
+      ##--- 30 Seconds Ball Save (10%) ---##
+      mystery_award_ball_save: 10
+
+      ##--- Award Afterburner Perk (2%) ---##
+      mystery_award_perk_afterburner{current_player.afterburner_perk_active==0}: 2
+
+      ##--- Award Missiles Perk (2%) ---##
+      mystery_award_perk_missiles{current_player.missiles_perk_active==0}: 2
+
+      ##--- Award Wingman Perk (2%) ---##
+      mystery_award_perk_wingman{current_player.wingman_perk_active==0}: 2
+
+      ##--- Award Inverted Perk (2%) ---##
+      mystery_award_perk_inverted{current_player.inverted_perk_active==0}: 2
+
+      ##--- Remove One Danger (5%) ---##
+      mystery_award_remove_danger{current_player.tilt_warnings>=1}: 5
+
+##############################################################################
+## VARIABLE PLAYER - Apply Awards & Track State
+##############################################################################
+
+variable_player:
+  mode_mystery_award_started:
+    mystery_qualified:
+      action: set
+      int: 0
+    mystery_awards_collected:
+      action: add
+      int: 1
+    mystery_ball_save_pending:
+      action: set
+      int: 0
+
+  ##--- Light Pilot Mission ---##
+  mystery_award_light_pilot:
+    topgun_letter_t:
+      action: set
+      int: 1
+    topgun_letter_o:
+      action: set
+      int: 1
+    topgun_letter_p:
+      action: set
+      int: 1
+    topgun_letter_g:
+      action: set
+      int: 1
+    topgun_letter_u:
+      action: set
+      int: 1
+    topgun_letter_n:
+      action: set
+      int: 1
+    topgun_shots_collected:
+      action: set
+      int: 6
+    mystery_award_id:
+      action: set
+      int: 1
+
+  ##--- Light Training Mission ---##
+  mystery_award_light_training:
+    mystery_award_id:
+      action: set
+      int: 2
+
+  ##--- Light Lock ---##
+  mystery_award_light_lock:
+    mystery_award_id:
+      action: set
+      int: 3
+
+  ##--- Light Ejection Seat ---##
+  mystery_award_light_eject:
+    eject_mode_qualified:
+      action: set
+      int: 1
+    mystery_award_id:
+      action: set
+      int: 4
+
+  ##--- Light Extra Ball ---##
+  mystery_award_light_extra_ball:
+    extra_ball_lit:
+      action: set
+      int: 1
+    mystery_award_id:
+      action: set
+      int: 5
+
+  ##--- +5X Bonus Multiplier ---##
+  mystery_award_bonus_x:
+    bonus_multiplier:
+      action: add
+      int: 5
+    mystery_award_id:
+      action: set
+      int: 6
+
+  ##--- +10% of Score (score >= 10M) ---##
+  mystery_award_score_percent:
+    mystery_score_percent_awarded:
+      action: set
+      int: current_player.score / 10
+    score:
+      action: add
+      int: current_player.score / 10
+    mystery_award_id:
+      action: set
+      int: 7
+
+  ##--- +1,000,000 Score flat (score < 10M) ---##
+  mystery_award_score_flat:
+    score:
+      action: add
+      int: 1000000
+    mystery_award_id:
+      action: set
+      int: 14
+
+  ##--- 30 Seconds Ball Save ---##
+  mystery_award_ball_save:
+    mystery_award_id:
+      action: set
+      int: 8
+    mystery_ball_save_pending:
+      action: set
+      int: 1
+
+  ##--- Award Afterburner Perk ---##
+  mystery_award_perk_afterburner:
+    afterburner_perk_active:
+      action: set
+      int: 1
+    afterburner_perk_saved:
+      action: set
+      int: 1
+    mystery_award_id:
+      action: set
+      int: 9
+
+  ##--- Award Missiles Perk ---##
+  mystery_award_perk_missiles:
+    missiles_perk_active:
+      action: set
+      int: 1
+    missiles_perk_saved:
+      action: set
+      int: 1
+    mystery_award_id:
+      action: set
+      int: 10
+
+  ##--- Award Wingman Perk ---##
+  mystery_award_perk_wingman:
+    wingman_perk_active:
+      action: set
+      int: 1
+    mystery_award_id:
+      action: set
+      int: 11
+
+  ##--- Award Inverted Perk ---##
+  mystery_award_perk_inverted:
+    inverted_perk_active:
+      action: set
+      int: 1
+    mystery_award_id:
+      action: set
+      int: 12
+
+  ##--- Remove One Danger ---##
+  mystery_award_remove_danger:
+    tilt_warnings:
+      action: add
+      int: -1
+    mystery_award_id:
+      action: set
+      int: 13
+
+  ## Clear pending flag when mode stops (whether ball save was awarded or not)
+  mode_mystery_award_stopped:
+    mystery_ball_save_pending:
+      action: set
+      int: 0
+
+##############################################################################
+## EVENT PLAYER - Route Awards & Control Flow
+##############################################################################
+
+event_player:
+  ##--- All award events trigger the display timer and slide ---##
+  mystery_award_light_pilot: [mystery_award_selected]
+  mystery_award_light_eject: [mystery_award_selected, eject_mode_qualified_event]
+  mystery_award_light_extra_ball: [mystery_award_selected, light_extra_ball]
+  mystery_award_bonus_x: [mystery_award_selected]
+  mystery_award_score_percent: [mystery_award_selected]
+  mystery_award_score_flat: [mystery_award_selected]
+  mystery_award_perk_afterburner: [mystery_award_selected]
+  mystery_award_perk_missiles: [mystery_award_selected]
+  mystery_award_perk_wingman: [mystery_award_selected]
+  mystery_award_perk_inverted: [mystery_award_selected]
+  mystery_award_remove_danger: [mystery_award_selected]
+
+  mystery_award_light_training: [mystery_award_selected, qualify_training_mission]
+  mystery_award_light_lock: [mystery_award_selected, lock_complete, lock_servo_to_held]
+
+  mystery_award_ball_save:
+    - mystery_award_selected
+    # ball_save_mode_timer_start deferred — fires on mode_mystery_award_stopped via
+    # mystery_ball_save_pending flag. This ensures the 30s window starts when ball
+    # is live on the playfield, not while it's still sitting in the scoop.
+
+  ##--- EJECT SEQUENCE ────────────────────────────────────────────────────##
+  ## Step 1: Raise barrier at mode start (UP during entire animation)
+  mode_mystery_award_started: [barrier_raise]
+
+  ## Step 2: Voice callout fires at 3s mark when zoom begins in .gd
+  timer_mystery_voice_delay_complete: [mystery_voice_callout_start]
+
+  ## Step 3 — NORMAL PATH: no pilot mode or TGMB pending → drop barrier, eject normally.
+  ## Step 3 — HANDOFF PATH: mode/MB pending → barrier stays UP. Ball ejects into wall,
+  ##          bounces back into scoop. Pilot mode/TGMB captures returning ball.
+  timer_mystery_display_delay_complete{current_player.qualified_mode_number==0 and current_player.multiball_qualified==0}:
+    - barrier_drop
+
+  ## Step 4: 500ms after display_delay → release ball (both paths — wall-bounce or normal eject)
+  timer_mystery_barrier_eject_wait_complete: [mystery_ball_release]
+
+  ## Step 5 & 6: Ball clears scoop → debounce → barrier_delay
+  ##             (handled entirely by timer control_events on s_mode_start_inactive)
+
+  ## Step 7 — NORMAL PATH: barrier_delay complete → raise barrier, stop mode
+  timer_mystery_barrier_delay_complete: [barrier_raise, mystery_eject_confirmed]
+
+  ## Step 7 — HANDOFF PATH: Ball fired into wall. Stop mystery 150ms after ball leaves
+  ##          the scoop switch. Ball physically cannot return in 150ms, so
+  ##          mystery_scoop_hold is disabled before ball bounces back.
+  ##          mode_mystery_award_stopped fires → start_mode_xxx.
+  ##          Pilot mode's ball_hold captures the returning ball. Intro video plays.
+  s_mode_start_inactive{current_player.qualified_mode_number>0 or current_player.multiball_qualified==1}:
+    - mystery_eject_confirmed|150ms
+
+  ## SAFE RELEASE — normal path only (mode/MB pending path: ball already ejected on stop)
+  mode_mystery_award_will_stop{current_player.qualified_mode_number==0 and current_player.multiball_qualified==0}:
+    - mystery_safe_release
+  tilt: [mystery_safe_release]
+  game_ending: [mystery_safe_release]
+
+  ## BALL SAVE — start 30s window when mode stops (ball is live on playfield by then)
+  mode_mystery_award_stopped{current_player.mystery_ball_save_pending==1}:
+    - ball_save_mode_timer_start
+
+##############################################################################
+## SOUND PLAYER
+## Voice callout at the 3-second mark when zoom begins.
+## Sound file: mystery_award/sounds/voice/mystery_voice_talk_to_me_goose.mp3
+##############################################################################
+
+sound_player:
+  mystery_voice_callout_start:
+    mystery_voice_talk_to_me_goose:
+      bus: voice
+      loops: 0
+
+##############################################################################
+## SLIDE PLAYER (Godot/GMC)
+##############################################################################
+
+slide_player:
+  mystery_award_selected:
+    mystery_award_animation:
+      action: play
+      priority: 400
+
+  mode_mystery_award_will_stop:
+    mystery_award_animation:
+      action: remove
+
+##############################################################################
+## SHOW PLAYER - Light Effects During Award Display
+##############################################################################
+
+show_player:
+  mode_mystery_award_started:
+    mystery_scoop_flash:
+      show: sync_flash_mode
+      key: mystery_l_shot_barrier
+      sync_ms: 500
+      loops: -1
+      show_tokens:
+        led: l_shot_barrier
+        color: 00FF00
+
+  mode_mystery_award_will_stop:
+    mystery_scoop_stop:
+      show: sync_flash_mode
+      action: stop
+      key: mystery_l_shot_barrier
+
+##############################################################################
+## LIGHT PLAYER
+##############################################################################
+
+light_player:
+  mode_mystery_award_started:
+    l_mystery_lit: off
+    gi_lights:                    # Targets all lights with tag: gi_lights (l_gi_light_1-27, l_apron_light_1-4)
+      color: 6699FF               # Light blue — MPF converts RGB→GRB internally for grb-type lights
+      fade: 500ms
+
+  mode_mystery_award_will_stop:
+    gi_lights:
+      color: white                # Restore base GI
+      fade: 500ms
+
+  mystery_award_light_eject:
+    l_eject:
+      color: green
+
+##############################################################################
+##############################################################################
+## INTEGRATION NOTES
+##############################################################################
+##############################################################################
+##
+## ============================================================
+## 1. goose_letters.yaml — Add to variable_player section:
+## ============================================================
+##
+##   light_mystery_award:
+##     mystery_qualified:
+##       action: set
+##       int: 1
+##
+## ============================================================
+## 2. goose_letters.yaml — Add to light_player section:
+## ============================================================
+##
+##   player_mystery_qualified{value==1}:
+##     l_mystery_lit: green
+##
+##   player_mystery_qualified{value==0}:
+##     l_mystery_lit: off
+##
+## ============================================================
+## 3. pilot_mission_qualifier.yaml — UPDATE scoop routing
+##    Mystery fires at scoop even when pilot mission OR TGMB lit.
+##    Remove qualified_mode_number==0 and multiball_qualified==0
+##    from the mystery start condition:
+## ============================================================
+##
+##   OLD (blocked mystery when mission was lit):
+##   s_mode_start_active{current_player.mystery_qualified==1 and
+##     current_player.qualified_mode_number==0 and
+##     current_player.multiball_qualified==0 and
+##     current_player.pilot_mode_active==0 and
+##     current_player.training_mission_active==0 and
+##     current_player.hard_deck_active==0}:
+##     - start_mode_mystery_award
+##
+##   NEW (mystery fires regardless of mission/multiball state):
+##   s_mode_start_active{current_player.mystery_qualified==1 and
+##     current_player.pilot_mode_active==0 and
+##     current_player.training_mission_active==0 and
+##     current_player.hard_deck_active==0}:
+##     - start_mode_mystery_award
+##
+##   Also add mystery_qualified==0 to pilot mission and TGMB scoop
+##   handlers so they don't race with mystery:
+##   s_mode_start_active{current_player.qualified_mode_number==N and
+##     current_player.mystery_qualified==0 and ...}: [start_mode_xxx]
+##
+## ============================================================
+## 4. pilot_mission_qualifier.yaml — ADD post-mystery start handlers
+##    After mystery stops, fire pending mode starts automatically.
+##    Add to event_player (one per qualified_mode_number value):
+## ============================================================
+##
+##   mode_mystery_award_stopped{current_player.qualified_mode_number==1 and current_player.pilot_mode_active==0}: [start_mode_rescue_cougar]
+##   mode_mystery_award_stopped{current_player.qualified_mode_number==2 and current_player.pilot_mode_active==0}: [start_mode_battle_jester]
+##   # ... one per mode, matching your qualified_mode_number assignments
+##   mode_mystery_award_stopped{current_player.multiball_qualified==1}: [start_mode_top_gun_multiball_locks]
+##
+## ============================================================
+## 5. base.yaml — Add to sound_player section:
+## ============================================================
+##
+##   mystery_voice_callout_start:
+##     mystery_voice_talk_to_me_goose:
+##       bus: voice
+##       loops: 0
+##
+## ============================================================
+## 6. Eject timing values — adjust if needed:
+## ============================================================
+##
+##   mystery_barrier_eject_wait: end_value: 500  (500ms for barrier to drop)
+##   mystery_eject_debounce:     end_value: 150  (150ms — matches rescue_cougar)
+##   mystery_barrier_delay:      end_value: 750  (750ms — matches rescue_cougar)
+##
+## ============================================================
+## 7. ball_save.yaml — Verify mode ball save compatibility:
+## ============================================================
+##
+##   The "30 Seconds Ball Save" award posts ball_save_mode_timer_start.
+##   Verify ball_save.yaml has a ball_saves device with:
+##     enable_events: ball_save_mode_timer_start
+##
+## ============================================================
+## 8. Player variables (auto-created by MPF with default 0):
+## ============================================================
+##
+##   mystery_qualified, mystery_awards_collected, mystery_award_id,
+##   mystery_score_percent_awarded, all_pilot_modes_played,
+##   all_training_missions_complete, extra_ball_lit
+##

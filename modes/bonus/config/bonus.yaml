@@ -21,6 +21,24 @@ mode:
   use_wait_queue: true
 
 ##############################################
+## Coil Player - Maintain barrier + diverters during bonus
+## Without this, ball-level modes stopping during ball_ended
+## revert their coil_player settings and briefly drop the barrier
+## (~177ms gap between bonus end and next ball start).
+## Priority 500 > qualifier's 200, so this holds even as lower
+## priority modes revert during the transition.
+##############################################
+
+coil_player:
+  mode_bonus_started:
+    c_mode_barrier:
+      action: disable
+    c_left_orbit_diverter:
+      action: disable
+    c_right_orbit_diverter:
+      action: disable
+
+##############################################
 ## Sound Player - Silence music during bonus
 ##############################################
 

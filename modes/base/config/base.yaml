@@ -49,9 +49,9 @@ event_player:
     - right_ramp_down
     - top_ramp_down
 
-  # Release lock servo at ball start ONLY if no balls are physically locked
-  # If balls are locked, the locks mode restore logic handles the servo
-  mode_base_started{current_player.lock_goose_locked==0 and current_player.lock_mav_locked==0}:
+  # Release lock servo at ball start ONLY if no balls are physically in locks
+  # Uses switch state (not player variables) because balls persist across players
+  mode_base_started{not device.switches.s_lock_goose.state and not device.switches.s_lock_mav.state}:
     - lock_released
   mode_base_will_stop:
     - stop_mode_bumpers
@@ -137,6 +137,9 @@ variable_player:
       action: set
       int: 1
     ball_tilted:
+      action: set
+      int: 0
+    pilot_mode_drain_pending:
       action: set
       int: 0
 
@@ -866,6 +869,28 @@ sound_player:
       loops: -1
 
 #################################################################################### 
+  # Skillshot Collected Sounds
+  # Triggered by same custom events as the video slides (proven to work)
+  # Voice bus so compressor ducks the video audio
+####################################################################################
+  show_skillshot_mig_video:
+    skillshot_collected:
+      bus: voice
+      loops: 0
+  show_skillshot_miramar_video:
+    miramar_skillshot_collected:
+      bus: voice
+      loops: 0
+  show_skillshot_tower_video:
+    tower_skillshot_collected:
+      bus: voice
+      loops: 0
+  show_skillshot_inverted_video:
+    inverted_skillshot_collected:
+      bus: voice
+      loops: 0
+
+#################################################################################### 
   # CRITICAL: Mode Scoop Silence - Works for ALL pilot mission modes
   # NO CONDITIONAL - This plays silence whenever ball enters mode scoop
   # EXCEPTION: battle_jester step 6 - music keeps playing during that scoop entry
@@ -873,10 +898,27 @@ sound_player:
 
   # Silence for all modes EXCEPT battle_jester step 6 and playing_with_the_boys step 7
   # (PTB step 7: ball enters scoop for victory — music restarts 200ms later via ptb_step_7_keep_music)
-  s_mode_start_active{(mode.battle_jester.active==False or current_player.battle_jester_step!=5) and (mode.hard_deck_playing_with_the_boys.active==False or current_player.ptb_step!=7)}:
+  s_mode_start_active{(mode.battle_jester.active==False or current_player.battle_jester_step!=5) and (mode.hard_deck_playing_with_the_boys.active==False or current_player.ptb_step!=7) and mode.mystery_award.active==False}:
     silence:
       bus: music
       loops: 0
+
+#################################################################################### 
+  # Mystery Award Mode Music Handler
+  # Music starts immediately on mode_started (ball is held — no ball_released event).
+  # Danger Zone restarts on mode_stopped. No drain condition needed: mystery
+  # always ends via normal eject, the ball is held throughout and cannot drain.
+####################################################################################
+
+  mystery_award_selected:
+    mystery_music:
+      bus: music
+      loops: -1
+
+  mode_mystery_award_stopped:
+    music_danger_zone:
+      bus: music
+      loops: -1
 
 #################################################################################### 
   # Rescue Cougar Mode Music Handler
@@ -1208,6 +1250,12 @@ sound_player:
   # Callouts and videos play over the background music
 
   mode_top_gun_multiball_stopped{current_player.pilot_mode_drain_pending==0}:
+    music_danger_zone:
+      bus: music
+      loops: -1
+
+  # Extra ball collected — ball stays in play, restart danger zone in case anything silenced it
+  extra_ball_main_awarded:
     music_danger_zone:
       bus: music
       loops: -1
