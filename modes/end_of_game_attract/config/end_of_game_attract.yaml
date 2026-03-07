@@ -10,6 +10,11 @@
 #
 # After completion, transitions to main attract mode via
 # mode_end_of_game_attract_stopped event.
+#
+# SCORES:
+#   - Last scores shown for 15 seconds on mode start
+#   - Either flipper re-shows scores for 5 seconds (stops 15s timer if still running)
+#   - Start button flashes and game can be started throughout
 ##############################################################################
 
 mode:
@@ -22,10 +27,11 @@ mode:
   game_mode: false
 
 ##############################################################################
-# TIMER - 2 minutes 11 seconds = 131 seconds
+# TIMERS
 ##############################################################################
 
 timers:
+  # Main 2:11 display timer
   end_of_game_timer:
     start_value: 0
     end_value: 131
@@ -35,31 +41,135 @@ timers:
       - event: mode_end_of_game_attract_started
         action: start
 
+  # Show scores for 15 seconds on mode start.
+  # Stopped early if player presses a flipper (5s timer takes over).
+  end_of_game_scores_initial_timer:
+    start_value: 0
+    end_value: 15
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: mode_end_of_game_attract_started
+        action: start
+      - event: end_of_game_flipper_scores
+        action: stop
+
+  # Re-show scores for 5 seconds on any single flipper press.
+  # Restarts on each press so repeated flips extend the display.
+  end_of_game_scores_flipper_timer:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: end_of_game_flipper_scores
+        action: restart
+
+  # 250ms delay after start button press.
+  # Fires request_to_start_game once attract is running.
+  # Cancelled if mode stops for any other reason before it fires.
+  end_of_game_start_game_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 250ms
+    control_events:
+      - event: s_start_active
+        action: start
+      - event: mode_end_of_game_attract_will_stop
+        action: stop
+
 ##############################################################################
 # EVENT PLAYER
 ##############################################################################
 
 event_player:
-  # Timer complete → end mode
+  # Main timer complete → end mode
   timer_end_of_game_timer_complete: end_of_game_carousel_complete
 
-  # Both flippers detection
-  s_flipper_left_active: end_of_game_check_both_flippers
-  s_flipper_right_active: end_of_game_check_both_flippers
+  # Mode start → kick off light show chain AND initial score display
+  mode_end_of_game_attract_started:
+    - end_of_game_light_step_1
+    - end_of_game_show_scores
+
+  # Flipper events: both used for skip-check AND score re-display.
+  # NOTE: duplicate YAML keys are fatal — combined into lists here.
+  s_flipper_left_active:
+    - end_of_game_check_both_flippers
+    - end_of_game_flipper_scores
+  s_flipper_right_active:
+    - end_of_game_check_both_flippers
+    - end_of_game_flipper_scores
+
+  # Both flippers held → skip to attract
   end_of_game_check_both_flippers{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
     - end_of_game_skip
 
-  # Kick off the light show chain
-  mode_end_of_game_attract_started: end_of_game_light_step_1
+  # Start button → end this mode, then fire request_to_start_game once attract
+  # is running (250ms gives attract time to fully start before the request lands)
+  s_start_active:
+    - end_of_game_skip
+
+  timer_end_of_game_start_game_delay_complete:
+    - request_to_start_game
+
+  # Flipper score re-show → trigger the show event
+  end_of_game_flipper_scores: end_of_game_show_scores
+
+  # Timer completions → hide scores
+  timer_end_of_game_scores_initial_timer_complete: end_of_game_hide_scores
+  timer_end_of_game_scores_flipper_timer_complete: end_of_game_hide_scores
 
 ##############################################################################
-# SLIDE PLAYER - Single slide for the entire mode
+# SLIDE PLAYER
+# - Base attract slide for the entire mode
+# - Score slides (separate .tscn per player count) shown on top at priority 200
 ##############################################################################
 
 slide_player:
   mode_end_of_game_attract_started:
     end_of_game_attract:
       priority: 100
+
+  # --- SHOW the right score slide ---
+  end_of_game_show_scores{machine.player1_score and not machine.player2_score}:
+    last_scores_1p:
+      action: play
+      priority: 200
+  end_of_game_show_scores{machine.player2_score and not machine.player3_score}:
+    last_scores_2p:
+      action: play
+      priority: 200
+  end_of_game_show_scores{machine.player3_score and not machine.player4_score}:
+    last_scores_3p:
+      action: play
+      priority: 200
+  end_of_game_show_scores{machine.player4_score}:
+    last_scores_4p:
+      action: play
+      priority: 200
+
+  # --- HIDE all score slides (safe to remove all; only one was active) ---
+  end_of_game_hide_scores:
+    last_scores_1p:
+      action: remove
+    last_scores_2p:
+      action: remove
+    last_scores_3p:
+      action: remove
+    last_scores_4p:
+      action: remove
+
+  # Also remove scores when mode ends (in case timer had not fired yet)
+  mode_end_of_game_attract_stopping:
+    last_scores_1p:
+      action: remove
+    last_scores_2p:
+      action: remove
+    last_scores_3p:
+      action: remove
+    last_scores_4p:
+      action: remove
 
 ##############################################################################
 # SOUND PLAYER
@@ -72,8 +182,19 @@ sound_player:
       bus: music
       loops: 0
 
+
 ##############################################################################
-# SHOW PLAYER - Chained light shows
+# COIL PLAYER - Start button LED
+##############################################################################
+
+coil_player:
+  # Explicitly kill the LED coil when mode ends so attract can take clean control
+  mode_end_of_game_attract_stopping:
+    c_start_button_led:
+      action: disable
+
+##############################################################################
+# SHOW PLAYER - Start button flash + chained light shows
 #
 # ADJUSTING LOOP COUNT:
 #   Change the 'loops' value for each show to control how many times
@@ -85,6 +206,14 @@ sound_player:
 ##############################################################################
 
 show_player:
+  # Start button slow flash — same show as attract mode so player knows they can start
+  # (show defined in attract.yaml, registered machine-wide on load)
+  mode_end_of_game_attract_started:
+    start_button_flash:
+      show: start_button_slow_flash
+      loops: -1
+      priority: 100
+
   end_of_game_light_step_1:
     end_of_game_1:
       loops: 1
@@ -119,3 +248,4 @@ show_player:
     end_of_game_2: stop
     end_of_game_3: stop
     end_of_game_4: stop
+    start_button_flash: stop

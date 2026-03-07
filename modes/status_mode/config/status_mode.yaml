@@ -1,0 +1,418 @@
+#config_version=6
+
+##############################################################################
+# STATUS MODE
+# Priority: 800 (above pilot modes 600, bonus 500)
+#
+# ENTRY:  Both flippers held 10 seconds — timer lives in base.yaml
+#         because this mode isn't running yet during entry timing.
+#         base.yaml posts: status_mode_enter → starts this mode
+#
+# STAY:   At least one flipper held at all times.
+#         Any flipper activity resets the 10-second inactivity timer.
+#         BOTH flippers released simultaneously → posts status_mode_exit
+#
+# PAGES:  Right flipper tap (press while left held) = next page
+#         Left flipper tap (press while right held) = prev page
+#         Pages wrap: 1→prev→5, 5→next→1
+#         Controlled by player var: status_mode_page (1–5)
+#
+# EXIT:   status_mode_exit posted (both released) OR
+#         timer_status_inactivity_complete fires (10s no flipper activity)
+##############################################################################
+
+mode:
+  start_events: status_mode_enter
+  stop_events:
+    - status_mode_exit
+    - timer_status_inactivity_complete
+  priority: 800
+  game_mode: true
+
+##############################################################################
+## TIMERS
+##############################################################################
+
+timers:
+
+  # Inactivity timer — resets on ANY flipper event (press OR release)
+  # Expires after 10s of no flipper activity → mode ends
+  status_inactivity:
+    start_value: 0
+    end_value: 10
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: mode_status_mode_started
+        action: restart
+      - event: s_flipper_left_active
+        action: restart
+      - event: s_flipper_left_inactive
+        action: restart
+      - event: s_flipper_right_active
+        action: restart
+      - event: s_flipper_right_inactive
+        action: restart
+
+##############################################################################
+## VARIABLE PLAYER
+##############################################################################
+
+variable_player:
+
+  # ─── Init on mode start ────────────────────────────────────────────────────
+
+  mode_status_mode_started:
+    # Always reset to page 1
+    status_mode_page:
+      action: set
+      int: 1
+
+    # PAGE 1 — Tilt warnings remaining (max 3 before tilt, starts at 0)
+    status_tilt_remaining:
+      action: set
+      int: 3 - current_player.tilt_warnings
+
+    # PAGE 1 — Bonus preview: what the player earns if they drain right now
+    # Mirrors the exact formula in bonus.yaml entries × multiplier
+    status_bonus_preview:
+      action: set
+      int: ((current_player.bonus_switches_count * 350) + (current_player.bonus_ramps_count * 2500) + (current_player.bonus_highest_mach * 10000) + (current_player.hard_deck_awards_count * 35000) + (current_player.training_missions_played * 50000) + (current_player.pilot_missions_won * 75000)) * current_player.bonus_multiplier
+
+  # ─── Page navigation ───────────────────────────────────────────────────────
+
+  status_mode_next_page{current_player.status_mode_page < 5}:
+    status_mode_page:
+      action: add
+      int: 1
+
+  status_mode_next_page{current_player.status_mode_page == 5}:
+    status_mode_page:
+      action: set
+      int: 1
+
+  status_mode_prev_page{current_player.status_mode_page > 1}:
+    status_mode_page:
+      action: add
+      int: -1
+
+  status_mode_prev_page{current_player.status_mode_page == 1}:
+    status_mode_page:
+      action: set
+      int: 5
+
+  # ─── PAGE 2 — Mission string setters ───────────────────────────────────────
+  # Each mission fires one of three events on mode_started, which sets the string.
+  # Unimplemented missions (force-set to played=1 by qualifier at game start,
+  # but never actually launched) show "Not Coded Yet" until they are built.
+  # When coding a new mission: post status_set_<name>_not_played / _won / _lost
+  # from its own mode file, OR just let this mode_started logic handle it via
+  # the _played / _won flags set by pilot_mission_qualifier.yaml.
+
+  # Rescue Cougar — fully coded, normal logic
+  status_set_rescue_cougar_not_played:
+    status_rescue_cougar:
+      action: set
+      string: Not Played
+  status_set_rescue_cougar_lost:
+    status_rescue_cougar:
+      action: set
+      string: Lost
+  status_set_rescue_cougar_won:
+    status_rescue_cougar:
+      action: set
+      string: Won
+
+  # Great Balls Of Fire — not coded, forced played=1 by qualifier
+  status_set_balls_of_fire_not_coded:
+    status_balls_of_fire:
+      action: set
+      string: Not Coded Yet
+  status_set_balls_of_fire_not_played:
+    status_balls_of_fire:
+      action: set
+      string: Not Played
+  status_set_balls_of_fire_lost:
+    status_balls_of_fire:
+      action: set
+      string: Lost
+  status_set_balls_of_fire_won:
+    status_balls_of_fire:
+      action: set
+      string: Won
+
+  # Cool Under Pressure — not coded, forced played=1 by qualifier
+  status_set_cool_under_pressure_not_coded:
+    status_cool_under_pressure:
+      action: set
+      string: Not Coded Yet
+  status_set_cool_under_pressure_not_played:
+    status_cool_under_pressure:
+      action: set
+      string: Not Played
+  status_set_cool_under_pressure_lost:
+    status_cool_under_pressure:
+      action: set
+      string: Lost
+  status_set_cool_under_pressure_won:
+    status_cool_under_pressure:
+      action: set
+      string: Won
+
+  # No Points For Second Place — not coded, forced played=1 by qualifier
+  status_set_no_points_not_coded:
+    status_no_points_for_second_place:
+      action: set
+      string: Not Coded Yet
+  status_set_no_points_not_played:
+    status_no_points_for_second_place:
+      action: set
+      string: Not Played
+  status_set_no_points_lost:
+    status_no_points_for_second_place:
+      action: set
+      string: Lost
+  status_set_no_points_won:
+    status_no_points_for_second_place:
+      action: set
+      string: Won
+
+  # Edge Of Space — not coded, forced played=1 by qualifier
+  status_set_edge_of_space_not_coded:
+    status_edge_of_space:
+      action: set
+      string: Not Coded Yet
+  status_set_edge_of_space_not_played:
+    status_edge_of_space:
+      action: set
+      string: Not Played
+  status_set_edge_of_space_lost:
+    status_edge_of_space:
+      action: set
+      string: Lost
+  status_set_edge_of_space_won:
+    status_edge_of_space:
+      action: set
+      string: Won
+
+  # Below The Hard Deck — not coded, forced played=1 by qualifier
+  status_set_below_the_hard_deck_not_coded:
+    status_below_the_hard_deck:
+      action: set
+      string: Not Coded Yet
+  status_set_below_the_hard_deck_not_played:
+    status_below_the_hard_deck:
+      action: set
+      string: Not Played
+  status_set_below_the_hard_deck_lost:
+    status_below_the_hard_deck:
+      action: set
+      string: Lost
+  status_set_below_the_hard_deck_won:
+    status_below_the_hard_deck:
+      action: set
+      string: Won
+
+  # Canyon Run — not coded, forced played=1 by qualifier
+  status_set_canyon_run_not_coded:
+    status_canyon_run:
+      action: set
+      string: Not Coded Yet
+  status_set_canyon_run_not_played:
+    status_canyon_run:
+      action: set
+      string: Not Played
+  status_set_canyon_run_lost:
+    status_canyon_run:
+      action: set
+      string: Lost
+  status_set_canyon_run_won:
+    status_canyon_run:
+      action: set
+      string: Won
+
+  # No Margin For Error — not coded, forced played=1 by qualifier
+  status_set_no_margin_not_coded:
+    status_no_margin_for_error:
+      action: set
+      string: Not Coded Yet
+  status_set_no_margin_not_played:
+    status_no_margin_for_error:
+      action: set
+      string: Not Played
+  status_set_no_margin_lost:
+    status_no_margin_for_error:
+      action: set
+      string: Lost
+  status_set_no_margin_won:
+    status_no_margin_for_error:
+      action: set
+      string: Won
+
+  # Rise Of Phoenix — fully coded, normal logic
+  status_set_rise_of_phoenix_not_played:
+    status_rise_of_phoenix:
+      action: set
+      string: Not Played
+  status_set_rise_of_phoenix_lost:
+    status_rise_of_phoenix:
+      action: set
+      string: Lost
+  status_set_rise_of_phoenix_won:
+    status_rise_of_phoenix:
+      action: set
+      string: Won
+
+  # Battle Jester — fully coded, normal logic
+  status_set_battle_jester_not_played:
+    status_battle_jester:
+      action: set
+      string: Not Played
+  status_set_battle_jester_lost:
+    status_battle_jester:
+      action: set
+      string: Lost
+  status_set_battle_jester_won:
+    status_battle_jester:
+      action: set
+      string: Won
+
+##############################################################################
+## EVENT PLAYER
+##############################################################################
+
+event_player:
+
+  # ─── Page navigation ───────────────────────────────────────────────────────
+  # Right flipper pressed while left is held = next page
+  s_flipper_right_active{mode.status_mode.active==True and device.switches.s_flipper_left.state==1}:
+    - status_mode_next_page
+
+  # Left flipper pressed while right is held = prev page
+  s_flipper_left_active{mode.status_mode.active==True and device.switches.s_flipper_right.state==1}:
+    - status_mode_prev_page
+
+  # ─── Exit — both flippers released simultaneously ──────────────────────────
+  # Left releases AND right is already up = both gone
+  s_flipper_left_inactive{mode.status_mode.active==True and device.switches.s_flipper_right.state==0}:
+    - status_mode_exit
+
+  # Right releases AND left is already up = both gone
+  s_flipper_right_inactive{mode.status_mode.active==True and device.switches.s_flipper_left.state==0}:
+    - status_mode_exit
+
+  # ─── PAGE 2 — Compute mission string on mode start ─────────────────────────
+  # NOTE: The 7 unimplemented missions are forced to played=1 by qualifier.yaml
+  # on every game start. They show "Not Coded Yet" because we check
+  # mode_<name>_actually_played (never set = 0) before checking played/won.
+  # When a mission is coded, add mode_<name>_actually_played: set: 1 to its
+  # mode_started variable_player, and this logic will switch to Won/Lost/Not Played.
+
+  # ── Rescue Cougar (CODED — use normal logic) ──
+  mode_status_mode_started{current_player.mode_rescue_cougar_played==0}:
+    - status_set_rescue_cougar_not_played
+  mode_status_mode_started{current_player.mode_rescue_cougar_played==1 and current_player.mode_rescue_cougar_won==0}:
+    - status_set_rescue_cougar_lost
+  mode_status_mode_started{current_player.mode_rescue_cougar_played==1 and current_player.mode_rescue_cougar_won==1}:
+    - status_set_rescue_cougar_won
+
+  # ── Great Balls Of Fire (NOT CODED — forced played=1 by qualifier) ──
+  mode_status_mode_started{current_player.mode_balls_of_fire_actually_played==0}:
+    - status_set_balls_of_fire_not_coded
+  mode_status_mode_started{current_player.mode_balls_of_fire_actually_played==1 and current_player.mode_balls_of_fire_played==0}:
+    - status_set_balls_of_fire_not_played
+  mode_status_mode_started{current_player.mode_balls_of_fire_actually_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_balls_of_fire_won==0}:
+    - status_set_balls_of_fire_lost
+  mode_status_mode_started{current_player.mode_balls_of_fire_actually_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_balls_of_fire_won==1}:
+    - status_set_balls_of_fire_won
+
+  # ── Cool Under Pressure (NOT CODED) ──
+  mode_status_mode_started{current_player.mode_cool_under_pressure_actually_played==0}:
+    - status_set_cool_under_pressure_not_coded
+  mode_status_mode_started{current_player.mode_cool_under_pressure_actually_played==1 and current_player.mode_cool_under_pressure_played==0}:
+    - status_set_cool_under_pressure_not_played
+  mode_status_mode_started{current_player.mode_cool_under_pressure_actually_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_cool_under_pressure_won==0}:
+    - status_set_cool_under_pressure_lost
+  mode_status_mode_started{current_player.mode_cool_under_pressure_actually_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_cool_under_pressure_won==1}:
+    - status_set_cool_under_pressure_won
+
+  # ── No Points For Second Place (NOT CODED) ──
+  mode_status_mode_started{current_player.mode_no_points_for_second_place_actually_played==0}:
+    - status_set_no_points_not_coded
+  mode_status_mode_started{current_player.mode_no_points_for_second_place_actually_played==1 and current_player.mode_no_points_for_second_place_played==0}:
+    - status_set_no_points_not_played
+  mode_status_mode_started{current_player.mode_no_points_for_second_place_actually_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_no_points_for_second_place_won==0}:
+    - status_set_no_points_lost
+  mode_status_mode_started{current_player.mode_no_points_for_second_place_actually_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_no_points_for_second_place_won==1}:
+    - status_set_no_points_won
+
+  # ── Edge Of Space (NOT CODED) ──
+  mode_status_mode_started{current_player.mode_edge_of_space_actually_played==0}:
+    - status_set_edge_of_space_not_coded
+  mode_status_mode_started{current_player.mode_edge_of_space_actually_played==1 and current_player.mode_edge_of_space_played==0}:
+    - status_set_edge_of_space_not_played
+  mode_status_mode_started{current_player.mode_edge_of_space_actually_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_edge_of_space_won==0}:
+    - status_set_edge_of_space_lost
+  mode_status_mode_started{current_player.mode_edge_of_space_actually_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_edge_of_space_won==1}:
+    - status_set_edge_of_space_won
+
+  # ── Below The Hard Deck (NOT CODED) ──
+  mode_status_mode_started{current_player.mode_below_the_hard_deck_actually_played==0}:
+    - status_set_below_the_hard_deck_not_coded
+  mode_status_mode_started{current_player.mode_below_the_hard_deck_actually_played==1 and current_player.mode_below_the_hard_deck_played==0}:
+    - status_set_below_the_hard_deck_not_played
+  mode_status_mode_started{current_player.mode_below_the_hard_deck_actually_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_below_the_hard_deck_won==0}:
+    - status_set_below_the_hard_deck_lost
+  mode_status_mode_started{current_player.mode_below_the_hard_deck_actually_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_below_the_hard_deck_won==1}:
+    - status_set_below_the_hard_deck_won
+
+  # ── Canyon Run (NOT CODED) ──
+  mode_status_mode_started{current_player.mode_canyon_run_actually_played==0}:
+    - status_set_canyon_run_not_coded
+  mode_status_mode_started{current_player.mode_canyon_run_actually_played==1 and current_player.mode_canyon_run_played==0}:
+    - status_set_canyon_run_not_played
+  mode_status_mode_started{current_player.mode_canyon_run_actually_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_canyon_run_won==0}:
+    - status_set_canyon_run_lost
+  mode_status_mode_started{current_player.mode_canyon_run_actually_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_canyon_run_won==1}:
+    - status_set_canyon_run_won
+
+  # ── No Margin For Error (NOT CODED) ──
+  mode_status_mode_started{current_player.mode_no_margin_for_error_actually_played==0}:
+    - status_set_no_margin_not_coded
+  mode_status_mode_started{current_player.mode_no_margin_for_error_actually_played==1 and current_player.mode_no_margin_for_error_played==0}:
+    - status_set_no_margin_not_played
+  mode_status_mode_started{current_player.mode_no_margin_for_error_actually_played==1 and current_player.mode_no_margin_for_error_played==1 and current_player.mode_no_margin_for_error_won==0}:
+    - status_set_no_margin_lost
+  mode_status_mode_started{current_player.mode_no_margin_for_error_actually_played==1 and current_player.mode_no_margin_for_error_played==1 and current_player.mode_no_margin_for_error_won==1}:
+    - status_set_no_margin_won
+
+  # ── Rise Of Phoenix (CODED — use normal logic) ──
+  mode_status_mode_started{current_player.mode_rise_of_phoenix_played==0}:
+    - status_set_rise_of_phoenix_not_played
+  mode_status_mode_started{current_player.mode_rise_of_phoenix_played==1 and current_player.mode_rise_of_phoenix_won==0}:
+    - status_set_rise_of_phoenix_lost
+  mode_status_mode_started{current_player.mode_rise_of_phoenix_played==1 and current_player.mode_rise_of_phoenix_won==1}:
+    - status_set_rise_of_phoenix_won
+
+  # ── Battle Jester (CODED — use normal logic) ──
+  mode_status_mode_started{current_player.mode_battle_jester_played==0}:
+    - status_set_battle_jester_not_played
+  mode_status_mode_started{current_player.mode_battle_jester_played==1 and current_player.mode_battle_jester_won==0}:
+    - status_set_battle_jester_lost
+  mode_status_mode_started{current_player.mode_battle_jester_played==1 and current_player.mode_battle_jester_won==1}:
+    - status_set_battle_jester_won
+
+##############################################################################
+## SLIDE PLAYER
+##############################################################################
+
+slide_player:
+  mode_status_mode_started:
+    status_mode:
+      action: play
+      priority: 800
+
+  mode_status_mode_stopped:
+    status_mode:
+      action: remove

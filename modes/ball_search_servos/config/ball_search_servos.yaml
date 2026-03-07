@@ -1,0 +1,117 @@
+#config_version=6
+
+####################################################################################
+# BALL SEARCH SERVO SEQUENCER
+#
+# Cycles servos in a power-safe order during ball search to prevent brown-out
+# from simultaneous servo movement.
+#
+# SEQUENCE (500ms between each step):
+#   1. right_ramp_up
+#   2. top_ramp_up
+#   3. [lock_released — 3rd run and beyond only]
+#   4. right_ramp_down
+#   5. top_ramp_down
+#   6. [lock_held — only if lock switches still occupied after release]
+#
+# The lock servo is excluded from the first two runs to avoid releasing locked
+# balls prematurely. It joins on the 3rd run (counter >= 2) when a truly stuck
+# ball is more likely.
+#
+# Counter resets each time ball search starts fresh.
+# Sequence repeats every 10s after completing (matches ball_search_wait_after_iteration).
+####################################################################################
+
+mode:
+  start_events: machine_reset_phase_3
+  priority: 5
+  game_mode: false
+
+####################################################################################
+# VARIABLE PLAYER
+####################################################################################
+variable_player:
+  # Reset counter each time a fresh ball search begins
+  ball_search_started:
+    ball_search_servo_count:
+      action: set_machine
+      int: 0
+
+  # Increment after each complete sequence (also restarts the 10s repeat timer)
+  ball_search_servo_seq_complete:
+    ball_search_servo_count:
+      action: add_machine
+      int: 1
+
+####################################################################################
+# TIMERS - Repeat servo sequence every 10s (matches ball_search_wait_after_iteration)
+####################################################################################
+timers:
+  ball_search_servo_repeat:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 10s
+    control_events:
+      - event: ball_search_servo_seq_complete
+        action: restart
+      - event: ball_search_stopped
+        action: stop
+
+####################################################################################
+# EVENT PLAYER - Staggered servo sequence
+####################################################################################
+event_player:
+
+  # TRIGGER: Start sequence when ball search begins and on each repeat
+  ball_search_started:
+    - ball_search_seq_start
+
+  timer_ball_search_servo_repeat_complete:
+    - ball_search_seq_start
+
+  # STEP 1: Right ramp up
+  ball_search_seq_start:
+    - right_ramp_up
+    - ball_search_seq_2|500ms
+
+  # STEP 2: Top ramp up
+  ball_search_seq_2:
+    - top_ramp_up
+    - ball_search_seq_3|500ms
+
+  # STEP 3: Lock release on 3rd run+; always advance to step 4
+  ball_search_seq_3:
+    - ball_search_seq_4|500ms
+
+  ball_search_seq_3{machine.ball_search_servo_count>=2}:
+    - lock_released
+
+  # STEP 4: Right ramp down
+  ball_search_seq_4:
+    - right_ramp_down
+    - ball_search_seq_5|500ms
+
+  # STEP 5: Top ramp down
+  ball_search_seq_5:
+    - top_ramp_down
+    - ball_search_seq_6|500ms
+
+  # STEP 6: Re-lock if balls still in locks (only relevant after lock release)
+  ball_search_seq_6:
+    - ball_search_seq_done|500ms
+
+  ball_search_seq_6{machine.ball_search_servo_count>=2 and (device.switches.s_lock_goose.state or device.switches.s_lock_mav.state)}:
+    - lock_held
+
+  # DONE: Increment counter and restart 10s repeat timer
+  ball_search_seq_done:
+    - ball_search_servo_seq_complete
+
+  # CLEANUP: Ball found — ramps down, lock held if balls remain
+  ball_search_stopped:
+    - right_ramp_down
+    - top_ramp_down
+
+  ball_search_stopped{device.switches.s_lock_goose.state or device.switches.s_lock_mav.state}:
+    - lock_held

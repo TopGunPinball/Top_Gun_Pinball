@@ -810,6 +810,14 @@ coil_player:
     c_left_lane_up_post:
       action: disable
 
+  # PTB direct-start: enable post immediately on s_lane_left_active so the ball
+  # is held BEFORE mode_started fires. Without this, the 26ms gap between switch
+  # and mode_started lets the ball escape. Uses same guards as Case 2 event_player
+  # entry + hard_deck_qualified_mode==2 to only fire for PTB.
+  s_lane_left_active{current_player.hard_deck_qualified_mode==2 and current_player.training_mission_qualified==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.training_mission_active==0 and current_player.hd_training_choice_active==0 and current_player.extra_ball_lit==0}:
+    c_left_lane_up_post:
+      action: enable
+
   # Safety: release post when qualifier mode stops
   mode_hard_deck_qualifiers_will_stop:
     c_left_lane_up_post:

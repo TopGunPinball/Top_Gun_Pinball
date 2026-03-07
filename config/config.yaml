@@ -1,5 +1,43 @@
 #config_version=6
 
+####################################################################################
+# SOUNDS - All machine sounds defined here (MPF 0.80 requires machine-level definition)
+####################################################################################
+sounds:
+
+  ##############################################
+  ## SPINNER CANNON BURST - 4 variants, randomly selected per spin
+  ## Files: sounds/effects/spinner_cannon_burst_1-4.wav
+  ## Triggered via random_event_player in base.yaml
+  ##############################################
+  spinner_cannon_burst_1:
+    file: effects/spinner_cannon_burst_1.wav
+    bus: voice
+    max_instances: 4
+    simultaneous_limit: 4
+    volume: 0.8
+
+  spinner_cannon_burst_2:
+    file: effects/spinner_cannon_burst_2.wav
+    bus: voice
+    max_instances: 4
+    simultaneous_limit: 4
+    volume: 0.8
+
+  spinner_cannon_burst_3:
+    file: effects/spinner_cannon_burst_3.wav
+    bus: voice
+    max_instances: 4
+    simultaneous_limit: 4
+    volume: 0.8
+
+  spinner_cannon_burst_4:
+    file: effects/spinner_cannon_burst_4.wav
+    bus: voice
+    max_instances: 4
+    simultaneous_limit: 4
+    volume: 0.8
+
 config:
   - config_autofire_coils.yaml
   - config_ball_devices.yaml
@@ -20,6 +58,7 @@ modes:
   - 2x_playfield
   - attract
   - ball_save
+  - ball_search_servos
   - base
   - battle_jester
   - bonus
@@ -199,6 +238,11 @@ machine_vars:
     initial_value: 0
     value_type: int
     persist: true
+  # Ball search servo sequencer run counter
+  ball_search_servo_count:
+    initial_value: 0
+    value_type: int
+    persist: false
 
 playfields:
   playfield:
@@ -213,6 +257,8 @@ playfields:
       - rescue_cougar_activate_left_lane_post
       # Battle Jester - left lane post hold (step 11)
       - battle_jester_activate_left_lane_post
+      # PTB - left lane post hold during intro
+      - mode_hard_deck_playing_with_the_boys_started
       # Flipper holds - block ball search while flippers are held
       - s_flipper_left_active
       - s_flipper_right_active
@@ -227,6 +273,9 @@ playfields:
       - battle_jester_deactivate_left_lane_post
       - battle_jester_cleanup
       - mode_battle_jester_stopped
+      # PTB - post releases when ball is released from intro hold
+      - ptb_ball_released
+      - mode_hard_deck_playing_with_the_boys_stopped
       # Flipper releases - unblock ball search when flippers released
       - s_flipper_left_inactive
       - s_flipper_right_inactive
