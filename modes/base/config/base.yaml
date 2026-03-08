@@ -13,6 +13,25 @@ mode:
 ## TIMERS - Post-Win Plunge Sequence
 ##############################################
 timers:
+
+  ##############################################
+  ## STATUS MODE ENTRY TIMER
+  ## Both flippers held simultaneously for 10 seconds triggers status mode.
+  ## Timer lives in base (not status_mode) because it runs before status_mode starts.
+  ## Guard conditions: bonus and status_mode must not be active.
+  ##############################################
+  status_mode_entry:
+    start_value: 0
+    end_value: 8
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: status_mode_entry_both_held
+        action: restart
+      - event: status_mode_entry_cancel
+        action: stop
+
   # Wingman post-win: 1 second delay before auto-plunge
   wingman_post_win_plunge_delay:
     start_value: 0
@@ -55,7 +74,7 @@ event_player:
     - lock_released
   mode_base_will_stop:
     - stop_mode_bumpers
-  
+
   ##############################################
   ## SHUTDOWN CLEANUP - Reset servos when MPF exits
   ##############################################
@@ -71,6 +90,23 @@ event_player:
   ##############################################
   s_shooter_lane_active{current_player.wingman_post_win_plunge==1}:
     - wingman_post_win_plunge_start
+
+  ##############################################
+  ## STATUS MODE ENTRY
+  ## Both flippers held together for 10 seconds → status_mode_enter
+  ## Timer restarts each time both are held; cancels if either releases alone.
+  ## Guards: not during bonus, not if status mode already running.
+  ##############################################
+  s_flipper_left_active{device.switches.s_flipper_right.state==1 and mode.bonus.active==False and mode.status_mode.active==False}:
+    - status_mode_entry_both_held
+  s_flipper_right_active{device.switches.s_flipper_left.state==1 and mode.bonus.active==False and mode.status_mode.active==False}:
+    - status_mode_entry_both_held
+  s_flipper_left_inactive{device.timers.status_mode_entry.running==True}:
+    - status_mode_entry_cancel
+  s_flipper_right_inactive{device.timers.status_mode_entry.running==True}:
+    - status_mode_entry_cancel
+  timer_status_mode_entry_complete:
+    - status_mode_enter
 
 variable_player:
   ##############################################

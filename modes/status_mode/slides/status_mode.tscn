@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3 uid="uid://status_mode_scene"]
+[gd_scene load_steps=6 format=3 uid="uid://8tp26du40qel"]
 
 [ext_resource type="Script" uid="uid://dru3usokwlhd3" path="res://addons/mpf-gmc/classes/mpf_slide.gd" id="1_slide"]
 [ext_resource type="FontFile" uid="uid://bmeoubu4ga0gt" path="res://fonts/ITCMachine-Medium Medium.ttf" id="2_font"]
@@ -8,43 +8,24 @@
 [sub_resource type="GDScript" id="GDScript_pagemgr"]
 script/source = "extends Control
 
-# Page manager — shows/hides Page1-Page5 based on MPF player variable
-# status_mode_page (1-5). MPF fires 'player_status_mode_page' when it changes.
-# GMC 0.1.6 routes player variable events through its event bus.
-# If pages don't switch: verify GMC event connection API in your version.
-
 var _current_page: int = 1
 
 func _ready() -> void:
 	_show_page(1)
-	# Connect to GMC event bus — adjust singleton name if needed
-	var gmc = _find_gmc_singleton()
-	if gmc and gmc.has_signal(\"mpf_event\"):
-		gmc.connect(\"mpf_event\", _on_mpf_event)
+	MPF.game.connect(\"player_update\", _on_player_update)
 
-func _find_gmc_singleton() -> Node:
-	for name in [\"GameInterface\", \"BCP\", \"GMC\"]:
-		if Engine.has_singleton(name):
-			return Engine.get_singleton(name)
-	return null
-
-func _on_mpf_event(event_name: String, kwargs: Dictionary) -> void:
-	if event_name == \"player_status_mode_page\":
-		var page = int(kwargs.get(\"value\", 1))
+func _on_player_update(var_name: String, value: Variant) -> void:
+	if var_name == \"status_mode_page\":
+		var page = int(value)
 		if page != _current_page:
 			_current_page = page
 			_show_page(page)
 
 func _show_page(page_num: int) -> void:
 	for i in range(1, 6):
-		var page_node = get_node_or_null(\"Page%d\" % i)
-		if page_node:
-			page_node.visible = (i == page_num)
+		var n = get_node_or_null(\"Page%d\" % i)
+		if n: n.visible = (i == page_num)
 "
-
-[sub_resource type="FontVariation" id="FontVariation_main"]
-base_font = ExtResource("2_font")
-spacing_glyph = 5
 
 [node name="Base" type="Control"]
 layout_mode = 3
@@ -55,18 +36,50 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_slide")
 
-[node name="background_video_opening" type="Sprite2D" parent="."]
-z_index = 100
-texture = ExtResource("3_bg")
-centered = false
+[node name="ContentScale" type="Control" parent="."]
+anchors_preset = 0
+offset_left = 0.99999994
+offset_right = 2229.223
+offset_bottom = 1273.5192
+scale = Vector2(0.574, 0.574)
 
-[node name="StatusModeLabel" type="Label" parent="."]
+[node name="StatusModeLabel" type="Label" parent="ContentScale"]
 z_index = 101
 layout_mode = 0
-offset_left = 514.0
-offset_top = 7.0
-offset_right = 2216.0
-offset_bottom = 207.0
+offset_left = 407.6655
+offset_top = 22.648087
+offset_right = 1785.7144
+offset_bottom = 182.64809
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 125
+text = "Status Mode"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="StatusModeArea" type="Control" parent="ContentScale"]
+z_index = 101
+anchors_preset = 0
+offset_left = 404.1812
+offset_top = 156.79443
+offset_right = 1790.9407
+offset_bottom = 1177.7003
+script = SubResource("GDScript_pagemgr")
+
+[node name="Page1" type="Control" parent="ContentScale/StatusModeArea"]
+anchors_preset = 0
+offset_right = 1383.2751
+offset_bottom = 1111.0
+
+[node name="Title" type="Label" parent="ContentScale/StatusModeArea/Page1"]
+layout_mode = 0
+offset_top = 54.006958
+offset_right = 1379.7909
+offset_bottom = 165.50522
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
@@ -74,594 +87,640 @@ theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
 theme_override_font_sizes/font_size = 100
-text = "Status Mode"
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="StatusModeArea" type="Control" parent="."]
-z_index = 101
-layout_mode = 0
-offset_left = 514.0
-offset_top = 208.0
-offset_right = 2216.0
-offset_bottom = 1325.0
-script = SubResource("GDScript_pagemgr")
-
-[node name="Page1" type="Control" parent="StatusModeArea"]
-layout_mode = 0
-offset_left = 0.0
-offset_top = 0.0
-offset_right = 1702.0
-offset_bottom = 1117.0
-
-[node name="Title" type="Label" parent="StatusModeArea/Page1"]
-layout_mode = 0
-offset_left = 0.0
-offset_top = 5.0
-offset_right = 1702.0
-offset_bottom = 95.0
-theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
-theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
-theme_override_constants/shadow_offset_x = 2
-theme_override_constants/shadow_offset_y = 3
-theme_override_constants/shadow_outline_size = 4
-theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 85
 text = "Game Status"
 horizontal_alignment = 1
 
-[node name="Row1Label" type="Label" parent="StatusModeArea/Page1"]
+[node name="R1L" type="Label" parent="ContentScale/StatusModeArea/Page1"]
 layout_mode = 0
-offset_left = 20.0
-offset_top = 110.0
-offset_right = 1200.0
-offset_bottom = 192.0
+offset_left = 87.10797
+offset_top = 165.50522
+offset_right = 1127.1079
+offset_bottom = 243.50522
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 65
+theme_override_font_sizes/font_size = 70
 text = "• Tilt Warnings Remaining"
-horizontal_alignment = 0
 
-[node name="Row1Value" type="Label" parent="StatusModeArea/Page1"]
+[node name="R1V" type="Label" parent="ContentScale/StatusModeArea/Page1"]
 layout_mode = 0
-offset_left = 1210.0
-offset_top = 110.0
-offset_right = 1692.0
-offset_bottom = 192.0
+offset_left = 910.108
+offset_top = 165.50522
+offset_right = 1418.1079
+offset_bottom = 243.50522
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 65
-horizontal_alignment = 2
+theme_override_font_sizes/font_size = 70
 script = ExtResource("4_mpfvar")
 variable_name = "status_tilt_remaining"
 
-[node name="Row2Label" type="Label" parent="StatusModeArea/Page1"]
+[node name="R2L" type="Label" parent="ContentScale/StatusModeArea/Page1"]
 layout_mode = 0
-offset_left = 20.0
-offset_top = 218.0
-offset_right = 1200.0
-offset_bottom = 300.0
+offset_left = 87.10797
+offset_top = 251.50525
+offset_right = 1127.1079
+offset_bottom = 329.50525
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 65
+theme_override_font_sizes/font_size = 70
 text = "• Current Bonus Multiplier"
-horizontal_alignment = 0
 
-[node name="Row2Value" type="Label" parent="StatusModeArea/Page1"]
+[node name="R2V" type="Label" parent="ContentScale/StatusModeArea/Page1"]
 layout_mode = 0
-offset_left = 1210.0
-offset_top = 218.0
-offset_right = 1692.0
-offset_bottom = 300.0
+offset_left = 910.108
+offset_top = 251.50525
+offset_right = 1418.1079
+offset_bottom = 329.50525
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 65
-horizontal_alignment = 2
+theme_override_font_sizes/font_size = 70
 script = ExtResource("4_mpfvar")
 variable_name = "bonus_multiplier"
 template_string = "%sx"
 
-[node name="Row3Label" type="Label" parent="StatusModeArea/Page1"]
+[node name="R3L" type="Label" parent="ContentScale/StatusModeArea/Page1"]
 layout_mode = 0
-offset_left = 20.0
-offset_top = 326.0
-offset_right = 1200.0
-offset_bottom = 408.0
+offset_left = 87.10797
+offset_top = 337.5052
+offset_right = 1127.1079
+offset_bottom = 415.5052
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 65
+theme_override_font_sizes/font_size = 70
 text = "• Current Total Bonus"
-horizontal_alignment = 0
 
-[node name="Row3Value" type="Label" parent="StatusModeArea/Page1"]
+[node name="R3V" type="Label" parent="ContentScale/StatusModeArea/Page1"]
 layout_mode = 0
-offset_left = 1210.0
-offset_top = 326.0
-offset_right = 1692.0
-offset_bottom = 408.0
+offset_left = 910.108
+offset_top = 337.5052
+offset_right = 1418.1079
+offset_bottom = 415.5052
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 65
-horizontal_alignment = 2
+theme_override_font_sizes/font_size = 70
 script = ExtResource("4_mpfvar")
 variable_name = "status_bonus_preview"
 comma_separate = true
 
-[node name="Row4Label" type="Label" parent="StatusModeArea/Page1"]
+[node name="R4L" type="Label" parent="ContentScale/StatusModeArea/Page1"]
 layout_mode = 0
-offset_left = 20.0
-offset_top = 434.0
-offset_right = 1200.0
-offset_bottom = 516.0
+offset_left = 87.10797
+offset_top = 423.5053
+offset_right = 1127.1079
+offset_bottom = 501.5053
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 65
+theme_override_font_sizes/font_size = 70
 text = "• Extra Balls"
-horizontal_alignment = 0
 
-[node name="Row4Value" type="Label" parent="StatusModeArea/Page1"]
+[node name="R4V" type="Label" parent="ContentScale/StatusModeArea/Page1"]
 layout_mode = 0
-offset_left = 1210.0
-offset_top = 434.0
-offset_right = 1692.0
-offset_bottom = 516.0
+offset_left = 910.108
+offset_top = 423.5053
+offset_right = 1418.1079
+offset_bottom = 501.5053
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 65
-horizontal_alignment = 2
+theme_override_font_sizes/font_size = 70
 script = ExtResource("4_mpfvar")
-variable_name = "extra_balls_main_num_balls_earned"
+variable_name = "extra_ball_main_num_awarded"
+initialize_empty = false
 
-[node name="Row5Label" type="Label" parent="StatusModeArea/Page1"]
+[node name="R5L" type="Label" parent="ContentScale/StatusModeArea/Page1"]
 layout_mode = 0
-offset_left = 20.0
-offset_top = 542.0
-offset_right = 1200.0
-offset_bottom = 624.0
+offset_left = 87.10797
+offset_top = 509.5052
+offset_right = 1127.1079
+offset_bottom = 587.5052
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 65
+theme_override_font_sizes/font_size = 70
 text = "• TOPGUN Letters"
-horizontal_alignment = 0
 
-[node name="Row5Value" type="Label" parent="StatusModeArea/Page1"]
+[node name="R5V" type="Label" parent="ContentScale/StatusModeArea/Page1"]
 layout_mode = 0
-offset_left = 1210.0
-offset_top = 542.0
-offset_right = 1692.0
-offset_bottom = 624.0
+offset_left = 910.108
+offset_top = 509.5052
+offset_right = 1418.1079
+offset_bottom = 587.5052
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 65
-horizontal_alignment = 2
+theme_override_font_sizes/font_size = 70
 script = ExtResource("4_mpfvar")
 variable_name = "topgun_shots_collected"
 template_string = "%s / 6"
+initialize_empty = false
 
-[node name="Page2" type="Control" parent="StatusModeArea"]
+[node name="GooseHeader" type="Label" parent="ContentScale/StatusModeArea/Page1"]
 layout_mode = 0
-offset_left = 0.0
-offset_top = 0.0
-offset_right = 1702.0
-offset_bottom = 1117.0
-visible = false
-
-[node name="Title" type="Label" parent="StatusModeArea/Page2"]
-layout_mode = 0
-offset_left = 0.0
-offset_top = 5.0
-offset_right = 1702.0
-offset_bottom = 85.0
+offset_left = -168.98956
+offset_top = 601.0453
+offset_right = 1549.0105
+offset_bottom = 664.0453
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 80
+theme_override_font_sizes/font_size = 60
+text = "GOOSE AWARDS"
+horizontal_alignment = 1
+
+[node name="R6L" type="Label" parent="ContentScale/StatusModeArea/Page1"]
+layout_mode = 0
+offset_left = 90.5923
+offset_top = 663.76306
+offset_right = 1130.5923
+offset_bottom = 741.76306
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 65
+text = "• Next Award"
+
+[node name="R6V" type="Label" parent="ContentScale/StatusModeArea/Page1"]
+layout_mode = 0
+offset_left = 906.6238
+offset_top = 663.76306
+offset_right = 1414.6238
+offset_bottom = 741.76306
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 65
+script = ExtResource("4_mpfvar")
+variable_name = "goose_next_award_name"
+
+[node name="R7L" type="Label" parent="ContentScale/StatusModeArea/Page1"]
+layout_mode = 0
+offset_left = 90.5923
+offset_top = 749.76306
+offset_right = 1130.5923
+offset_bottom = 827.76306
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 65
+text = "• Next Mystery Award"
+
+[node name="R7V" type="Label" parent="ContentScale/StatusModeArea/Page1"]
+layout_mode = 0
+offset_left = 906.6238
+offset_top = 749.76306
+offset_right = 1414.6238
+offset_bottom = 827.76306
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 65
+script = ExtResource("4_mpfvar")
+variable_name = "goose_mystery_completions_needed"
+template_string = "%s Completions"
+
+[node name="R8L" type="Label" parent="ContentScale/StatusModeArea/Page1"]
+layout_mode = 0
+offset_left = 90.5923
+offset_top = 835.76306
+offset_right = 1130.5923
+offset_bottom = 913.76306
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 65
+text = "• Next Ejection Seat"
+
+[node name="R8V" type="Label" parent="ContentScale/StatusModeArea/Page1"]
+layout_mode = 0
+offset_left = 906.6238
+offset_top = 835.7632
+offset_right = 1414.6238
+offset_bottom = 913.7632
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 65
+script = ExtResource("4_mpfvar")
+variable_name = "goose_eject_completions_needed"
+template_string = "%s Completions"
+
+[node name="Page2" type="Control" parent="ContentScale/StatusModeArea"]
+visible = false
+anchors_preset = 0
+offset_right = 1718.0
+offset_bottom = 1111.0
+
+[node name="Title" type="Label" parent="ContentScale/StatusModeArea/Page2"]
+layout_mode = 0
+offset_left = 0.00021362305
+offset_top = 56.44599
+offset_right = 1381.5331
+offset_bottom = 166.44598
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 100
 text = "Pilot Missions"
 horizontal_alignment = 1
 
-[node name="Row1Label" type="Label" parent="StatusModeArea/Page2"]
+[node name="R1L" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 20.0
-offset_top = 95.0
-offset_right = 1170.0
-offset_bottom = 165.0
+offset_left = 126.38324
+offset_top = 185.15677
+offset_right = 1166.3833
+offset_bottom = 263.15677
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
+theme_override_font_sizes/font_size = 65
 text = "• Rescue Cougar"
-horizontal_alignment = 0
 
-[node name="Row1Value" type="Label" parent="StatusModeArea/Page2"]
+[node name="R1V" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 1180.0
-offset_top = 95.0
-offset_right = 1692.0
-offset_bottom = 165.0
+offset_left = 899.38324
+offset_top = 185.15677
+offset_right = 1407.3833
+offset_bottom = 263.15677
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
-horizontal_alignment = 0
+theme_override_font_sizes/font_size = 65
 script = ExtResource("4_mpfvar")
 variable_name = "status_rescue_cougar"
 
-[node name="Row2Label" type="Label" parent="StatusModeArea/Page2"]
+[node name="R2L" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 20.0
-offset_top = 180.0
-offset_right = 1170.0
-offset_bottom = 250.0
+offset_left = 126.38324
+offset_top = 249.99286
+offset_right = 1166.3833
+offset_bottom = 327.99286
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
+theme_override_font_sizes/font_size = 65
 text = "• Great Balls Of Fire"
-horizontal_alignment = 0
 
-[node name="Row2Value" type="Label" parent="StatusModeArea/Page2"]
+[node name="R2V" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 1180.0
-offset_top = 180.0
-offset_right = 1692.0
-offset_bottom = 250.0
+offset_left = 899.38324
+offset_top = 249.99286
+offset_right = 1407.3833
+offset_bottom = 327.99286
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
-horizontal_alignment = 0
+theme_override_font_sizes/font_size = 65
 script = ExtResource("4_mpfvar")
 variable_name = "status_balls_of_fire"
 
-[node name="Row3Label" type="Label" parent="StatusModeArea/Page2"]
+[node name="R3L" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 20.0
-offset_top = 265.0
-offset_right = 1170.0
-offset_bottom = 335.0
+offset_left = 126.38324
+offset_top = 314.82916
+offset_right = 1166.3833
+offset_bottom = 392.82916
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
+theme_override_font_sizes/font_size = 65
 text = "• Cool Under Pressure"
-horizontal_alignment = 0
 
-[node name="Row3Value" type="Label" parent="StatusModeArea/Page2"]
+[node name="R3V" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 1180.0
-offset_top = 265.0
-offset_right = 1692.0
-offset_bottom = 335.0
+offset_left = 899.38324
+offset_top = 314.82916
+offset_right = 1407.3833
+offset_bottom = 392.82916
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
-horizontal_alignment = 0
+theme_override_font_sizes/font_size = 65
 script = ExtResource("4_mpfvar")
 variable_name = "status_cool_under_pressure"
 
-[node name="Row4Label" type="Label" parent="StatusModeArea/Page2"]
+[node name="R4L" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 20.0
-offset_top = 350.0
-offset_right = 1170.0
-offset_bottom = 420.0
+offset_left = 126.38324
+offset_top = 379.66516
+offset_right = 1166.3833
+offset_bottom = 457.66516
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
+theme_override_font_sizes/font_size = 65
 text = "• No Pts For 2nd Place"
-horizontal_alignment = 0
 
-[node name="Row4Value" type="Label" parent="StatusModeArea/Page2"]
+[node name="R4V" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 1180.0
-offset_top = 350.0
-offset_right = 1692.0
-offset_bottom = 420.0
+offset_left = 899.38324
+offset_top = 379.66516
+offset_right = 1407.3833
+offset_bottom = 457.66516
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
-horizontal_alignment = 0
+theme_override_font_sizes/font_size = 65
 script = ExtResource("4_mpfvar")
 variable_name = "status_no_points_for_second_place"
 
-[node name="Row5Label" type="Label" parent="StatusModeArea/Page2"]
+[node name="R5L" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 20.0
-offset_top = 435.0
-offset_right = 1170.0
-offset_bottom = 505.0
+offset_left = 126.38324
+offset_top = 441.01733
+offset_right = 1166.3833
+offset_bottom = 519.01733
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
+theme_override_font_sizes/font_size = 65
 text = "• Edge Of Space"
-horizontal_alignment = 0
 
-[node name="Row5Value" type="Label" parent="StatusModeArea/Page2"]
+[node name="R5V" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 1180.0
-offset_top = 435.0
-offset_right = 1692.0
-offset_bottom = 505.0
+offset_left = 899.38324
+offset_top = 441.01733
+offset_right = 1407.3833
+offset_bottom = 519.01733
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
-horizontal_alignment = 0
+theme_override_font_sizes/font_size = 65
 script = ExtResource("4_mpfvar")
 variable_name = "status_edge_of_space"
 
-[node name="Row6Label" type="Label" parent="StatusModeArea/Page2"]
+[node name="R6L" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 20.0
-offset_top = 520.0
-offset_right = 1170.0
-offset_bottom = 590.0
+offset_left = 126.38324
+offset_top = 504.11157
+offset_right = 1166.3833
+offset_bottom = 582.1116
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
+theme_override_font_sizes/font_size = 65
 text = "• Below The Hard Deck"
-horizontal_alignment = 0
 
-[node name="Row6Value" type="Label" parent="StatusModeArea/Page2"]
+[node name="R6V" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 1180.0
-offset_top = 520.0
-offset_right = 1692.0
-offset_bottom = 590.0
+offset_left = 899.38324
+offset_top = 504.11157
+offset_right = 1407.3833
+offset_bottom = 582.1116
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
-horizontal_alignment = 0
+theme_override_font_sizes/font_size = 65
 script = ExtResource("4_mpfvar")
 variable_name = "status_below_the_hard_deck"
 
-[node name="Row7Label" type="Label" parent="StatusModeArea/Page2"]
+[node name="R7L" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 20.0
-offset_top = 605.0
-offset_right = 1170.0
-offset_bottom = 675.0
+offset_left = 126.38324
+offset_top = 567.2047
+offset_right = 1166.3833
+offset_bottom = 645.2047
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
+theme_override_font_sizes/font_size = 65
 text = "• Canyon Run"
-horizontal_alignment = 0
 
-[node name="Row7Value" type="Label" parent="StatusModeArea/Page2"]
+[node name="R7V" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 1180.0
-offset_top = 605.0
-offset_right = 1692.0
-offset_bottom = 675.0
+offset_left = 899.38324
+offset_top = 567.2047
+offset_right = 1407.3833
+offset_bottom = 645.2047
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
-horizontal_alignment = 0
+theme_override_font_sizes/font_size = 65
 script = ExtResource("4_mpfvar")
 variable_name = "status_canyon_run"
 
-[node name="Row8Label" type="Label" parent="StatusModeArea/Page2"]
+[node name="R8L" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 20.0
-offset_top = 690.0
-offset_right = 1170.0
-offset_bottom = 760.0
+offset_left = 126.38324
+offset_top = 632.0417
+offset_right = 1166.3833
+offset_bottom = 710.0417
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
+theme_override_font_sizes/font_size = 65
 text = "• No Margin For Error"
-horizontal_alignment = 0
 
-[node name="Row8Value" type="Label" parent="StatusModeArea/Page2"]
+[node name="R8V" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 1180.0
-offset_top = 690.0
-offset_right = 1692.0
-offset_bottom = 760.0
+offset_left = 899.38324
+offset_top = 632.0417
+offset_right = 1407.3833
+offset_bottom = 710.0417
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
-horizontal_alignment = 0
+theme_override_font_sizes/font_size = 65
 script = ExtResource("4_mpfvar")
 variable_name = "status_no_margin_for_error"
 
-[node name="Row9Label" type="Label" parent="StatusModeArea/Page2"]
+[node name="R9L" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 20.0
-offset_top = 775.0
-offset_right = 1170.0
-offset_bottom = 845.0
+offset_left = 126.38324
+offset_top = 693.3931
+offset_right = 1166.3833
+offset_bottom = 771.3931
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
+theme_override_font_sizes/font_size = 65
 text = "• Rise Of Phoenix"
-horizontal_alignment = 0
 
-[node name="Row9Value" type="Label" parent="StatusModeArea/Page2"]
+[node name="R9V" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 1180.0
-offset_top = 775.0
-offset_right = 1692.0
-offset_bottom = 845.0
+offset_left = 899.38324
+offset_top = 693.3931
+offset_right = 1407.3833
+offset_bottom = 771.3931
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
-horizontal_alignment = 0
+theme_override_font_sizes/font_size = 65
 script = ExtResource("4_mpfvar")
 variable_name = "status_rise_of_phoenix"
 
-[node name="Row10Label" type="Label" parent="StatusModeArea/Page2"]
+[node name="R10L" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 20.0
-offset_top = 860.0
-offset_right = 1170.0
-offset_bottom = 930.0
+offset_left = 126.38324
+offset_top = 756.4872
+offset_right = 1166.3833
+offset_bottom = 834.4872
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
+theme_override_font_sizes/font_size = 65
 text = "• Battle Jester"
-horizontal_alignment = 0
 
-[node name="Row10Value" type="Label" parent="StatusModeArea/Page2"]
+[node name="R10V" type="Label" parent="ContentScale/StatusModeArea/Page2"]
 layout_mode = 0
-offset_left = 1180.0
-offset_top = 860.0
-offset_right = 1692.0
-offset_bottom = 930.0
+offset_left = 899.38324
+offset_top = 756.4872
+offset_right = 1407.3833
+offset_bottom = 834.4872
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 53
-horizontal_alignment = 0
+theme_override_font_sizes/font_size = 65
 script = ExtResource("4_mpfvar")
 variable_name = "status_battle_jester"
 
-[node name="Page3" type="Control" parent="StatusModeArea"]
-layout_mode = 0
-offset_left = 0.0
-offset_top = 0.0
-offset_right = 1702.0
-offset_bottom = 1117.0
+[node name="Page3" type="Control" parent="ContentScale/StatusModeArea"]
 visible = false
+anchors_preset = 0
+offset_right = 1718.0
+offset_bottom = 1111.0
 
-[node name="Title" type="Label" parent="StatusModeArea/Page3"]
+[node name="TitleT" type="Label" parent="ContentScale/StatusModeArea/Page3"]
 layout_mode = 0
-offset_left = 0.0
-offset_top = 5.0
-offset_right = 1702.0
-offset_bottom = 95.0
+offset_left = -3.0517578e-05
+offset_top = 51.44597
+offset_right = 1378.0487
+offset_bottom = 151.44595
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 85
+theme_override_font_sizes/font_size = 90
 text = "Training Missions"
 horizontal_alignment = 1
 
-[node name="Coming" type="Label" parent="StatusModeArea/Page3"]
+[node name="R1L" type="Label" parent="ContentScale/StatusModeArea/Page3"]
 layout_mode = 0
-offset_left = 0.0
-offset_top = 400.0
-offset_right = 1702.0
-offset_bottom = 520.0
+offset_left = 267.75958
+offset_top = 150.99301
+offset_right = 985.7596
+offset_bottom = 228.99301
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
@@ -669,39 +728,405 @@ theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
 theme_override_font_sizes/font_size = 60
-text = "Coming Soon — Next Build Session"
-horizontal_alignment = 1
+text = "• Inverted"
 
-[node name="Page4" type="Control" parent="StatusModeArea"]
+[node name="R1V" type="Label" parent="ContentScale/StatusModeArea/Page3"]
 layout_mode = 0
-offset_left = 0.0
-offset_top = 0.0
-offset_right = 1702.0
-offset_bottom = 1117.0
-visible = false
-
-[node name="Title" type="Label" parent="StatusModeArea/Page4"]
-layout_mode = 0
-offset_left = 0.0
-offset_top = 5.0
-offset_right = 1702.0
-offset_bottom = 95.0
+offset_left = 739.7596
+offset_top = 150.99301
+offset_right = 1344.7595
+offset_bottom = 228.99301
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 85
+theme_override_font_sizes/font_size = 60
+horizontal_alignment = 2
+script = ExtResource("4_mpfvar")
+variable_name = "status_inverted"
+
+[node name="R2L" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = 267.75958
+offset_top = 210.60272
+offset_right = 985.7596
+offset_bottom = 288.60272
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 60
+text = "• Missiles"
+
+[node name="R2V" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = 739.7596
+offset_top = 210.60272
+offset_right = 1344.7595
+offset_bottom = 288.60272
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 60
+horizontal_alignment = 2
+script = ExtResource("4_mpfvar")
+variable_name = "status_missiles"
+
+[node name="R3L" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = 267.75958
+offset_top = 270.21252
+offset_right = 985.7596
+offset_bottom = 348.21252
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 60
+text = "• Wingman"
+
+[node name="R3V" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = 739.7596
+offset_top = 270.21252
+offset_right = 1344.7595
+offset_bottom = 348.21252
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 60
+horizontal_alignment = 2
+script = ExtResource("4_mpfvar")
+variable_name = "status_wingman"
+
+[node name="R4L" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = 267.75958
+offset_top = 329.82242
+offset_right = 985.7596
+offset_bottom = 407.82242
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 60
+text = "• Afterburner"
+
+[node name="R4V" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = 739.7596
+offset_top = 329.82242
+offset_right = 1344.7595
+offset_bottom = 407.82242
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 60
+horizontal_alignment = 2
+script = ExtResource("4_mpfvar")
+variable_name = "status_afterburner"
+
+[node name="R5L" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = 267.75958
+offset_top = 389.43234
+offset_right = 985.7596
+offset_bottom = 467.43234
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 60
+text = "• Dog Fight"
+
+[node name="R5V" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = 739.7596
+offset_top = 389.43234
+offset_right = 1344.7595
+offset_bottom = 467.43234
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 60
+horizontal_alignment = 2
+script = ExtResource("4_mpfvar")
+variable_name = "status_dogfight"
+
+[node name="TitleP" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = -182.92685
+offset_top = 449.47736
+offset_right = 1535.0731
+offset_bottom = 513.47736
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 60
+text = "Perks"
+horizontal_alignment = 1
+
+[node name="P1L" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = 391.07315
+offset_top = 519.47736
+offset_right = 1109.0731
+offset_bottom = 569.47736
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 44
+text = "• Inverted"
+
+[node name="P1V" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = 722.0731
+offset_top = 519.47736
+offset_right = 1327.0731
+offset_bottom = 569.47736
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 44
+script = ExtResource("4_mpfvar")
+variable_name = "status_inverted_perk"
+
+[node name="P1D" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = -182.92685
+offset_top = 571.47736
+offset_right = 1535.0731
+offset_bottom = 631.47736
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 35
+text = "Doubles letter collection speed and Mach scoring timer. Expires on drain."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="P2L" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = 391.07312
+offset_top = 615.6029
+offset_right = 1109.0731
+offset_bottom = 665.6029
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 44
+text = "• Missiles"
+
+[node name="P2V" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = 722.0732
+offset_top = 615.6029
+offset_right = 1327.0732
+offset_bottom = 665.6029
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 44
+script = ExtResource("4_mpfvar")
+variable_name = "status_missiles_perk"
+
+[node name="P2D" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = -182.92685
+offset_top = 667.6028
+offset_right = 1535.0731
+offset_bottom = 727.6028
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 35
+text = "Grants 4 missiles at the start of each Pilot Mission. Expires on drain."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="P3L" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = 391.07312
+offset_top = 711.72766
+offset_right = 1109.0731
+offset_bottom = 761.72766
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 44
+text = "• Wingman"
+
+[node name="P3V" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = 722.0732
+offset_top = 711.72766
+offset_right = 1327.0732
+offset_bottom = 761.72766
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 44
+script = ExtResource("4_mpfvar")
+variable_name = "status_wingman_perk"
+
+[node name="P3D" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = -182.92685
+offset_top = 763.7283
+offset_right = 1535.0731
+offset_bottom = 823.7283
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 35
+text = "Grants one extra Top Gun Multiball Regeneration. Expires on drain."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="P4L" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = 391.07312
+offset_top = 811.33777
+offset_right = 1109.0731
+offset_bottom = 861.33777
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 44
+text = "• Afterburner"
+
+[node name="P4V" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = 722.0732
+offset_top = 811.33777
+offset_right = 1327.0732
+offset_bottom = 861.33777
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 44
+script = ExtResource("4_mpfvar")
+variable_name = "status_afterburner_perk"
+
+[node name="P4D" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = -182.92685
+offset_top = 863.33765
+offset_right = 1535.0731
+offset_bottom = 923.33765
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 35
+text = "Grants unlimited time in all future Missions. Expires on drain."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Footer" type="Label" parent="ContentScale/StatusModeArea/Page3"]
+layout_mode = 0
+offset_left = -5.2265167
+offset_top = 941.68994
+offset_right = 1376.3064
+offset_bottom = 984.68994
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 35
+text = "Dog Fight is the mini wizard mode — qualified once all 4 training missions have been played."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Page4" type="Control" parent="ContentScale/StatusModeArea"]
+visible = false
+anchors_preset = 0
+offset_right = 1718.0
+offset_bottom = 1111.0
+
+[node name="Title" type="Label" parent="ContentScale/StatusModeArea/Page4"]
+layout_mode = 0
+offset_top = 52.264786
+offset_right = 1385.0173
+offset_bottom = 162.02089
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 100
 text = "Hard Deck Modes"
 horizontal_alignment = 1
 
-[node name="Coming" type="Label" parent="StatusModeArea/Page4"]
+[node name="M1L" type="Label" parent="ContentScale/StatusModeArea/Page4"]
 layout_mode = 0
-offset_left = 0.0
-offset_top = 400.0
-offset_right = 1702.0
-offset_bottom = 520.0
+offset_left = 143.8049
+offset_top = 183.1883
+offset_right = 1086.8047
+offset_bottom = 261.1883
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
@@ -709,45 +1134,415 @@ theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
 theme_override_font_sizes/font_size = 60
-text = "Coming Soon — Next Build Session"
-horizontal_alignment = 1
+text = "• Playing With The Boys"
 
-[node name="Page5" type="Control" parent="StatusModeArea"]
+[node name="M1V" type="Label" parent="ContentScale/StatusModeArea/Page4"]
 layout_mode = 0
-offset_left = 0.0
-offset_top = 0.0
-offset_right = 1702.0
-offset_bottom = 1117.0
-visible = false
-
-[node name="Title" type="Label" parent="StatusModeArea/Page5"]
-layout_mode = 0
-offset_left = 0.0
-offset_top = 5.0
-offset_right = 1702.0
-offset_bottom = 95.0
+offset_left = 880.80493
+offset_top = 183.1883
+offset_right = 1485.8049
+offset_bottom = 261.1883
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 85
+theme_override_font_sizes/font_size = 60
+script = ExtResource("4_mpfvar")
+variable_name = "status_ptb"
+
+[node name="M1D" type="Label" parent="ContentScale/StatusModeArea/Page4"]
+layout_mode = 0
+offset_left = -12.195099
+offset_top = 251.25092
+offset_right = 1379.7909
+offset_bottom = 315.25092
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 35
+text = "Unlocked by collecting 50 pop bumper hits. Beat it to unlock a special bonus mode!"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="M2L" type="Label" parent="ContentScale/StatusModeArea/Page4"]
+layout_mode = 0
+offset_left = 143.8049
+offset_top = 299.3764
+offset_right = 1086.8047
+offset_bottom = 377.3764
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 60
+text = "• Remembering ICEMAN"
+
+[node name="M2V" type="Label" parent="ContentScale/StatusModeArea/Page4"]
+layout_mode = 0
+offset_left = 880.80493
+offset_top = 299.3764
+offset_right = 1485.8049
+offset_bottom = 377.3764
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 60
+script = ExtResource("4_mpfvar")
+variable_name = "status_iceman_hd"
+
+[node name="M2D" type="Label" parent="ContentScale/StatusModeArea/Page4"]
+layout_mode = 0
+offset_left = -12.195099
+offset_top = 367.43878
+offset_right = 1386.7595
+offset_bottom = 431.43878
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 35
+text = "Val Kilmer tribute mode. Qualified by spelling ICEMAN 10 times during the game."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="M3L" type="Label" parent="ContentScale/StatusModeArea/Page4"]
+layout_mode = 0
+offset_left = 143.8049
+offset_top = 420.79102
+offset_right = 1086.8047
+offset_bottom = 498.79102
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 60
+text = "• Charlie"
+
+[node name="M3V" type="Label" parent="ContentScale/StatusModeArea/Page4"]
+layout_mode = 0
+offset_left = 880.80493
+offset_top = 420.79102
+offset_right = 1485.8049
+offset_bottom = 498.79102
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 60
+script = ExtResource("4_mpfvar")
+variable_name = "status_charlie_hd"
+
+[node name="M3D" type="Label" parent="ContentScale/StatusModeArea/Page4"]
+layout_mode = 0
+offset_left = -5.226532
+offset_top = 483.62793
+offset_right = 1386.7595
+offset_bottom = 547.6279
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 35
+text = "Unlocked by playing at least 2 training missions and beating at least one of them."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="M4L" type="Label" parent="ContentScale/StatusModeArea/Page4"]
+layout_mode = 0
+offset_left = 143.8049
+offset_top = 535.2366
+offset_right = 1086.8047
+offset_bottom = 613.2366
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 60
+text = "• Penny"
+
+[node name="M4V" type="Label" parent="ContentScale/StatusModeArea/Page4"]
+layout_mode = 0
+offset_left = 880.80493
+offset_top = 535.2366
+offset_right = 1485.8049
+offset_bottom = 613.2366
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 60
+script = ExtResource("4_mpfvar")
+variable_name = "status_penny_hd"
+
+[node name="M4D" type="Label" parent="ContentScale/StatusModeArea/Page4"]
+layout_mode = 0
+offset_left = 8.710754
+offset_top = 596.33105
+offset_right = 1379.7908
+offset_bottom = 660.33105
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 35
+text = "Unlocked by beating one Hard Deck Mode, one Training Mission, and one Pilot Mission."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="M5L" type="Label" parent="ContentScale/StatusModeArea/Page4"]
+layout_mode = 0
+offset_left = 156.0
+offset_top = 865.0
+offset_right = 1099.0
+offset_bottom = 943.0
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 70
+text = "• Current Lit Mode"
+
+[node name="M5V" type="Label" parent="ContentScale/StatusModeArea/Page4"]
+layout_mode = 0
+offset_left = 893.0
+offset_top = 865.0
+offset_right = 1498.0
+offset_bottom = 943.0
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 70
+horizontal_alignment = 2
+script = ExtResource("4_mpfvar")
+variable_name = "status_hard_deck_lit"
+
+[node name="Page5" type="Control" parent="ContentScale/StatusModeArea"]
+visible = false
+anchors_preset = 0
+offset_right = 1718.0
+offset_bottom = 1111.0
+
+[node name="Title" type="Label" parent="ContentScale/StatusModeArea/Page5"]
+layout_mode = 0
+offset_top = 45.296143
+offset_right = 1385.0173
+offset_bottom = 162.02087
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 100
 text = "Final Battle Status"
 horizontal_alignment = 1
 
-[node name="Coming" type="Label" parent="StatusModeArea/Page5"]
+[node name="R1L" type="Label" parent="ContentScale/StatusModeArea/Page5"]
 layout_mode = 0
-offset_left = 0.0
-offset_top = 400.0
-offset_right = 1702.0
-offset_bottom = 520.0
+offset_left = 74.91289
+offset_top = 188.1533
+offset_right = 1017.9129
+offset_bottom = 266.15332
 theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
 theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 3
 theme_override_constants/shadow_outline_size = 4
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 60
-text = "Coming Soon — Next Build Session"
+theme_override_font_sizes/font_size = 70
+text = "• All Pilot Missions Played"
+
+[node name="R1V" type="Label" parent="ContentScale/StatusModeArea/Page5"]
+layout_mode = 0
+offset_left = 936.9129
+offset_top = 188.1533
+offset_right = 1541.9128
+offset_bottom = 266.15332
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 70
+script = ExtResource("4_mpfvar")
+variable_name = "pilot_missions_played"
+template_string = "%s / 10"
+
+[node name="R2L" type="Label" parent="ContentScale/StatusModeArea/Page5"]
+layout_mode = 0
+offset_left = 74.91289
+offset_top = 274.15332
+offset_right = 1017.9129
+offset_bottom = 352.15332
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 70
+text = "• Training Missions Played"
+
+[node name="R2V" type="Label" parent="ContentScale/StatusModeArea/Page5"]
+layout_mode = 0
+offset_left = 936.9129
+offset_top = 274.15332
+offset_right = 1541.9128
+offset_bottom = 352.15332
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 70
+script = ExtResource("4_mpfvar")
+variable_name = "training_missions_played"
+template_string = "%s / 4"
+
+[node name="R3L" type="Label" parent="ContentScale/StatusModeArea/Page5"]
+layout_mode = 0
+offset_left = 74.91289
+offset_top = 360.15332
+offset_right = 1017.9129
+offset_bottom = 438.15332
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 70
+text = "• Dog Fight Played"
+
+[node name="R3V" type="Label" parent="ContentScale/StatusModeArea/Page5"]
+layout_mode = 0
+offset_left = 936.9129
+offset_top = 360.15332
+offset_right = 1541.9128
+offset_bottom = 438.15332
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 70
+script = ExtResource("4_mpfvar")
+variable_name = "status_final_dogfight"
+
+[node name="R4L" type="Label" parent="ContentScale/StatusModeArea/Page5"]
+layout_mode = 0
+offset_left = 74.91289
+offset_top = 446.15332
+offset_right = 1017.9129
+offset_bottom = 524.1533
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 70
+text = "• Hard Deck Modes Played"
+
+[node name="R4V" type="Label" parent="ContentScale/StatusModeArea/Page5"]
+layout_mode = 0
+offset_left = 936.9129
+offset_top = 446.15332
+offset_right = 1541.9128
+offset_bottom = 524.1533
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 70
+script = ExtResource("4_mpfvar")
+variable_name = "hard_deck_missions_played"
+template_string = "%s / 4"
+
+[node name="R5L" type="Label" parent="ContentScale/StatusModeArea/Page5"]
+layout_mode = 0
+offset_left = 74.91289
+offset_top = 532.1533
+offset_right = 1017.9129
+offset_bottom = 610.1533
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 70
+text = "• TG Multiball Super Jackpot"
+
+[node name="R5V" type="Label" parent="ContentScale/StatusModeArea/Page5"]
+layout_mode = 0
+offset_left = 936.9129
+offset_top = 532.1533
+offset_right = 1541.9128
+offset_bottom = 610.1533
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 70
+script = ExtResource("4_mpfvar")
+variable_name = "status_final_super_jackpot"
+
+[node name="Footer" type="Label" parent="ContentScale/StatusModeArea/Page5"]
+layout_mode = 0
+offset_left = -165.50525
+offset_top = 935.54004
+offset_right = 1552.4948
+offset_bottom = 1002.54004
+theme_override_colors/font_color = Color(0.22353, 0.61569, 0.63529, 1)
+theme_override_colors/font_shadow_color = Color(0.12157, 0.38431, 0.39608, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 4
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 65
+text = "All conditions must be met to qualify the Final Battle mode."
 horizontal_alignment = 1
+
+[node name="background_video_opening" type="Sprite2D" parent="."]
+z_index = 100
+scale = Vector2(0.46329942, 0.47070313)
+texture = ExtResource("3_bg")
+centered = false
+metadata/_edit_lock_ = true

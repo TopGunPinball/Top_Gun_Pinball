@@ -244,6 +244,12 @@ variable_player:
     mystery_award_id:
       action: set
       int: 1
+    # Flag: mystery itself just lit the pilot mission.
+    # Prevents mode_mystery_award_stopped from auto-starting the mode.
+    # Player must re-hit the scoop to start the mission.
+    mystery_just_lit_pilot:
+      action: set
+      int: 1
 
   ##--- Light Training Mission ---##
   mystery_award_light_training:
@@ -410,6 +416,10 @@ event_player:
   ##          bounces back into scoop. Pilot mode/TGMB captures returning ball.
   timer_mystery_display_delay_complete{current_player.qualified_mode_number==0 and current_player.multiball_qualified==0}:
     - barrier_drop
+  # Also drop barrier normally when mystery itself just lit the pilot mission
+  # (qualified_mode_number is now > 0 due to letters being set, but there was no pre-existing mode)
+  timer_mystery_display_delay_complete{current_player.mystery_just_lit_pilot==1 and current_player.multiball_qualified==0}:
+    - barrier_drop
 
   ## Step 4: 500ms after display_delay → release ball (both paths — wall-bounce or normal eject)
   timer_mystery_barrier_eject_wait_complete: [mystery_ball_release]
@@ -425,7 +435,7 @@ event_player:
   ##          mystery_scoop_hold is disabled before ball bounces back.
   ##          mode_mystery_award_stopped fires → start_mode_xxx.
   ##          Pilot mode's ball_hold captures the returning ball. Intro video plays.
-  s_mode_start_inactive{current_player.qualified_mode_number>0 or current_player.multiball_qualified==1}:
+  s_mode_start_inactive{(current_player.qualified_mode_number>0 or current_player.multiball_qualified==1) and current_player.mystery_just_lit_pilot==0}:
     - mystery_eject_confirmed|150ms
 
   ## SAFE RELEASE — normal path only (mode/MB pending path: ball already ejected on stop)

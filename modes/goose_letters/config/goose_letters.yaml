@@ -35,6 +35,15 @@ variable_player:
     goose_milestone{current_player.goose_completions==0}:
       action: set
       int: 3
+    goose_next_award_name{current_player.goose_completions==0}:
+      action: set
+      string: Extra Ball
+    goose_next_eject_target{current_player.goose_completions==0}:
+      action: set
+      int: 3
+    goose_next_mystery_target{current_player.goose_completions==0}:
+      action: set
+      int: 5
 
   player_added:
     # Individual letter states (0=off, 1=lit) - reset each ball
@@ -342,6 +351,12 @@ variable_player:
   ## Progressive Milestones
   ##############################################
 
+  # 1 completion (test) - extra ball lit; update award name to next milestone
+  goose_milestone_test_extra_ball:
+    goose_next_award_name:
+      action: set
+      string: Eject Mode
+
   # 3 completions - Qualify eject mode
   goose_milestone_3:
     eject_mode_qualified:
@@ -353,6 +368,15 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 5
+    goose_next_award_name:
+      action: set
+      string: Mystery Award
+    goose_next_mystery_target:
+      action: set
+      int: 10
+    goose_next_eject_target:
+      action: set
+      int: 10
 
   # 5 completions - Light mystery
   goose_milestone_5:
@@ -362,6 +386,12 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 10
+    goose_next_award_name:
+      action: set
+      string: Eject Mode
+    goose_next_mystery_target:
+      action: set
+      int: 15
 
   # 10 completions - Qualify eject or mystery
   goose_milestone_10_eject:
@@ -374,6 +404,15 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 15
+    goose_next_award_name:
+      action: set
+      string: Mystery Award
+    goose_next_mystery_target:
+      action: set
+      int: 20
+    goose_next_eject_target:
+      action: set
+      int: 20
 
   goose_milestone_10_mystery:
     goose_milestone:
@@ -382,6 +421,15 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 15
+    goose_next_award_name:
+      action: set
+      string: Eject Mode
+    goose_next_mystery_target:
+      action: set
+      int: 20
+    goose_next_eject_target:
+      action: set
+      int: 20
 
   # 15 completions - Light mystery
   goose_milestone_15:
@@ -391,6 +439,12 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 20
+    goose_next_award_name:
+      action: set
+      string: Extra Ball + Eject
+    goose_next_mystery_target:
+      action: set
+      int: 30
 
   # 20 completions - Light extra ball and qualify eject (or mystery if already qualified)
   goose_milestone_20_eject:
@@ -403,6 +457,15 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 30
+    goose_next_award_name:
+      action: set
+      string: Goose Mode
+    goose_next_mystery_target:
+      action: set
+      int: 50
+    goose_next_eject_target:
+      action: set
+      int: 50
 
   goose_milestone_20_mystery:
     goose_milestone:
@@ -411,6 +474,15 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 30
+    goose_next_award_name:
+      action: set
+      string: Goose Mode
+    goose_next_mystery_target:
+      action: set
+      int: 50
+    goose_next_eject_target:
+      action: set
+      int: 50
 
   # 30 completions - Light goose mode
   goose_milestone_30:
@@ -420,6 +492,12 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 50
+    goose_next_award_name:
+      action: set
+      string: Eject + Mystery
+    goose_next_mystery_target:
+      action: set
+      int: 100
 
   # 50 completions - Qualify eject or mystery
   goose_milestone_50_eject:
@@ -432,6 +510,15 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 100
+    goose_next_award_name:
+      action: set
+      string: Mystery Award
+    goose_next_mystery_target:
+      action: set
+      int: 9999
+    goose_next_eject_target:
+      action: set
+      int: 100
 
   goose_milestone_50_mystery:
     goose_milestone:
@@ -440,12 +527,30 @@ variable_player:
     ejection_shots_needed:
       action: set
       int: 100
+    goose_next_award_name:
+      action: set
+      string: Eject Mode
+    goose_next_mystery_target:
+      action: set
+      int: 9999
+    goose_next_eject_target:
+      action: set
+      int: 100
 
   # 100 completions - Qualify eject or mystery
   goose_milestone_100_eject:
     eject_mode_qualified:
       action: set
       int: 1
+    goose_next_award_name:
+      action: set
+      string: Mystery Award
+    goose_next_mystery_target:
+      action: set
+      int: 9999
+    goose_next_eject_target:
+      action: set
+      int: 9999
 
   ##############################################
   ## Clear eject qualification when mode starts
@@ -685,7 +790,7 @@ event_player:
 
   # Also start ejection seat if G was the letter that completed GOOSE and qualified eject
   # (The ball is already in the outlane, so we need to start immediately)
-  eject_mode_qualified_event{current_player.goose_last_letter_collected==1}:
+  eject_mode_qualified_event{current_player.goose_last_letter_collected==1 and mode.mystery_award.active==0}:
     - start_mode_ejection_seat
 
   # Check if GOOSE is complete after each lane hit

@@ -36,6 +36,15 @@ variable_player:
     ball_search_servo_count:
       action: set_machine
       int: 0
+    ball_search_active_flag:
+      action: set_machine
+      int: 1
+
+  # Clear flag when ball search stops
+  ball_search_stopped:
+    ball_search_active_flag:
+      action: set_machine
+      int: 0
 
   # Increment after each complete sequence (also restarts the 10s repeat timer)
   ball_search_servo_seq_complete:
@@ -67,7 +76,7 @@ event_player:
   ball_search_started:
     - ball_search_seq_start
 
-  timer_ball_search_servo_repeat_complete:
+  timer_ball_search_servo_repeat_complete{machine.ball_search_active_flag==1}:
     - ball_search_seq_start
 
   # STEP 1: Right ramp up
@@ -105,7 +114,8 @@ event_player:
     - lock_held
 
   # DONE: Increment counter and restart 10s repeat timer
-  ball_search_seq_done:
+  # Guard with flag — delayed events can fire after ball_search_stopped
+  ball_search_seq_done{machine.ball_search_active_flag==1}:
     - ball_search_servo_seq_complete
 
   # CLEANUP: Ball found — ramps down, lock held if balls remain
