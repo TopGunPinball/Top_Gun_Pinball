@@ -1,251 +1,257 @@
 #config_version=6
 
+##############################################################################
+## HIGH SCORE MODE
+##############################################################################
 ##
-## BONUS MODE - End of Ball Bonus Countdown
-## Uses MPF 0.80's built-in bonus system
-## Priority: 500 (runs after ball ends, before next ball/player)
+## One category (score), 15 entries split across two attract slides:
+##   Positions 1–5  → high_score_top_5.tscn   (name + score)
+##   Positions 6–15 → high_score_alternates.tscn (name only)
 ##
-## TIMING ADJUSTMENTS:
-## - display_delay_ms: Time for ALL bonus slides (default: 2000ms = 2 seconds)
-## - light_show_speed: Speed multiplier for light show (default: 1.0, higher = faster)
+## MACHINE VARIABLES created automatically by MPF (use in Godot MPFVariable nodes):
+##   score1_name   … score15_name    — player name strings
+##   score1_value  … score15_value   — score integers
+##   score1_label  … score15_label   — rank label strings
 ##
-## NOTE: MPF does not support per-entry display_delay_ms, only global setting
+## FLOW:
+##   high_score_enter_initials fires → high_score_entry slide plays
+##     MPF also sets hs_player_num, hs_score_value, hs_award_text machine vars
+##     Godot drives letter selection via hs_letter_index machine var
+##     20s Godot timer → posts text_input_high_score_complete{text: "NAME"}
+##   high_score_award_display fires → high_score_award slide plays 4s
+##   Repeat for each qualifying player, then mode stops
 ##
+## TO RESET DEFAULTS (e.g. after each show):
+##   Delete: <machine>/data/high_scores.yaml  and restart MPF
+##   OR post: reset_high_scores event (service mode / remote)
+##
+## TO UPDATE DEFAULT SCORES:
+##   Edit the defaults: section below. Scores must be in descending order.
+##   Names can be up to 20 characters.
+##############################################################################
 
 mode:
-  # Skip bonus if ball was tilted (ball_tilted flag persists, unlike tilt_warnings which resets)
-  start_events: ball_ending{current_player.ball_tilted==0}
-  stop_events: bonus_done
-  priority: 500
-  game_mode: true
+  code: mpf.modes.high_score.code.high_score.HighScore
+  priority: 1500
+  start_events: game_ending
+  game_mode: false
   use_wait_queue: true
 
-##############################################
-## Coil Player - Maintain barrier + diverters during bonus
-## Without this, ball-level modes stopping during ball_ended
-## revert their coil_player settings and briefly drop the barrier
-## (~177ms gap between bonus end and next ball start).
-## Priority 500 > qualifier's 200, so this holds even as lower
-## priority modes revert during the transition.
-##############################################
+high_score:
+  _overwrite: true
+  # MPF's internal timeout — always longer than our 20s Godot timer.
+  # Godot always fires text_input_high_score_complete before this.
+  enter_initials_timeout: 60
+  # Award display time after name entered (milliseconds)
+  award_slide_display_time: 4000
+  # Safety filler if MPF timeout somehow fires before Godot does
+  filler_initials:
+    - LFS
+  reset_high_scores_events: reset_high_scores
 
-coil_player:
-  mode_bonus_started:
-    c_mode_barrier:
-      action: disable
-    c_left_orbit_diverter:
-      action: disable
-    c_right_orbit_diverter:
-      action: disable
+  categories:
+    score:
+      # ── TOP 5 — shown on high_score_top_5 slide ────────────────────────
+      - You're the new top gun!
+      - Almost at the top!
+      - Never Leave your Wingman!
+      - Are you a good Pilot?
+      - It's the Cargo Plane for you!
+      # ── ALTERNATES 6–15 — shown on high_score_alternates slide ─────────
+      - 6th Place
+      - 7th Place
+      - 8th Place
+      - 9th Place
+      - 10th Place
+      - 11th Place
+      - 12th Place
+      - 13th Place
+      - 14th Place
+      - 15th Place
 
-##############################################
-## Sound Player - Silence music during bonus
-##############################################
+  defaults:
+    score:
+      ##------------------------------------------------------------------
+      ## EDIT BEFORE EACH SHOW — update names and scores as desired.
+      ## Must stay in descending score order.
+      ## Names max 20 characters, uppercase only.
+      ##------------------------------------------------------------------
+      # ── TOP 5 ──────────────────────────────────────────────────────────
+      - MAVERICK: 50000000
+      - ICEMAN: 40000000
+      - ROOSTER: 30000000
+      - PENNY: 20000000
+      - GOOSE: 15000000
+      # ── ALTERNATES 6–15 ────────────────────────────────────────────────
+      - VIPER: 12000000
+      - MERLIN: 10000000
+      - SLIDER: 9000000
+      - WOLFMAN: 8000000
+      - SUNDOWN: 7000000
+      - HOLLYWOOD: 6000000
+      - EINSTEIN: 5000000
+      - LFS: 4000000
+      - LFS: 3000000
+      - LFS: 2000000
 
-sound_player:
-  # Silence any playing music when bonus starts
-  mode_bonus_started:
-    silence:
-      bus: music
-      loops: 0
-
-##############################################
-## Mode Settings - Bonus Entries
-##############################################
-
-mode_settings:
-  # ADJUST THIS: Display time for ALL bonus slides (in milliseconds)
-  # 1000 = 1 second, 2000 = 2 seconds, 3000 = 3 seconds, etc.
-  display_delay_ms: 2000
-  
-  # If player hits flipper, speed up to instant
-  hurry_up_delay_ms: 0
-  hurry_up_event: flipper_cancel
-  
-  # When false: prevents MPF from adding extra subtotal/multiplier steps
-  # We use our own custom subtotal entry instead for consistent flow
-  keep_multiplier: false
-  
-  # Define all bonus entries in order
-  bonus_entries:
-    # 1. Switches - count and points
-    - entry: switches
-      text: "Switches Hit"
-      player_score_entry: bonus_switches_count
-      score: 350
-      skip_if_zero: false
-    
-    # 2. Ramps - count and points
-    - entry: ramps
-      text: "Ramps Made"
-      player_score_entry: bonus_ramps_count
-      score: 2500
-      skip_if_zero: false
-    
-    # 3. Highest Mach - level and points
-    - entry: highest_mach
-      text: "Highest Mach Level"
-      player_score_entry: bonus_highest_mach
-      score: 10000
-      skip_if_zero: false
-    
-    # 4. Hard Deck Awards - count and points (does NOT reset)
-    - entry: hard_deck_awards
-      text: "Hard Deck Awards"
-      player_score_entry: hard_deck_awards_count
-      score: 35000
-      skip_if_zero: false
-    
-    # 5. Training Missions Played - count and points (does NOT reset)
-    - entry: training_missions
-      text: "Training Missions Played"
-      player_score_entry: training_missions_played
-      score: 50000
-      skip_if_zero: false
-    
-    # 6. Pilot Missions Won - count and points (does NOT reset)
-    - entry: pilot_missions
-      text: "Pilot Missions Won"
-      player_score_entry: pilot_missions_won
-      score: 75000
-      skip_if_zero: false
-    
-    # NOTE: No custom subtotal entry - using MPF's built-in behavior
-    # At 1x: goes straight from last entry to total (no subtotal slide)
-    # At 2x+: MPF shows subtotal/multiplier automatically
-
-##############################################
-## Variable Player - Calculate Display Points
-## AND RESET PER-BALL VARIABLES AFTER MODE ENDS
-##############################################
-
-variable_player:
-  # Calculate points variables when each bonus entry is shown
-  bonus_entry{entry=="switches"}:
-    bonus_switches_points:
-      action: set
-      int: current_player.bonus_switches_count * 350
-  
-  bonus_entry{entry=="ramps"}:
-    bonus_ramps_points:
-      action: set
-      int: current_player.bonus_ramps_count * 2500
-  
-  bonus_entry{entry=="highest_mach"}:
-    bonus_highest_mach_points:
-      action: set
-      int: current_player.bonus_highest_mach * 10000
-  
-  bonus_entry{entry=="hard_deck_awards"}:
-    bonus_hard_deck_awards_points:
-      action: set
-      int: current_player.hard_deck_awards_count * 35000
-  
-  bonus_entry{entry=="training_missions"}:
-    bonus_training_missions_points:
-      action: set
-      int: current_player.training_missions_played * 50000
-  
-  bonus_entry{entry=="pilot_missions"}:
-    bonus_pilot_missions_points:
-      action: set
-      int: current_player.pilot_missions_won * 75000
-  
-  # Capture the running bonus subtotal into a player variable for the slide
-  # This triggers on MPF's built-in subtotal event (only fires at 2x+ multiplier)
-  bonus_entry{entry=="subtotal"}:
-    bonus_subtotal_points:
-      action: set
-      int: score
-  
-  # Per-ball variables reset has been moved to base.yaml
-  # (bonus mode stops before ball_ended fires, so base handles it)
-
-##############################################
-## Show Player - Light Show During Bonus
-## SPEED ADJUSTMENT: Change 'speed' parameter to adjust light show speed
-##############################################
-
-show_player:
-  mode_bonus_started:
-    bonus_count_down_light_show:
-      loops: -1          # Loop infinitely until mode stops
-      speed: 40          # ADJUST THIS: 1.0 = normal, 2.0 = 2x speed, 0.5 = half speed
-      key: bonus_lights
-  
-  mode_bonus_stopped:
-    bonus_count_down_light_show:
-      action: stop
-      key: bonus_lights
-
-##############################################
-## Slide Player - Display Bonus Screens
-##############################################
-
-slide_player:
-  # Initial "BONUS" screen
-  mode_bonus_started:
-    bonus_start:
-      action: play
-      priority: 510
-  
-  # Switches bonus slide
-  bonus_entry{entry=="switches"}:
-    bonus_switches:
-      action: play
-      priority: 510
-  
-  # Ramps bonus slide
-  bonus_entry{entry=="ramps"}:
-    bonus_ramps:
-      action: play
-      priority: 510
-  
-  # Highest Mach bonus slide (shows both count and points)
-  bonus_entry{entry=="highest_mach"}:
-    bonus_highest_mach:
-      action: play
-      priority: 510
-  
-  # Hard Deck Awards bonus slide
-  bonus_entry{entry=="hard_deck_awards"}:
-    bonus_hard_deck_awards:
-      action: play
-      priority: 510
-  
-  # Training Missions bonus slide
-  bonus_entry{entry=="training_missions"}:
-    bonus_training_missions:
-      action: play
-      priority: 510
-  
-  # Pilot Missions Won bonus slide
-  bonus_entry{entry=="pilot_missions"}:
-    bonus_pilot_missions:
-      action: play
-      priority: 510
-  
-  # Subtotal slide - uses MPF's built-in subtotal event (only fires at 2x+ multiplier)
-  # At 1x multiplier, this slide won't show (goes straight to total)
-  bonus_entry{entry=="subtotal"}:
-    bonus_subtotal:
-      action: play
-      priority: 510
-  
-  # Final Total slide
-  bonus_entry{entry=="total"}:
-    bonus_total:
-      action: play
-      priority: 510
-
-##############################################
-## Event Player - Flipper Cancel
-##############################################
+##############################################################################
+## EVENT PLAYER
+##############################################################################
 
 event_player:
-  # Both flippers pressed = skip to end
-  s_flipper_left_active{device.switches.s_flipper_right.state}:
-    - flipper_cancel
-  
-  s_flipper_right_active{device.switches.s_flipper_left.state}:
-    - flipper_cancel
+  # Route flipper and start inputs to named nav events.
+  # Conditions ensure they ONLY fire during high score entry.
+  # Start button is blocked from triggering game_starting by
+  # high_score mode's priority 1500 (higher than attract at 10).
+  s_flipper_left_active{mode.high_score.active}:
+    - hs_nav_prev
+  s_flipper_right_active{mode.high_score.active}:
+    - hs_nav_next
+  s_start_active{mode.high_score.active}:
+    - hs_nav_select
+
+  # When Godot detects name is at max length, it posts hs_name_full.
+  # MPF jumps letter cursor to FINISH position (index 28).
+  hs_name_full:
+    - hs_set_finish
+
+##############################################################################
+## VARIABLE PLAYER
+## - Manages hs_letter_index machine var (drives carousel in Godot)
+## - Manages hs_select_trigger machine var (signals Godot to process a select)
+## - Captures high_score_enter_initials event kwargs into machine vars for display
+##############################################################################
+
+variable_player:
+
+  ##------------------------------------------------------------------------
+  ## Reset on each new entry prompt (not just mode start, since multiple
+  ## players may qualify and entry fires multiple times)
+  ##------------------------------------------------------------------------
+  high_score_enter_initials:
+    hs_entry_made:
+      action: set_machine
+      int: 1
+    hs_letter_index:
+      action: set_machine
+      int: 0
+    hs_select_trigger:
+      action: set_machine
+      int: 0
+    # Capture event kwargs directly — player_num, value, award are event args
+    hs_player_num:
+      action: set_machine
+      int: player_num
+    hs_score_value:
+      action: set_machine
+      int: value
+    hs_award_text:
+      action: set_machine
+      string: award
+
+  ##------------------------------------------------------------------------
+  ## Letter carousel navigation — wraps at both ends
+  ##------------------------------------------------------------------------
+  hs_nav_prev{machine.hs_letter_index > 0}:
+    hs_letter_index:
+      action: add_machine
+      int: -1
+  hs_nav_prev{machine.hs_letter_index == 0}:
+    hs_letter_index:
+      action: set_machine
+      int: 28    # wrap A → FINISH
+
+  hs_nav_next{machine.hs_letter_index < 28}:
+    hs_letter_index:
+      action: add_machine
+      int: 1
+  hs_nav_next{machine.hs_letter_index == 28}:
+    hs_letter_index:
+      action: set_machine
+      int: 0     # wrap FINISH → A
+
+  ##------------------------------------------------------------------------
+  ## Select trigger — increments so Godot detects the change event
+  ##------------------------------------------------------------------------
+  hs_nav_select:
+    hs_select_trigger:
+      action: add_machine
+      int: 1
+
+  ##------------------------------------------------------------------------
+  ## Jump to FINISH (index 28) when name is full
+  ##------------------------------------------------------------------------
+  hs_set_finish:
+    hs_letter_index:
+      action: set_machine
+      int: 28
+
+##############################################################################
+## SLIDE PLAYER
+##############################################################################
+
+slide_player:
+  # Name entry: show entry UI, clear any award slide
+  high_score_enter_initials:
+    high_score_entry:
+      action: play
+      priority: 1600
+    high_score_award:
+      action: remove
+
+  # Award display: brief congratulations slide
+  high_score_award_display:
+    high_score_award:
+      action: play
+      priority: 1600
+    high_score_entry:
+      action: remove
+
+  # Cleanup when mode ends
+  mode_high_score_stopped:
+    high_score_entry:
+      action: remove
+    high_score_award:
+      action: remove
+
+##############################################################################
+## SOUND PLAYER
+##############################################################################
+
+sound_player:
+  # Music starts when name entry begins
+  high_score_enter_initials:
+    music_high_score:
+      bus: music
+      loops: -1
+
+  # Voice congrats fires when award slide displays (after name submitted)
+  high_score_award_display:
+    voice_high_score_congrats:
+      bus: voice
+      loops: 0
+
+  # Music continues after mode ends — end_of_game_attract silences the music bus on start
+
+##############################################################################
+## SHOW PLAYER
+##############################################################################
+
+show_player:
+  high_score_enter_initials:
+    high_score_entry_lights:
+      loops: -1
+      speed: 1
+      priority: 1500
+
+  high_score_award_display:
+    high_score_award_lights:
+      loops: 3
+      speed: 1
+      priority: 1500
+
+  mode_high_score_stopped:
+    high_score_entry_lights:
+      action: stop
+    high_score_award_lights:
+      action: stop

@@ -88,6 +88,7 @@ modes:
   - tilt 
   - pilot_mission_qualifier
   - status_mode
+  - high_score
 
 player_vars:
   mach_level:
@@ -342,6 +343,40 @@ machine_vars:
     persist: true
   # Ball search servo sequencer run counter
   ball_search_servo_count:
+    initial_value: 0
+    value_type: int
+    persist: false
+
+  ##############################################################################
+  # HIGH SCORE NAME ENTRY — machine vars for Godot carousel communication
+  ##############################################################################
+  # Current carousel position (0=A … 25=Z, 26=SPACE, 27=BACK, 28=FINISH)
+  hs_letter_index:
+    initial_value: 0
+    value_type: int
+    persist: false
+  # Incremented by MPF on each start-button press; Godot detects the change
+  hs_select_trigger:
+    initial_value: 0
+    value_type: int
+    persist: false
+  # Current award label string (e.g. "MAVERICK"), set from high_score_enter_initials kwargs
+  hs_award_text:
+    initial_value: ""
+    value_type: str
+    persist: false
+  # Player number currently entering name
+  hs_player_num:
+    initial_value: 1
+    value_type: int
+    persist: false
+  # Score the player earned (for display during entry)
+  hs_score_value:
+    initial_value: 0
+    value_type: int
+    persist: false
+  # Set to 1 when any player enters a high score name; cleared on end_of_game_attract start
+  hs_entry_made:
     initial_value: 0
     value_type: int
     persist: false

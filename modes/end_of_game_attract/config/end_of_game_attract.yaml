@@ -38,7 +38,29 @@ timers:
     direction: up
     tick_interval: 1s
     control_events:
-      - event: mode_end_of_game_attract_started
+      - event: hs_display_skip
+        action: start
+
+  # ── HS LEADERBOARD TIMERS ──────────────────────────────────────────────────
+  # Only used when a player entered a high score this game.
+  # top5 fires first (10s), then alternates (10s), then hs_display_skip
+  # which triggers the normal video + light sequence.
+  hs_top5_timer:
+    start_value: 0
+    end_value: 10
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: hs_display_start
+        action: start
+
+  hs_alternates_timer:
+    start_value: 0
+    end_value: 10
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: timer_hs_top5_timer_complete
         action: start
 
   # Show scores for 15 seconds on mode start.
@@ -49,7 +71,7 @@ timers:
     direction: up
     tick_interval: 1s
     control_events:
-      - event: mode_end_of_game_attract_started
+      - event: hs_display_skip
         action: start
       - event: end_of_game_flipper_scores
         action: stop
@@ -87,8 +109,22 @@ event_player:
   # Main timer complete → end mode
   timer_end_of_game_timer_complete: end_of_game_carousel_complete
 
-  # Mode start → kick off light show chain AND initial score display
-  mode_end_of_game_attract_started:
+  # Mode start → branch: show HS leaderboard first if a name was entered,
+  # otherwise skip straight to video. hs_display_skip is the common entry
+  # point that starts the video slide, lights, timers, and score display.
+  mode_end_of_game_attract_started{machine.hs_entry_made==1}:
+    - hs_display_start
+  mode_end_of_game_attract_started{machine.hs_entry_made==0}:
+    - hs_display_skip
+
+  # HS slides advance: top5 → alternates → video
+  timer_hs_top5_timer_complete:
+    - hs_show_alternates
+  timer_hs_alternates_timer_complete:
+    - hs_display_skip
+
+  # hs_display_skip is the gate that starts the video sequence
+  hs_display_skip:
     - end_of_game_light_step_1
     - end_of_game_show_scores
 
@@ -127,7 +163,25 @@ event_player:
 ##############################################################################
 
 slide_player:
-  mode_end_of_game_attract_started:
+  # HS leaderboard slides — only play if hs_entry_made was set
+  hs_display_start:
+    high_score_top_5:
+      action: play
+      priority: 150
+
+  hs_show_alternates:
+    high_score_top_5:
+      action: remove
+    high_score_alternates:
+      action: play
+      priority: 150
+
+  # hs_display_skip: clean up any HS slides and start the video slide
+  hs_display_skip:
+    high_score_top_5:
+      action: remove
+    high_score_alternates:
+      action: remove
     end_of_game_attract:
       priority: 100
 
@@ -160,8 +214,12 @@ slide_player:
     last_scores_4p:
       action: remove
 
-  # Also remove scores when mode ends (in case timer had not fired yet)
+  # Also remove scores and HS slides when mode ends
   mode_end_of_game_attract_stopping:
+    high_score_top_5:
+      action: remove
+    high_score_alternates:
+      action: remove
     last_scores_1p:
       action: remove
     last_scores_2p:
@@ -170,6 +228,17 @@ slide_player:
       action: remove
     last_scores_4p:
       action: remove
+
+##############################################################################
+# VARIABLE PLAYER
+# Clear hs_entry_made flag so next game starts fresh
+##############################################################################
+
+variable_player:
+  mode_end_of_game_attract_started:
+    hs_entry_made:
+      action: set_machine
+      int: 0
 
 ##############################################################################
 # SOUND PLAYER

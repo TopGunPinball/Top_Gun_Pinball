@@ -1463,6 +1463,15 @@ variable_player:
     wingman_perk_active:
       action: set
       int: 0
+    mystery_just_lit_pilot:
+      action: set
+      int: 0
+
+  # Clear mystery_just_lit_pilot when player actually hits the scoop to start a mode
+  player_pilot_mode_active{value==1}:
+    mystery_just_lit_pilot:
+      action: set
+      int: 0
 
   ##############################################
   ## INVERTED PERK: Bonus TOPGUN Letter
@@ -1629,27 +1638,6 @@ coil_player:
   mode_hard_deck_honoring_iceman_stopped{current_player.qualified_mode_number>0}:
     c_mode_barrier:
       action: enable
-
-##############################################
-## Event Player - Mode Qualification & Rotation
-##############################################
-
-  ##############################################
-  ## mystery_just_lit_pilot flag cleanup
-  ##############################################
-
-  # Clear flag when any pilot mode actually starts (player hit scoop themselves)
-  player_pilot_mode_active{value==1}:
-    mystery_just_lit_pilot:
-      action: set
-      int: 0
-
-  # Safety clear on ball end
-  ball_will_end:
-    mystery_just_lit_pilot:
-      action: set
-      int: 0
-
 
 event_player:
   ##############################################

@@ -1,0 +1,264 @@
+[gd_scene load_steps=9 format=3 uid="uid://hs_entry_slide"]
+
+[ext_resource type="FontFile" uid="uid://bmeoubu4ga0gt" path="res://fonts/ITCMachine-Medium Medium.ttf" id="1_font"]
+[ext_resource type="Script" uid="uid://bfvhmv2eirpua" path="res://addons/mpf-gmc/classes/mpf_variable.gd" id="2_mpfvar"]
+[ext_resource type="Script" uid="uid://dru3usokwlhd3" path="res://addons/mpf-gmc/classes/mpf_slide.gd" id="3_mpfslide"]
+[ext_resource type="Script" path="res://modes/high_score/slides/high_score_entry.gd" id="4_entryctrl"]
+
+[sub_resource type="FontVariation" id="FV_main"]
+base_font = ExtResource("1_font")
+spacing_glyph = 5
+
+[sub_resource type="FontVariation" id="FV_name"]
+base_font = ExtResource("1_font")
+spacing_glyph = 2
+
+[sub_resource type="FontVariation" id="FV_caption"]
+base_font = ExtResource("1_font")
+spacing_glyph = 5
+spacing_space = -2
+
+[sub_resource type="FontVariation" id="FV_carousel_dim"]
+base_font = ExtResource("1_font")
+spacing_glyph = 5
+
+; ── ROOT — GMC managed slide ──────────────────────────────────────────────────
+[node name="high_score_entry" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("3_mpfslide")
+
+; ── BACKGROUND — deep navy ────────────────────────────────────────────────────
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 1280.0
+offset_bottom = 720.0
+color = Color(0.018, 0.032, 0.065, 1.0)
+mouse_filter = 2
+
+; ── TOP GOLD BAR ──────────────────────────────────────────────────────────────
+[node name="TopBar" type="ColorRect" parent="."]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 1280.0
+offset_bottom = 6.0
+color = Color(1.0, 0.65, 0.0, 1.0)
+mouse_filter = 2
+
+; ── RANK LABEL — Machine Var hs_award_text (e.g. "MAVERICK") ─────────────────
+[node name="AwardRankLabel" type="Label" parent="."]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 12.0
+offset_right = 1280.0
+offset_bottom = 74.0
+theme_override_colors/font_color = Color(1.0, 0.55, 0.0, 1.0)
+theme_override_colors/font_shadow_color = Color(0.0, 0.0, 0.0, 1.0)
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/outline_size = 6
+theme_override_fonts/font = SubResource("FV_main")
+theme_override_font_sizes/font_size = 54
+text = "MAVERICK"
+horizontal_alignment = 1
+script = ExtResource("2_mpfvar")
+variable_type = 2
+variable_name = "hs_award_text"
+
+; ── PLAYER + SCORE ROW ────────────────────────────────────────────────────────
+[node name="PlayerLabel" type="Label" parent="."]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 78.0
+offset_right = 480.0
+offset_bottom = 122.0
+theme_override_colors/font_color = Color(0.6, 0.65, 0.72, 1.0)
+theme_override_fonts/font = SubResource("FV_caption")
+theme_override_font_sizes/font_size = 36
+text = "PLAYER 1"
+horizontal_alignment = 1
+script = ExtResource("2_mpfvar")
+variable_type = 2
+variable_name = "hs_player_num"
+template_string = "PLAYER %s"
+
+[node name="ScoreLabel" type="Label" parent="."]
+layout_mode = 0
+offset_left = 480.0
+offset_top = 78.0
+offset_right = 1280.0
+offset_bottom = 122.0
+theme_override_colors/font_color = Color(0.55, 0.88, 1.0, 1.0)
+theme_override_fonts/font = SubResource("FV_caption")
+theme_override_font_sizes/font_size = 36
+text = "50,000,000"
+horizontal_alignment = 1
+script = ExtResource("2_mpfvar")
+variable_type = 2
+variable_name = "hs_score_value"
+comma_separate = true
+
+; ── DIVIDER ───────────────────────────────────────────────────────────────────
+[node name="Divider1" type="ColorRect" parent="."]
+layout_mode = 0
+offset_left = 60.0
+offset_top = 130.0
+offset_right = 1220.0
+offset_bottom = 133.0
+color = Color(1.0, 0.65, 0.0, 0.4)
+mouse_filter = 2
+
+; ── "ENTER YOUR CALLSIGN" caption ────────────────────────────────────────────
+[node name="CallsignCaption" type="Label" parent="."]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 138.0
+offset_right = 1280.0
+offset_bottom = 174.0
+theme_override_colors/font_color = Color(0.6, 0.65, 0.72, 1.0)
+theme_override_fonts/font = SubResource("FV_caption")
+theme_override_font_sizes/font_size = 30
+text = "ENTER YOUR CALLSIGN"
+horizontal_alignment = 1
+
+; ── NAME DISPLAY — updated by EntryController script ─────────────────────────
+[node name="NameDisplay" type="Label" parent="."]
+layout_mode = 0
+offset_left = 40.0
+offset_top = 176.0
+offset_right = 1240.0
+offset_bottom = 290.0
+theme_override_colors/font_color = Color(1.0, 1.0, 1.0, 1.0)
+theme_override_colors/font_shadow_color = Color(0.0, 0.0, 0.0, 1.0)
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/outline_size = 6
+theme_override_fonts/font = SubResource("FV_name")
+theme_override_font_sizes/font_size = 86
+text = "_"
+horizontal_alignment = 1
+
+; ── DIVIDER ───────────────────────────────────────────────────────────────────
+[node name="Divider2" type="ColorRect" parent="."]
+layout_mode = 0
+offset_left = 60.0
+offset_top = 296.0
+offset_right = 1220.0
+offset_bottom = 299.0
+color = Color(0.55, 0.88, 1.0, 0.35)
+mouse_filter = 2
+
+; ── CAROUSEL — three labels updated by EntryController script ─────────────────
+; CarouselPrev — letter to the left, dimmed
+[node name="CarouselPrev" type="Label" parent="."]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 308.0
+offset_right = 400.0
+offset_bottom = 440.0
+theme_override_colors/font_color = Color(0.35, 0.40, 0.50, 1.0)
+theme_override_fonts/font = SubResource("FV_carousel_dim")
+theme_override_font_sizes/font_size = 64
+text = "B"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+; CarouselCurrent — selected letter, full brightness, largest
+[node name="CarouselCurrent" type="Label" parent="."]
+layout_mode = 0
+offset_left = 380.0
+offset_top = 296.0
+offset_right = 900.0
+offset_bottom = 450.0
+theme_override_colors/font_color = Color(1.0, 1.0, 1.0, 1.0)
+theme_override_colors/font_shadow_color = Color(0.0, 0.4, 1.0, 0.6)
+theme_override_constants/shadow_offset_y = 4
+theme_override_constants/outline_size = 10
+theme_override_fonts/font = SubResource("FV_name")
+theme_override_font_sizes/font_size = 110
+text = "A"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+; CarouselNext — letter to the right, dimmed
+[node name="CarouselNext" type="Label" parent="."]
+layout_mode = 0
+offset_left = 880.0
+offset_top = 308.0
+offset_right = 1280.0
+offset_bottom = 440.0
+theme_override_colors/font_color = Color(0.35, 0.40, 0.50, 1.0)
+theme_override_fonts/font = SubResource("FV_carousel_dim")
+theme_override_font_sizes/font_size = 64
+text = "B"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+; ── CAROUSEL BRACKET DECORATIONS ─────────────────────────────────────────────
+[node name="BracketLeft" type="ColorRect" parent="."]
+layout_mode = 0
+offset_left = 375.0
+offset_top = 296.0
+offset_right = 385.0
+offset_bottom = 452.0
+color = Color(1.0, 0.65, 0.0, 0.7)
+mouse_filter = 2
+
+[node name="BracketRight" type="ColorRect" parent="."]
+layout_mode = 0
+offset_left = 895.0
+offset_top = 296.0
+offset_right = 905.0
+offset_bottom = 452.0
+color = Color(1.0, 0.65, 0.0, 0.7)
+mouse_filter = 2
+
+; ── INSTRUCTION LABEL — static ────────────────────────────────────────────────
+[node name="InstructLabel" type="Label" parent="."]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 460.0
+offset_right = 1280.0
+offset_bottom = 498.0
+theme_override_colors/font_color = Color(0.6, 0.65, 0.72, 1.0)
+theme_override_fonts/font = SubResource("FV_caption")
+theme_override_font_sizes/font_size = 28
+text = "◄ PREV          START = CONFIRM          NEXT ►"
+horizontal_alignment = 1
+
+; ── TIMER LABEL — countdown, updated by EntryController script ────────────────
+[node name="TimerLabel" type="Label" parent="."]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 506.0
+offset_right = 1280.0
+offset_bottom = 556.0
+theme_override_colors/font_color = Color(1.0, 0.4, 0.2, 1.0)
+theme_override_fonts/font = SubResource("FV_main")
+theme_override_font_sizes/font_size = 42
+text = "20"
+horizontal_alignment = 1
+
+; ── BOTTOM GOLD BAR ───────────────────────────────────────────────────────────
+[node name="BottomBar" type="ColorRect" parent="."]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 714.0
+offset_right = 1280.0
+offset_bottom = 720.0
+color = Color(1.0, 0.65, 0.0, 1.0)
+mouse_filter = 2
+
+; ── ENTRY CONTROLLER — GDScript handles carousel + timer logic ────────────────
+; Must be LAST node so all siblings exist when _ready() runs get_parent().has_node()
+[node name="EntryController" type="Control" parent="."]
+layout_mode = 0
+offset_right = 0.0
+offset_bottom = 0.0
+mouse_filter = 2
+script = ExtResource("4_entryctrl")
