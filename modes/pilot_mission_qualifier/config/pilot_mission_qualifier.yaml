@@ -103,6 +103,23 @@ timers:
         event: right_orbit_shot_hit
 
   ##############################################
+  ## POST-PLUNGE ORBIT LOCKOUT TIMER
+  ## Prevents a plunged ball from immediately scoring a composite
+  ## orbit shot (right or left) for 3 seconds after the ball
+  ## leaves the shooter lane. The orbit switches still fire for
+  ## all other purposes (scoring, sw_playfield_active, diverter
+  ## restore, etc.) — only the composite mode shot is blocked.
+  ##############################################
+  post_plunge_orbit_lockout:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - action: restart
+        event: s_shooter_lane_inactive
+
+  ##############################################
   ## POST-MB BARRIER RESTORE
   ## Short delay after multiball stops so barrier_drop fires
   ## AFTER the locks mode's barrier_raise on the same event.
@@ -133,6 +150,35 @@ timers:
       - event: tl_open_left_diverter
         action: restart
       - event: ball_ending
+        action: stop
+
+  ##############################################
+  ## GLOBAL SCOOP BALL RELEASE HANDLER
+  ## Modes post 'scoop_ball_release' instead of managing barrier_drop/raise
+  ## themselves. This timer waits for the ball to fully exit the scoop
+  ## then fires barrier_raise automatically.
+  ##
+  ## Usage pattern in any mode:
+  ##   my_mode_ball_released: [scoop_ball_release]   (drops barrier, starts tracking)
+  ##   my_mode_victory_ball_released: [scoop_ball_release]
+  ##
+  ## Flow: scoop_ball_release → barrier_drop + set scoop_release_pending=1
+  ##       s_mode_start_inactive (while pending) → global_scoop_eject_start
+  ##       s_mode_start_active  (ball bounced back) → global_scoop_eject_cancel
+  ##       timer completes → barrier_raise + clear scoop_release_pending
+  ##############################################
+  global_scoop_eject_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: global_scoop_eject_start
+        action: restart
+      - event: global_scoop_eject_cancel
+        action: stop
+      - event: barrier_raise
         action: stop
 
 
@@ -338,6 +384,23 @@ slide_player:
 ##############################################
 
 variable_player:
+  ##############################################
+  ## GLOBAL SCOOP RELEASE TRACKING
+  ##############################################
+  scoop_ball_release:
+    scoop_release_pending:
+      action: set
+      int: 1
+
+  # Clear when barrier raises (either via global timer or direct barrier_raise call)
+  barrier_raise:
+    scoop_release_pending:
+      action: set
+      int: 0
+
+  # Safety clear on ball end
+  # (scoop_release_pending merged into the ball_will_end block below)
+
   player_added:
     ##########################################################################
     # NOTE: All pilot mission qualifier variables have been moved OUT of
@@ -399,9 +462,6 @@ variable_player:
       action: set
       int: 1
     mode_below_the_hard_deck_played:
-      action: set
-      int: 1
-    mode_canyon_run_played:
       action: set
       int: 1
     mode_no_margin_for_error_played:
@@ -506,6 +566,36 @@ variable_player:
       action: set
       int: 0
   
+  # Clear pause flags when canyon_run stops
+  mode_canyon_run_stopped:
+    letter_collection_paused:
+      action: set
+      int: 0
+    pilot_mode_active:
+      action: set
+      int: 0
+    missiles_perk_active:
+      action: set
+      int: current_player.missiles_perk_saved
+    topgun_letter_t:
+      action: set
+      int: 0
+    topgun_letter_o:
+      action: set
+      int: 0
+    topgun_letter_p:
+      action: set
+      int: 0
+    topgun_letter_g:
+      action: set
+      int: 0
+    topgun_letter_u:
+      action: set
+      int: 0
+    topgun_letter_n:
+      action: set
+      int: 0
+
   # Clear drain pending flag after bonus starts
   pilot_mission_drain_complete:
     pilot_mode_drain_pending:
@@ -1466,6 +1556,9 @@ variable_player:
     mystery_just_lit_pilot:
       action: set
       int: 0
+    scoop_release_pending:
+      action: set
+      int: 0
 
   # Clear mystery_just_lit_pilot when player actually hits the scoop to start a mode
   player_pilot_mode_active{value==1}:
@@ -1641,7 +1734,24 @@ coil_player:
 
 event_player:
   ##############################################
-  ## PLUNGER AUTO-LAUNCH SYSTEM
+  ## GLOBAL SCOOP BALL RELEASE HANDLER
+  ## Modes post 'scoop_ball_release' to trigger this. Do NOT use
+  ## barrier_drop directly for scoop releases — use scoop_ball_release.
+  ##############################################
+  scoop_ball_release:
+    - barrier_drop
+
+  # Ball has left scoop — start the restore delay
+  s_mode_start_inactive{current_player.scoop_release_pending==1}:
+    - global_scoop_eject_start
+
+  # Ball bounced back in — cancel restore, wait again
+  s_mode_start_active{current_player.scoop_release_pending==1}:
+    - global_scoop_eject_cancel
+
+  # Restore complete — raise barrier
+  timer_global_scoop_eject_delay_complete:
+    - barrier_raise
   ## eject_coil removed from bd_plunger so it never auto-fires.
   ## Ball save already sets ball_just_saved=1 (in ball_save.yaml)
   ## for BOTH new_ball_save and mode_ball_save.
@@ -1700,12 +1810,13 @@ event_player:
   
   # Left orbit complete: s_orbit_right hit while left orbit timer running
   # orbit_shot_lockout prevents exit switch from immediately triggering a new orbit
-  s_orbit_right_active{device.timers.left_orbit_shot_timeout.running and current_player.orbit_shot_lockout==0}:
+  # post_plunge_orbit_lockout prevents scoring on a plunged ball for 3 seconds
+  s_orbit_right_active{device.timers.left_orbit_shot_timeout.running and current_player.orbit_shot_lockout==0 and device.timers.post_plunge_orbit_lockout.running==False}:
     - left_orbit_shot_hit
     - timer_left_orbit_shot_timeout_stop
   
   # Right orbit complete: s_orbit_left hit while right orbit timer running
-  s_orbit_left_active{device.timers.right_orbit_shot_timeout.running and current_player.orbit_shot_lockout==0}:
+  s_orbit_left_active{device.timers.right_orbit_shot_timeout.running and current_player.orbit_shot_lockout==0 and device.timers.post_plunge_orbit_lockout.running==False}:
     - right_orbit_shot_hit
     - timer_right_orbit_shot_timeout_stop
 
@@ -1770,6 +1881,11 @@ event_player:
   
   # Rise of Phoenix
   mode_rise_of_phoenix_stopped{current_player.pilot_mode_drain_pending==1}:
+    - pilot_mission_bonus_ready
+    - pilot_mission_drain_complete
+
+  # Canyon Run
+  mode_canyon_run_stopped{current_player.pilot_mode_drain_pending==1}:
     - pilot_mission_bonus_ready
     - pilot_mission_drain_complete
 
@@ -2241,6 +2357,10 @@ event_player:
   rotate_qualified_mode_backwards{current_player.qualified_mode_number==8 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_rescue_cougar_played==0}:
     qualify_rescue_cougar
   
+  # Wrap from slot 8: all lower exhausted → try slot 9 (rise_of_phoenix)
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==8 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_rescue_cougar_played==1 and current_player.mode_rise_of_phoenix_played==0}:
+    qualify_rise_of_phoenix
+
   rotate_qualified_mode_backwards{current_player.qualified_mode_number==7 and current_player.mode_edge_of_space_played==0}:
     qualify_edge_of_space
   
@@ -2295,6 +2415,13 @@ event_player:
   rotate_qualified_mode_backwards{current_player.qualified_mode_number==4 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_rescue_cougar_played==0}:
     qualify_rescue_cougar
   
+  # Wrap from slot 4: all lower exhausted → try slots 8 (canyon_run) then 9 (rise_of_phoenix)
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==4 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_rescue_cougar_played==1 and current_player.mode_canyon_run_played==0}:
+    qualify_canyon_run
+  
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==4 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_rescue_cougar_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==0}:
+    qualify_rise_of_phoenix
+
   rotate_qualified_mode_backwards{current_player.qualified_mode_number==3 and current_player.mode_balls_of_fire_played==0}:
     qualify_balls_of_fire
   
@@ -3271,9 +3398,6 @@ light_player:
       color: yellow
       fade: 0ms
     l_mode_below_the_hard_deck:
-      color: yellow
-      fade: 0ms
-    l_mode_canyon_run:
       color: yellow
       fade: 0ms
     l_mode_no_margin_for_error:

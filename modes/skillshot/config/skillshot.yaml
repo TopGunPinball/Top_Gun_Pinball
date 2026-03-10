@@ -48,14 +48,16 @@ shots:
     profile: skill
     show_tokens:
       leds: l_mig_m
-    advance_events: mode_skillshot_started
+    advance_events: skillshot_mig_position_m   # Lit when M is active position
+    reset_events: skillshot_mig_position_i, skillshot_mig_position_g
 
   mig_lane_right:
     switch: s_mig_lane_right
     profile: skill
     show_tokens:
       leds: l_mig_g
-    advance_events: mode_skillshot_started
+    advance_events: skillshot_mig_position_g   # Lit when G is active position
+    reset_events: skillshot_mig_position_m, skillshot_mig_position_i
 
   spinner:
     switch: s_spinner
@@ -133,37 +135,66 @@ timers:
         event: mode_skillshot_will_stop
 
 variable_player:
+  # Track which MIG position is active: 0=M, 1=I (miss - no switch), 2=G
+  skillshot_mig_position_m:
+    skillshot_mig_position:
+      action: set
+      int: 0
+  skillshot_mig_position_i:
+    skillshot_mig_position:
+      action: set
+      int: 1
+  skillshot_mig_position_g:
+    skillshot_mig_position:
+      action: set
+      int: 2
+
   # Conditional scoring based on skillshot count - use priorities to control execution order
   mig_lane_left_skill_lit_hit{current_player.skillshot_count>=4}:
-    score: 125000
+    score: 350000
+    mode_points_scored:
+      action: set
+      int: 350000
     skillshot_count:
       action: add
       int: 1
       block: true
     priority: 1000
   mig_lane_left_skill_lit_hit{current_player.skillshot_count==3}:
-    score: 100000
+    score: 300000
+    mode_points_scored:
+      action: set
+      int: 300000
     skillshot_count:
       action: add
       int: 1
       block: true
     priority: 900
   mig_lane_left_skill_lit_hit{current_player.skillshot_count==2}:
-    score: 75000
+    score: 250000
+    mode_points_scored:
+      action: set
+      int: 250000
     skillshot_count:
       action: add
       int: 1
       block: true
     priority: 800
   mig_lane_left_skill_lit_hit{current_player.skillshot_count==1}:
-    score: 50000
+    score: 200000
+    mode_points_scored:
+      action: set
+      int: 200000
     skillshot_count:
       action: add
       int: 1
       block: true
     priority: 700
   mig_lane_left_skill_lit_hit{current_player.skillshot_count==0}:
-    score: 25000
+    score: 150000
+    mode_points_scored:
+      action: set
+      int: 150000
     skillshot_count:
       action: add
       int: 1
@@ -171,35 +202,50 @@ variable_player:
     priority: 600
 
   mig_lane_right_skill_lit_hit{current_player.skillshot_count>=4}:
-    score: 125000
+    score: 350000
+    mode_points_scored:
+      action: set
+      int: 350000
     skillshot_count:
       action: add
       int: 1
       block: true
     priority: 1000
   mig_lane_right_skill_lit_hit{current_player.skillshot_count==3}:
-    score: 100000
+    score: 300000
+    mode_points_scored:
+      action: set
+      int: 300000
     skillshot_count:
       action: add
       int: 1
       block: true
     priority: 900
   mig_lane_right_skill_lit_hit{current_player.skillshot_count==2}:
-    score: 75000
+    score: 250000
+    mode_points_scored:
+      action: set
+      int: 250000
     skillshot_count:
       action: add
       int: 1
       block: true
     priority: 800
   mig_lane_right_skill_lit_hit{current_player.skillshot_count==1}:
-    score: 50000
+    score: 200000
+    mode_points_scored:
+      action: set
+      int: 200000
     skillshot_count:
       action: add
       int: 1
       block: true
     priority: 700
   mig_lane_right_skill_lit_hit{current_player.skillshot_count==0}:
-    score: 25000
+    score: 150000
+    mode_points_scored:
+      action: set
+      int: 150000
     skillshot_count:
       action: add
       int: 1
@@ -207,35 +253,101 @@ variable_player:
     priority: 600
 
   spinner_skill_lit_hit{current_player.skillshot_count>=4}:
-    score: 250000
+    score: 500000
+    mode_points_scored:
+      action: set
+      int: 500000
     skillshot_count:
       action: add
       int: 1
       block: true
     priority: 1000
   spinner_skill_lit_hit{current_player.skillshot_count==3}:
-    score: 200000
+    score: 425000
+    mode_points_scored:
+      action: set
+      int: 425000
     skillshot_count:
       action: add
       int: 1
       block: true
     priority: 900
   spinner_skill_lit_hit{current_player.skillshot_count==2}:
-    score: 150000
+    score: 350000
+    mode_points_scored:
+      action: set
+      int: 350000
     skillshot_count:
       action: add
       int: 1
       block: true
     priority: 800
   spinner_skill_lit_hit{current_player.skillshot_count==1}:
-    score: 100000
+    score: 275000
+    mode_points_scored:
+      action: set
+      int: 275000
     skillshot_count:
       action: add
       int: 1
       block: true
     priority: 700
   spinner_skill_lit_hit{current_player.skillshot_count==0}:
-    score: 50000
+    score: 200000
+    mode_points_scored:
+      action: set
+      int: 200000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 600
+
+  ramp_inner_skill_lit_hit{current_player.skillshot_count>=4}:
+    score: 750000
+    mode_points_scored:
+      action: set
+      int: 750000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 1000
+  ramp_inner_skill_lit_hit{current_player.skillshot_count==3}:
+    score: 650000
+    mode_points_scored:
+      action: set
+      int: 650000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 900
+  ramp_inner_skill_lit_hit{current_player.skillshot_count==2}:
+    score: 550000
+    mode_points_scored:
+      action: set
+      int: 550000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 800
+  ramp_inner_skill_lit_hit{current_player.skillshot_count==1}:
+    score: 450000
+    mode_points_scored:
+      action: set
+      int: 450000
+    skillshot_count:
+      action: add
+      int: 1
+      block: true
+    priority: 700
+  ramp_inner_skill_lit_hit{current_player.skillshot_count==0}:
+    score: 350000
+    mode_points_scored:
+      action: set
+      int: 350000
     skillshot_count:
       action: add
       int: 1
@@ -244,89 +356,94 @@ variable_player:
 
   orbit_upper_skill_lit_hit{current_player.skillshot_count>=4}:
     score: 1000000
+    mode_points_scored:
+      action: set
+      int: 1000000
     skillshot_count:
       action: add
       int: 1
       block: true
     priority: 1000
   orbit_upper_skill_lit_hit{current_player.skillshot_count==3}:
-    score: 800000
+    score: 900000
+    mode_points_scored:
+      action: set
+      int: 900000
     skillshot_count:
       action: add
       int: 1
       block: true
     priority: 900
   orbit_upper_skill_lit_hit{current_player.skillshot_count==2}:
-    score: 600000
+    score: 750000
+    mode_points_scored:
+      action: set
+      int: 750000
     skillshot_count:
       action: add
       int: 1
       block: true
     priority: 800
   orbit_upper_skill_lit_hit{current_player.skillshot_count==1}:
-    score: 400000
+    score: 600000
+    mode_points_scored:
+      action: set
+      int: 600000
     skillshot_count:
       action: add
       int: 1
       block: true
     priority: 700
   orbit_upper_skill_lit_hit{current_player.skillshot_count==0}:
-    score: 200000
+    score: 450000
+    mode_points_scored:
+      action: set
+      int: 450000
     skillshot_count:
       action: add
       int: 1
       block: true
     priority: 600
 
-  ramp_inner_skill_lit_hit{current_player.skillshot_count>=4}:
-    score: 500000
-    skillshot_count:
-      action: add
-      int: 1
-      block: true
-    priority: 1000
-  ramp_inner_skill_lit_hit{current_player.skillshot_count==3}:
-    score: 400000
-    skillshot_count:
-      action: add
-      int: 1
-      block: true
-    priority: 900
-  ramp_inner_skill_lit_hit{current_player.skillshot_count==2}:
-    score: 300000
-    skillshot_count:
-      action: add
-      int: 1
-      block: true
-    priority: 800
-  ramp_inner_skill_lit_hit{current_player.skillshot_count==1}:
-    score: 200000
-    skillshot_count:
-      action: add
-      int: 1
-      block: true
-    priority: 700
-  ramp_inner_skill_lit_hit{current_player.skillshot_count==0}:
-    score: 100000
-    skillshot_count:
-      action: add
-      int: 1
-      block: true
-    priority: 600
 
 event_player:
   # When skillshot is hit, trigger video in base mode instead of skillshot mode
   mig_lane_left_skill_lit_hit:
-    show_skillshot_mig_video  # Post event for base mode to handle
+    - show_skillshot_mig_video  # Post event for base mode to handle
+    - skillshot_show_points
   mig_lane_right_skill_lit_hit:
-    show_skillshot_mig_video
+    - show_skillshot_mig_video
+    - skillshot_show_points
   spinner_skill_lit_hit:
-    show_skillshot_miramar_video
+    - show_skillshot_miramar_video
+    - skillshot_show_points
   orbit_upper_skill_lit_hit:
-    show_skillshot_tower_video
+    - show_skillshot_tower_video
+    - skillshot_show_points
   ramp_inner_skill_lit_hit:
-    show_skillshot_inverted_video
+    - show_skillshot_inverted_video
+    - skillshot_show_points
     
+  # On mode start, set position to M
+  mode_skillshot_started:
+    - skillshot_mig_position_m
+
+  # Right flipper: M -> I -> G -> M
+  s_flipper_right_active{mode.skillshot.active and current_player.skillshot_mig_position==0}:
+    - skillshot_mig_position_i
+  s_flipper_right_active{mode.skillshot.active and current_player.skillshot_mig_position==1}:
+    - skillshot_mig_position_g
+  s_flipper_right_active{mode.skillshot.active and current_player.skillshot_mig_position==2}:
+    - skillshot_mig_position_m
+
+  # Left flipper: M -> G -> I -> M
+  s_flipper_left_active{mode.skillshot.active and current_player.skillshot_mig_position==0}:
+    - skillshot_mig_position_g
+  s_flipper_left_active{mode.skillshot.active and current_player.skillshot_mig_position==2}:
+    - skillshot_mig_position_i
+  s_flipper_left_active{mode.skillshot.active and current_player.skillshot_mig_position==1}:
+    - skillshot_mig_position_m
+
   # LEFT MIG POST CONTROL ON PLUNGE
   # When ball is plunged (leaves shooter lane), check if left flipper is NOT held
   # If flipper not held, activate the left MIG post for 3 seconds
@@ -365,6 +482,31 @@ slide_player:
       action: remove
     skillshot_ball_launched:
       action: play
+
+####################################################################################
+# LIGHT PLAYER - MIG Insert Lighting During Skillshot
+####################################################################################
+
+light_player:
+  skillshot_mig_position_m:
+    l_mig_i:
+      color: off
+      fade: 0ms
+
+  skillshot_mig_position_i:
+    l_mig_i:
+      color: cyan
+      fade: 0ms
+
+  skillshot_mig_position_g:
+    l_mig_i:
+      color: off
+      fade: 0ms
+
+  mode_skillshot_will_stop:
+    l_mig_i:
+      color: off
+      fade: 0ms
 
 ####################################################################################
 # COIL PLAYER - Left MIG Post Control During Skillshot

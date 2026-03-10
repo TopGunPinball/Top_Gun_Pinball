@@ -178,6 +178,45 @@ variable_player:
     pilot_mode_drain_pending:
       action: set
       int: 0
+    right_orbit_diverter_requested:
+      action: set
+      int: 0
+    diverter_temporarily_disabled:
+      action: set
+      int: 0
+
+  ##############################################
+  ## DIVERTER STATE TRACKING
+  ## Track whether a mode has requested the diverter ON
+  ## so we can restore it after shooter lane suppression
+  ##############################################
+  right_ramp_up:
+    right_orbit_diverter_requested:
+      action: set
+      int: 1
+    diverter_temporarily_disabled:
+      action: set
+      int: 0
+
+  right_ramp_down:
+    right_orbit_diverter_requested:
+      action: set
+      int: 0
+    diverter_temporarily_disabled:
+      action: set
+      int: 0
+
+  s_shooter_lane_active{current_player.right_orbit_diverter_requested==1}:
+    diverter_temporarily_disabled:
+      action: set
+      int: 1
+
+  # Restore when any playfield switch fires EXCEPT s_lane_right (which is pre-diverter)
+  # If s_lane_right triggered sw_playfield_active its state will be 1 — excluded by condition
+  sw_playfield_active{current_player.diverter_temporarily_disabled==1 and device.switches.s_lane_right.state==0}:
+    diverter_temporarily_disabled:
+      action: set
+      int: 0
 
   # Recalculate whenever mach_level changes
   player_mach_level:
@@ -617,6 +656,21 @@ coil_player:
       action: disable
 
   ##############################################
+  ## SHOOTER LANE DIVERTER SUPPRESSION
+  ## If diverter is active when ball enters shooter lane,
+  ## temporarily disable it so the skill shot lane is clear.
+  ## Restore when ball physically leaves the shooter lane.
+  ##############################################
+  s_shooter_lane_active{current_player.right_orbit_diverter_requested==1}:
+    c_right_orbit_diverter:
+      action: disable
+
+  # Restore when any playfield switch fires EXCEPT s_lane_right (which is pre-diverter)
+  sw_playfield_active{current_player.diverter_temporarily_disabled==1 and device.switches.s_lane_right.state==0}:
+    c_right_orbit_diverter:
+      action: enable
+
+  ##############################################
   ## SHUTDOWN CLEANUP - Turn off all hold coils when MPF exits
   ## This prevents lights/coils from staying on after closing the game
   ##############################################
@@ -868,6 +922,13 @@ slide_player:
   mode_base_started: base_slide
   
   # Handle skillshot videos in base mode so they continue after skillshot mode ends
+  # mode_points_scored slide played here so it persists after skillshot mode stops
+  skillshot_show_points:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
   show_skillshot_mig_video:
     skillshot_mig_hit:
       action: play
@@ -1059,6 +1120,34 @@ sound_player:
   
   # Restart base music when rise_of_phoenix mode stops (but NOT if drain pending - bonus will handle it)
   mode_rise_of_phoenix_stopped{current_player.pilot_mode_drain_pending==0}:
+    music_danger_zone:
+      bus: music
+      loops: -1
+
+#################################################################################### 
+  # Canyon Run Mode Music Handler
+  # PATTERN: Music starts on canyon_run_ball_released (after intro video or skip)
+####################################################################################
+
+  # Start music when ball is released from scoop (after intro video or skip)
+  canyon_run_ball_released:
+    canyon_run_music:
+      bus: music
+      loops: -1
+
+  # Silence music when failed/complete videos play (before mode stops)
+  canyon_run_failed:
+    silence:
+      bus: music
+      loops: 0
+
+  canyon_run_complete:
+    silence:
+      bus: music
+      loops: 0
+
+  # Restart base music when canyon_run mode stops (but NOT if drain pending - bonus will handle it)
+  mode_canyon_run_stopped{current_player.pilot_mode_drain_pending==0}:
     music_danger_zone:
       bus: music
       loops: -1

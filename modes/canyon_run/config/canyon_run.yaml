@@ -1,0 +1,1428 @@
+#config_version=6
+
+####################################################################################
+# CANYON RUN - PILOT MISSION MODE
+# Timer: 135 seconds | Steps: 9 | Stacks with multiball: Yes
+# GI: Odd lights orange (FF6600), Even lights yellow (FFFF00)
+# Scoring: 250k/350k/450k/550k/600k/700k/800k/1.6M/3.2M = 8.5M total
+####################################################################################
+
+mode:
+  start_events: start_mode_canyon_run
+  stop_events:
+    - timer_canyon_run_complete_delay_complete
+    - timer_canyon_run_failed_delay_complete
+    - canyon_run_drain_cleanup_complete
+  priority: 600
+  game_mode: true
+  use_wait_queue: true
+
+mode_settings:
+  can_stack_with_multiball: true
+
+####################################################################################
+# BALL HOLDS
+####################################################################################
+
+ball_holds:
+  canyon_run_scoop_hold:
+    balls_to_hold: 1
+    hold_devices: bd_mode_scoop
+    enable_events:
+      - mode_canyon_run_started
+      - canyon_run_setup_step_9
+    disable_events:
+      - canyon_run_ball_released
+    release_one_events:
+      - canyon_run_ball_released
+      - canyon_run_victory_ball_exit      # Delayed version - barrier drops first
+    release_all_events:
+      - mode_canyon_run_will_stop
+
+####################################################################################
+# QUEUE RELAY PLAYER
+####################################################################################
+
+queue_relay_player:
+  ball_ending{mode.canyon_run.active==True}:
+    post: canyon_run_ball_ending_hold
+    wait_for: canyon_run_drain_cleanup_complete
+    priority: 1000
+
+####################################################################################
+# VARIABLE PLAYER
+####################################################################################
+
+variable_player:
+  mode_canyon_run_started:
+    pilot_mode_active:
+      action: set
+      int: 1
+    letter_collection_paused:
+      action: set
+      int: 1
+    canyon_run_step:
+      action: set
+      int: 0
+    canyon_run_complete_flag:
+      action: set
+      int: 0
+    pilot_missions_played:
+      action: add
+      int: 1
+    canyon_run_shots_remaining:
+      action: set
+      int: 9
+    mode_points_scored:
+      action: set
+      int: 0
+    canyon_run_step8_position:
+      action: set
+      int: 0
+
+  ball_will_end{mode.canyon_run.active==True}:
+    pilot_mode_drain_pending:
+      action: set
+      int: 1
+
+  canyon_run_step_1_complete:
+    canyon_run_step:
+      action: set
+      int: 1
+    score: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 250000 * current_player.total_scoring_multiplier
+    canyon_run_shots_remaining:
+      action: add
+      int: -1
+
+  canyon_run_step_2_complete:
+    canyon_run_step:
+      action: set
+      int: 2
+    score: 350000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 350000 * current_player.total_scoring_multiplier
+    canyon_run_shots_remaining:
+      action: add
+      int: -1
+
+  canyon_run_step_3_complete:
+    canyon_run_step:
+      action: set
+      int: 3
+    score: 450000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 450000 * current_player.total_scoring_multiplier
+    canyon_run_shots_remaining:
+      action: add
+      int: -1
+
+  canyon_run_step_4_complete:
+    canyon_run_step:
+      action: set
+      int: 4
+    score: 550000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 550000 * current_player.total_scoring_multiplier
+    canyon_run_shots_remaining:
+      action: add
+      int: -1
+
+  canyon_run_step_5_complete:
+    canyon_run_step:
+      action: set
+      int: 5
+    score: 600000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 600000 * current_player.total_scoring_multiplier
+    canyon_run_shots_remaining:
+      action: add
+      int: -1
+
+  canyon_run_step_6_complete:
+    canyon_run_step:
+      action: set
+      int: 6
+    score: 700000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 700000 * current_player.total_scoring_multiplier
+    canyon_run_shots_remaining:
+      action: add
+      int: -1
+
+  canyon_run_step_7_complete:
+    canyon_run_step:
+      action: set
+      int: 7
+    score: 800000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 800000 * current_player.total_scoring_multiplier
+    canyon_run_shots_remaining:
+      action: add
+      int: -1
+
+  canyon_run_step_8_complete:
+    canyon_run_step:
+      action: set
+      int: 8
+    score: 1600000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 1600000 * current_player.total_scoring_multiplier
+    canyon_run_shots_remaining:
+      action: add
+      int: -1
+
+  canyon_run_step_9_complete:
+    canyon_run_step:
+      action: set
+      int: 9
+    canyon_run_complete_flag:
+      action: set
+      int: 1
+    score: 3200000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 3200000 * current_player.total_scoring_multiplier
+    pilot_missions_won:
+      action: add
+      int: 1
+    canyon_run_shots_remaining:
+      action: add
+      int: -1
+    missiles_perk_saved:
+      action: set
+      int: current_player.missiles_perk_active
+    missiles_perk_active:
+      action: set
+      int: 0
+
+  # Step 8 moving target position tracking
+  canyon_run_step8_goto_1:
+    canyon_run_step8_position:
+      action: set
+      int: 1
+  canyon_run_step8_goto_2:
+    canyon_run_step8_position:
+      action: set
+      int: 2
+  canyon_run_step8_goto_3:
+    canyon_run_step8_position:
+      action: set
+      int: 3
+  canyon_run_step8_goto_4:
+    canyon_run_step8_position:
+      action: set
+      int: 4
+  canyon_run_step8_goto_5:
+    canyon_run_step8_position:
+      action: set
+      int: 5
+  canyon_run_step8_goto_6:
+    canyon_run_step8_position:
+      action: set
+      int: 6
+
+####################################################################################
+# SLIDE PLAYER
+####################################################################################
+
+slide_player:
+  mode_canyon_run_started:
+    canyon_run_shots_remaining:
+      action: play
+      priority: 1000
+    canyon_run_intro:
+      action: play
+      priority: 900
+    canyon_run_instructions:
+      action: play
+      priority: 850
+
+  # Show 240 static slide during intro when no perk active
+  mode_canyon_run_started{current_player.afterburner_perk_active==0}:
+    canyon_run_timer_240:
+      action: play
+      priority: 1000
+
+  mode_canyon_run_started{current_player.afterburner_perk_active==1}:
+    afterburner_perk_active:
+      action: play
+      priority: 850
+    timer_perk_activated:
+      action: play
+      priority: 1000
+
+  # Swap 240 static slide for real timer on skip
+  canyon_run_skip_intro:
+    canyon_run_intro:
+      action: remove
+    canyon_run_timer_240:
+      action: remove
+    canyon_run_timer:
+      action: play
+      priority: 1000
+
+  # Swap 240 for real timer at 24s (mid-intro, matches movie scene change)
+  timer_canyon_run_slide_swap_complete:
+    canyon_run_timer_240:
+      action: remove
+    canyon_run_timer:
+      action: play
+      priority: 1000
+
+  # Remove intro video when full 29s expires
+  timer_canyon_run_intro_video_delay_complete:
+    canyon_run_intro:
+      action: remove
+
+  canyon_run_complete:
+    canyon_run_timer:
+      action: remove
+    canyon_run_shots_remaining:
+      action: remove
+    canyon_run_instructions:
+      action: remove
+    canyon_run_step_8:
+      action: remove
+    canyon_run_won:
+      action: play
+      priority: 900
+      expire: 24s
+
+  canyon_run_failed:
+    canyon_run_timer:
+      action: remove
+    canyon_run_shots_remaining:
+      action: remove
+    canyon_run_instructions:
+      action: remove
+    canyon_run_step_1:
+      action: remove
+    canyon_run_step_2:
+      action: remove
+    canyon_run_step_3:
+      action: remove
+    canyon_run_step_4:
+      action: remove
+    canyon_run_step_5:
+      action: remove
+    canyon_run_step_6:
+      action: remove
+    canyon_run_step_7:
+      action: remove
+    canyon_run_step_8:
+      action: remove
+    canyon_run_lost:
+      action: play
+      priority: 900
+      expire: 12s
+
+  mode_canyon_run_stopped:
+    canyon_run_timer:
+      action: remove
+    canyon_run_timer_240:
+      action: remove
+    canyon_run_shots_remaining:
+      action: remove
+    canyon_run_intro:
+      action: remove
+    canyon_run_instructions:
+      action: remove
+    timer_perk_activated:
+      action: remove
+    canyon_run_step_1:
+      action: remove
+    canyon_run_step_2:
+      action: remove
+    canyon_run_step_3:
+      action: remove
+    canyon_run_step_4:
+      action: remove
+    canyon_run_step_5:
+      action: remove
+    canyon_run_step_6:
+      action: remove
+    canyon_run_step_7:
+      action: remove
+    canyon_run_step_8:
+      action: remove
+    canyon_run_won:
+      action: remove
+    canyon_run_lost:
+      action: remove
+
+  # Step videos - remove previous before playing next
+  canyon_run_step_1_shot_hit:
+    canyon_run_step_1:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  canyon_run_step_2_shot_hit:
+    canyon_run_step_1:
+      action: remove
+    canyon_run_step_2:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  canyon_run_step_3_shot_hit:
+    canyon_run_step_2:
+      action: remove
+    canyon_run_step_3:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  canyon_run_step_4_shot_hit:
+    canyon_run_step_3:
+      action: remove
+    canyon_run_step_4:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  canyon_run_step_5_shot_hit:
+    canyon_run_step_4:
+      action: remove
+    canyon_run_step_5:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  canyon_run_step_6_shot_hit:
+    canyon_run_step_5:
+      action: remove
+    canyon_run_step_6:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  canyon_run_step_7_shot_hit:
+    canyon_run_step_6:
+      action: remove
+    canyon_run_step_7:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  canyon_run_step_8_shot_hit:
+    canyon_run_step_7:
+      action: remove
+    canyon_run_step_8:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  canyon_run_step_9_shot_hit:
+    canyon_run_step_8:
+      action: remove
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+####################################################################################
+# TIMERS
+####################################################################################
+
+timers:
+  # Won GI show explosion trigger - fires at 20s into won video to start explosion GI
+  canyon_run_won_gi_explosion:
+    start_value: 0
+    end_value: 20
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: canyon_run_complete
+        action: start
+      - event: mode_canyon_run_will_stop
+        action: stop
+
+  # Main mode countdown - starts on ball leaving scoop
+  canyon_run_timer:
+    start_value: 135
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: canyon_run_ball_released
+        action: start
+      - event: timer_canyon_run_complete_delay_start
+        action: stop
+      - event: timer_canyon_run_failed_delay_start
+        action: stop
+      - event: afterburner_extend_canyon_run_timer
+        action: jump
+        value: 9999
+      - event: lock_sequence_timer_pause
+        action: pause
+      - event: lock_sequence_timer_resume
+        action: start
+
+  # Intro video delay - 29 seconds, auto-starts on mode start
+  canyon_run_intro_video_delay:
+    start_value: 0
+    end_value: 29
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: mode_canyon_run_started
+        action: start
+      - event: canyon_run_skip_intro
+        action: stop
+
+  # Slide swap timer - swaps 240 static for real timer at 24s (mid-intro)
+  canyon_run_slide_swap:
+    start_value: 0
+    end_value: 24
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: mode_canyon_run_started
+        action: start
+      - event: canyon_run_skip_intro
+        action: stop
+
+  # Victory video hold - 24s (canyon_run_won video length)
+  canyon_run_complete_delay:
+    start_value: 24
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: timer_canyon_run_complete_delay_start
+        action: start
+
+  # Failure video hold - 12s (canyon_run_lost video length)
+  canyon_run_failed_delay:
+    start_value: 12
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: timer_canyon_run_failed_delay_start
+        action: start
+
+  # Drain delay - holds ball_ending until lost video plays (12s)
+  canyon_run_drain_delay:
+    start_value: 0
+    end_value: 12
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: canyon_run_drain_detected
+        action: start
+
+  # Step 8 - first position holds for 7 seconds
+  canyon_run_step8_initial:
+    start_value: 0
+    end_value: 7
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: canyon_run_setup_step_8
+        action: start
+      - event: canyon_run_step_8_complete
+        action: stop
+
+  # Step 8 - subsequent positions cycle every 5 seconds
+  canyon_run_step8_cycle:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: canyon_run_step8_target_advance
+        action: restart
+      - event: canyon_run_step_8_complete
+        action: stop
+
+####################################################################################
+# EVENT PLAYER
+####################################################################################
+
+event_player:
+
+  # Afterburner perk - jump timer to effectively infinite
+  canyon_run_ball_released{current_player.afterburner_perk_active==1}:
+    - afterburner_extend_canyon_run_timer|500ms
+
+  # Drain handling
+  canyon_run_ball_ending_hold:
+    - canyon_run_failed
+    - canyon_run_drain_detected
+
+  timer_canyon_run_drain_delay_complete:
+    - canyon_run_drain_cleanup_complete
+    - canyon_run_cleanup
+
+  # Mode started: barrier up for intro, reset TOPGUN, ramps down
+  mode_canyon_run_started:
+    - reset_topgun_letters
+    - barrier_raise
+    - right_ramp_down
+    - top_ramp_down
+
+  # Normal intro path: video ends naturally
+  # scoop_ball_release fires barrier_drop immediately; ball hold release delayed 400ms so barrier is down first
+  timer_canyon_run_intro_video_delay_complete:
+    - scoop_ball_release
+    - canyon_run_ball_released|400ms
+    - canyon_run_setup_step_1|400ms
+
+  # Skip intro path: both flippers held
+  canyon_run_skip_intro:
+    - scoop_ball_release
+    - canyon_run_ball_released|400ms
+    - canyon_run_setup_step_1|400ms
+
+  # After won video: drop barrier so ball can exit scoop
+  canyon_run_victory_ball_released:
+    - scoop_ball_release              # Drop barrier immediately
+    - canyon_run_victory_ball_exit|400ms  # Ball releases 400ms later, barrier is down
+
+  # Skip intro detection - both flippers
+  s_flipper_left_active{current_player.canyon_run_step==0 and device.timers.canyon_run_intro_video_delay.running}:
+    - canyon_run_check_skip_intro
+  s_flipper_right_active{current_player.canyon_run_step==0 and device.timers.canyon_run_intro_video_delay.running}:
+    - canyon_run_check_skip_intro
+  canyon_run_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - canyon_run_skip_intro
+
+  # Skip won video detection - both flippers
+  s_flipper_left_active{current_player.canyon_run_complete_flag==1 and device.timers.canyon_run_complete_delay.running}:
+    - canyon_run_check_skip_won
+  s_flipper_right_active{current_player.canyon_run_complete_flag==1 and device.timers.canyon_run_complete_delay.running}:
+    - canyon_run_check_skip_won
+  canyon_run_check_skip_won{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - canyon_run_victory_ball_released
+
+  # Timer expired
+  timer_canyon_run_timer_complete{current_player.afterburner_perk_active==0}:
+    - canyon_run_failed
+
+  # Step progression chain
+  canyon_run_step_1_complete:
+    - canyon_run_setup_step_2
+
+  canyon_run_step_2_complete:
+    - canyon_run_setup_step_3
+
+  canyon_run_step_3_complete:
+    - canyon_run_setup_step_4
+
+  canyon_run_step_4_complete:
+    - canyon_run_setup_step_5
+
+  canyon_run_step_5_complete:
+    - canyon_run_setup_step_6
+
+  canyon_run_step_6_complete:
+    - canyon_run_setup_step_7
+
+  canyon_run_step_7_complete:
+    - canyon_run_setup_step_8
+
+  canyon_run_step_8_complete:
+    - canyon_run_setup_step_9
+
+  canyon_run_step_9_complete:
+    - canyon_run_complete
+
+  # Servo events - staggered to prevent power contention
+  # Step 2: raise top ramp (TL/TO shots)
+  canyon_run_setup_step_2:
+    - top_ramp_up
+
+  # Step 3: lower top ramp (spinner shot, no ramp needed)
+  canyon_run_setup_step_3:
+    - top_ramp_down
+
+  # Step 4: raise right ramp (RO shot)
+  canyon_run_setup_step_4:
+    - right_ramp_up
+
+  # Step 5: raise top ramp, then lower right ramp 500ms later (staggered)
+  canyon_run_setup_step_5:
+    - top_ramp_up
+    - right_ramp_down|500ms
+
+  # Step 6: lower top ramp (right ramp already down from step 5)
+  canyon_run_setup_step_6:
+    - top_ramp_down
+
+  # Step 9: drop barrier so player can hit scoop
+  canyon_run_setup_step_9:
+    - barrier_drop
+
+  # Complete: raise barrier for won video, start delay timer
+  # NOTE: canyon_run_cleanup deliberately NOT fired here - it would kill the strobe show immediately
+  canyon_run_complete:
+    - barrier_raise
+    - timer_canyon_run_complete_delay_start
+    - missiles_perk_unload
+
+  canyon_run_failed:
+    - barrier_raise
+    - canyon_run_cleanup
+    - timer_canyon_run_failed_delay_start
+    - missiles_perk_unload
+
+  timer_canyon_run_complete_delay_complete:
+    - canyon_run_cleanup       # Cleanup fires here, AFTER won video plays
+    - scoop_ball_release       # Drop barrier before mode stops and ball releases
+    - pilot_mode_cleanup_complete
+
+  timer_canyon_run_failed_delay_complete:
+    - pilot_mode_cleanup_complete
+
+  # Step 8 moving target cycle logic
+  timer_canyon_run_step8_initial_complete:
+    - canyon_run_step8_target_advance
+
+  timer_canyon_run_step8_cycle_complete:
+    - canyon_run_step8_target_advance
+
+  canyon_run_step8_target_advance{current_player.canyon_run_step8_position==0}:
+    - canyon_run_step8_goto_1
+  canyon_run_step8_target_advance{current_player.canyon_run_step8_position==1}:
+    - canyon_run_step8_goto_2
+  canyon_run_step8_target_advance{current_player.canyon_run_step8_position==2}:
+    - canyon_run_step8_goto_3
+  canyon_run_step8_target_advance{current_player.canyon_run_step8_position==3}:
+    - canyon_run_step8_goto_4
+  canyon_run_step8_target_advance{current_player.canyon_run_step8_position==4}:
+    - canyon_run_step8_goto_5
+  canyon_run_step8_target_advance{current_player.canyon_run_step8_position==5}:
+    - canyon_run_step8_goto_6
+  canyon_run_step8_target_advance{current_player.canyon_run_step8_position==6}:
+    - canyon_run_step8_goto_1
+
+  # SHOT DETECTION
+
+  # Step 1: Spinner
+  spinner_shot_made{current_player.canyon_run_step==0}:
+    - canyon_run_step_1_complete
+    - canyon_run_step_1_shot_hit
+
+  # Step 2: TL (s_orbit_upper) or TO (s_orbit_lower) - top ramp UP
+  s_orbit_upper_active{current_player.canyon_run_step==1}:
+    - canyon_run_step_2_complete
+    - canyon_run_step_2_shot_hit
+
+  s_orbit_lower_active{current_player.canyon_run_step==1}:
+    - canyon_run_step_2_complete
+    - canyon_run_step_2_shot_hit
+
+  # Step 3: Spinner
+  spinner_shot_made{current_player.canyon_run_step==2}:
+    - canyon_run_step_3_complete
+    - canyon_run_step_3_shot_hit
+
+  # Step 4: RO composite shot - right ramp UP
+  right_orbit_shot_hit{current_player.canyon_run_step==3}:
+    - canyon_run_step_4_complete
+    - canyon_run_step_4_shot_hit
+
+  # Step 5: TL or TO - top ramp UP
+  s_orbit_upper_active{current_player.canyon_run_step==4}:
+    - canyon_run_step_5_complete
+    - canyon_run_step_5_shot_hit
+
+  s_orbit_lower_active{current_player.canyon_run_step==4}:
+    - canyon_run_step_5_complete
+    - canyon_run_step_5_shot_hit
+
+  # Step 6: LO composite shot
+  left_orbit_shot_hit{current_player.canyon_run_step==5}:
+    - canyon_run_step_6_complete
+    - canyon_run_step_6_shot_hit
+
+  # Step 7: TWR (no callout - intentional, step 8 voice fires on setup instead)
+  s_ramp_tower_exit_active{current_player.canyon_run_step==6}:
+    - canyon_run_step_7_complete
+    - canyon_run_step_7_shot_hit
+
+  # Step 8: Moving target - position 0 = LR (initial 7s)
+  s_ramp_left_exit_active{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==0}:
+    - canyon_run_step_8_complete
+    - canyon_run_step_8_shot_hit
+
+  # Step 8: position 1 = TWR
+  s_ramp_tower_exit_active{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==1}:
+    - canyon_run_step_8_complete
+    - canyon_run_step_8_shot_hit
+
+  # Step 8: position 2 = RR (right ramp DOWN)
+  s_ramp_right_exit_active{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==2}:
+    - canyon_run_step_8_complete
+    - canyon_run_step_8_shot_hit
+
+  # Step 8: position 3 = LO
+  left_orbit_shot_hit{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==3}:
+    - canyon_run_step_8_complete
+    - canyon_run_step_8_shot_hit
+
+  # Step 8: position 4 = Spinner
+  spinner_shot_made{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==4}:
+    - canyon_run_step_8_complete
+    - canyon_run_step_8_shot_hit
+
+  # Step 8: position 5 = RR (right ramp DOWN again)
+  s_ramp_right_exit_active{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==5}:
+    - canyon_run_step_8_complete
+    - canyon_run_step_8_shot_hit
+
+  # Step 8: position 6 = LR (loops back)
+  s_ramp_left_exit_active{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==6}:
+    - canyon_run_step_8_complete
+    - canyon_run_step_8_shot_hit
+
+  # Step 9: Scoop (barrier DOWN, s_mode_start)
+  s_mode_start_active{current_player.canyon_run_step==8}:
+    - canyon_run_step_9_complete
+    - canyon_run_step_9_shot_hit
+
+  # MISSILES PERK - auto-complete current step
+  missiles_perk_complete_shot{current_player.canyon_run_step==0 and current_player.canyon_run_complete_flag==0}:
+    - canyon_run_step_1_complete
+    - canyon_run_step_1_shot_hit
+
+  missiles_perk_complete_shot{current_player.canyon_run_step==1 and current_player.canyon_run_complete_flag==0}:
+    - canyon_run_step_2_complete
+    - canyon_run_step_2_shot_hit
+
+  missiles_perk_complete_shot{current_player.canyon_run_step==2 and current_player.canyon_run_complete_flag==0}:
+    - canyon_run_step_3_complete
+    - canyon_run_step_3_shot_hit
+
+  missiles_perk_complete_shot{current_player.canyon_run_step==3 and current_player.canyon_run_complete_flag==0}:
+    - canyon_run_step_4_complete
+    - canyon_run_step_4_shot_hit
+
+  missiles_perk_complete_shot{current_player.canyon_run_step==4 and current_player.canyon_run_complete_flag==0}:
+    - canyon_run_step_5_complete
+    - canyon_run_step_5_shot_hit
+
+  missiles_perk_complete_shot{current_player.canyon_run_step==5 and current_player.canyon_run_complete_flag==0}:
+    - canyon_run_step_6_complete
+    - canyon_run_step_6_shot_hit
+
+  missiles_perk_complete_shot{current_player.canyon_run_step==6 and current_player.canyon_run_complete_flag==0}:
+    - canyon_run_step_7_complete
+    - canyon_run_step_7_shot_hit
+
+  missiles_perk_complete_shot{current_player.canyon_run_step==7 and current_player.canyon_run_complete_flag==0}:
+    - canyon_run_step_8_complete
+    - canyon_run_step_8_shot_hit
+
+  missiles_perk_complete_shot{current_player.canyon_run_step==8 and current_player.canyon_run_complete_flag==0}:
+    - canyon_run_step_9_complete
+    - canyon_run_step_9_shot_hit
+    - canyon_run_complete
+
+####################################################################################
+# SHOW PLAYER
+####################################################################################
+
+show_player:
+  # Step 1 active: Spinner flash
+  canyon_run_setup_step_1:
+    flash_cr_sp:
+      show: sync_flash_mode
+      key: cr_shot_sp
+      sync_ms: 1000
+      loops: -1
+      show_tokens: {led: l_shot_spinner, color: FFFF00}
+
+  canyon_run_step_1_complete:
+    stop_cr_sp:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_sp
+
+  # Step 2 active: TL and TO flash
+  canyon_run_setup_step_2:
+    flash_cr_tl:
+      show: sync_flash_mode
+      key: cr_shot_tl
+      sync_ms: 1000
+      loops: -1
+      show_tokens: {led: l_shot_upper_orbit, color: FFFF00}
+    flash_cr_to:
+      show: sync_flash_mode
+      key: cr_shot_to
+      sync_ms: 1000
+      loops: -1
+      show_tokens: {led: l_shot_middle_ramp, color: FFFF00}
+
+  canyon_run_step_2_complete:
+    stop_cr_tl:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_tl
+    stop_cr_to:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_to
+
+  # Step 3 active: Spinner flash
+  canyon_run_setup_step_3:
+    flash_cr_sp_3:
+      show: sync_flash_mode
+      key: cr_shot_sp_3
+      sync_ms: 1000
+      loops: -1
+      show_tokens: {led: l_shot_spinner, color: FFFF00}
+
+  canyon_run_step_3_complete:
+    stop_cr_sp_3:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_sp_3
+
+  # Step 4 active: RO flash
+  canyon_run_setup_step_4:
+    flash_cr_ro:
+      show: sync_flash_mode
+      key: cr_shot_ro
+      sync_ms: 1000
+      loops: -1
+      show_tokens: {led: l_shot_right_orbit, color: FFFF00}
+
+  canyon_run_step_4_complete:
+    stop_cr_ro:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_ro
+
+  # Step 5 active: TL and TO flash
+  canyon_run_setup_step_5:
+    flash_cr_tl_5:
+      show: sync_flash_mode
+      key: cr_shot_tl_5
+      sync_ms: 1000
+      loops: -1
+      show_tokens: {led: l_shot_upper_orbit, color: FFFF00}
+    flash_cr_to_5:
+      show: sync_flash_mode
+      key: cr_shot_to_5
+      sync_ms: 1000
+      loops: -1
+      show_tokens: {led: l_shot_middle_ramp, color: FFFF00}
+
+  canyon_run_step_5_complete:
+    stop_cr_tl_5:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_tl_5
+    stop_cr_to_5:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_to_5
+
+  # Step 6 active: LO flash
+  canyon_run_setup_step_6:
+    flash_cr_lo:
+      show: sync_flash_mode
+      key: cr_shot_lo
+      sync_ms: 1000
+      loops: -1
+      show_tokens: {led: l_shot_left_orbit, color: FFFF00}
+
+  canyon_run_step_6_complete:
+    stop_cr_lo:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_lo
+
+  # Step 7 active: TWR flash
+  canyon_run_setup_step_7:
+    flash_cr_twr:
+      show: sync_flash_mode
+      key: cr_shot_twr
+      sync_ms: 1000
+      loops: -1
+      show_tokens: {led: l_shot_tower_ramp, color: FFFF00}
+
+  canyon_run_step_7_complete:
+    stop_cr_twr:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_twr
+
+  # Step 8 moving target: solid lights managed in light_player (no flash - target moves)
+
+  # Won GI strobe - starts when victory confirmed
+  canyon_run_complete:
+    canyon_run_won_gi_strobe:
+      show: canyon_run_won_gi_strobe
+      key: won_gi
+      loops: -1
+      speed: 1
+
+  # Explosion GI - takes over at 20s into won video
+  timer_canyon_run_won_gi_explosion_complete:
+    stop_won_gi_strobe:
+      show: canyon_run_won_gi_strobe
+      action: stop
+      key: won_gi
+    start_won_gi_explosion:
+      show: missiles_explosion_gi
+      key: won_gi_explosion
+      loops: -1
+      speed: 1
+
+  # Cleanup - stop all won GI shows
+  canyon_run_cleanup:
+    stop_won_gi_1:
+      show: canyon_run_won_gi_strobe
+      action: stop
+      key: won_gi
+    stop_won_gi_2:
+      show: missiles_explosion_gi
+      action: stop
+      key: won_gi_explosion
+    stop_all_cr_sp:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_sp
+    stop_all_cr_tl:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_tl
+    stop_all_cr_to:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_to
+    stop_all_cr_sp_3:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_sp_3
+    stop_all_cr_ro:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_ro
+    stop_all_cr_tl_5:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_tl_5
+    stop_all_cr_to_5:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_to_5
+    stop_all_cr_lo:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_lo
+    stop_all_cr_twr:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_twr
+  canyon_run_step_1_shot_hit:
+    canyon_run_cycle_up_show:
+      loops: 0
+      speed: 20
+
+  canyon_run_step_2_shot_hit:
+    canyon_run_cycle_right_show:
+      loops: 0
+      speed: 20
+
+  canyon_run_step_3_shot_hit:
+    canyon_run_cycle_up_show:
+      loops: 0
+      speed: 20
+
+  canyon_run_step_4_shot_hit:
+    canyon_run_cycle_left_show:
+      loops: 0
+      speed: 20
+
+  canyon_run_step_5_shot_hit:
+    canyon_run_cycle_right_show:
+      loops: 0
+      speed: 20
+
+  canyon_run_step_6_shot_hit:
+    canyon_run_cycle_right_show:
+      loops: 0
+      speed: 20
+
+  canyon_run_step_7_shot_hit:
+    canyon_run_cycle_up_show:
+      loops: 0
+      speed: 20
+
+  canyon_run_step_8_shot_hit:
+    canyon_run_spiral_show:
+      loops: 0
+      speed: 20
+
+  canyon_run_step_9_shot_hit:
+    canyon_run_cycle_middle_show:
+      loops: 0
+      speed: 20
+
+  # Cleanup: stop all flash shows
+
+  # Step completion celebration shows (single play, speed 20)
+####################################################################################
+
+light_player:
+  # GI on mode start: odd = orange (FF6600), even = yellow (FFFF00)
+  # Pop bumpers = yellow
+  # NOTE: GI lights are type: grb - specify colors in standard RGB, MPF handles swap
+  mode_canyon_run_started:
+    l_gi_light_1:
+      color: FFA500
+      fade: 0ms
+    l_gi_light_2:
+      color: FFFF00
+      fade: 0ms
+    l_gi_light_3:
+      color: FFA500
+      fade: 0ms
+    l_gi_light_4:
+      color: FFFF00
+      fade: 0ms
+    l_gi_light_5:
+      color: FFA500
+      fade: 0ms
+    l_gi_light_6:
+      color: FFFF00
+      fade: 0ms
+    l_gi_light_7:
+      color: FFA500
+      fade: 0ms
+    l_gi_light_8:
+      color: FFFF00
+      fade: 0ms
+    l_gi_light_9:
+      color: FFA500
+      fade: 0ms
+    l_gi_light_10:
+      color: FFFF00
+      fade: 0ms
+    l_gi_light_11:
+      color: FFA500
+      fade: 0ms
+    l_gi_light_12:
+      color: FFFF00
+      fade: 0ms
+    l_gi_light_13:
+      color: FFA500
+      fade: 0ms
+    l_gi_light_14:
+      color: FFFF00
+      fade: 0ms
+    l_gi_light_15:
+      color: FFA500
+      fade: 0ms
+    l_gi_light_16:
+      color: FFFF00
+      fade: 0ms
+    l_gi_light_17:
+      color: FFA500
+      fade: 0ms
+    l_gi_light_18:
+      color: FFFF00
+      fade: 0ms
+    l_gi_light_19:
+      color: FFA500
+      fade: 0ms
+    l_gi_light_20:
+      color: FFFF00
+      fade: 0ms
+    l_gi_light_21:
+      color: FFA500
+      fade: 0ms
+    l_gi_light_22:
+      color: FFFF00
+      fade: 0ms
+    l_gi_light_23:
+      color: FFA500
+      fade: 0ms
+    l_gi_light_24:
+      color: FFFF00
+      fade: 0ms
+    l_gi_light_25:
+      color: FFA500
+      fade: 0ms
+    l_gi_light_26:
+      color: FFFF00
+      fade: 0ms
+    l_gi_light_27:
+      color: FFA500
+      fade: 0ms
+    l_gi_light_pop_left:
+      color: FFFF00
+      fade: 0ms
+    l_gi_light_pop_right:
+      color: FFFF00
+      fade: 0ms
+    l_gi_light_pop_bottom:
+      color: FFFF00
+      fade: 0ms
+    l_apron_light_1:
+      color: FFA500
+      fade: 0ms
+    l_apron_light_2:
+      color: FFFF00
+      fade: 0ms
+    l_apron_light_3:
+      color: FFA500
+      fade: 0ms
+    l_apron_light_4:
+      color: FFFF00
+      fade: 0ms
+
+  # Step 9 setup: light the barrier/scoop
+  canyon_run_setup_step_9:
+    l_shot_barrier:
+      color: FFFF00
+      fade: 0ms
+
+  # Step 8 moving target light management
+  # Initial position 0: LR lit
+  canyon_run_setup_step_8:
+    l_shot_left_ramp:
+      color: FFFF00
+      fade: 0ms
+
+  # Advance to position 1: TWR
+  canyon_run_step8_goto_1:
+    l_shot_left_ramp:
+      color: off
+    l_shot_tower_ramp:
+      color: FFFF00
+      fade: 0ms
+
+  # Advance to position 2: RR
+  canyon_run_step8_goto_2:
+    l_shot_tower_ramp:
+      color: off
+    l_shot_right_orbit:
+      color: FFFF00
+      fade: 0ms
+
+  # Advance to position 3: LO
+  canyon_run_step8_goto_3:
+    l_shot_right_orbit:
+      color: off
+    l_shot_left_orbit:
+      color: FFFF00
+      fade: 0ms
+
+  # Advance to position 4: Spinner
+  canyon_run_step8_goto_4:
+    l_shot_left_orbit:
+      color: off
+    l_shot_spinner:
+      color: FFFF00
+      fade: 0ms
+
+  # Advance to position 5: RR again
+  canyon_run_step8_goto_5:
+    l_shot_spinner:
+      color: off
+    l_shot_right_orbit:
+      color: FFFF00
+      fade: 0ms
+
+  # Advance to position 6: LR (loops back to 1 next cycle)
+  canyon_run_step8_goto_6:
+    l_shot_right_orbit:
+      color: off
+    l_shot_left_ramp:
+      color: FFFF00
+      fade: 0ms
+
+  # Step 8 complete - turn off whichever position light was active
+  canyon_run_step_8_complete:
+    l_shot_left_ramp:
+      color: off
+    l_shot_tower_ramp:
+      color: off
+    l_shot_right_orbit:
+      color: off
+    l_shot_left_orbit:
+      color: off
+    l_shot_spinner:
+      color: off
+
+  # Cleanup: restore GI to white, turn off all shot lights
+  canyon_run_cleanup:
+    l_gi_light_1:
+      color: white
+      fade: 0ms
+    l_gi_light_2:
+      color: white
+      fade: 0ms
+    l_gi_light_3:
+      color: white
+      fade: 0ms
+    l_gi_light_4:
+      color: white
+      fade: 0ms
+    l_gi_light_5:
+      color: white
+      fade: 0ms
+    l_gi_light_6:
+      color: white
+      fade: 0ms
+    l_gi_light_7:
+      color: white
+      fade: 0ms
+    l_gi_light_8:
+      color: white
+      fade: 0ms
+    l_gi_light_9:
+      color: white
+      fade: 0ms
+    l_gi_light_10:
+      color: white
+      fade: 0ms
+    l_gi_light_11:
+      color: white
+      fade: 0ms
+    l_gi_light_12:
+      color: white
+      fade: 0ms
+    l_gi_light_13:
+      color: white
+      fade: 0ms
+    l_gi_light_14:
+      color: white
+      fade: 0ms
+    l_gi_light_15:
+      color: white
+      fade: 0ms
+    l_gi_light_16:
+      color: white
+      fade: 0ms
+    l_gi_light_17:
+      color: white
+      fade: 0ms
+    l_gi_light_18:
+      color: white
+      fade: 0ms
+    l_gi_light_19:
+      color: white
+      fade: 0ms
+    l_gi_light_20:
+      color: white
+      fade: 0ms
+    l_gi_light_21:
+      color: white
+      fade: 0ms
+    l_gi_light_22:
+      color: white
+      fade: 0ms
+    l_gi_light_23:
+      color: white
+      fade: 0ms
+    l_gi_light_24:
+      color: white
+      fade: 0ms
+    l_gi_light_25:
+      color: white
+      fade: 0ms
+    l_gi_light_26:
+      color: white
+      fade: 0ms
+    l_gi_light_27:
+      color: white
+      fade: 0ms
+    l_gi_light_pop_left:
+      color: white
+      fade: 0ms
+    l_gi_light_pop_right:
+      color: white
+      fade: 0ms
+    l_gi_light_pop_bottom:
+      color: white
+      fade: 0ms
+    l_mode_canyon_run:
+      color: white
+    l_shot_spinner:
+      color: off
+    l_shot_left_ramp:
+      color: off
+    l_shot_upper_orbit:
+      color: off
+    l_shot_middle_ramp:
+      color: off
+    l_shot_right_orbit:
+      color: off
+    l_shot_left_orbit:
+      color: off
+    l_shot_tower_ramp:
+      color: off
+    l_shot_barrier:
+      color: off
+    l_shot_left_lane:
+      color: off
+
+####################################################################################
+# SOUND PLAYER
+####################################################################################
+
+sound_player:
+  # Step 8 setup: voice callout telling player shot is moving
+  # NOTE: voice_canyon_run_step_8 must be defined in config.yaml sounds section
+  canyon_run_setup_step_8:
+    voice_canyon_run_step_8:
+      bus: voice
+      loops: 0
+
+  # Silence music during end videos (base.yaml restarts it on mode_stopped)
+  canyon_run_complete:
+    silence:
+      bus: music
+      loops: 0
+
+  canyon_run_failed:
+    silence:
+      bus: music
+      loops: 0

@@ -446,6 +446,13 @@ variable_player:
       action: set
       int: 4
 
+  # Goose Hard Deck — qualification tracking only (mode not yet coded)
+  # Fired by light_goose_mode event (30 GOOSE completions)
+  hd_qualify_goose_hard_deck:
+    hd_goose_qualified:
+      action: set
+      int: 1
+
   ##############################################################################
   # ROTATION - Slingshot forward rotation
   # Single increment only. Wrap handled by player_hard_deck_qualified_mode{value==5}
@@ -629,6 +636,10 @@ event_player:
     - hd_qualify_maverick_and_charlie
 
   # --- PLAYING WITH THE BOYS (mode 2) ---
+  # Goose Hard Deck qualification — fired when player hits 30 GOOSE completions
+  light_goose_mode:
+    - hd_qualify_goose_hard_deck
+
   player_pop_bumper_hits_total{value==5 and current_player.hd_ptb_qualified==0 and current_player.hd_ptb_played==0}:
     - hd_qualify_playing_with_the_boys
 
