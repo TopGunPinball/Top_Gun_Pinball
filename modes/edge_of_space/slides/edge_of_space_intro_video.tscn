@@ -1,0 +1,195 @@
+[gd_scene load_steps=10 format=3 uid="uid://btrmmjxixyrqs"]
+
+[ext_resource type="Script" uid="uid://dru3usokwlhd3" path="res://addons/mpf-gmc/classes/mpf_slide.gd" id="1_hmupl"]
+[ext_resource type="VideoStream" uid="uid://cek3evmx1gev6" path="res://addons/artwork/videos/edge_of_space/edge_of_space_intro.ogv" id="2_3buad"]
+[ext_resource type="Script" uid="uid://bov7mrgxslshq" path="res://addons/mpf-gmc/classes/mpf_video_player.gd" id="3_sin7h"]
+[ext_resource type="Texture2D" uid="uid://blwtf62oda21i" path="res://addons/artwork/images/scoreboard_background_with_video.png" id="4_sin7h"]
+[ext_resource type="FontFile" uid="uid://bmeoubu4ga0gt" path="res://fonts/ITCMachine-Medium Medium.ttf" id="5_mcblq"]
+
+[sub_resource type="Animation" id="Animation_n0yfp"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("AnimationPlayer/screen label:theme_override_colors/font_color")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Color(0.776471, 0.772549, 0.709804, 1)]
+}
+
+[sub_resource type="Animation" id="Animation_mip73"]
+resource_name = "fade_in"
+length = 0.5
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("AnimationPlayer/screen label:theme_override_colors/font_color")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Color(0.776471, 0.772549, 0.709804, 0), Color(0.776471, 0.772549, 0.709804, 1)]
+}
+
+[sub_resource type="Animation" id="Animation_fdout"]
+resource_name = "fade_out"
+length = 1.5
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("AnimationPlayer/screen label:modulate")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Color(1, 1, 1, 0.2), Color(1, 1, 1, 0)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("AnimationPlayer/screen label2:modulate")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 1.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Color(1, 1, 1, 0.2), Color(1, 1, 1, 0)]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("AnimationPlayer/screen label3:modulate")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0, 1.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Color(1, 1, 1, 0.2), Color(1, 1, 1, 0)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_dj7d1"]
+_data = {
+&"RESET": SubResource("Animation_n0yfp"),
+&"fade_in": SubResource("Animation_mip73"),
+&"fade_out": SubResource("Animation_fdout")
+}
+
+[node name="battle_jester_intro_video" type="Control"]
+process_priority = 200
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_hmupl")
+
+[node name="TextureRect" type="VideoStreamPlayer" parent="."]
+z_index = 48
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_right = 1280.0
+offset_bottom = 720.0
+grow_horizontal = 2
+grow_vertical = 2
+stream = ExtResource("2_3buad")
+autoplay = true
+expand = true
+bus = &"voice"
+script = ExtResource("3_sin7h")
+end_behavior = 1
+preview_in_editor = true
+
+[node name="background_video_opening" type="Sprite2D" parent="."]
+visible = false
+z_index = 50
+texture = ExtResource("4_sin7h")
+centered = false
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_dj7d1")
+}
+
+[node name="screen label" type="Label" parent="AnimationPlayer"]
+modulate = Color(1.1374342, 1.1374342, 1.1374342, 0.91764706)
+z_index = 51
+anchors_preset = -1
+anchor_top = -0.505556
+anchor_bottom = -0.505556
+offset_left = 51.0
+offset_top = 498.0
+offset_right = 921.0
+offset_bottom = 545.0
+theme_override_colors/font_color = Color(0.776471, 0.772549, 0.709804, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.5294118)
+theme_override_constants/line_spacing = -9
+theme_override_constants/shadow_outline_size = 3
+theme_override_fonts/font = ExtResource("5_mcblq")
+theme_override_font_sizes/font_size = 45
+text = "the edge of space mission started"
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
+
+[node name="screen label2" type="Label" parent="AnimationPlayer"]
+modulate = Color(1.1374342, 1.1374342, 1.1374342, 0.91764706)
+z_index = 51
+anchors_preset = -1
+anchor_top = -0.505556
+anchor_bottom = -0.505556
+offset_left = 51.0
+offset_top = 859.0
+offset_right = 921.0
+offset_bottom = 906.0
+theme_override_colors/font_color = Color(0.776471, 0.772549, 0.709804, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.5294118)
+theme_override_constants/line_spacing = -9
+theme_override_constants/shadow_outline_size = 3
+theme_override_fonts/font = ExtResource("5_mcblq")
+theme_override_font_sizes/font_size = 45
+text = "Don't tilt or you lose your banked points!"
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
+
+[node name="screen label3" type="Label" parent="AnimationPlayer"]
+modulate = Color(1.1374342, 1.1374342, 1.1374342, 0.91764706)
+z_index = 51
+anchors_preset = -1
+anchor_top = -0.63611114
+anchor_bottom = -0.29444492
+offset_left = 53.0
+offset_top = 642.0
+offset_right = 923.0
+offset_bottom = 689.0
+theme_override_colors/font_color = Color(0.776471, 0.772549, 0.709804, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.5294118)
+theme_override_constants/line_spacing = -9
+theme_override_constants/shadow_outline_size = 3
+theme_override_fonts/font = ExtResource("5_mcblq")
+theme_override_font_sizes/font_size = 45
+text = "points value decreases with time so shoot fast!  
+Points are also banked and scored
+at the end of the mode.
+
+complete the mode for a 
+chance to double the bank"
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
+
+[node name="FadeOutTimer" type="Timer" parent="."]
+wait_time = 10.0
+one_shot = true
+autostart = true
+
+[connection signal="timeout" from="FadeOutTimer" to="AnimationPlayer" method="play" binds= ["fade_out"]]

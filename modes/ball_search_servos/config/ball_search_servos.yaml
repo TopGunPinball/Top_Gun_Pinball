@@ -118,10 +118,10 @@ event_player:
   ball_search_seq_done{machine.ball_search_active_flag==1}:
     - ball_search_servo_seq_complete
 
-  # CLEANUP: Ball found — ramps down, lock held if balls remain
+  # CLEANUP: Ball found — ramps down staggered, lock held if balls remain
   ball_search_stopped:
     - right_ramp_down
-    - top_ramp_down
+    - top_ramp_down|500ms
 
   ball_search_stopped{device.switches.s_lock_goose.state or device.switches.s_lock_mav.state}:
     - lock_held

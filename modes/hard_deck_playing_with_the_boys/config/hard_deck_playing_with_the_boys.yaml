@@ -197,7 +197,7 @@ timers:
   # Ended video delay — 11 seconds for ended video
   ptb_ended_video_delay:
     start_value: 0
-    end_value: 15
+    end_value: 12
     direction: up
     tick_interval: 1s
     control_events:
@@ -206,7 +206,7 @@ timers:
 
   # Decision timer — 15 seconds to choose continue or end (left flipper = end, default)
   ptb_decision_timer:
-    start_value: 15
+    start_value: 20
     end_value: 0
     direction: down
     tick_interval: 1s
@@ -333,6 +333,22 @@ timers:
         action: stop
 
   # Dogfight drain delay — holds ball_ending during dogfight end sequence
+  # Diverter release timer — keeps right orbit diverter disabled for 2s after TO hit
+  # (can't use sw_playfield_active restore because s_orbit_lower IS a playfield switch)
+  ptb_diverter_release_timer:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: ptb_to_release_right_diverter
+        action: restart
+      - event: ptb_restore_right_diverter
+        action: stop
+      - event: ptb_cleanup
+        action: stop
+
   ptb_dogfight_drain_delay:
     start_value: 0
     end_value: 5
@@ -464,6 +480,12 @@ variable_player:
     ptb_post_mode_plunge_active:
       action: set
       int: 0
+    ptb_last_spike_tl:
+      action: set
+      int: 0
+    ptb_dogfight_payout:
+      action: set
+      int: 0
 
   ##############################################
   ## PHASE 1: BUMPER RALLY SCORING
@@ -588,10 +610,10 @@ variable_player:
       int: 0
     ptb_rally_target:
       action: set
-      int: 15
+      int: 10
     ptb_rally_remaining:
       action: set
-      int: 15
+      int: 10
     ptb_spike_value:
       action: set
       int: 0
@@ -621,10 +643,10 @@ variable_player:
       int: 0
     ptb_rally_target:
       action: set
-      int: 25
+      int: 15
     ptb_rally_remaining:
       action: set
-      int: 25
+      int: 15
     ptb_spike_value:
       action: set
       int: 0
@@ -645,6 +667,24 @@ variable_player:
       int: 0
 
   # Spike 3 complete → Scoop shot
+  # TO hit during spike — clear TL flag
+  s_orbit_lower_active{current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6}:
+    ptb_last_spike_tl:
+      action: set
+      int: 0
+
+  # TL hit during spike — set TL flag so mig fires if it's the final shot
+  s_orbit_upper_active{current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6}:
+    ptb_last_spike_tl:
+      action: set
+      int: 1
+
+  # LR hit during spike — clear TL flag
+  s_ramp_left_exit_active{current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6}:
+    ptb_last_spike_tl:
+      action: set
+      int: 0
+
   ptb_step_6_complete:
     ptb_step:
       action: set
@@ -933,9 +973,15 @@ variable_player:
     ptb_dogfight_won_flag:
       action: set
       int: 1
+    ptb_dogfight_payout:
+      action: set
+      int: current_player.ptb_red_bank
 
   ptb_dogfight_add_second_bank:
     score:
+      action: add
+      int: current_player.ptb_blue_bank
+    ptb_dogfight_payout:
       action: add
       int: current_player.ptb_blue_bank
 
@@ -944,11 +990,17 @@ variable_player:
     score:
       action: add
       int: current_player.ptb_red_bank * 0.5
+    ptb_dogfight_payout:
+      action: set
+      int: current_player.ptb_red_bank * 0.5
 
   # Lost (chose blue): score = blue_bank * 0.5
   ptb_dogfight_lost_event{current_player.ptb_team_choice==1}:
     score:
       action: add
+      int: current_player.ptb_blue_bank * 0.5
+    ptb_dogfight_payout:
+      action: set
       int: current_player.ptb_blue_bank * 0.5
 
   # Dogfight ending step
@@ -1005,6 +1057,7 @@ event_player:
   ptb_ball_released:
     - ptb_start_timer
     - ball_search_unblock
+    - right_ramp_up
 
   ##############################################
   ## PHASE 1: RALLY STEPS — Bumper hit detection
@@ -1066,11 +1119,11 @@ event_player:
     - ptb_step_1_complete
     - ptb_setup_step_2
   # Rally 2: 15+ hits (fallback — normally already handled by immediate check)
-  ptb_bumper_left{current_player.ptb_step==3 and current_player.ptb_rally_hits>=15}:
+  ptb_bumper_left{current_player.ptb_step==3 and current_player.ptb_rally_hits>=10}:
     - ptb_step_3_complete
     - ptb_setup_step_4
   # Rally 3: 25+ hits (fallback)
-  ptb_bumper_left{current_player.ptb_step==5 and current_player.ptb_rally_hits>=25}:
+  ptb_bumper_left{current_player.ptb_step==5 and current_player.ptb_rally_hits>=15}:
     - ptb_step_5_complete
     - ptb_setup_step_6
 
@@ -1088,6 +1141,11 @@ event_player:
   s_orbit_lower_active{(current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6) and device.timers.ptb_spike_cooldown.running==False}:
     - ptb_spike_shot_scored
     - ptb_spike_shot_check_complete
+
+  # TO hit during spike: temporarily release right orbit diverter so ball can complete
+  # the orbit without getting stuck. Diverter re-enables on next playfield switch.
+  s_orbit_lower_active{current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6}:
+    - ptb_to_release_right_diverter
 
   # TL (s_orbit_upper)
   s_orbit_upper_active{(current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6) and device.timers.ptb_spike_cooldown.running==False}:
@@ -1113,8 +1171,18 @@ event_player:
   ##############################################
   ## PHASE 1: STEP 7 — Scoop shot (barrier drops)
   ##############################################
+  # Diverter release: s_lane_right re-enables immediately (ball cleared the orbit)
+  # 2s timer fires as fallback if s_lane_right not hit
+  s_lane_right_active{current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6}:
+    - ptb_restore_right_diverter
+
+  # Diverter release timer complete — re-enable right orbit diverter
+  timer_ptb_diverter_release_timer_complete:
+    - ptb_restore_right_diverter
+
   ptb_setup_step_7:
     - barrier_drop
+    - right_ramp_down
 
   s_mode_start_active{current_player.ptb_step==7}:
     - ptb_step_7_scoop_entered
@@ -1202,6 +1270,8 @@ event_player:
   ##############################################
   ptb_dogfight_activate:
     - barrier_drop
+    - disable_normal_flippers
+    - enable_no_hold_flippers
     - ptb_dogfight_release_ball|500ms
     - ptb_dogfight_ball_save_enable
     - ptb_dogfight_mb_start
@@ -1236,7 +1306,7 @@ event_player:
     - ptb_dogfight_time_up
 
   ptb_dogfight_time_up:
-    - disable_normal_flippers
+    - disable_no_hold_flippers
     - disable_autofires
     - ptb_check_dogfight_result|500ms
     - ptb_dogfight_end_sequence
@@ -1246,14 +1316,17 @@ event_player:
     - ptb_dogfight_won_event
   ptb_check_dogfight_result{current_player.ptb_team_choice==0 and current_player.ptb_red_bank<=current_player.ptb_blue_bank}:
     - ptb_dogfight_lost_event
+    - ptb_show_dogfight_end|400ms
   ptb_check_dogfight_result{current_player.ptb_team_choice==1 and current_player.ptb_blue_bank>current_player.ptb_red_bank}:
     - ptb_dogfight_won_event
   ptb_check_dogfight_result{current_player.ptb_team_choice==1 and current_player.ptb_blue_bank<=current_player.ptb_red_bank}:
     - ptb_dogfight_lost_event
+    - ptb_show_dogfight_end|400ms
 
   # Add second bank for won (delayed to ensure first bank scored)
   ptb_dogfight_won_event:
     - ptb_dogfight_add_second_bank|200ms
+    - ptb_show_dogfight_end|600ms
 
   # End video delay complete → start pre-plunge sequence
   timer_ptb_dogfight_end_delay_complete:
@@ -1262,6 +1335,7 @@ event_player:
   # Pre-plunge delay complete → cleanup, re-enable, plunge saved ball
   timer_ptb_pre_plunge_delay_complete:
     - ptb_cleanup
+    - disable_no_hold_flippers
     - enable_normal_flippers
     - enable_autofires
     - ptb_post_mode_plunge
@@ -1277,9 +1351,11 @@ event_player:
 
   ptb_emergency_resume:
     - ptb_cleanup
+    - disable_no_hold_flippers
     - enable_normal_flippers
     - enable_autofires
     - ptb_dogfight_drain_cleanup_complete
+    - ball_save_ptb_dogfight_drain_save_disable
 
   ##############################################
   ## PHASE 1: TIMER EXPIRED (not during dogfight)
@@ -1309,6 +1385,7 @@ event_player:
     - ptb_dogfight_drain_detected
 
   timer_ptb_dogfight_drain_delay_complete:
+    - disable_no_hold_flippers
     - enable_normal_flippers
     - enable_autofires
     - ptb_dogfight_drain_cleanup_complete
@@ -1333,6 +1410,11 @@ event_player:
 
   s_orbit_left_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5}:
     - ptb_raise_right_mig
+
+  # RO switch (s_orbit_right) during rally → raise left MIG post 3s to feed pops
+  s_orbit_right_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5}:
+    - ptb_raise_left_mig
+
   # Spike phases: raise top ramp (TO shot needs it UP)
   ptb_setup_step_2:
     - top_ramp_up
@@ -1340,6 +1422,12 @@ event_player:
     - top_ramp_up
   ptb_setup_step_6:
     - top_ramp_up
+
+  # If TL was the final spike shot, raise left MIG post to catch ball for pops
+  ptb_setup_step_3{current_player.ptb_last_spike_tl==1}:
+    - ptb_raise_left_mig
+  ptb_setup_step_5{current_player.ptb_last_spike_tl==1}:
+    - ptb_raise_left_mig
 
   # After spike complete: lower top ramp
   ptb_step_2_complete:
@@ -1355,6 +1443,7 @@ event_player:
   ptb_cleanup:
     - barrier_raise
     - top_ramp_down
+    - right_ramp_down|500ms
     - ball_search_unblock
 
 ####################################################################################
@@ -1524,6 +1613,12 @@ slide_player:
       action: play
       priority: 900
 
+  ptb_show_dogfight_end:
+    hard_deck_dogfight_football_end:
+      action: play
+      priority: 900
+      expire: 8s
+
   # Failed slide (phase 1 timer expired — reuses ended video)
   ptb_failed_timer_expired:
     hard_deck_playing_with_the_boys_instructions:
@@ -1669,6 +1764,13 @@ show_player:
       loops: -1
       show_tokens:
         led: l_shot_spinner
+    flash_rally_ro:
+      show: ptb_flash_yellow
+      key: ptb_rally_ro
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
 
   # Rally complete → bumpers steady on yellow + celebration burst
   ptb_step_1_complete:
@@ -1711,6 +1813,10 @@ show_player:
       show: ptb_flash_yellow
       action: stop
       key: ptb_rally_sp
+    stop_rally_ro_r1:
+      show: ptb_flash_yellow
+      action: stop
+      key: ptb_rally_ro
 
   # Rally 2 — flash bumpers again
   ptb_setup_step_3:
@@ -1756,6 +1862,13 @@ show_player:
       loops: -1
       show_tokens:
         led: l_shot_spinner
+    flash_rally_ro_r2:
+      show: ptb_flash_yellow
+      key: ptb_rally_ro
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
 
   ptb_step_3_complete:
     flash_pop_left:
@@ -1797,6 +1910,10 @@ show_player:
       show: ptb_flash_yellow
       action: stop
       key: ptb_rally_sp
+    stop_rally_ro_r2:
+      show: ptb_flash_yellow
+      action: stop
+      key: ptb_rally_ro
 
   # Rally 3 — flash bumpers again
   ptb_setup_step_5:
@@ -1842,6 +1959,13 @@ show_player:
       loops: -1
       show_tokens:
         led: l_shot_spinner
+    flash_rally_ro_r3:
+      show: ptb_flash_yellow
+      key: ptb_rally_ro
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
 
   ptb_step_5_complete:
     flash_pop_left:
@@ -1883,6 +2007,10 @@ show_player:
       show: ptb_flash_yellow
       action: stop
       key: ptb_rally_sp
+    stop_rally_ro_r3:
+      show: ptb_flash_yellow
+      action: stop
+      key: ptb_rally_ro
 
   ##############################################
   ## SPIKE PHASES — Flash active shot inserts orange
@@ -2251,6 +2379,16 @@ coil_player:
   timer_ptb_dogfight_plunger_delay_complete:
     c_plunger:
       action: pulse
+
+  # TO hit during spike — temporarily release right orbit diverter
+  # Timer keeps it disabled for 2s, then ptb_restore_right_diverter re-enables it
+  ptb_to_release_right_diverter:
+    c_right_orbit_diverter:
+      action: disable
+
+  ptb_restore_right_diverter:
+    c_right_orbit_diverter:
+      action: enable
 
   # Left MIG post — raise on spinner/TL hit during rally, lower after 3s
   ptb_raise_left_mig:

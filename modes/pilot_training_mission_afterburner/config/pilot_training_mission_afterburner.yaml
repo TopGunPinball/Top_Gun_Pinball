@@ -202,6 +202,9 @@ variable_player:
     training_missions_played:
       action: add
       int: 1
+    training_afterburner_complete:
+      action: set
+      int: 1
 
   # Set no-hold flipper flag when ball released (after intro)
   afterburner_ball_released:
@@ -351,11 +354,6 @@ variable_player:
       action: add
       int: 1
     afterburner_perk_active:
-      action: set
-      int: 1
-
-  afterburner_mode_ended:
-    training_afterburner_complete:
       action: set
       int: 1
 
@@ -1676,45 +1674,3 @@ shows:
         l_apron_light_2: white
         l_apron_light_3: white
         l_apron_light_4: white
-
-####################################################################################
-# NOTES AND GODOT SLIDES
-####################################################################################
-
-# GODOT SLIDES TO CREATE:
-# - afterburner_timer: Mode countdown timer display (120 seconds)
-#   Variables: device.timers.afterburner_timer.ticks (timer countdown value)
-#
-# - afterburner_instructions: Instructions overlay (stays active entire mode)
-#   Variables: none (static video/animation)
-#
-# - afterburner_shots_remaining: Shots remaining counter
-#   Variables: current_player.afterburner_shots_remaining (9 down to 0)
-#
-# - afterburner_step_1: Step 1 completion video (LR hit)
-# - afterburner_step_2: Step 2 completion video (RR hit)
-# - afterburner_step_3: Step 3 completion video (LR hit)
-# - afterburner_step_4: Step 4 completion video (TWR hit)
-# - afterburner_step_5: Step 5 completion video (LR hit)
-# - afterburner_step_6: Step 6 completion video (RO hit)
-# - afterburner_step_7: Step 7 completion video (TL or TO hit)
-# - afterburner_step_8: Step 8 completion video (SP hit)
-# - afterburner_step_9: Step 9 completion video (2X target hit - 4 second video, IS the victory video)
-#
-# - afterburner_perk_active: Perk active indicator
-#   Variables: none (shows perk icon/text)
-#
-# - mode_points_scored: Shared points display (already exists)
-#   Variables: current_player.mode_points_scored (points just earned)
-#
-# NOTE: No afterburner_mode_won slide used. Step 9 video IS the completion video.
-# voice_afterburner_completed plays on voice bus when step 9 video finishes (4s delay).
-#
-# MPF VARIABLES FOR GODOT DISPLAY:
-# - afterburner_step: Current step (0-9, where 0=step 1 active)
-# - afterburner_shots_remaining: Shots remaining (9 down to 0)
-# - afterburner_complete_flag: 1 when mode won
-# - afterburner_perk_active: 1 when perk earned
-# - afterburner_no_hold_active: 1 when flippers are in no-hold pulse mode
-# - mode_points_scored: Points from last shot (for shot feedback)
-# - device.timers.afterburner_timer.ticks: Timer countdown value

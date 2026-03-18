@@ -458,9 +458,6 @@ variable_player:
     mode_no_points_for_second_place_played:
       action: set
       int: 1
-    mode_edge_of_space_played:
-      action: set
-      int: 1
     mode_below_the_hard_deck_played:
       action: set
       int: 1
@@ -568,6 +565,36 @@ variable_player:
   
   # Clear pause flags when canyon_run stops
   mode_canyon_run_stopped:
+    letter_collection_paused:
+      action: set
+      int: 0
+    pilot_mode_active:
+      action: set
+      int: 0
+    missiles_perk_active:
+      action: set
+      int: current_player.missiles_perk_saved
+    topgun_letter_t:
+      action: set
+      int: 0
+    topgun_letter_o:
+      action: set
+      int: 0
+    topgun_letter_p:
+      action: set
+      int: 0
+    topgun_letter_g:
+      action: set
+      int: 0
+    topgun_letter_u:
+      action: set
+      int: 0
+    topgun_letter_n:
+      action: set
+      int: 0
+
+  # Edge of Space
+  mode_edge_of_space_stopped:
     letter_collection_paused:
       action: set
       int: 0
@@ -805,10 +832,18 @@ variable_player:
 
   # Spinner (SP) letter collection - ALWAYS blocked when locks lit
   # Tier A only (played 0-1)
-  spinner_shot_made{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.lock_collection_paused==0 and current_player.pilot_missions_played<=1}:
+  # Tier A/B (0-2 missions played): count hits, award letter every 3rd spinner_shot_made
+  spinner_shot_made{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played<=2}:
+    topgun_spinner_hits:
+      action: add
+      int: 1
+  spinner_shot_made{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played<=2 and current_player.topgun_spinner_hits>=3}:
     topgun_shots_collected:
       action: add
       int: 1
+    topgun_spinner_hits:
+      action: set
+      int: 0
   # Tier D, letter G
   spinner_shot_made{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.lock_collection_paused==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==3}:
     topgun_shots_collected:
@@ -1522,6 +1557,9 @@ variable_player:
       action: add
       int: 100000 * current_player.total_scoring_multiplier
       block: true
+    topgun_spinner_hits:
+      action: set
+      int: 0
 
   # Track multiball state
   multiball_started:
@@ -1886,6 +1924,11 @@ event_player:
 
   # Canyon Run
   mode_canyon_run_stopped{current_player.pilot_mode_drain_pending==1}:
+    - pilot_mission_bonus_ready
+    - pilot_mission_drain_complete
+
+  # Edge of Space
+  mode_edge_of_space_stopped{current_player.pilot_mode_drain_pending==1}:
     - pilot_mission_bonus_ready
     - pilot_mission_drain_complete
 
@@ -2665,45 +2708,95 @@ event_player:
   
   # TOPGUN reset when any pilot mission mode starts
   # Also check if all pilot modes have now been played (for mystery award)
+  # ball_search_reset + ball_search_block: prevents ball search from firing
+  # during the scoop hold intro video (block alone doesn't reset the countdown)
   mode_rescue_cougar_started:
     - reset_topgun_letters
     - check_all_pilot_modes_played
+    - ball_search_reset
+    - ball_search_block
   
   mode_balls_of_fire_started:
     - reset_topgun_letters
     - check_all_pilot_modes_played
+    - ball_search_reset
+    - ball_search_block
   
   mode_cool_under_pressure_started:
     - reset_topgun_letters
     - check_all_pilot_modes_played
+    - ball_search_reset
+    - ball_search_block
   
   mode_battle_jester_started:
     - reset_topgun_letters
     - check_all_pilot_modes_played
+    - ball_search_reset
+    - ball_search_block
   
   mode_no_points_for_second_place_started:
     - reset_topgun_letters
     - check_all_pilot_modes_played
+    - ball_search_reset
+    - ball_search_block
   
   mode_edge_of_space_started:
     - reset_topgun_letters
     - check_all_pilot_modes_played
+    - ball_search_reset
+    - ball_search_block
   
   mode_below_the_hard_deck_started:
     - reset_topgun_letters
     - check_all_pilot_modes_played
+    - ball_search_reset
+    - ball_search_block
   
   mode_canyon_run_started:
     - reset_topgun_letters
     - check_all_pilot_modes_played
+    - ball_search_reset
+    - ball_search_block
   
   mode_rise_of_phoenix_started:
     - reset_topgun_letters
     - check_all_pilot_modes_played
+    - ball_search_reset
+    - ball_search_block
   
   mode_no_margin_for_error_started:
     - reset_topgun_letters
     - check_all_pilot_modes_played
+    - ball_search_reset
+    - ball_search_block
+
+  # Ball search reset + block for hard deck modes (ball held in left lane post)
+  mode_hard_deck_maverick_and_charlie_started:
+    - ball_search_reset
+    - ball_search_block
+  mode_hard_deck_playing_with_the_boys_started:
+    - ball_search_reset
+    - ball_search_block
+  mode_hard_deck_maverick_and_penny_started:
+    - ball_search_reset
+    - ball_search_block
+  mode_hard_deck_honoring_iceman_started:
+    - ball_search_reset
+    - ball_search_block
+
+  # Ball search reset + block for training missions (ball held in left lane post)
+  mode_pilot_training_mission_inverted_started:
+    - ball_search_reset
+    - ball_search_block
+  mode_pilot_training_mission_missiles_started:
+    - ball_search_reset
+    - ball_search_block
+  mode_pilot_training_mission_afterburner_started:
+    - ball_search_reset
+    - ball_search_block
+  mode_pilot_training_mission_wingman_started:
+    - ball_search_reset
+    - ball_search_block
 
   # Reset letters when new ball starts
   ball_will_end:
@@ -2774,7 +2867,7 @@ event_player:
     - inverted_bonus_topgun_pending
 
   # Spinner (SP) - ALWAYS blocked when locks lit
-  spinner_shot_made{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.lock_collection_paused==0 and current_player.pilot_missions_played<=1}:
+  spinner_shot_made{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.pilot_missions_played<=2 and current_player.topgun_spinner_hits>=3}:
     - inverted_bonus_topgun_pending
   spinner_shot_made{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.inverted_perk_active==1 and current_player.lock_collection_paused==0 and current_player.pilot_missions_played>=6 and current_player.topgun_shots_collected==3}:
     - inverted_bonus_topgun_pending
@@ -3216,6 +3309,7 @@ shows:
         l_shot_left_lane: white
         l_shot_left_orbit: white
         l_shot_left_ramp: white
+        l_shot_spinner: white
         l_shot_tower_ramp: white
         l_shot_upper_orbit: white
         l_shot_right_orbit: white
@@ -3224,6 +3318,7 @@ shows:
         l_shot_left_lane: off
         l_shot_left_orbit: off
         l_shot_left_ramp: off
+        l_shot_spinner: off
         l_shot_tower_ramp: off
         l_shot_upper_orbit: off
         l_shot_right_orbit: off
@@ -3392,9 +3487,6 @@ light_player:
       color: yellow
       fade: 0ms
     l_mode_no_points_for_second_place:
-      color: yellow
-      fade: 0ms
-    l_mode_edge_of_space:
       color: yellow
       fade: 0ms
     l_mode_below_the_hard_deck:

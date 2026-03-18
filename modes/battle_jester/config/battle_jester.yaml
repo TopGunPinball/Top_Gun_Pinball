@@ -441,6 +441,9 @@ queue_relay_player:
 variable_player:
   mode_battle_jester_started:
     # Universal pilot mode tracking - set when any pilot mode starts
+    missiles_perk_blocked:
+      action: set
+      int: 0
     pilot_mode_active:
       action: set
       int: 1
@@ -767,6 +770,9 @@ variable_player:
     battle_jester_step:
       action: set
       int: 5
+    missiles_perk_blocked:
+      action: set
+      int: 1
     battle_jester_shots_remaining:
       action: add
       int: -1
@@ -775,6 +781,9 @@ variable_player:
     battle_jester_step:
       action: set
       int: 6
+    missiles_perk_blocked:
+      action: set
+      int: 0
     battle_jester_shots_remaining:
       action: add
       int: -1
@@ -1249,12 +1258,8 @@ event_player:
     - battle_jester_add_time_green
     - missiles_perk_bank_award
 
-  # Step 5 = mode scoop shot. Missile skips scoop capture, goes to ramp phase
-  missiles_perk_complete_shot{current_player.battle_jester_step==5 and current_player.battle_jester_complete_flag==0}:
-    - battle_jester_step_6_complete
-    - battle_jester_setup_step_7
-    - battle_jester_add_time_green
-    - missiles_perk_bank_award
+  # Step 5 = mode scoop shot - missile cannot substitute (ball must physically enter scoop)
+  # missiles_perk_complete_shot for step 5 intentionally omitted
 
   # Step 6 = ramp phase. Missile completes 1 ramp hit
   missiles_perk_complete_shot{current_player.battle_jester_step==6 and current_player.battle_jester_complete_flag==0}:
@@ -1923,6 +1928,112 @@ slide_player:
 ####################################################################################
 
 show_player:
+
+  battle_jester_failed:
+    stop_fail_1:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_orbit
+    stop_fail_2:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_right_orbit
+    stop_fail_3:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_spinner
+    stop_fail_4:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_upper_orbit
+    stop_fail_5:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_ramp
+    stop_fail_6:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_middle_ramp
+    stop_fail_7:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_barrier
+    stop_fail_8:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_lane
+    stop_fail_9:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_tower_ramp
+    stop_fail_10:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_pilot_gear
+    stop_fail_11:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_orbit_left
+    stop_fail_12:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_ramp_left
+    stop_fail_13:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_ramp_middle
+    stop_fail_14:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_ramp_right
+    stop_fail_15:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_ramp_tower
+    stop_fail_16:
+      show: sync_flash_mode
+      action: stop
+      key: step3_upper_orbit
+    stop_fail_17:
+      show: sync_flash_mode
+      action: stop
+      key: step3_orbit_lower
+    stop_fail_18:
+      show: sync_flash_mode
+      action: stop
+      key: step6_barrier
+    stop_fail_19:
+      show: sync_flash_mode
+      action: stop
+      key: step11_barrier
+    stop_fail_20:
+      show: sync_flash_mode
+      action: stop
+      key: step11_left_lane
+    stop_fail_21:
+      show: sync_flash_mode
+      action: stop
+      key: step11_orbit_left
+    stop_fail_22:
+      show: sync_flash_mode
+      action: stop
+      key: step11_pilot_gear
+    stop_fail_23:
+      show: sync_flash_mode
+      action: stop
+      key: step11_spinner
+    stop_fail_24:
+      show: sync_flash_mode
+      action: stop
+      key: step11_upper_orbit
+    stop_fail_25:
+      show: sync_flash_mode
+      action: stop
+      key: tower_challenge
+    stop_fail_26:
+      show: sync_flash_mode
+      action: stop
+      key: gi_effect
   ##############################################
   ## NOTE: For multiball stacking, add sync_ms: 1000 to each flashing entry
   ## Shows already use 500ms timing for sync compatibility
@@ -2320,7 +2431,22 @@ show_player:
       show_tokens:
         led: l_shot_spinner
 
-  timer_battle_jester_step_4_timer_tick{ticks==18}:
+  timer_battle_jester_step_4_timer_tick{ticks==14}:
+    flash_step4_ramp_left:
+      show: jester_flash_orange
+      sync_ms: 1000
+      key: mode_l_shot_ramp_left
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+
+  timer_battle_jester_step_4_timer_tick{ticks==16}:
+    flash_step4_ramp_left:
+      show: jester_solid_red
+      key: mode_l_shot_ramp_left
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
     flash_step4_orbit_left:
       show: jester_flash_orange
       sync_ms: 1000
@@ -2329,7 +2455,7 @@ show_player:
       show_tokens:
         led: l_shot_left_orbit
 
-  timer_battle_jester_step_4_timer_tick{ticks==20}:
+  timer_battle_jester_step_4_timer_tick{ticks==18}:
     flash_step4_orbit_left:
       show: jester_solid_red
       key: mode_l_shot_orbit_left
@@ -2398,7 +2524,22 @@ show_player:
       show_tokens:
         led: l_shot_middle_ramp
 
-  timer_battle_jester_step_5_timer_tick{ticks==18}:
+  timer_battle_jester_step_5_timer_tick{ticks==14}:
+    flash_step5_right_orbit:
+      show: jester_flash_orange
+      sync_ms: 1000
+      key: mode_l_shot_right_orbit
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
+
+  timer_battle_jester_step_5_timer_tick{ticks==16}:
+    flash_step5_right_orbit:
+      show: jester_solid_red
+      key: mode_l_shot_right_orbit
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
     flash_step5_pilot_gear:
       show: jester_flash_orange
       sync_ms: 1000
@@ -2407,7 +2548,7 @@ show_player:
       show_tokens:
         led: l_shot_pilot_gear
 
-  timer_battle_jester_step_5_timer_tick{ticks==20}:
+  timer_battle_jester_step_5_timer_tick{ticks==18}:
     flash_step5_pilot_gear:
       show: jester_solid_red
       key: mode_l_shot_pilot_gear
@@ -3099,13 +3240,20 @@ light_player:
     l_shot_spinner:
       color: red
 
-  # Orbit left: green → orange at 18s
-  timer_battle_jester_step_4_timer_tick{ticks==18}:
+  # Ramp left: green → orange at 14s
+  timer_battle_jester_step_4_timer_tick{ticks==14}:
+    l_shot_left_ramp:
+      color: orange
+
+  # Ramp left: orange → red at 16s, orbit left: green → orange at 16s
+  timer_battle_jester_step_4_timer_tick{ticks==16}:
+    l_shot_left_ramp:
+      color: red
     l_shot_left_orbit:
       color: orange
 
-  # Orbit left: orange → red at 20s
-  timer_battle_jester_step_4_timer_tick{ticks==20}:
+  # Orbit left: orange → red at 18s
+  timer_battle_jester_step_4_timer_tick{ticks==18}:
     l_shot_left_orbit:
       color: red
 
@@ -3181,13 +3329,20 @@ light_player:
     l_shot_middle_ramp:
       color: red
 
-  # Pilot gear: green → orange at 18s
-  timer_battle_jester_step_5_timer_tick{ticks==18}:
+  # Right orbit: green → orange at 14s
+  timer_battle_jester_step_5_timer_tick{ticks==14}:
+    l_shot_right_orbit:
+      color: orange
+
+  # Right orbit: orange → red at 16s, pilot gear: green → orange at 16s
+  timer_battle_jester_step_5_timer_tick{ticks==16}:
+    l_shot_right_orbit:
+      color: red
     l_shot_pilot_gear:
       color: orange
 
-  # Pilot gear: orange → red at 20s
-  timer_battle_jester_step_5_timer_tick{ticks==20}:
+  # Pilot gear: orange → red at 18s
+  timer_battle_jester_step_5_timer_tick{ticks==18}:
     l_shot_pilot_gear:
       color: red
 

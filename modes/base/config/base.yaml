@@ -22,7 +22,7 @@ timers:
   ##############################################
   status_mode_entry:
     start_value: 0
-    end_value: 8
+    end_value: 4
     direction: up
     tick_interval: 1s
     start_running: false
@@ -62,11 +62,41 @@ timers:
       - event: timer_wingman_post_win_mig_delay_complete
         action: start
 
+  ##############################################
+  ## COMPOSITE SHOT WINDOWS
+  ## Orbit composite detection (left_orbit_shot_hit / right_orbit_shot_hit) is
+  ## handled entirely by pilot_mission_qualifier.yaml using its own timers with
+  ## lockout and post-plunge guards. Do NOT duplicate it here.
+  ## spinner_shot_made    = 3 spins within 2s rolling inactivity window
+  ##############################################
+
+  # Rolling inactivity window for spinner — 2s of no spins resets counter
+  spinner_inactivity:
+    start_value: 2
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: s_spinner_active
+        action: restart
+
 event_player:
   mode_base_started:
     - start_mode_bumpers
     - right_ramp_down
-    - top_ramp_down
+    - top_ramp_down|500ms
+
+  ##############################################
+  ## COMPOSITE SHOT EVENTS
+  ## left_orbit_shot_hit / right_orbit_shot_hit are fired by pilot_mission_qualifier.yaml
+  ## which owns all orbit composite detection with proper lockout guards.
+  ## spinner_shot_made: 3 spins detected within inactivity window
+  ##############################################
+
+  # 3rd spin detected (spinner_count is 2 before this hit increments it)
+  s_spinner_active{current_player.spinner_count==2}:
+    - spinner_shot_made
 
   # Release lock servo at ball start ONLY if no balls are physically in locks
   # Uses switch state (not player variables) because balls persist across players
@@ -76,11 +106,11 @@ event_player:
     - stop_mode_bumpers
 
   ##############################################
-  ## SHUTDOWN CLEANUP - Reset servos when MPF exits
+  ## SHUTDOWN CLEANUP - Reset servos when MPF exits (staggered to prevent power contention)
   ##############################################
   shutdown:
     - right_ramp_down
-    - top_ramp_down
+    - top_ramp_down|500ms
     - lock_released
 
   ##############################################
@@ -90,6 +120,11 @@ event_player:
   ##############################################
   s_shooter_lane_active{current_player.wingman_post_win_plunge==1}:
     - wingman_post_win_plunge_start
+
+  # Pilot or training mission active — immediately stop skillshot if it starts
+  # This is the correct block: stop the mode as soon as it starts, not after
+  mode_skillshot_started{current_player.pilot_mode_active==1 or current_player.training_mission_active==1}:
+    - stop_mode_skillshot
 
   ##############################################
   ## STATUS MODE ENTRY
@@ -107,6 +142,20 @@ event_player:
     - status_mode_entry_cancel
   timer_status_mode_entry_complete:
     - status_mode_enter
+
+  ##############################################
+  ## BALL SEARCH SUPPRESSION
+  ## Reset the ball search countdown whenever a flipper is held.
+  ## A held flipper means the player is actively engaged -- the ball
+  ## is on a flipper, not stuck.
+  ## NOTE: ball_search_block only prevents a NEW search; it does NOT
+  ## reset the already-running 25s countdown. Modes handle their own
+  ## block/unblock; this covers the flipper-held case globally.
+  ##############################################
+  s_flipper_left_active:
+    - ball_search_reset
+  s_flipper_right_active:
+    - ball_search_reset
 
 variable_player:
   ##############################################
@@ -218,6 +267,27 @@ variable_player:
       action: set
       int: 0
 
+  ##############################################
+  ## COMPOSITE SHOT TRACKING
+  ## Pending flags and spinner counter for orbit/spinner detection.
+  ## Timer windows are defined in the timers section above.
+  ## Composite events fired in event_player above:
+  ##   left_orbit_shot_hit  = s_orbit_left → s_orbit_right within 2s
+  ##   right_orbit_shot_hit = s_orbit_right → s_orbit_left within 2s
+  ##   spinner_shot_made    = 3 spins within 2s inactivity window
+  ##############################################
+
+  # Reset on made or inactivity timeout
+  spinner_shot_made:
+    spinner_count:
+      action: set
+      int: 0
+
+  timer_spinner_inactivity_complete:
+    spinner_count:
+      action: set
+      int: 0
+
   # Recalculate whenever mach_level changes
   player_mach_level:
     total_scoring_multiplier:
@@ -301,6 +371,9 @@ variable_player:
       action: add
       int: 1000 * current_player.total_scoring_multiplier
     bonus_switches_count:
+      action: add
+      int: 1
+    spinner_count:
       action: add
       int: 1
   
@@ -521,8 +594,7 @@ variable_player:
       action: add
       int: 1
   
-  ##############################################
-  ## ORBITS - Major shots
+  ## ORBITS - Major shots (base score only; composite detection in pilot_mission_qualifier)
   ##############################################
   s_orbit_left_active:
     score:
@@ -699,6 +771,11 @@ coil_player:
   
   # Auto-plunge after 1 second delay
   timer_wingman_post_win_plunge_delay_complete:
+    c_plunger:
+      action: pulse
+
+  # Pilot/training mode auto-plunge after 500ms
+  timer_pilot_mode_auto_plunge_delay_complete:
     c_plunger:
       action: pulse
 
@@ -924,6 +1001,13 @@ slide_player:
   # Handle skillshot videos in base mode so they continue after skillshot mode ends
   # mode_points_scored slide played here so it persists after skillshot mode stops
   skillshot_show_points:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  # Edge of Space shot points — played from base so slide persists after mode stops
+  edge_of_space_show_points:
     mode_points_scored:
       action: play
       priority: 840
@@ -1205,6 +1289,39 @@ sound_player:
       bus: music
       loops: -1
 
+####################################################################################
+  # Edge of Space Mode Music Handler
+####################################################################################
+
+  # Music starts on ball eject (NOT mode start — no music during intro video hold)
+  edge_of_space_ball_released:
+    edge_of_space_music:
+      bus: music
+      loops: -1
+
+  # Silence music for end/fail videos
+  edge_of_space_complete:
+    silence:
+      bus: music
+      loops: 0
+
+  edge_of_space_failed:
+    silence:
+      bus: music
+      loops: 0
+
+  # Restart base music when mode stops (but NOT if drain pending - bonus will handle it)
+  mode_edge_of_space_stopped{current_player.pilot_mode_drain_pending==0}:
+    music_danger_zone:
+      bus: music
+      loops: -1
+
+  # Decision voice callout only after player selects "A Little More" (combo)
+  edge_of_space_choice_yes:
+    voice_edge_of_space_decision:
+      bus: voice
+      loops: 0
+
 #################################################################################### 
   # Playing with the Boys (Hard Deck) Music Handler
 ####################################################################################
@@ -1222,6 +1339,12 @@ sound_player:
       bus: music
       loops: -1
 
+  # Silence when player chooses to end mode (back to base game)
+  ptb_decision_end_mode:
+    silence:
+      bus: music
+      loops: 0
+
   # Silence for dogfight instructions (slide has built-in music, starts at instructions)
   ptb_dogfight_instructions_start:
     silence:
@@ -1236,12 +1359,6 @@ sound_player:
 
   # Silence for failed (timer expired during phase 1 — separate event for slide_player)
   ptb_failed_timer_expired:
-    silence:
-      bus: music
-      loops: 0
-
-  # Silence for complete (player chose to end mode after victory)
-  ptb_complete:
     silence:
       bus: music
       loops: 0

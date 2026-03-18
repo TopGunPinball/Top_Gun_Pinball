@@ -87,6 +87,9 @@ queue_relay_player:
 variable_player:
   mode_rise_of_phoenix_started:
     # Universal pilot mode tracking - set when any pilot mode starts
+    missiles_perk_blocked:
+      action: set
+      int: 0
     pilot_mode_active:
       action: set
       int: 1
@@ -218,6 +221,9 @@ variable_player:
     rise_of_phoenix_step:
       action: set
       int: 8
+    missiles_perk_blocked:
+      action: set
+      int: 1
     score: 800000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
@@ -608,8 +614,13 @@ event_player:
     - rise_of_phoenix_complete
 
   # Step 9 setup - drop barrier for final scoop shot
+  # Step 8 (TL) setup - raise right ramp so RO can feed upper flipper
+  rise_of_phoenix_setup_step_8:
+    - right_ramp_up
+
   rise_of_phoenix_setup_step_9:
     - barrier_drop
+    - right_ramp_down|500ms
 
   ##############################################
   ## MISSILE PERK - Auto-complete current step
@@ -661,12 +672,10 @@ event_player:
     - rise_of_phoenix_step_8_complete
     - rise_of_phoenix_step_8_shot_hit
     - rise_of_phoenix_setup_step_9
+    - right_ramp_down|500ms
 
-  # Final step - completes the mode
-  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==8 and current_player.rise_of_phoenix_complete_flag==0}:
-    - rise_of_phoenix_step_9_complete
-    - rise_of_phoenix_step_9_shot_hit
-    - rise_of_phoenix_complete
+  # Step 9 = scoop shot - missile cannot substitute (ball must physically enter scoop)
+  # missiles_perk_complete_shot for step 8 intentionally omitted
 
   # Victory flow - after ball is kicked out, raise barrier and complete mode
   timer_rise_of_phoenix_victory_barrier_delay_complete:
@@ -1209,6 +1218,56 @@ shows:
 ##############################################
 
 show_player:
+
+  rise_of_phoenix_failed:
+    stop_fail_1:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_orbit
+    stop_fail_2:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_spinner
+    stop_fail_3:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_barrier
+    stop_fail_4:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_tower_ramp
+    stop_fail_5:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_right_orbit
+    stop_fail_6:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_middle_ramp
+    stop_fail_7:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_upper_orbit
+    stop_fail_8:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_lock_l
+    stop_fail_9:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_lock_o
+    stop_fail_10:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_lock_c
+    stop_fail_11:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_lock_k
+    stop_fail_12:
+      show: sync_flash_mode
+      action: stop
+      key: gi_effect
   # Step 1: Left orbit flashes (ORANGE)
   rise_of_phoenix_setup_step_1:
     left_orbit_mode_flash:

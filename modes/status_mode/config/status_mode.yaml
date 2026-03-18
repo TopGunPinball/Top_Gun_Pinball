@@ -514,6 +514,9 @@ event_player:
   ## Page navigation
   ##############################################
 
+  mode_status_mode_started:
+    - status_mode_slide_ready|200ms
+
   s_flipper_right_active{mode.status_mode.active==True and device.switches.s_flipper_left.state==1 and current_player.status_mode_page < 5}:
     - status_mode_page_advance
     - status_mode_both_held
@@ -598,14 +601,12 @@ event_player:
   mode_status_mode_started{current_player.mode_no_points_for_second_place_actually_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_no_points_for_second_place_won==1}:
     - status_set_no_points_won
 
-  # Edge Of Space (NOT CODED)
-  mode_status_mode_started{current_player.mode_edge_of_space_actually_played==0}:
-    - status_set_edge_of_space_not_coded
-  mode_status_mode_started{current_player.mode_edge_of_space_actually_played==1 and current_player.mode_edge_of_space_played==0}:
+  # Edge Of Space (CODED)
+  mode_status_mode_started{current_player.mode_edge_of_space_played==0}:
     - status_set_edge_of_space_not_played
-  mode_status_mode_started{current_player.mode_edge_of_space_actually_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_edge_of_space_won==0}:
+  mode_status_mode_started{current_player.mode_edge_of_space_played==1 and current_player.mode_edge_of_space_won==0}:
     - status_set_edge_of_space_lost
-  mode_status_mode_started{current_player.mode_edge_of_space_actually_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_edge_of_space_won==1}:
+  mode_status_mode_started{current_player.mode_edge_of_space_played==1 and current_player.mode_edge_of_space_won==1}:
     - status_set_edge_of_space_won
 
   # Below The Hard Deck (NOT CODED)
@@ -618,14 +619,12 @@ event_player:
   mode_status_mode_started{current_player.mode_below_the_hard_deck_actually_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_below_the_hard_deck_won==1}:
     - status_set_below_the_hard_deck_won
 
-  # Canyon Run (NOT CODED)
-  mode_status_mode_started{current_player.mode_canyon_run_actually_played==0}:
-    - status_set_canyon_run_not_coded
-  mode_status_mode_started{current_player.mode_canyon_run_actually_played==1 and current_player.mode_canyon_run_played==0}:
+  # Canyon Run (CODED)
+  mode_status_mode_started{current_player.mode_canyon_run_played==0}:
     - status_set_canyon_run_not_played
-  mode_status_mode_started{current_player.mode_canyon_run_actually_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_canyon_run_won==0}:
+  mode_status_mode_started{current_player.mode_canyon_run_played==1 and current_player.mode_canyon_run_won==0}:
     - status_set_canyon_run_lost
-  mode_status_mode_started{current_player.mode_canyon_run_actually_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_canyon_run_won==1}:
+  mode_status_mode_started{current_player.mode_canyon_run_played==1 and current_player.mode_canyon_run_won==1}:
     - status_set_canyon_run_won
 
   # No Margin For Error (NOT CODED)
@@ -793,7 +792,8 @@ event_player:
 ##############################################################################
 
 slide_player:
-  mode_status_mode_started:
+  # Delayed 200ms so all variable computations complete before slide renders
+  status_mode_slide_ready:
     status_mode:
       action: play
       priority: 800

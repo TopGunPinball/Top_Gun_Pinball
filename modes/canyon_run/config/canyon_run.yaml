@@ -61,10 +61,22 @@ variable_player:
     letter_collection_paused:
       action: set
       int: 1
+    mode_canyon_run_actually_played:
+      action: set
+      int: 1
     canyon_run_step:
       action: set
       int: 0
     canyon_run_complete_flag:
+      action: set
+      int: 0
+    missiles_perk_blocked:
+      action: set
+      int: 0
+    mode_canyon_run_played:
+      action: set
+      int: 1
+    canyon_run_skip_won_fired:
       action: set
       int: 0
     pilot_missions_played:
@@ -173,6 +185,9 @@ variable_player:
     canyon_run_step:
       action: set
       int: 8
+    missiles_perk_blocked:
+      action: set
+      int: 1
     score: 1600000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
@@ -195,6 +210,9 @@ variable_player:
     pilot_missions_won:
       action: add
       int: 1
+    mode_canyon_run_won:
+      action: set
+      int: 1
     canyon_run_shots_remaining:
       action: add
       int: -1
@@ -204,6 +222,12 @@ variable_player:
     missiles_perk_active:
       action: set
       int: 0
+
+  # Set flag to prevent double-fire on victory skip
+  canyon_run_set_skip_won_fired:
+    canyon_run_skip_won_fired:
+      action: set
+      int: 1
 
   # Step 8 moving target position tracking
   canyon_run_step8_goto_1:
@@ -616,10 +640,10 @@ event_player:
     - canyon_run_ball_released|400ms
     - canyon_run_setup_step_1|400ms
 
-  # After won video: drop barrier so ball can exit scoop
+  # After won video: release ball hold (barrier already raised by canyon_run_complete)
   canyon_run_victory_ball_released:
-    - scoop_ball_release              # Drop barrier immediately
-    - canyon_run_victory_ball_exit|400ms  # Ball releases 400ms later, barrier is down
+    - canyon_run_set_skip_won_fired
+    - canyon_run_victory_ball_exit|400ms
 
   # Skip intro detection - both flippers
   s_flipper_left_active{current_player.canyon_run_step==0 and device.timers.canyon_run_intro_video_delay.running}:
@@ -629,10 +653,10 @@ event_player:
   canyon_run_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
     - canyon_run_skip_intro
 
-  # Skip won video detection - both flippers
-  s_flipper_left_active{current_player.canyon_run_complete_flag==1 and device.timers.canyon_run_complete_delay.running}:
+  # Skip won video detection - both flippers (flag prevents double-fire)
+  s_flipper_left_active{current_player.canyon_run_complete_flag==1 and device.timers.canyon_run_complete_delay.running and current_player.canyon_run_skip_won_fired==0}:
     - canyon_run_check_skip_won
-  s_flipper_right_active{current_player.canyon_run_complete_flag==1 and device.timers.canyon_run_complete_delay.running}:
+  s_flipper_right_active{current_player.canyon_run_complete_flag==1 and device.timers.canyon_run_complete_delay.running and current_player.canyon_run_skip_won_fired==0}:
     - canyon_run_check_skip_won
   canyon_run_check_skip_won{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
     - canyon_run_victory_ball_released
@@ -670,26 +694,29 @@ event_player:
     - canyon_run_complete
 
   # Servo events - staggered to prevent power contention
-  # Step 2: raise top ramp (TL/TO shots)
+  # Step 2: raise top ramp + right ramp (TL/TO shots - right ramp feeds upper flipper via RO)
   canyon_run_setup_step_2:
     - top_ramp_up
+    - right_ramp_up|500ms
 
-  # Step 3: lower top ramp (spinner shot, no ramp needed)
+  # Step 3: lower right ramp first, then top ramp (staggered)
   canyon_run_setup_step_3:
-    - top_ramp_down
+    - right_ramp_down
+    - top_ramp_down|500ms
 
   # Step 4: raise right ramp (RO shot)
   canyon_run_setup_step_4:
     - right_ramp_up
 
-  # Step 5: raise top ramp, then lower right ramp 500ms later (staggered)
+  # Step 5: raise top ramp + right ramp (TL/TO shots again - right ramp feeds upper flipper)
   canyon_run_setup_step_5:
     - top_ramp_up
-    - right_ramp_down|500ms
+    - right_ramp_up|500ms
 
-  # Step 6: lower top ramp (right ramp already down from step 5)
+  # Step 6: lower right ramp first, then top ramp (staggered)
   canyon_run_setup_step_6:
-    - top_ramp_down
+    - right_ramp_down
+    - top_ramp_down|500ms
 
   # Step 9: drop barrier so player can hit scoop
   canyon_run_setup_step_9:
@@ -699,12 +726,16 @@ event_player:
   # NOTE: canyon_run_cleanup deliberately NOT fired here - it would kill the strobe show immediately
   canyon_run_complete:
     - barrier_raise
+    - right_ramp_down
+    - top_ramp_down|500ms
     - timer_canyon_run_complete_delay_start
     - missiles_perk_unload
 
   canyon_run_failed:
     - barrier_raise
     - canyon_run_cleanup
+    - right_ramp_down
+    - top_ramp_down|500ms
     - timer_canyon_run_failed_delay_start
     - missiles_perk_unload
 
@@ -856,16 +887,60 @@ event_player:
     - canyon_run_step_8_complete
     - canyon_run_step_8_shot_hit
 
-  missiles_perk_complete_shot{current_player.canyon_run_step==8 and current_player.canyon_run_complete_flag==0}:
-    - canyon_run_step_9_complete
-    - canyon_run_step_9_shot_hit
-    - canyon_run_complete
+  # Step 9 = scoop shot - missile cannot substitute (ball must physically enter scoop)
+  # missiles_perk_complete_shot for step 8 intentionally omitted
 
 ####################################################################################
 # SHOW PLAYER
 ####################################################################################
 
 show_player:
+
+  canyon_run_failed:
+    stop_fail_1:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_sp
+    stop_fail_2:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_tl
+    stop_fail_3:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_to
+    stop_fail_4:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_sp_3
+    stop_fail_5:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_ro
+    stop_fail_6:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_tl_5
+    stop_fail_7:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_to_5
+    stop_fail_8:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_lo
+    stop_fail_9:
+      show: sync_flash_mode
+      action: stop
+      key: cr_shot_twr
+    stop_fail_10:
+      show: sync_flash_mode
+      action: stop
+      key: won_gi
+    stop_fail_11:
+      show: sync_flash_mode
+      action: stop
+      key: won_gi_explosion
   # Step 1 active: Spinner flash
   canyon_run_setup_step_1:
     flash_cr_sp:

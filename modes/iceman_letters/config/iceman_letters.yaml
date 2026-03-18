@@ -42,10 +42,6 @@ variable_player:
     iceman_completing:
       action: set
       int: 0
-    # Which training mission is qualified (0=none, 1-5=mission number)
-    training_mission_qualified:
-      action: set
-      int: 0
     # Track which training missions are complete (0 or 1)
     training_inverted_complete:
       action: set
@@ -222,17 +218,17 @@ variable_player:
   # Rotate mission forward: 1->2->3->4->5 via bumpers
   # When value reaches 5, wrap_mission_to_one handlers (below) wrap back to 1
   # Using <5 instead of <4 so value==4 (wingman) persists until next bumper hit
-  s_bumper_left_active{current_player.training_mission_qualified>0 and current_player.training_mission_qualified<5 and current_player.training_mission_active==0}:
+  s_bumper_left_active{current_player.training_mission_qualified>0 and current_player.training_mission_qualified<5 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
     training_mission_qualified:
       action: add
       int: 1
 
-  s_bumper_center_active{current_player.training_mission_qualified>0 and current_player.training_mission_qualified<5 and current_player.training_mission_active==0}:
+  s_bumper_center_active{current_player.training_mission_qualified>0 and current_player.training_mission_qualified<5 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
     training_mission_qualified:
       action: add
       int: 1
 
-  s_bumper_right_active{current_player.training_mission_qualified>0 and current_player.training_mission_qualified<5 and current_player.training_mission_active==0}:
+  s_bumper_right_active{current_player.training_mission_qualified>0 and current_player.training_mission_qualified<5 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
     training_mission_qualified:
       action: add
       int: 1
@@ -428,6 +424,118 @@ event_player:
   inverted_award_iceman_n: check_ice_man_complete
 
   ##############################################
+  ## TIER 1: training_missions_played==0
+  ## Any target hit scores its letter normally (existing logic).
+  ## If the hit target is ALREADY LIT, award the next unlit letter
+  ## in I->C->E->M->A->N order instead.
+  ##############################################
+
+  # Triggers: hit a lit letter with 0 missions played
+  s_i_iceman_target_active{current_player.iceman_letter_i==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==0}:
+    - tier1_bonus_iceman_letter
+  s_c_iceman_target_active{current_player.iceman_letter_c==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==0}:
+    - tier1_bonus_iceman_letter
+  s_e_iceman_target_active{current_player.iceman_letter_e==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==0}:
+    - tier1_bonus_iceman_letter
+  s_m_iceman_target_active{current_player.iceman_letter_m==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==0}:
+    - tier1_bonus_iceman_letter
+  s_a_iceman_target_active{current_player.iceman_letter_a==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==0}:
+    - tier1_bonus_iceman_letter
+  s_n_iceman_target_active{current_player.iceman_letter_n==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==0}:
+    - tier1_bonus_iceman_letter
+
+  # Dispatch: award first unlit letter in I->C->E->M->A->N order
+  tier1_bonus_iceman_letter{current_player.iceman_letter_i==0}:
+    - inverted_award_iceman_i
+  tier1_bonus_iceman_letter{current_player.iceman_letter_i==1 and current_player.iceman_letter_c==0}:
+    - inverted_award_iceman_c
+  tier1_bonus_iceman_letter{current_player.iceman_letter_i==1 and current_player.iceman_letter_c==1 and current_player.iceman_letter_e==0}:
+    - inverted_award_iceman_e
+  tier1_bonus_iceman_letter{current_player.iceman_letter_i==1 and current_player.iceman_letter_c==1 and current_player.iceman_letter_e==1 and current_player.iceman_letter_m==0}:
+    - inverted_award_iceman_m
+  tier1_bonus_iceman_letter{current_player.iceman_letter_i==1 and current_player.iceman_letter_c==1 and current_player.iceman_letter_e==1 and current_player.iceman_letter_m==1 and current_player.iceman_letter_a==0}:
+    - inverted_award_iceman_a
+  tier1_bonus_iceman_letter{current_player.iceman_letter_i==1 and current_player.iceman_letter_c==1 and current_player.iceman_letter_e==1 and current_player.iceman_letter_m==1 and current_player.iceman_letter_a==1 and current_player.iceman_letter_n==0}:
+    - inverted_award_iceman_n
+
+  # Perk bonus: inverted perk active -> award one additional letter after the tier1 award
+  tier1_bonus_iceman_letter{current_player.inverted_perk_active==1}:
+    - inverted_bonus_iceman_letter
+
+  ##############################################
+  ## TIER 2: training_missions_played==1
+  ## Hit unlit letter -> that letter (existing logic).
+  ## Hit LIT letter -> award the neighbor with priority:
+  ##   I -> C
+  ##   C -> I, else E
+  ##   E -> C, else M
+  ##   M -> E, else A
+  ##   A -> M, else N
+  ##   N -> A
+  ## If neighbors already lit, nothing awarded (silent).
+  ##############################################
+
+  # Triggers: hit a lit letter with 1 mission played
+  s_i_iceman_target_active{current_player.iceman_letter_i==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==1}:
+    - tier2_bonus_iceman_i
+  s_c_iceman_target_active{current_player.iceman_letter_c==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==1}:
+    - tier2_bonus_iceman_c
+  s_e_iceman_target_active{current_player.iceman_letter_e==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==1}:
+    - tier2_bonus_iceman_e
+  s_m_iceman_target_active{current_player.iceman_letter_m==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==1}:
+    - tier2_bonus_iceman_m
+  s_a_iceman_target_active{current_player.iceman_letter_a==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==1}:
+    - tier2_bonus_iceman_a
+  s_n_iceman_target_active{current_player.iceman_letter_n==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==1}:
+    - tier2_bonus_iceman_n
+
+  # I lit: give C if unlit
+  tier2_bonus_iceman_i{current_player.iceman_letter_c==0}:
+    - inverted_award_iceman_c
+
+  # C lit: give I first, else E
+  tier2_bonus_iceman_c{current_player.iceman_letter_i==0}:
+    - inverted_award_iceman_i
+  tier2_bonus_iceman_c{current_player.iceman_letter_i==1 and current_player.iceman_letter_e==0}:
+    - inverted_award_iceman_e
+
+  # E lit: give C first, else M
+  tier2_bonus_iceman_e{current_player.iceman_letter_c==0}:
+    - inverted_award_iceman_c
+  tier2_bonus_iceman_e{current_player.iceman_letter_c==1 and current_player.iceman_letter_m==0}:
+    - inverted_award_iceman_m
+
+  # M lit: give E first, else A
+  tier2_bonus_iceman_m{current_player.iceman_letter_e==0}:
+    - inverted_award_iceman_e
+  tier2_bonus_iceman_m{current_player.iceman_letter_e==1 and current_player.iceman_letter_a==0}:
+    - inverted_award_iceman_a
+
+  # A lit: give M first, else N
+  tier2_bonus_iceman_a{current_player.iceman_letter_m==0}:
+    - inverted_award_iceman_m
+  tier2_bonus_iceman_a{current_player.iceman_letter_m==1 and current_player.iceman_letter_n==0}:
+    - inverted_award_iceman_n
+
+  # N lit: give A if unlit
+  tier2_bonus_iceman_n{current_player.iceman_letter_a==0}:
+    - inverted_award_iceman_a
+
+  # Perk bonus: inverted perk active -> award one additional letter after each tier2 neighbor award
+  tier2_bonus_iceman_i{current_player.inverted_perk_active==1}:
+    - inverted_bonus_iceman_letter
+  tier2_bonus_iceman_c{current_player.inverted_perk_active==1}:
+    - inverted_bonus_iceman_letter
+  tier2_bonus_iceman_e{current_player.inverted_perk_active==1}:
+    - inverted_bonus_iceman_letter
+  tier2_bonus_iceman_m{current_player.inverted_perk_active==1}:
+    - inverted_bonus_iceman_letter
+  tier2_bonus_iceman_a{current_player.inverted_perk_active==1}:
+    - inverted_bonus_iceman_letter
+  tier2_bonus_iceman_n{current_player.inverted_perk_active==1}:
+    - inverted_bonus_iceman_letter
+
+  ##############################################
   ## Start Training Missions via Left Lane
   ##############################################
   
@@ -546,6 +654,78 @@ event_player:
     stop_all_training_pulse_shows
   mode_training_dogfight_started:
     stop_all_training_pulse_shows
+
+  # Stop pulse shows when any pilot mission starts
+  mode_edge_of_space_started:
+    stop_all_training_pulse_shows
+  mode_battle_jester_started:
+    stop_all_training_pulse_shows
+  mode_canyon_run_started:
+    stop_all_training_pulse_shows
+  mode_rise_of_phoenix_started:
+    stop_all_training_pulse_shows
+  mode_rescue_cougar_started:
+    stop_all_training_pulse_shows
+  mode_balls_of_fire_started:
+    stop_all_training_pulse_shows
+  mode_cool_under_pressure_started:
+    stop_all_training_pulse_shows
+  mode_no_points_for_second_place_started:
+    stop_all_training_pulse_shows
+  mode_below_the_hard_deck_started:
+    stop_all_training_pulse_shows
+  mode_no_margin_for_error_started:
+    stop_all_training_pulse_shows
+
+  # Stop pulse shows when any hard deck mission starts
+  mode_hard_deck_playing_with_the_boys_started:
+    stop_all_training_pulse_shows
+  mode_hard_deck_maverick_and_charlie_started:
+    stop_all_training_pulse_shows
+  mode_hard_deck_maverick_and_penny_started:
+    stop_all_training_pulse_shows
+  mode_hard_deck_honoring_iceman_started:
+    stop_all_training_pulse_shows
+
+  # Stop pulse shows when multiball starts
+  mode_top_gun_multiball_started:
+    stop_all_training_pulse_shows
+
+  # Restore pulse shows when pilot missions stop
+  mode_edge_of_space_stopped{current_player.training_mission_qualified>0}:
+    restore_training_mission_light
+  mode_battle_jester_stopped{current_player.training_mission_qualified>0}:
+    restore_training_mission_light
+  mode_canyon_run_stopped{current_player.training_mission_qualified>0}:
+    restore_training_mission_light
+  mode_rise_of_phoenix_stopped{current_player.training_mission_qualified>0}:
+    restore_training_mission_light
+  mode_rescue_cougar_stopped{current_player.training_mission_qualified>0}:
+    restore_training_mission_light
+  mode_balls_of_fire_stopped{current_player.training_mission_qualified>0}:
+    restore_training_mission_light
+  mode_cool_under_pressure_stopped{current_player.training_mission_qualified>0}:
+    restore_training_mission_light
+  mode_no_points_for_second_place_stopped{current_player.training_mission_qualified>0}:
+    restore_training_mission_light
+  mode_below_the_hard_deck_stopped{current_player.training_mission_qualified>0}:
+    restore_training_mission_light
+  mode_no_margin_for_error_stopped{current_player.training_mission_qualified>0}:
+    restore_training_mission_light
+
+  # Restore pulse shows when hard deck missions stop
+  mode_hard_deck_playing_with_the_boys_stopped{current_player.training_mission_qualified>0}:
+    restore_training_mission_light
+  mode_hard_deck_maverick_and_charlie_stopped{current_player.training_mission_qualified>0}:
+    restore_training_mission_light
+  mode_hard_deck_maverick_and_penny_stopped{current_player.training_mission_qualified>0}:
+    restore_training_mission_light
+  mode_hard_deck_honoring_iceman_stopped{current_player.training_mission_qualified>0}:
+    restore_training_mission_light
+
+  # Restore pulse shows when multiball stops
+  mode_top_gun_multiball_stopped{current_player.training_mission_qualified>0}:
+    restore_training_mission_light
 
   ##############################################
   ## MIG Post Timer Control Events
@@ -682,7 +862,7 @@ show_player:
   # Use the player variable change event to trigger shows AFTER variable is set
   # Stop all other pulse shows first, then start the correct one
   # CRITICAL: Only start iceman_inverted_pulse if mode hasn't been played yet
-  player_training_mission_qualified{value==1 and current_player.training_inverted_complete==0}:
+  player_training_mission_qualified{value==1 and current_player.training_inverted_complete==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and current_player.training_mission_active==0}:
     iceman_missles_pulse:
       action: stop
     iceman_afterburner_pulse:
@@ -703,7 +883,7 @@ show_player:
       speed: 1
       key: iceman_pop_bumpers_fade
 
-  player_training_mission_qualified{value==2 and current_player.training_missles_complete==0}:
+  player_training_mission_qualified{value==2 and current_player.training_missles_complete==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and current_player.training_mission_active==0}:
     iceman_inverted_pulse:
       action: stop
     iceman_afterburner_pulse:
@@ -724,7 +904,7 @@ show_player:
       speed: 1
       key: iceman_pop_bumpers_fade
 
-  player_training_mission_qualified{value==3 and current_player.training_afterburner_complete==0}:
+  player_training_mission_qualified{value==3 and current_player.training_afterburner_complete==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and current_player.training_mission_active==0}:
     iceman_inverted_pulse:
       action: stop
     iceman_missles_pulse:
@@ -745,7 +925,7 @@ show_player:
       speed: 1
       key: iceman_pop_bumpers_fade
 
-  player_training_mission_qualified{value==4 and current_player.training_wingman_complete==0}:
+  player_training_mission_qualified{value==4 and current_player.training_wingman_complete==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and current_player.training_mission_active==0}:
     iceman_inverted_pulse:
       action: stop
     iceman_missles_pulse:
@@ -767,7 +947,7 @@ show_player:
       key: iceman_pop_bumpers_fade
 
   # Dogfight - only show if ALL 4 standard missions are complete
-  player_training_mission_qualified{value==5 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1}:
+  player_training_mission_qualified{value==5 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and current_player.training_mission_active==0}:
     iceman_inverted_pulse:
       action: stop
     iceman_missles_pulse:

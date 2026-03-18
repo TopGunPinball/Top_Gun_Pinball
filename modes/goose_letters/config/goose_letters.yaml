@@ -115,6 +115,35 @@ variable_player:
     missile_temp_s:
       action: set
       int: 0
+    # First skillshot flag — qualifies ejection seat once per game; persists across balls
+    first_skillshot_made:
+      action: set
+      int: 0
+    missiles_perk_blocked:
+      action: set
+      int: 0
+
+  # First skillshot made — set flag so eject qualification only fires once
+  mig_lane_left_skill_lit_hit{current_player.first_skillshot_made==0}:
+    first_skillshot_made:
+      action: set
+      int: 1
+  mig_lane_right_skill_lit_hit{current_player.first_skillshot_made==0}:
+    first_skillshot_made:
+      action: set
+      int: 1
+  spinner_skill_lit_hit{current_player.first_skillshot_made==0}:
+    first_skillshot_made:
+      action: set
+      int: 1
+  orbit_upper_skill_lit_hit{current_player.first_skillshot_made==0}:
+    first_skillshot_made:
+      action: set
+      int: 1
+  ramp_inner_skill_lit_hit{current_player.first_skillshot_made==0}:
+    first_skillshot_made:
+      action: set
+      int: 1
 
   ##############################################
   ## Light Letters When Lane Switches Hit
@@ -365,9 +394,24 @@ variable_player:
     goose_next_award_name:
       action: set
       string: Mystery Award
-    goose_next_mystery_target:
+    goose_next_eject_target:
       action: set
       int: 10
+
+  # 3 completions - Mystery (when eject already qualified via skillshot)
+  goose_milestone_3_mystery:
+    goose_milestone:
+      action: set
+      int: 10
+    ejection_shots_needed:
+      action: set
+      int: 10
+    goose_next_award_name:
+      action: set
+      string: Eject Mode
+    goose_next_mystery_target:
+      action: set
+      int: 15
     goose_next_eject_target:
       action: set
       int: 10
@@ -937,13 +981,30 @@ event_player:
       priority: 100
 
   ##############################################
+  ## First Skillshot — qualifies ejection seat once per game
+  ##############################################
+  mig_lane_left_skill_lit_hit{current_player.first_skillshot_made==0 and current_player.eject_mode_qualified==0}:
+    - eject_mode_qualified_event
+  mig_lane_right_skill_lit_hit{current_player.first_skillshot_made==0 and current_player.eject_mode_qualified==0}:
+    - eject_mode_qualified_event
+  spinner_skill_lit_hit{current_player.first_skillshot_made==0 and current_player.eject_mode_qualified==0}:
+    - eject_mode_qualified_event
+  orbit_upper_skill_lit_hit{current_player.first_skillshot_made==0 and current_player.eject_mode_qualified==0}:
+    - eject_mode_qualified_event
+  ramp_inner_skill_lit_hit{current_player.first_skillshot_made==0 and current_player.eject_mode_qualified==0}:
+    - eject_mode_qualified_event
+
+  ##############################################
   ## Milestone Events - Check total completion count
   ##############################################
 
   # When completions reach milestone, trigger award
-  player_goose_completions{value==3}:
+  player_goose_completions{value==3 and current_player.eject_mode_qualified==0}:
     - eject_mode_qualified_event
     - goose_milestone_3
+  player_goose_completions{value==3 and current_player.eject_mode_qualified==1}:
+    - light_mystery_award
+    - goose_milestone_3_mystery
 
   player_goose_completions{value==5}:
     - light_mystery_award
@@ -1036,19 +1097,19 @@ event_player:
 
   # Fire detection - ALL 5 lanes
   # Conditions: perk active, pilot mode active, missile at position, not already firing
-  s_outlane_left_active{current_player.missiles_perk_active==1 and current_player.pilot_mode_active==1 and current_player.missile_pos_g==1 and current_player.missile_firing==0}:
+  s_outlane_left_active{current_player.missiles_perk_active==1 and current_player.pilot_mode_active==1 and current_player.missile_pos_g==1 and current_player.missile_firing==0 and current_player.missiles_perk_blocked==0}:
     - missile_fired_from_g
 
-  s_inlane_left_active{current_player.missiles_perk_active==1 and current_player.pilot_mode_active==1 and current_player.missile_pos_o_left==1 and current_player.missile_firing==0}:
+  s_inlane_left_active{current_player.missiles_perk_active==1 and current_player.pilot_mode_active==1 and current_player.missile_pos_o_left==1 and current_player.missile_firing==0 and current_player.missiles_perk_blocked==0}:
     - missile_fired_from_o_left
 
-  s_outlane_right_active{current_player.missiles_perk_active==1 and current_player.pilot_mode_active==1 and current_player.missile_pos_e==1 and current_player.missile_firing==0}:
+  s_outlane_right_active{current_player.missiles_perk_active==1 and current_player.pilot_mode_active==1 and current_player.missile_pos_e==1 and current_player.missile_firing==0 and current_player.missiles_perk_blocked==0}:
     - missile_fired_from_e
 
-  s_inner_inlane_right_active{current_player.missiles_perk_active==1 and current_player.pilot_mode_active==1 and current_player.missile_pos_o_right==1 and current_player.missile_firing==0}:
+  s_inner_inlane_right_active{current_player.missiles_perk_active==1 and current_player.pilot_mode_active==1 and current_player.missile_pos_o_right==1 and current_player.missile_firing==0 and current_player.missiles_perk_blocked==0}:
     - missile_fired_from_o_right
 
-  s_outer_inlane_right_active{current_player.missiles_perk_active==1 and current_player.pilot_mode_active==1 and current_player.missile_pos_s==1 and current_player.missile_firing==0}:
+  s_outer_inlane_right_active{current_player.missiles_perk_active==1 and current_player.pilot_mode_active==1 and current_player.missile_pos_s==1 and current_player.missile_firing==0 and current_player.missiles_perk_blocked==0}:
     - missile_fired_from_s
 
   # All fire events chain to generic missile_fired (starts timer)

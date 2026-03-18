@@ -1,6 +1,9 @@
 #config_version=6
 #show_version=6
 
+config:
+  - service_switch_events.yaml
+
 mode:
   start_events: service_mode_request
   stop_events: service_mode_exit
@@ -405,7 +408,9 @@ event_player:
   service_coil_fire{machine.service_coil_index==7}: fire_coil_7
   service_coil_fire{machine.service_coil_index==8}: fire_coil_8
   service_coil_fire{machine.service_coil_index==9}: fire_coil_9
-  service_coil_fire{machine.service_coil_index==10}: fire_coil_10
+  service_coil_fire{machine.service_coil_index==10}:
+    - fire_coil_10
+    - service_left_lane_post_fired
   service_coil_fire{machine.service_coil_index==11}: fire_coil_11
   service_coil_fire{machine.service_coil_index==12}: fire_coil_12
   service_coil_fire{machine.service_coil_index==13}: fire_coil_13
@@ -2921,7 +2926,7 @@ variable_player:
       string: "Servo 2/6"
     service_servo_position:
       action: set_machine
-      string: "Pos: 0.53 - START=Test"
+      string: "Pos: 0.52 - START=Test"
 
   # Top Ramp DOWN (index 2)
   set_servo_2:
@@ -2933,7 +2938,7 @@ variable_player:
       string: "Servo 3/6"
     service_servo_position:
       action: set_machine
-      string: "Pos: 0.63 - START=Test"
+      string: "Pos: 0.64 - START=Test"
 
   # Top Ramp UP (index 3)
   set_servo_3:
@@ -2945,7 +2950,7 @@ variable_player:
       string: "Servo 4/6"
     service_servo_position:
       action: set_machine
-      string: "Pos: 0.53 - START=Test"
+      string: "Pos: 0.54 - START=Test"
 
   # Lock HELD (index 4)
   set_servo_4:
@@ -2957,7 +2962,7 @@ variable_player:
       string: "Servo 5/6"
     service_servo_position:
       action: set_machine
-      string: "Pos: 0.28 - START=Test"
+      string: "Pos: 0.26 - START=Test"
 
   # Lock RELEASED (index 5)
   set_servo_5:
@@ -2974,6 +2979,19 @@ variable_player:
 ##############################################################################
 # COIL PLAYER - Fire coils in service mode
 ##############################################################################
+
+timers:
+  service_left_lane_post_hold:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: service_left_lane_post_fired
+        action: restart
+      - event: mode_top_gun_service_will_stop
+        action: stop
 
 coil_player:
   fire_coil_0:
@@ -3008,7 +3026,13 @@ coil_player:
       action: pulse
   fire_coil_10:
     c_left_lane_up_post:
-      action: pulse
+      action: enable
+  timer_service_left_lane_post_hold_complete:
+    c_left_lane_up_post:
+      action: disable
+  mode_top_gun_service_will_stop:
+    c_left_lane_up_post:
+      action: disable
   fire_coil_11:
     c_left_mig_up_post:
       action: pulse

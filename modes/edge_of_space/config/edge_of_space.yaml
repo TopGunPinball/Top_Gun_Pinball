@@ -1,0 +1,2011 @@
+#config_version=6
+
+####################################################################################
+# EDGE OF SPACE - PILOT MISSION MODE
+# Priority: 600 | Timer: 160s | Steps: 8 + decision + optional combo
+# GI: Intro sequence (yellow→purple→fire sweep) then dark blue/white game GI
+# Points bank with decaying shot values (500K-800K, 15s decay to 20%)
+# Decision after step 8: 1x bank OR combo for 2x/3x
+####################################################################################
+
+mode:
+  start_events: start_mode_edge_of_space
+  stop_events:
+    - timer_edge_of_space_complete_delay_complete
+    - timer_edge_of_space_failed_delay_complete
+    - edge_of_space_drain_cleanup_complete
+    - timer_edge_of_space_no_hold_delay_complete
+  priority: 600
+  game_mode: true
+  use_wait_queue: true
+
+mode_settings:
+  can_stack_with_multiball: true
+
+####################################################################################
+# BALL HOLDS
+####################################################################################
+
+ball_holds:
+  edge_of_space_scoop_hold:
+    balls_to_hold: 1
+    hold_devices: bd_mode_scoop
+    enable_events:
+      - mode_edge_of_space_started
+    release_one_events:
+      - edge_of_space_ball_released
+    release_all_events:
+      - mode_edge_of_space_will_stop
+
+####################################################################################
+# QUEUE RELAY PLAYER
+####################################################################################
+
+queue_relay_player:
+  ball_ending{mode.edge_of_space.active==True}:
+    post: edge_of_space_ball_ending_hold
+    wait_for: edge_of_space_drain_cleanup_complete
+    priority: 1000
+
+####################################################################################
+# TIMERS
+####################################################################################
+
+timers:
+
+  edge_of_space_intro_video_delay:
+    start_value: 0
+    end_value: 54
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: mode_edge_of_space_started
+        action: start
+      - event: edge_of_space_skip_intro
+        action: stop
+
+  edge_of_space_timer:
+    start_value: 160
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: edge_of_space_ball_released
+        action: start
+      - event: edge_of_space_step_8_complete
+        action: stop
+      - event: edge_of_space_failed
+        action: stop
+      - event: edge_of_space_drain_detected
+        action: stop
+      - event: edge_of_space_combo_start
+        action: jump
+        value: 34
+      - event: edge_of_space_combo_start_timer_go
+        action: start
+      - event: afterburner_extend_edge_of_space_timer
+        action: jump
+        value: 9999
+      - event: lock_sequence_timer_pause
+        action: pause
+      - event: lock_sequence_timer_resume
+        action: start
+      - event: edge_of_space_step4_hold_start
+        action: pause
+      - event: edge_of_space_step4_ball_released
+        action: start
+
+  edge_of_space_barrier_delay:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: edge_of_space_ball_released
+        action: restart
+
+  # Shot value decay: 150 ticks x 100ms = 15s to reach floor
+  edge_of_space_decay_timer:
+    start_value: 0
+    end_value: 150
+    direction: up
+    tick_interval: 100ms
+    start_running: false
+    control_events:
+      - event: edge_of_space_setup_step_1
+        action: restart
+      - event: edge_of_space_setup_step_2
+        action: restart
+      - event: edge_of_space_setup_step_3
+        action: restart
+      - event: edge_of_space_setup_step_5
+        action: restart
+      - event: edge_of_space_setup_step_6
+        action: restart
+      - event: edge_of_space_setup_step_7
+        action: restart
+      - event: edge_of_space_setup_step_8
+        action: restart
+      - event: edge_of_space_step4_ball_released
+        action: restart
+      - event: edge_of_space_step_8_complete
+        action: stop
+      - event: edge_of_space_failed
+        action: stop
+      - event: edge_of_space_drain_detected
+        action: stop
+
+  edge_of_space_drain_delay:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: edge_of_space_drain_detected
+        action: start
+
+  edge_of_space_complete_delay:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: edge_of_space_complete
+        action: start
+
+  edge_of_space_failed_delay:
+    start_value: 0
+    end_value: 13
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: edge_of_space_failed
+        action: start
+
+  # Ball held in left lane for step 4 (12 seconds)
+  edge_of_space_step4_hold_timer:
+    start_value: 0
+    end_value: 12
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: edge_of_space_step4_hold_start
+        action: start
+      - event: edge_of_space_drain_detected
+        action: stop
+
+  # Ball held in left lane for victory (25 seconds)
+  edge_of_space_won_video_timer:
+    start_value: 0
+    end_value: 25
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: edge_of_space_victory_hold_start
+        action: start
+      - event: edge_of_space_drain_detected
+        action: stop
+
+  # Left orbit diverter open timer (3 seconds for steps 3 and 8)
+  edge_of_space_diverter_timer:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: edge_of_space_open_diverter
+        action: restart
+      - event: edge_of_space_step4_hold_start
+        action: stop
+      - event: edge_of_space_victory_hold_start
+        action: stop
+
+  # Decision countdown: 20 seconds (variable used in Godot display)
+  edge_of_space_decision_countdown:
+    start_value: 20
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: edge_of_space_decision_start
+        action: start
+      - event: edge_of_space_choice_yes
+        action: stop
+      - event: edge_of_space_choice_no
+        action: stop
+
+  # Callout hold: keeps ball in left lane while a_little_more_yes video plays.
+  # ADJUST end_value to match the duration of your a_little_more_yes video/callout.
+  edge_of_space_yes_callout_delay:
+    start_value: 0
+    end_value: 6
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: edge_of_space_choice_yes
+        action: start
+
+  # No hold: keeps ball in left lane while decision_no slide plays (17.5s → 18s)
+  edge_of_space_no_hold_delay:
+    start_value: 0
+    end_value: 18
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: edge_of_space_choice_no
+        action: start
+
+  # Combo: LR → 10s window for RR
+  edge_of_space_combo_lr_timer:
+    start_value: 10
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: edge_of_space_combo_lr_hit
+        action: restart
+
+  # Combo: RR → 10s window for SP
+  edge_of_space_combo_rr_timer:
+    start_value: 10
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: edge_of_space_combo_rr_hit
+        action: restart
+      - event: edge_of_space_combo_lr_hit
+        action: stop
+
+  # Combo: SP → 4s window for TL (3x bonus)
+  edge_of_space_combo_tl_timer:
+    start_value: 4
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: edge_of_space_combo_sp_hit
+        action: start
+      - event: edge_of_space_combo_rr_hit
+        action: stop
+
+####################################################################################
+# VARIABLE PLAYER
+####################################################################################
+
+variable_player:
+
+  mode_edge_of_space_started:
+    pilot_mode_active:
+      action: set
+      int: 1
+    letter_collection_paused:
+      action: set
+      int: 1
+    pilot_missions_played:
+      action: add
+      int: 1
+    mode_edge_of_space_played:
+      action: set
+      int: 1
+    mode_edge_of_space_actually_played:
+      action: set
+      int: 1
+    edge_of_space_step:
+      action: set
+      int: 0
+    edge_of_space_complete_flag:
+      action: set
+      int: 0
+    edge_of_space_shots_remaining:
+      action: set
+      int: 8
+    edge_of_space_points_bank:
+      action: set
+      int: 0
+    edge_of_space_current_shot_value:
+      action: set
+      int: 500000
+    edge_of_space_shot_floor:
+      action: set
+      int: 100000
+    edge_of_space_decay_per_tick:
+      action: set
+      int: 2667
+    edge_of_space_combo_step:
+      action: set
+      int: 0
+    edge_of_space_decision_timer_display:
+      action: set
+      int: 20
+    mode_points_scored:
+      action: set
+      int: 0
+    edge_of_space_timer_tick:
+      action: set
+      int: 160
+
+  # Update timer display variable on each tick (read by Godot edge_of_space_timer slide)
+  timer_edge_of_space_timer_tick:
+    edge_of_space_timer_tick:
+      action: set
+      int: device.timers.edge_of_space_timer.ticks
+
+  ball_will_end{mode.edge_of_space.active==True}:
+    pilot_mode_drain_pending:
+      action: set
+      int: 1
+
+  # Decay shot value each 100ms tick toward floor
+  timer_edge_of_space_decay_timer_tick{current_player.edge_of_space_current_shot_value > current_player.edge_of_space_shot_floor}:
+    edge_of_space_current_shot_value:
+      action: add
+      int: current_player.edge_of_space_decay_per_tick * -1
+
+  # Step value setups (set on setup event, decay resets timer)
+  edge_of_space_setup_step_1:
+    edge_of_space_step:
+      action: set
+      int: 1
+    edge_of_space_current_shot_value:
+      action: set
+      int: 500000
+    edge_of_space_shot_floor:
+      action: set
+      int: 100000
+    edge_of_space_decay_per_tick:
+      action: set
+      int: 2667
+
+  edge_of_space_setup_step_2:
+    edge_of_space_current_shot_value:
+      action: set
+      int: 550000
+    edge_of_space_shot_floor:
+      action: set
+      int: 110000
+    edge_of_space_decay_per_tick:
+      action: set
+      int: 2933
+
+  edge_of_space_setup_step_3:
+    edge_of_space_current_shot_value:
+      action: set
+      int: 600000
+    edge_of_space_shot_floor:
+      action: set
+      int: 120000
+    edge_of_space_decay_per_tick:
+      action: set
+      int: 3200
+
+  # Step 4b (TWR) value - set when ball is released from left lane hold
+  edge_of_space_step4_ball_released:
+    edge_of_space_current_shot_value:
+      action: set
+      int: 650000
+    edge_of_space_shot_floor:
+      action: set
+      int: 130000
+    edge_of_space_decay_per_tick:
+      action: set
+      int: 3467
+
+  edge_of_space_setup_step_5:
+    edge_of_space_current_shot_value:
+      action: set
+      int: 700000
+    edge_of_space_shot_floor:
+      action: set
+      int: 140000
+    edge_of_space_decay_per_tick:
+      action: set
+      int: 3733
+
+  edge_of_space_setup_step_6:
+    edge_of_space_current_shot_value:
+      action: set
+      int: 700000
+    edge_of_space_shot_floor:
+      action: set
+      int: 140000
+    edge_of_space_decay_per_tick:
+      action: set
+      int: 3733
+
+  edge_of_space_setup_step_7:
+    edge_of_space_current_shot_value:
+      action: set
+      int: 750000
+    edge_of_space_shot_floor:
+      action: set
+      int: 150000
+    edge_of_space_decay_per_tick:
+      action: set
+      int: 4000
+
+  edge_of_space_setup_step_8:
+    edge_of_space_current_shot_value:
+      action: set
+      int: 800000
+    edge_of_space_shot_floor:
+      action: set
+      int: 160000
+    edge_of_space_decay_per_tick:
+      action: set
+      int: 4267
+
+  # Step completions — bank decaying value, advance step, decrement remaining
+  edge_of_space_step_1_complete:
+    edge_of_space_step:
+      action: set
+      int: 2
+    edge_of_space_points_bank:
+      action: add
+      int: current_player.edge_of_space_current_shot_value * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: current_player.edge_of_space_current_shot_value * current_player.total_scoring_multiplier
+    edge_of_space_shots_remaining:
+      action: add
+      int: -1
+
+  edge_of_space_step_2_complete:
+    edge_of_space_step:
+      action: set
+      int: 3
+    edge_of_space_points_bank:
+      action: add
+      int: current_player.edge_of_space_current_shot_value * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: current_player.edge_of_space_current_shot_value * current_player.total_scoring_multiplier
+    edge_of_space_shots_remaining:
+      action: add
+      int: -1
+
+  edge_of_space_step_3_complete:
+    edge_of_space_step:
+      action: set
+      int: 4
+    edge_of_space_points_bank:
+      action: add
+      int: current_player.edge_of_space_current_shot_value * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: current_player.edge_of_space_current_shot_value * current_player.total_scoring_multiplier
+    edge_of_space_shots_remaining:
+      action: add
+      int: -1
+
+  # step=4 waiting for left lane catch, step=5 waiting for TWR
+  edge_of_space_step4_hold_start:
+    edge_of_space_step:
+      action: set
+      int: 5
+
+  edge_of_space_step_4b_complete:
+    edge_of_space_step:
+      action: set
+      int: 6
+    edge_of_space_points_bank:
+      action: add
+      int: current_player.edge_of_space_current_shot_value * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: current_player.edge_of_space_current_shot_value * current_player.total_scoring_multiplier
+    edge_of_space_shots_remaining:
+      action: add
+      int: -1
+
+  edge_of_space_step_5_complete:
+    edge_of_space_step:
+      action: set
+      int: 7
+    edge_of_space_points_bank:
+      action: add
+      int: current_player.edge_of_space_current_shot_value * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: current_player.edge_of_space_current_shot_value * current_player.total_scoring_multiplier
+    edge_of_space_shots_remaining:
+      action: add
+      int: -1
+
+  edge_of_space_step_6_complete:
+    edge_of_space_step:
+      action: set
+      int: 8
+    edge_of_space_points_bank:
+      action: add
+      int: current_player.edge_of_space_current_shot_value * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: current_player.edge_of_space_current_shot_value * current_player.total_scoring_multiplier
+    edge_of_space_shots_remaining:
+      action: add
+      int: -1
+
+  edge_of_space_step_7_complete:
+    edge_of_space_step:
+      action: set
+      int: 9
+    edge_of_space_points_bank:
+      action: add
+      int: current_player.edge_of_space_current_shot_value * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: current_player.edge_of_space_current_shot_value * current_player.total_scoring_multiplier
+    edge_of_space_shots_remaining:
+      action: add
+      int: -1
+
+  # step=9 waiting for left lane catch
+  # step=10 in victory hold
+  edge_of_space_step_8_complete:
+    edge_of_space_step:
+      action: set
+      int: 10
+    edge_of_space_points_bank:
+      action: add
+      int: current_player.edge_of_space_current_shot_value * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: current_player.edge_of_space_current_shot_value * current_player.total_scoring_multiplier
+    edge_of_space_shots_remaining:
+      action: add
+      int: -1
+
+  edge_of_space_victory_hold_start:
+    edge_of_space_step:
+      action: set
+      int: 11
+
+  # step=12 = decision phase
+  edge_of_space_decision_start:
+    edge_of_space_step:
+      action: set
+      int: 12
+
+  # step=13 = combo phase
+  edge_of_space_combo_start:
+    edge_of_space_step:
+      action: set
+      int: 13
+    edge_of_space_combo_step:
+      action: set
+      int: 1
+
+  # Decision countdown timer display variable
+  timer_edge_of_space_decision_countdown_tick:
+    edge_of_space_decision_timer_display:
+      action: set
+      int: device.timers.edge_of_space_decision_countdown.ticks
+
+  # Combo step tracking
+  edge_of_space_combo_lr_hit:
+    edge_of_space_combo_step:
+      action: set
+      int: 2
+
+  edge_of_space_combo_rr_hit:
+    edge_of_space_combo_step:
+      action: set
+      int: 3
+
+  edge_of_space_combo_sp_hit:
+    edge_of_space_combo_step:
+      action: set
+      int: 4
+
+  edge_of_space_combo_reset:
+    edge_of_space_combo_step:
+      action: set
+      int: 1
+
+  # Main timer expired in main game (not combo): bank to score + fail
+  timer_edge_of_space_timer_complete{current_player.afterburner_perk_active==0 and current_player.edge_of_space_step < 13}:
+    score:
+      action: add
+      int: current_player.edge_of_space_points_bank
+
+  # Choice: take 1x bank payout
+  edge_of_space_choice_no:
+    score:
+      action: add
+      int: current_player.edge_of_space_points_bank
+    mode_points_scored:
+      action: set
+      int: current_player.edge_of_space_points_bank
+    edge_of_space_complete_flag:
+      action: set
+      int: 1
+    mode_edge_of_space_won:
+      action: set
+      int: 1
+    pilot_missions_won:
+      action: add
+      int: 1
+    modes_completed_count:
+      action: add
+      int: 1
+    missiles_perk_saved:
+      action: set
+      int: current_player.missiles_perk_active
+    missiles_perk_active:
+      action: set
+      int: 0
+
+  # Combo timer expired = 1x payout
+  timer_edge_of_space_timer_complete{current_player.edge_of_space_step==13}:
+    score:
+      action: add
+      int: current_player.edge_of_space_points_bank
+    mode_points_scored:
+      action: set
+      int: current_player.edge_of_space_points_bank
+    edge_of_space_complete_flag:
+      action: set
+      int: 1
+    mode_edge_of_space_won:
+      action: set
+      int: 1
+    pilot_missions_won:
+      action: add
+      int: 1
+    modes_completed_count:
+      action: add
+      int: 1
+    missiles_perk_saved:
+      action: set
+      int: current_player.missiles_perk_active
+    missiles_perk_active:
+      action: set
+      int: 0
+
+  # Combo 2x payout (SP hit, TL timer expired or not attempted)
+  edge_of_space_combo_2x_payout:
+    score:
+      action: add
+      int: current_player.edge_of_space_points_bank * 2
+    mode_points_scored:
+      action: set
+      int: current_player.edge_of_space_points_bank * 2
+    edge_of_space_complete_flag:
+      action: set
+      int: 1
+    mode_edge_of_space_won:
+      action: set
+      int: 1
+    pilot_missions_won:
+      action: add
+      int: 1
+    modes_completed_count:
+      action: add
+      int: 1
+    missiles_perk_saved:
+      action: set
+      int: current_player.missiles_perk_active
+    missiles_perk_active:
+      action: set
+      int: 0
+
+  # Combo 3x payout (TL hit after SP)
+  edge_of_space_combo_3x_payout:
+    score:
+      action: add
+      int: current_player.edge_of_space_points_bank * 3
+    mode_points_scored:
+      action: set
+      int: current_player.edge_of_space_points_bank * 3
+    edge_of_space_complete_flag:
+      action: set
+      int: 1
+    mode_edge_of_space_won:
+      action: set
+      int: 1
+    pilot_missions_won:
+      action: add
+      int: 1
+    modes_completed_count:
+      action: add
+      int: 1
+    missiles_perk_saved:
+      action: set
+      int: current_player.missiles_perk_active
+    missiles_perk_active:
+      action: set
+      int: 0
+
+####################################################################################
+# EVENT PLAYER
+####################################################################################
+
+event_player:
+
+  # Afterburner perk
+  edge_of_space_ball_released{current_player.afterburner_perk_active==1}:
+    - afterburner_extend_edge_of_space_timer|500ms
+
+  # Drain handling
+  edge_of_space_ball_ending_hold:
+    - edge_of_space_failed
+    - edge_of_space_drain_detected
+
+  timer_edge_of_space_drain_delay_complete:
+    - edge_of_space_drain_cleanup_complete
+    - edge_of_space_cleanup
+
+  # Mode start — raise barrier, GI intro show starts via show_player
+  mode_edge_of_space_started:
+    - reset_topgun_letters
+    - barrier_raise
+
+  # Normal intro path — 400ms delay for barrier to drop before ball ejects
+  timer_edge_of_space_intro_video_delay_complete:
+    - barrier_drop
+    - edge_of_space_ball_released|400ms
+    - edge_of_space_setup_step_1|400ms
+
+  # Engine fire starts at 50 seconds into intro
+  timer_edge_of_space_intro_video_delay_tick{ticks==50}:
+    - edge_of_space_game_gi_start
+
+  # Skip intro — both flippers held
+  s_flipper_left_active{current_player.edge_of_space_step==0 and device.timers.edge_of_space_intro_video_delay.running}:
+    - edge_of_space_check_skip_intro
+  s_flipper_right_active{current_player.edge_of_space_step==0 and device.timers.edge_of_space_intro_video_delay.running}:
+    - edge_of_space_check_skip_intro
+  edge_of_space_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - edge_of_space_skip_intro
+  edge_of_space_skip_intro:
+    - barrier_drop
+    - edge_of_space_ball_released|400ms
+    - edge_of_space_setup_step_1|400ms
+    - edge_of_space_game_gi_start
+
+  # Barrier raise 2s after eject
+  timer_edge_of_space_barrier_delay_complete:
+    - barrier_raise
+
+  ##############################################
+  ## STEP 1 — LO (left_orbit_shot_hit composite event from base)
+  ##############################################
+
+  left_orbit_shot_hit{current_player.edge_of_space_step==1}:
+    - edge_of_space_step_1_complete
+    - edge_of_space_step_1_shot_hit
+    - edge_of_space_setup_step_2
+    - edge_of_space_show_points
+
+  ##############################################
+  ## STEP 2 — RO (right ramp UP, right_orbit_shot_hit)
+  ## Right ramp raises when ball hits s_lane_right (safe gate)
+  ##############################################
+  edge_of_space_setup_step_2:
+    - barrier_raise
+
+  # Ball passes right lane gate — safe to raise ramp now
+  s_lane_right_active{current_player.edge_of_space_step==2}:
+    - right_ramp_up
+
+  # RO shot made (ramp was up)
+  right_orbit_shot_hit{current_player.edge_of_space_step==2}:
+    - edge_of_space_step_2_complete
+    - edge_of_space_step_2_shot_hit
+    - edge_of_space_setup_step_3
+    - right_ramp_down|500ms
+    - edge_of_space_show_points
+
+  # Fallback: if ramp servo fails and ball exits ramp-down path instead
+  s_ramp_right_exit_active{current_player.edge_of_space_step==2}:
+    - edge_of_space_step_2_complete
+    - edge_of_space_step_2_shot_hit
+    - edge_of_space_setup_step_3
+    - right_ramp_down|500ms
+    - edge_of_space_show_points
+
+  ##############################################
+  ## STEP 3 — SP (spinner_shot_made) OR TL (s_orbit_upper)
+  ## Hit either → open left orbit diverter to catch ball in left lane
+  ##############################################
+  edge_of_space_setup_step_3:
+    - barrier_raise
+
+  spinner_shot_made{current_player.edge_of_space_step==3}:
+    - edge_of_space_step_3_complete
+    - edge_of_space_step_3_shot_hit
+    - edge_of_space_open_diverter
+    - edge_of_space_show_points
+
+  s_orbit_upper_active{current_player.edge_of_space_step==3}:
+    - edge_of_space_step_3_complete
+    - edge_of_space_step_3_shot_hit
+    - edge_of_space_open_diverter
+    - edge_of_space_show_points
+
+  edge_of_space_open_diverter:
+    - left_orbit_diverter_open
+
+  timer_edge_of_space_diverter_timer_complete:
+    - left_orbit_diverter_closed
+
+  # Diverter retry — SP or TL hit while waiting for left lane catch
+  # Reopens diverter for another 3s window and lights the left lane insert
+  s_orbit_upper_active{current_player.edge_of_space_step==4}:
+    - edge_of_space_diverter_retry
+  spinner_shot_made{current_player.edge_of_space_step==4}:
+    - edge_of_space_diverter_retry
+  s_orbit_upper_active{current_player.edge_of_space_step==10}:
+    - edge_of_space_diverter_retry
+  spinner_shot_made{current_player.edge_of_space_step==10}:
+    - edge_of_space_diverter_retry
+
+  edge_of_space_diverter_retry:
+    - left_orbit_diverter_open
+    - timer_edge_of_space_diverter_timer_restart
+
+  ##############################################
+  ## STEP 4 — Left lane catch, hold for 12s
+  ## step=4 waiting for left lane, step=5 waiting for TWR
+  ##############################################
+  s_lane_left_active{current_player.edge_of_space_step==4}:
+    - edge_of_space_step4_hold_start
+    - edge_of_space_activate_left_lane_post
+    - left_orbit_diverter_closed
+    - ball_search_block
+
+  # At 11s: spotlight only tower shot (stop wander, light TWR)
+  timer_edge_of_space_step4_hold_timer_tick{ticks==11}:
+    - edge_of_space_spotlight_tower
+
+  # At 12s: release ball, setup step 5 (TWR)
+  timer_edge_of_space_step4_hold_timer_complete:
+    - edge_of_space_deactivate_left_lane_post
+    - ball_search_unblock
+    - edge_of_space_step4_ball_released
+    - edge_of_space_setup_step_5
+    - left_orbit_diverter_closed
+
+  ##############################################
+  ## STEP 5 — TWR (s_ramp_tower_exit)
+  ##############################################
+
+  s_ramp_tower_exit_active{current_player.edge_of_space_step==5}:
+    - edge_of_space_step_4b_complete
+    - edge_of_space_step_4b_shot_hit
+    - edge_of_space_setup_step_6
+    - edge_of_space_show_points
+
+  ##############################################
+  ## STEP 6 — LR (s_ramp_left_exit)
+  ##############################################
+  edge_of_space_setup_step_6:
+    - barrier_raise
+
+  s_ramp_left_exit_active{current_player.edge_of_space_step==6}:
+    - edge_of_space_step_5_complete
+    - edge_of_space_step_5_shot_hit
+    - edge_of_space_setup_step_7
+    - edge_of_space_show_points
+
+  ##############################################
+  ## STEP 7 — RO again (right ramp UP same as step 2)
+  ##############################################
+  edge_of_space_setup_step_7:
+    - barrier_raise
+
+  # Ball passes right lane gate — safe to raise ramp now
+  s_lane_right_active{current_player.edge_of_space_step==7}:
+    - right_ramp_up
+
+  # RO shot made (ramp was up)
+  right_orbit_shot_hit{current_player.edge_of_space_step==7}:
+    - edge_of_space_step_6_complete
+    - edge_of_space_step_6_shot_hit
+    - edge_of_space_setup_step_8
+    - right_ramp_down|500ms
+    - edge_of_space_show_points
+
+  # Fallback: if ramp servo fails and ball exits ramp-down path instead
+  s_ramp_right_exit_active{current_player.edge_of_space_step==7}:
+    - edge_of_space_step_6_complete
+    - edge_of_space_step_6_shot_hit
+    - edge_of_space_setup_step_8
+    - right_ramp_down|500ms
+    - edge_of_space_show_points
+
+  ##############################################
+  ## STEP 8 — TL (s_orbit_upper) OR SP (spinner_shot_made)
+  ## Hit either → open diverter for final left lane catch
+  ##############################################
+  edge_of_space_setup_step_8:
+    - barrier_raise
+
+  s_orbit_upper_active{current_player.edge_of_space_step==8}:
+    - edge_of_space_step_7_complete
+    - edge_of_space_step_7_shot_hit
+    - edge_of_space_step_8_complete
+    - edge_of_space_open_diverter
+    - edge_of_space_show_points
+
+  spinner_shot_made{current_player.edge_of_space_step==8}:
+    - edge_of_space_step_7_complete
+    - edge_of_space_step_7_shot_hit
+    - edge_of_space_step_8_complete
+    - edge_of_space_open_diverter
+    - edge_of_space_show_points
+
+  ##############################################
+  ## VICTORY HOLD — Left lane catch after step 8 (step=10 waiting)
+  ## Hold for 25s victory video then decision
+  ##############################################
+  s_lane_left_active{current_player.edge_of_space_step==10}:
+    - edge_of_space_victory_hold_start
+    - edge_of_space_activate_left_lane_post
+    - left_orbit_diverter_closed
+    - ball_search_block
+
+  timer_edge_of_space_won_video_timer_complete:
+    - edge_of_space_decision_start
+
+  ##############################################
+  ## DECISION PHASE (step=12)
+  ## Left flipper = NO (1x bank), Right flipper = YES (combo)
+  ## Decision timer expiry = NO
+  ##############################################
+  s_flipper_left_active{current_player.edge_of_space_step==12}:
+    - edge_of_space_choice_no
+
+  s_flipper_right_active{current_player.edge_of_space_step==12}:
+    - edge_of_space_choice_yes
+
+  timer_edge_of_space_decision_countdown_complete:
+    - edge_of_space_choice_no
+
+  edge_of_space_choice_no:
+    - missiles_perk_unload
+
+  # NO hold complete: release ball, cleanup, stop mode (timer is in stop_events)
+  timer_edge_of_space_no_hold_delay_complete:
+    - edge_of_space_cleanup
+    - pilot_mode_cleanup_complete
+
+  # YES: hold ball in post while callout plays. Release + start combo after callout.
+  edge_of_space_choice_yes:
+    - edge_of_space_game_gi_start
+
+  timer_edge_of_space_yes_callout_delay_complete:
+    - edge_of_space_deactivate_left_lane_post
+    - ball_search_unblock
+    - edge_of_space_combo_start
+
+  ##############################################
+  ## COMBO PHASE (step=13) — LR → RR → SP → TL(optional)
+  ## Each miss within window resets combo to LR (NOT mode end)
+  ##############################################
+  edge_of_space_combo_start:
+    - edge_of_space_combo_setup_lr
+    - edge_of_space_combo_start_timer_go|200ms
+
+  # LR hit
+  s_ramp_left_exit_active{current_player.edge_of_space_step==13 and current_player.edge_of_space_combo_step==1}:
+    - edge_of_space_combo_lr_hit
+
+  # LR timer expired → reset combo
+  timer_edge_of_space_combo_lr_timer_complete:
+    - edge_of_space_combo_reset
+    - edge_of_space_combo_setup_lr
+
+  # RR hit (right ramp DOWN exit)
+  s_ramp_right_exit_active{current_player.edge_of_space_step==13 and current_player.edge_of_space_combo_step==2}:
+    - edge_of_space_combo_rr_hit
+
+  # RR timer expired → reset combo
+  timer_edge_of_space_combo_rr_timer_complete:
+    - edge_of_space_combo_reset
+    - edge_of_space_combo_setup_lr
+
+  # SP hit → 2x locked in, start 4s TL window
+  spinner_shot_made{current_player.edge_of_space_step==13 and current_player.edge_of_space_combo_step==3}:
+    - edge_of_space_combo_sp_hit
+
+  # TL hit → 3x!
+  s_orbit_upper_active{current_player.edge_of_space_step==13 and current_player.edge_of_space_combo_step==4}:
+    - edge_of_space_combo_3x_payout
+    - edge_of_space_end_combo
+
+  # TL timer expired → 2x payout
+  timer_edge_of_space_combo_tl_timer_complete:
+    - edge_of_space_combo_2x_payout
+    - edge_of_space_end_combo
+
+  # Main timer expired during combo → 1x payout (variable_player handles score)
+  timer_edge_of_space_timer_complete{current_player.edge_of_space_step==13}:
+    - edge_of_space_end_combo
+
+  edge_of_space_end_combo:
+    - edge_of_space_cleanup
+    - missiles_perk_unload
+    - edge_of_space_complete
+
+  ##############################################
+  ## MISSILES PERK — auto-complete current step
+  ##############################################
+  missiles_perk_complete_shot{current_player.edge_of_space_step==1 and current_player.edge_of_space_complete_flag==0}:
+    - edge_of_space_step_1_complete
+    - edge_of_space_step_1_shot_hit
+    - edge_of_space_setup_step_2
+
+  missiles_perk_complete_shot{current_player.edge_of_space_step==2 and current_player.edge_of_space_complete_flag==0}:
+    - edge_of_space_step_2_complete
+    - edge_of_space_step_2_shot_hit
+    - edge_of_space_setup_step_3
+    - right_ramp_down
+
+  missiles_perk_complete_shot{current_player.edge_of_space_step==3 and current_player.edge_of_space_complete_flag==0}:
+    - edge_of_space_step_3_complete
+    - edge_of_space_step_3_shot_hit
+    - edge_of_space_open_diverter
+
+  missiles_perk_complete_shot{current_player.edge_of_space_step==5 and current_player.edge_of_space_complete_flag==0}:
+    - edge_of_space_step_4b_complete
+    - edge_of_space_step_4b_shot_hit
+    - edge_of_space_setup_step_6
+
+  missiles_perk_complete_shot{current_player.edge_of_space_step==6 and current_player.edge_of_space_complete_flag==0}:
+    - edge_of_space_step_5_complete
+    - edge_of_space_step_5_shot_hit
+    - edge_of_space_setup_step_7
+
+  missiles_perk_complete_shot{current_player.edge_of_space_step==7 and current_player.edge_of_space_complete_flag==0}:
+    - edge_of_space_step_6_complete
+    - edge_of_space_step_6_shot_hit
+    - edge_of_space_setup_step_8
+    - right_ramp_down
+
+  missiles_perk_complete_shot{current_player.edge_of_space_step==8 and current_player.edge_of_space_complete_flag==0}:
+    - edge_of_space_step_7_complete
+    - edge_of_space_step_7_shot_hit
+    - edge_of_space_step_8_complete
+    - edge_of_space_open_diverter
+
+  ##############################################
+  ## MAIN TIMER EXPIRED — fail (afterburner check)
+  ##############################################
+  timer_edge_of_space_timer_complete{current_player.afterburner_perk_active==0 and current_player.edge_of_space_step < 13}:
+    - edge_of_space_failed
+    - edge_of_space_cleanup
+    - missiles_perk_unload
+
+  ##############################################
+  ## VICTORY / FAIL / CLEANUP
+  ##############################################
+  edge_of_space_complete:
+    - barrier_raise
+    - timer_edge_of_space_complete_delay_start
+
+  edge_of_space_failed:
+    - barrier_raise
+    - edge_of_space_cleanup
+    - missiles_perk_unload
+    - right_ramp_down
+    - left_orbit_diverter_closed
+
+  edge_of_space_cleanup:
+    - edge_of_space_deactivate_left_lane_post
+    - ball_search_unblock
+    - left_orbit_diverter_closed
+
+  timer_edge_of_space_complete_delay_complete:
+    - pilot_mode_cleanup_complete
+    - edge_of_space_cleanup
+
+  timer_edge_of_space_failed_delay_complete:
+    - pilot_mode_cleanup_complete
+
+####################################################################################
+# COIL PLAYER
+####################################################################################
+
+coil_player:
+  edge_of_space_activate_left_lane_post:
+    c_left_lane_up_post:
+      action: enable
+
+  edge_of_space_deactivate_left_lane_post:
+    c_left_lane_up_post:
+      action: disable
+
+  mode_edge_of_space_will_stop:
+    c_left_lane_up_post:
+      action: disable
+
+####################################################################################
+# LIGHT PLAYER
+# Controls l_shot_left_lane to cue player when diverter is open waiting for
+# the ball to catch in the left lane (step 4 and step 10/victory hold)
+####################################################################################
+
+light_player:
+
+  # Diverter opened — light left lane insert as cue to player
+  edge_of_space_open_diverter:
+    l_shot_left_lane:
+      color: '0033AA'
+
+  # Diverter retry — ball missed, reopening; keep light on
+  edge_of_space_diverter_retry:
+    l_shot_left_lane:
+      color: '0033AA'
+
+  # Ball caught in left lane (step 4) — turn off cue light
+  edge_of_space_step4_hold_start:
+    l_shot_left_lane:
+      color: 000000
+
+  # Ball caught in left lane (step 10 / victory) — turn off cue light
+  edge_of_space_victory_hold_start:
+    l_shot_left_lane:
+      color: 000000
+
+  # Diverter timer expired — step 4 and 10 are still waiting for left lane catch,
+  # keep the light ON in dark blue as a cue. All other steps: turn it off.
+  timer_edge_of_space_diverter_timer_complete{current_player.edge_of_space_step==4}:
+    l_shot_left_lane:
+      color: '0033AA'
+
+  timer_edge_of_space_diverter_timer_complete{current_player.edge_of_space_step==10}:
+    l_shot_left_lane:
+      color: '0033AA'
+
+  timer_edge_of_space_diverter_timer_complete{current_player.edge_of_space_step!=4 and current_player.edge_of_space_step!=10}:
+    l_shot_left_lane:
+      color: 000000
+
+  # Cleanup — ensure left lane light is off
+  edge_of_space_cleanup:
+    l_shot_left_lane:
+      color: 000000
+
+####################################################################################
+# SLIDE PLAYER
+####################################################################################
+
+slide_player:
+
+  mode_edge_of_space_started:
+    edge_of_space_shots_remaining:
+      action: play
+      priority: 1000
+    edge_of_space_intro_video:
+      action: play
+      priority: 900
+    edge_of_space_instructions:
+      action: play
+      priority: 850
+
+  mode_edge_of_space_started{current_player.afterburner_perk_active==0}:
+    edge_of_space_timer:
+      action: play
+      priority: 1000
+
+  mode_edge_of_space_started{current_player.afterburner_perk_active==1}:
+    afterburner_perk_active:
+      action: play
+      priority: 850
+    timer_perk_activated:
+      action: play
+      priority: 1000
+
+  edge_of_space_skip_intro:
+    edge_of_space_intro_video:
+      action: remove
+
+  edge_of_space_cleanup:
+    timer_perk_activated:
+      action: remove
+
+  # Shot value + bank display (active from step 1 through step 8)
+  edge_of_space_setup_step_1:
+    edge_of_space_shot_value:
+      action: play
+      priority: 990
+    edge_of_space_bank:
+      action: play
+      priority: 980
+
+  # Step 1 hit → play step 1 video
+  edge_of_space_step_1_shot_hit:
+    edge_of_space_1_video:
+      action: play
+      priority: 800
+    edge_of_space_2_video:
+      action: remove
+
+  # Step 2 hit → swap to step 2 video
+  edge_of_space_step_2_shot_hit:
+    edge_of_space_1_video:
+      action: remove
+    edge_of_space_2_video:
+      action: play
+      priority: 800
+
+  # Step 3 hit → swap to step 3 video, remove step 2 video
+  edge_of_space_step_3_shot_hit:
+    edge_of_space_2_video:
+      action: remove
+    edge_of_space_3_video:
+      action: play
+      priority: 800
+
+  # Step 4 hold: remove shot value display and step 3 video, play hold video
+  edge_of_space_step4_hold_start:
+    edge_of_space_shot_value:
+      action: remove
+    edge_of_space_3_video:
+      action: remove
+    edge_of_space_4_video:
+      action: play
+      priority: 800
+
+  # Ball released from step 4 hold — restore shot value slide
+  edge_of_space_step4_ball_released:
+    edge_of_space_shot_value:
+      action: play
+      priority: 990
+
+  edge_of_space_step_4b_shot_hit:
+    edge_of_space_4_video:
+      action: remove
+    edge_of_space_5_video:
+      action: play
+      priority: 800
+
+  edge_of_space_step_5_shot_hit:
+    edge_of_space_5_video:
+      action: remove
+    edge_of_space_6_video:
+      action: play
+      priority: 800
+
+  edge_of_space_step_6_shot_hit:
+    edge_of_space_6_video:
+      action: remove
+    edge_of_space_7_video:
+      action: play
+      priority: 800
+
+  edge_of_space_step_7_shot_hit:
+    edge_of_space_7_video:
+      action: remove
+    edge_of_space_8_video:
+      action: play
+      priority: 800
+
+  # Victory hold (25s)
+  edge_of_space_victory_hold_start:
+    edge_of_space_8_video:
+      action: remove
+    edge_of_space_shots_remaining:
+      action: remove
+    edge_of_space_instructions:
+      action: remove
+    edge_of_space_timer:
+      action: remove
+    edge_of_space_shot_value:
+      action: remove
+    edge_of_space_won_video:
+      action: play
+      priority: 900
+
+  # Decision phase
+  edge_of_space_decision_start:
+    edge_of_space_won_video:
+      action: remove
+    edge_of_space_a_little_more_decision:
+      action: play
+      priority: 900
+
+  # Choice YES → remove decision slide, play combo video
+  edge_of_space_choice_yes:
+    edge_of_space_a_little_more_decision:
+      action: remove
+    edge_of_space_a_little_more_yes:
+      action: play
+      priority: 800
+
+  # Choice NO → remove all game slides, play decision_no slide for 16s hold
+  edge_of_space_choice_no:
+    edge_of_space_a_little_more_decision:
+      action: remove
+    edge_of_space_bank:
+      action: remove
+    edge_of_space_shot_value:
+      action: remove
+    edge_of_space_decision_no:
+      action: play
+      priority: 900
+
+  # Combo starts — re-show main timer (now counting down from 34), a_little_more_yes persists
+  edge_of_space_combo_start:
+    edge_of_space_timer:
+      action: play
+      priority: 1000
+
+  # End video
+  edge_of_space_complete:
+    edge_of_space_a_little_more_decision:
+      action: remove
+    edge_of_space_a_little_more_yes:
+      action: remove
+    edge_of_space_decision_no:
+      action: remove
+    edge_of_space_bank:
+      action: remove
+    edge_of_space_end:
+      action: play
+      priority: 900
+      expire: 5s
+
+  # Failed — clean up all slides
+  edge_of_space_failed:
+    edge_of_space_shot_value:
+      action: remove
+    edge_of_space_bank:
+      action: remove
+    edge_of_space_shots_remaining:
+      action: remove
+    edge_of_space_instructions:
+      action: remove
+    edge_of_space_timer:
+      action: remove
+    edge_of_space_1_video:
+      action: remove
+    edge_of_space_2_video:
+      action: remove
+    edge_of_space_3_video:
+      action: remove
+    edge_of_space_4_video:
+      action: remove
+    edge_of_space_5_video:
+      action: remove
+    edge_of_space_6_video:
+      action: remove
+    edge_of_space_7_video:
+      action: remove
+    edge_of_space_8_video:
+      action: remove
+    edge_of_space_won_video:
+      action: remove
+    edge_of_space_a_little_more_decision:
+      action: remove
+    edge_of_space_lost_video:
+      action: play
+      priority: 900
+      expire: 13s
+
+####################################################################################
+# SHOW PLAYER
+####################################################################################
+
+show_player:
+
+  edge_of_space_failed:
+    stop_fail_1:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_orbit
+    stop_fail_2:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_right_orbit
+    stop_fail_3:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_spinner
+    stop_fail_4:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_upper_orbit
+    stop_fail_5:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_ramp
+    stop_fail_6:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_tower_ramp
+    stop_fail_7:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_combo_lr
+    stop_fail_8:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_combo_rr
+    stop_fail_9:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_combo_sp
+    stop_fail_10:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_combo_tl
+    stop_fail_11:
+      show: sync_flash_mode
+      action: stop
+      key: eos_engine_fire_key
+    stop_fail_12:
+      show: sync_flash_mode
+      action: stop
+      key: eos_gi_key
+    stop_fail_13:
+      show: sync_flash_mode
+      action: stop
+      key: eos_gi_hit
+    stop_fail_14:
+      show: sync_flash_mode
+      action: stop
+      key: eos_wander_key
+
+  # Game GI (dark/light blue) starts IMMEDIATELY when mode starts
+  mode_edge_of_space_started:
+    eos_game_gi:
+      show: eos_game_gi
+      key: eos_gi_key
+      loops: -1
+
+  # Engine fire starts at 54s (intro complete) or immediately on skip
+  edge_of_space_game_gi_start:
+    eos_engine_fire:
+      show: eos_engine_fire
+      key: eos_engine_fire_key
+      speed: 30
+      loops: -1
+
+  mode_edge_of_space_will_stop:
+    stop_engine_fire:
+      show: eos_engine_fire
+      action: stop
+      key: eos_engine_fire_key
+
+  # STEP 1 — LO flash (dark blue)
+  edge_of_space_setup_step_1:
+    lo_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_left_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_orbit
+        color: '0033AA'
+
+  edge_of_space_step_1_complete:
+    stop_lo:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_orbit
+
+  # STEP 2 — RO flash (dark blue)
+  edge_of_space_setup_step_2:
+    ro_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_right_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
+        color: '0033AA'
+
+  edge_of_space_step_2_complete:
+    stop_ro:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_right_orbit
+
+  # STEP 3 — SP and TL flash (dark blue, either counts)
+  edge_of_space_setup_step_3:
+    sp_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_spinner
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_spinner
+        color: '0033AA'
+    tl_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_upper_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: '0033AA'
+
+  edge_of_space_step_3_complete:
+    stop_sp:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_spinner
+    stop_tl:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_upper_orbit
+
+  # STEP 4 HOLD — wander show cycles through all shot inserts
+  edge_of_space_step4_hold_start:
+    eos_wander_show:
+      show: eos_shot_wander
+      key: eos_wander_key
+      loops: -1
+    # Stop SP/TL cue flashes when ball is finally caught
+    stop_sp_waiting:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_spinner
+    stop_tl_waiting:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_upper_orbit
+
+  # STEP 5 TWR — spotlight tower after wander stops at t=11
+  edge_of_space_spotlight_tower:
+    stop_wander:
+      show: eos_shot_wander
+      action: stop
+      key: eos_wander_key
+    twr_spotlight:
+      show: sync_flash_mode
+      key: mode_l_shot_tower_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_tower_ramp
+        color: '0033AA'
+
+  edge_of_space_setup_step_5:
+    twr_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_tower_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_tower_ramp
+        color: '0033AA'
+
+  edge_of_space_step_4b_complete:
+    stop_twr:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_tower_ramp
+
+  # STEP 6 — LR flash (dark blue)
+  edge_of_space_setup_step_6:
+    lr_flash:
+      show: sync_flash_mode
+      key: mode_l_shot_left_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+        color: '0033AA'
+
+  edge_of_space_step_5_complete:
+    stop_lr:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_ramp
+
+  # STEP 7 — RO flash (dark blue)
+  edge_of_space_setup_step_7:
+    ro_flash2:
+      show: sync_flash_mode
+      key: mode_l_shot_right_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
+        color: '0033AA'
+
+  edge_of_space_step_6_complete:
+    stop_ro2:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_right_orbit
+
+  # STEP 8 — TL and SP flash (either counts)
+  edge_of_space_setup_step_8:
+    sp_flash2:
+      show: sync_flash_mode
+      key: mode_l_shot_spinner
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_spinner
+        color: '0033AA'
+    tl_flash2:
+      show: sync_flash_mode
+      key: mode_l_shot_upper_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: '0033AA'
+
+  edge_of_space_step_8_complete:
+    stop_sp2:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_spinner
+    stop_tl2:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_upper_orbit
+
+  # Diverter miss at step 4 — restart SP/TL cues so player knows to hit them again
+  timer_edge_of_space_diverter_timer_complete{current_player.edge_of_space_step==4}:
+    sp_flash_miss_4:
+      show: sync_flash_mode
+      key: mode_l_shot_spinner
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_spinner
+        color: '0033AA'
+    tl_flash_miss_4:
+      show: sync_flash_mode
+      key: mode_l_shot_upper_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: '0033AA'
+
+  # Diverter miss at step 10 (victory hold) — same
+  timer_edge_of_space_diverter_timer_complete{current_player.edge_of_space_step==10}:
+    sp_flash_miss_10:
+      show: sync_flash_mode
+      key: mode_l_shot_spinner
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_spinner
+        color: '0033AA'
+    tl_flash_miss_10:
+      show: sync_flash_mode
+      key: mode_l_shot_upper_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: '0033AA'
+
+  # Victory hold start — stop any SP/TL cue flashes still running
+  edge_of_space_victory_hold_start:
+    stop_sp_waiting_v:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_spinner
+    stop_tl_waiting_v:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_upper_orbit
+
+  # GI shot flash on each hit
+  edge_of_space_step_1_shot_hit:
+    eos_gi_flash1:
+      show: eos_gi_shot_flash
+      key: eos_gi_hit
+      speed: 30
+      loops: 0
+    eos_left_shot_1:
+      show: edge_of_space_left_shot
+      speed: 30
+      loops: 0
+  edge_of_space_step_2_shot_hit:
+    eos_gi_flash2:
+      show: eos_gi_shot_flash
+      key: eos_gi_hit
+      speed: 30
+      loops: 0
+    eos_right_shot_1:
+      show: edge_of_space_right_shot
+      speed: 30
+      loops: 0
+  edge_of_space_step_3_shot_hit:
+    eos_gi_flash3:
+      show: eos_gi_shot_flash
+      key: eos_gi_hit
+      speed: 30
+      loops: 0
+    eos_center_shot_1:
+      show: edge_of_space_center_shot
+      speed: 30
+      loops: 0
+  edge_of_space_step_4b_shot_hit:
+    eos_gi_flash4:
+      show: eos_gi_shot_flash
+      key: eos_gi_hit
+      speed: 30
+      loops: 0
+    eos_center_shot_2:
+      show: edge_of_space_center_shot
+      speed: 30
+      loops: 0
+  edge_of_space_step_5_shot_hit:
+    eos_gi_flash5:
+      show: eos_gi_shot_flash
+      key: eos_gi_hit
+      speed: 30
+      loops: 0
+    eos_left_shot_2:
+      show: edge_of_space_left_shot
+      speed: 30
+      loops: 0
+  edge_of_space_step_6_shot_hit:
+    eos_gi_flash6:
+      show: eos_gi_shot_flash
+      key: eos_gi_hit
+      speed: 30
+      loops: 0
+    eos_right_shot_2:
+      show: edge_of_space_right_shot
+      speed: 30
+      loops: 0
+  edge_of_space_step_7_shot_hit:
+    eos_gi_flash7:
+      show: eos_gi_shot_flash
+      key: eos_gi_hit
+      speed: 30
+      loops: 0
+    eos_center_shot_3:
+      show: edge_of_space_center_shot
+      speed: 30
+      loops: 0
+
+  # COMBO shows
+  edge_of_space_combo_setup_lr:
+    combo_lr_flash:
+      show: sync_flash_mode
+      key: mode_l_combo_lr
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+        color: '0033AA'
+
+  edge_of_space_combo_lr_hit:
+    stop_combo_lr:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_combo_lr
+    combo_rr_flash:
+      show: sync_flash_mode
+      key: mode_l_combo_rr
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
+        color: '0033AA'
+    eos_gi_combo_lr:
+      show: eos_gi_shot_flash
+      key: eos_gi_hit
+      speed: 30
+      loops: 0
+    eos_left_combo_lr:
+      show: edge_of_space_left_shot
+      speed: 30
+      loops: 0
+
+  edge_of_space_combo_rr_hit:
+    stop_combo_rr:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_combo_rr
+    combo_sp_flash:
+      show: sync_flash_mode
+      key: mode_l_combo_sp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_spinner
+        color: '0033AA'
+    eos_gi_combo_rr:
+      show: eos_gi_shot_flash
+      key: eos_gi_hit
+      speed: 30
+      loops: 0
+    eos_right_combo_rr:
+      show: edge_of_space_right_shot
+      speed: 30
+      loops: 0
+
+  edge_of_space_combo_sp_hit:
+    stop_combo_sp:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_combo_sp
+    combo_tl_flash:
+      show: sync_flash_mode
+      key: mode_l_combo_tl
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: '0033AA'
+    eos_gi_combo_sp:
+      show: eos_gi_shot_flash
+      key: eos_gi_hit
+      speed: 30
+      loops: 0
+    eos_center_combo_sp:
+      show: edge_of_space_center_shot
+      speed: 30
+      loops: 0
+
+  edge_of_space_combo_reset:
+    stop_combo_rr_reset:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_combo_rr
+    stop_combo_sp_reset:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_combo_sp
+
+  edge_of_space_end_combo:
+    stop_combo_tl:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_combo_tl
+
+  edge_of_space_combo_3x_payout:
+    eos_gi_combo_tl:
+      show: eos_gi_shot_flash
+      key: eos_gi_hit
+      speed: 30
+      loops: 0
+    eos_center_combo_tl:
+      show: edge_of_space_center_shot
+      speed: 30
+      loops: 0
+
+  # Cleanup — stop all mode shows
+  edge_of_space_cleanup:
+    stop_s1:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_orbit
+    stop_s2:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_right_orbit
+    stop_s3:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_spinner
+    stop_s4:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_upper_orbit
+    stop_s5:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_ramp
+    stop_s6:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_tower_ramp
+    stop_s7:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_combo_lr
+    stop_s8:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_combo_rr
+    stop_s9:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_combo_sp
+    stop_s10:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_combo_tl
+    stop_wander_cleanup:
+      show: eos_shot_wander
+      action: stop
+      key: eos_wander_key
+    stop_gi:
+      show: eos_game_gi
+      action: stop
+      key: eos_gi_key
+
+####################################################################################
+# SOUND PLAYER
+# Shot SFX play on the voice bus when a progression shot is hit.
+# These events only fire when that shot is the active step — no extra conditional needed.
+# Step 1: LO  → sound_barrier
+# Step 2: RO  → super_fast
+# Step 3: SP/TL → super_slow_speed
+# Step 4b: TWR → top_ramp
+# Step 5: LR  → left_ramp
+# Step 6: RO  → super_fast
+# Step 7: TL/SP → super_slow_speed
+####################################################################################
+
+sound_player:
+
+  edge_of_space_step_1_shot_hit:
+    mach_scoring_soundfx_sound_barrier:
+      bus: voice
+      loops: 0
+
+  edge_of_space_step_2_shot_hit:
+    mach_scoring_soundfx_super_fast:
+      bus: voice
+      loops: 0
+
+  edge_of_space_step_3_shot_hit:
+    mach_scoring_soundfx_super_slow_speed:
+      bus: voice
+      loops: 0
+
+  edge_of_space_step_4b_shot_hit:
+    soundfx_jet_fly_by_top_ramp:
+      bus: voice
+      loops: 0
+
+  edge_of_space_step_5_shot_hit:
+    soundfx_jet_fly_by_left_ramp:
+      bus: voice
+      loops: 0
+
+  edge_of_space_step_6_shot_hit:
+    mach_scoring_soundfx_super_fast:
+      bus: voice
+      loops: 0
+
+  edge_of_space_step_7_shot_hit:
+    mach_scoring_soundfx_super_slow_speed:
+      bus: voice
+      loops: 0
+
+  # COMBO shot sounds
+  edge_of_space_combo_lr_hit:
+    soundfx_jet_fly_by_left_ramp:
+      bus: voice
+      loops: 0
+
+  edge_of_space_combo_rr_hit:
+    soundfx_jet_fly_by_right_ramp:
+      bus: voice
+      loops: 0
+
+  edge_of_space_combo_sp_hit:
+    mach_scoring_soundfx_super_slow_speed:
+      bus: voice
+      loops: 0
+
+  edge_of_space_combo_3x_payout:
+    mach_scoring_soundfx_sound_barrier:
+      bus: voice
+      loops: 0
+
+####################################################################################
+# SHOWS
+# NOTE: GI lights use type: grb (expansion board ports 3/4) so hex colors are
+# already in RGB order — MPF will send them correctly with the grb type declared
+# in config_lights.yaml. Use standard hex values here.
+####################################################################################

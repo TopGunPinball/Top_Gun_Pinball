@@ -91,6 +91,9 @@ queue_relay_player:
 variable_player:
   mode_rescue_cougar_started:
     # Universal pilot mode tracking - set when any pilot mode starts
+    missiles_perk_blocked:
+      action: set
+      int: 0
     pilot_mode_active:
       action: set
       int: 1
@@ -174,6 +177,9 @@ variable_player:
     rescue_cougar_step:
       action: set
       int: 5
+    missiles_perk_blocked:
+      action: set
+      int: 1
     score: 200000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
@@ -186,6 +192,9 @@ variable_player:
     rescue_cougar_step:
       action: set
       int: 6
+    missiles_perk_blocked:
+      action: set
+      int: 0
     score: 225000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
@@ -1023,9 +1032,8 @@ event_player:
     - rescue_cougar_step_5_complete
     - rescue_cougar_step_5_shot_hit
 
-  missiles_perk_complete_shot{current_player.rescue_cougar_step==5 and current_player.rescue_cougar_complete_flag==0}:
-    - rescue_cougar_step_6_complete
-    - rescue_cougar_step_6_shot_hit
+  # Step 6 = left lane shot - missile cannot substitute (ball must be physically held in lane)
+  # missiles_perk_complete_shot for step 5 intentionally omitted
 
   missiles_perk_complete_shot{current_player.rescue_cougar_step==6 and current_player.rescue_cougar_complete_flag==0}:
     - rescue_cougar_step_7_complete
