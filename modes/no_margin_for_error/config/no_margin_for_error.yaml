@@ -1,0 +1,2085 @@
+#config_version=6
+
+####################################################################################
+# NO MARGIN FOR ERROR - PILOT MISSION MODE
+# Timer: 180 seconds countdown | Steps: 11 | GI: Yellow
+# Scoring: Direct to score (multiplier applied)
+# Flipper Mechanic: Bad shots = no-hold flippers for 10s (resets on each bad shot)
+#                   Good shot = immediately restores normal flippers
+# Music: Controlled in base.yaml
+#
+# STEP SEQUENCE (nmfe_step = steps completed):
+# Step 1  (step==0):  ALL shots lit
+# Step 2  (step==1):  LL bad
+# Step 3  (step==2):  LL, LO bad
+# Step 4  (step==3):  LL, LO, RO/RR bad
+# Step 5  (step==4):  LL, LO, CNT, RO/RR bad
+# Step 6  (step==5):  LL, LO, CNT, TWR, RO/RR bad
+# Step 7  (step==6):  LR, SP, LO lit only
+# Step 8  (step==7):  TWR, TL, TO, RR lit; TOP RAMP UP
+# Step 9  (step==8):  SP, CNT, TWR lit; TOP RAMP DOWN
+# Step 10 (step==9):  LO, LR lit only
+# Step 11 (step==10): SP, TL, RO lit; RIGHT RAMP UP (final shot)
+#                     Won when shot made; video plays when ball enters left lane
+#
+# SCORING (direct, multiplier applied):
+# 1: 200K  2: 375K  3: 525K  4: 650K  5: 725K  6: 800K
+# 7: 875K  8: 950K  9: 1,025K  10: 1,125K  11: 1,250K  TOTAL: 8,500,000
+#
+# SLIDES (Godot):
+#   no_margin_for_error_intro       — intro video (43s, skippable)
+#   no_margin_for_error_timer       — var: device.timers.nmfe_timer.ticks
+#   no_margin_for_error_shots_remaining — var: player nmfe_shots_remaining
+#   no_margin_for_error_step_1 through step_10 — step videos
+#   no_margin_for_error_no_hold_penalty — var: player nmfe_no_hold_timer_ticks
+#   no_margin_for_error_won         — won video (18s, ball held by post)
+#   no_margin_for_error_lost        — lost video (14s)
+#   mode_points_scored              — var: player mode_points_scored
+#
+# PENALTY GI STROBE LIGHTS (red during no-hold penalty):
+#   l_gi_light_1, l_gi_light_2, l_gi_light_3, l_gi_light_4
+#   l_gi_light_18, l_gi_light_19, l_gi_light_20, l_gi_light_21
+#
+# ADJUSTABLE TIMING:
+#   Mode timer:         180s  (nmfe_timer start_value)
+#   Intro video:         43s  (nmfe_intro_video_delay end_value)
+#   No-hold penalty:     10s  (nmfe_no_hold_timer start_value)
+#   Left diverter hold:   3s  (nmfe_left_diverter_timer end_value)
+#   Won video hold:      18s  (nmfe_complete_delay end_value)
+#   Lost video:          14s  (nmfe_failed_delay end_value)
+#   Drain delay:          5s  (nmfe_drain_delay end_value)
+####################################################################################
+
+mode:
+  start_events: start_mode_no_margin_for_error
+  stop_events:
+    - timer_nmfe_complete_delay_complete
+    - timer_nmfe_failed_delay_complete
+    - nmfe_drain_cleanup_complete
+  priority: 600
+  game_mode: true
+  use_wait_queue: true
+
+mode_settings:
+  can_stack_with_multiball: true
+
+####################################################################################
+# BALL HOLDS
+####################################################################################
+
+ball_holds:
+  nmfe_scoop_hold:
+    balls_to_hold: 1
+    hold_devices: bd_mode_scoop
+    enable_events:
+      - mode_no_margin_for_error_started
+    release_one_events:
+      - nmfe_ball_released
+    release_all_events:
+      - mode_no_margin_for_error_will_stop
+
+####################################################################################
+# TIMERS
+####################################################################################
+
+timers:
+
+  # Main mode countdown — starts on ball release (NOT mode start, avoids scoop bounce)
+  nmfe_timer:
+    start_value: 180
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    control_events:
+      - event: nmfe_ball_released
+        action: start
+      - event: nmfe_step_11_complete
+        action: stop
+      - event: nmfe_failed
+        action: stop
+      - event: nmfe_drain_detected
+        action: stop
+      - event: afterburner_extend_nmfe_timer
+        action: jump
+        value: 9999
+      - event: lock_sequence_timer_pause
+        action: pause
+      - event: lock_sequence_timer_resume
+        action: start
+
+  # Intro video — 43 seconds, skippable via both flippers
+  nmfe_intro_video_delay:
+    start_value: 0
+    end_value: 43
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: mode_no_margin_for_error_started
+        action: start
+      - event: nmfe_skip_intro
+        action: stop
+
+  # Barrier release delay — ensures barrier physically drops before ball arrives
+  nmfe_barrier_delay:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: nmfe_ball_released
+        action: restart
+
+  # No-hold penalty countdown — 10s, restarts on each additional bad shot
+  nmfe_no_hold_timer:
+    start_value: 10
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    control_events:
+      - event: nmfe_penalty_activate
+        action: restart
+      - event: nmfe_no_hold_end
+        action: stop
+      - event: nmfe_cleanup
+        action: stop
+
+  # Left orbit diverter hold — 3s, restarts on each step 11 re-shot attempt
+  nmfe_left_diverter_timer:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: nmfe_activate_won_catch
+        action: restart
+      - event: nmfe_preemptive_open_diverter
+        action: restart
+
+  # Won video hold — 18s, ball held by left lane post
+  nmfe_complete_delay:
+    start_value: 0
+    end_value: 18
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: nmfe_won
+        action: start
+
+  # Lost video delay — 14s
+  nmfe_failed_delay:
+    start_value: 0
+    end_value: 14
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: nmfe_failed
+        action: start
+
+  # Drain cleanup delay — holds ball_ending queue while lost video plays
+  nmfe_drain_delay:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: nmfe_drain_detected
+        action: start
+
+  # Servo stagger — fires top_ramp_down 500ms after nmfe_cleanup
+  # (right_ramp_down fires immediately on nmfe_cleanup in event_player)
+  nmfe_servo_cleanup_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 500ms
+    control_events:
+      - event: nmfe_cleanup
+        action: restart
+
+####################################################################################
+# QUEUE RELAY PLAYER
+####################################################################################
+
+queue_relay_player:
+  ball_ending{mode.no_margin_for_error.active==True}:
+    post: nmfe_ball_ending_hold
+    wait_for: nmfe_drain_cleanup_complete
+    priority: 1000
+
+
+####################################################################################
+# VARIABLE PLAYER
+####################################################################################
+
+variable_player:
+
+  mode_no_margin_for_error_started:
+    pilot_mode_active:
+      action: set
+      int: 1
+    letter_collection_paused:
+      action: set
+      int: 1
+    pilot_missions_played:
+      action: add
+      int: 1
+    mode_no_margin_for_error_played:
+      action: set
+      int: 1
+    missiles_perk_blocked:
+      action: set
+      int: 0
+    bonus_delay_time:
+      action: set
+      int: 5
+    nmfe_step:
+      action: set
+      int: 0
+    nmfe_complete_flag:
+      action: set
+      int: 0
+    nmfe_shots_remaining:
+      action: set
+      int: 11
+    nmfe_no_hold_active:
+      action: set
+      int: 0
+    nmfe_no_hold_timer_ticks:
+      action: set
+      int: 10
+    mode_points_scored:
+      action: set
+      int: 0
+
+  # Penalty timer display variable — updates every tick for Godot slide
+  timer_nmfe_no_hold_timer_tick:
+    nmfe_no_hold_timer_ticks:
+      action: set
+      int: device.timers.nmfe_no_hold_timer.ticks
+
+  # Main mode timer display variable — updates every tick for Godot slide
+  timer_nmfe_timer_tick:
+    nmfe_timer_ticks:
+      action: set
+      int: device.timers.nmfe_timer.ticks
+
+  # Track no-hold active state
+  nmfe_penalty_activate:
+    nmfe_no_hold_active:
+      action: set
+      int: 1
+
+  nmfe_no_hold_end:
+    nmfe_no_hold_active:
+      action: set
+      int: 0
+
+  # Mark drain pending so qualifier routes bonus correctly
+  ball_will_end{mode.no_margin_for_error.active==True}:
+    pilot_mode_drain_pending:
+      action: set
+      int: 1
+
+  # Safety clear of no-hold flag on timer expiry
+  timer_nmfe_timer_complete:
+    nmfe_no_hold_active:
+      action: set
+      int: 0
+
+  ##############################################
+  ## STEP COMPLETIONS — Direct to score
+  ##############################################
+
+  nmfe_step_1_complete:
+    nmfe_step:
+      action: set
+      int: 1
+    score:
+      action: add
+      int: 200000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 200000 * current_player.total_scoring_multiplier
+    nmfe_shots_remaining:
+      action: add
+      int: -1
+
+  nmfe_step_2_complete:
+    nmfe_step:
+      action: set
+      int: 2
+    score:
+      action: add
+      int: 375000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 375000 * current_player.total_scoring_multiplier
+    nmfe_shots_remaining:
+      action: add
+      int: -1
+
+  nmfe_step_3_complete:
+    nmfe_step:
+      action: set
+      int: 3
+    score:
+      action: add
+      int: 525000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 525000 * current_player.total_scoring_multiplier
+    nmfe_shots_remaining:
+      action: add
+      int: -1
+
+  nmfe_step_4_complete:
+    nmfe_step:
+      action: set
+      int: 4
+    score:
+      action: add
+      int: 650000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 650000 * current_player.total_scoring_multiplier
+    nmfe_shots_remaining:
+      action: add
+      int: -1
+
+  nmfe_step_5_complete:
+    nmfe_step:
+      action: set
+      int: 5
+    score:
+      action: add
+      int: 725000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 725000 * current_player.total_scoring_multiplier
+    nmfe_shots_remaining:
+      action: add
+      int: -1
+
+  nmfe_step_6_complete:
+    nmfe_step:
+      action: set
+      int: 6
+    score:
+      action: add
+      int: 800000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 800000 * current_player.total_scoring_multiplier
+    nmfe_shots_remaining:
+      action: add
+      int: -1
+
+  nmfe_step_7_complete:
+    nmfe_step:
+      action: set
+      int: 7
+    score:
+      action: add
+      int: 875000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 875000 * current_player.total_scoring_multiplier
+    nmfe_shots_remaining:
+      action: add
+      int: -1
+
+  nmfe_step_8_complete:
+    nmfe_step:
+      action: set
+      int: 8
+    score:
+      action: add
+      int: 950000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 950000 * current_player.total_scoring_multiplier
+    nmfe_shots_remaining:
+      action: add
+      int: -1
+
+  nmfe_step_9_complete:
+    nmfe_step:
+      action: set
+      int: 9
+    score:
+      action: add
+      int: 1025000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 1025000 * current_player.total_scoring_multiplier
+    nmfe_shots_remaining:
+      action: add
+      int: -1
+
+  nmfe_step_10_complete:
+    nmfe_step:
+      action: set
+      int: 10
+    score:
+      action: add
+      int: 1125000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 1125000 * current_player.total_scoring_multiplier
+    nmfe_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 11: sets step=11 (won-but-waiting for ball to reach left lane)
+  nmfe_step_11_complete:
+    nmfe_step:
+      action: set
+      int: 11
+    nmfe_complete_flag:
+      action: set
+      int: 1
+    score:
+      action: add
+      int: 1250000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 1250000 * current_player.total_scoring_multiplier
+    nmfe_shots_remaining:
+      action: add
+      int: -1
+
+  # Won confirmed — ball entered left lane while step==11
+  nmfe_won:
+    pilot_missions_won:
+      action: add
+      int: 1
+    mode_no_margin_for_error_won:
+      action: set
+      int: 1
+    mode_no_margin_for_error_complete:
+      action: set
+      int: 1
+    modes_completed_count:
+      action: add
+      int: 1
+    missiles_perk_saved:
+      action: set
+      int: current_player.missiles_perk_active
+    missiles_perk_active:
+      action: set
+      int: 0
+
+
+####################################################################################
+# EVENT PLAYER
+####################################################################################
+
+event_player:
+
+  ##############################################
+  ## MODE START — GI yellow after 200ms settle, raise barrier during intro
+  ##############################################
+  mode_no_margin_for_error_started:
+    - nmfe_set_gi_yellow|200ms
+    - barrier_raise
+
+  ##############################################
+  ## SKIP INTRO — Both flippers during 43s intro
+  ##############################################
+  s_flipper_left_active{current_player.nmfe_step==0 and device.timers.nmfe_intro_video_delay.running}:
+    - nmfe_check_skip_intro
+  s_flipper_right_active{current_player.nmfe_step==0 and device.timers.nmfe_intro_video_delay.running}:
+    - nmfe_check_skip_intro
+
+  nmfe_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - nmfe_skip_intro
+
+  # SKIP PATH — drop barrier first, kick ball 400ms later once barrier is physically down
+  nmfe_skip_intro:
+    - barrier_drop
+    - scoop_ball_release|400ms
+    - nmfe_ball_released|400ms
+    - nmfe_setup_step_1|400ms
+
+  # NORMAL PATH — drop barrier first, kick ball 400ms later
+  timer_nmfe_intro_video_delay_complete:
+    - barrier_drop
+    - scoop_ball_release|400ms
+    - nmfe_ball_released|400ms
+    - nmfe_setup_step_1|400ms
+
+  ##############################################
+  ## BALL RELEASED — Ensure normal flippers active
+  ##############################################
+  nmfe_ball_released:
+    - disable_no_hold_flippers
+    - enable_normal_flippers
+
+  nmfe_ball_released{current_player.afterburner_perk_active==1}:
+    - afterburner_extend_nmfe_timer|500ms
+
+  ##############################################
+  ## NO-HOLD PENALTY SYSTEM
+  ## nmfe_bad_shot fires nmfe_penalty_activate
+  ## First activation (no_hold_active==0): swap flippers, show slide, start GI strobe
+  ## Subsequent bad shots: timer restarts (variable_player handles this via nmfe_penalty_activate)
+  ## Good shot or timer expire: nmfe_no_hold_end restores normal flippers
+  ##############################################
+  nmfe_bad_shot{current_player.nmfe_complete_flag==0}:
+    - nmfe_penalty_activate
+
+  nmfe_penalty_activate{current_player.nmfe_no_hold_active==0}:
+    - disable_normal_flippers
+    - enable_no_hold_flippers
+    - nmfe_show_penalty_slide
+    - nmfe_penalty_gi_start
+
+  timer_nmfe_no_hold_timer_complete:
+    - nmfe_no_hold_end
+
+  nmfe_good_shot_hit{current_player.nmfe_no_hold_active==1}:
+    - nmfe_no_hold_end
+
+  nmfe_no_hold_end:
+    - disable_no_hold_flippers
+    - enable_normal_flippers
+
+  ##############################################
+  ## DRAIN HANDLING
+  ##############################################
+  nmfe_ball_ending_hold:
+    - nmfe_failed
+    - nmfe_drain_detected
+
+  timer_nmfe_drain_delay_complete:
+    - nmfe_drain_cleanup_complete
+    - nmfe_cleanup
+
+  ##############################################
+  ## TIMER EXPIRED
+  ##############################################
+  timer_nmfe_timer_complete:
+    - nmfe_failed
+
+  ##############################################
+  ## MODE WON — Ball enters left lane at step==11
+  ## NOTE: nmfe_cleanup is NOT on nmfe_won — would kill won video same tick
+  ## Cleanup fires AFTER 18s won video via timer_nmfe_complete_delay_complete
+  ##############################################
+  nmfe_won:
+    - timer_nmfe_complete_delay_start
+    - missiles_perk_unload
+    - right_ramp_down
+
+  timer_nmfe_complete_delay_complete:
+    - nmfe_cleanup
+    - pilot_mode_cleanup_complete
+
+  ##############################################
+  ## MODE FAILED
+  ##############################################
+  nmfe_failed:
+    - nmfe_cleanup
+    - timer_nmfe_failed_delay_start
+
+  timer_nmfe_failed_delay_complete:
+    - pilot_mode_cleanup_complete
+
+  ##############################################
+  ## STEP 11 WON-BUT-WAITING SEQUENCE
+  ## Good shot at step==10: score, open diverter+post, wait for ball in left lane
+  ## s_lane_left at step==11 confirms won, starts video timer
+  ## Player re-shoots SP/TL/RO to retry until ball physically enters left lane
+  ##############################################
+
+  # Pre-emptive diverter open when right orbit switch fires at step==10
+  # (ball already in orbit heading left, need diverter open before it arrives)
+  s_orbit_right_active{current_player.nmfe_step==10}:
+    - nmfe_preemptive_open_diverter
+
+  # Same pre-emptive for re-shot attempts at step==11
+  s_orbit_right_active{current_player.nmfe_step==11}:
+    - nmfe_preemptive_open_diverter
+
+  # Step 11 shot confirmed — opens diverter AND raises left lane post
+  nmfe_step_11_complete:
+    - nmfe_good_shot_hit
+    - nmfe_step_11_shot_hit
+    - nmfe_activate_won_catch
+
+  # Diverter closes after 3s (timer fires nmfe_close_left_diverter)
+  timer_nmfe_left_diverter_timer_complete:
+    - nmfe_close_left_diverter
+
+  # Ball confirmed in left lane — won video starts
+  s_lane_left_active{current_player.nmfe_step==11}:
+    - nmfe_won
+
+  # Re-shots while waiting for ball: reopen diverter without scoring again
+  spinner_shot_made{current_player.nmfe_step==11 and not device.timers.spinner_shot_lockout.running}:
+    - nmfe_activate_won_catch
+  s_orbit_upper_active{current_player.nmfe_step==11}:
+    - nmfe_activate_won_catch
+  right_orbit_shot_hit{current_player.nmfe_step==11}:
+    - nmfe_activate_won_catch
+
+  ##############################################
+  ## CLEANUP — Ramps down, flippers restored, coils off
+  ## Servo stagger: right_ramp_down fires immediately on nmfe_cleanup
+  ##               top_ramp_down fires 500ms later via nmfe_servo_cleanup_delay timer
+  ##############################################
+  nmfe_cleanup:
+    - right_ramp_down
+    - enable_normal_flippers
+    - disable_no_hold_flippers
+    - nmfe_close_left_diverter
+
+  timer_nmfe_servo_cleanup_delay_complete:
+    - top_ramp_down
+
+  ##############################################
+  ## SERVO EVENTS — Individual step ramp changes
+  ##############################################
+  nmfe_setup_step_8:
+    - top_ramp_up
+
+  nmfe_setup_step_9:
+    - top_ramp_down
+
+  nmfe_setup_step_11:
+    - right_ramp_up
+
+  ##############################################
+  ## STEP 1 — ALL SHOTS LIT
+  ## Good shots: LL, LO, LR, SP, CNT, TWR, TL, TO, TR, RO, RR
+  ##############################################
+  s_lane_left_active{current_player.nmfe_step==0}:
+    - nmfe_step_1_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_1_shot_hit
+    - nmfe_setup_step_2
+  left_orbit_shot_hit{current_player.nmfe_step==0}:
+    - nmfe_step_1_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_1_shot_hit
+    - nmfe_setup_step_2
+  s_ramp_left_exit_active{current_player.nmfe_step==0}:
+    - nmfe_step_1_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_1_shot_hit
+    - nmfe_setup_step_2
+  spinner_shot_made{current_player.nmfe_step==0 and not device.timers.spinner_shot_lockout.running}:
+    - nmfe_step_1_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_1_shot_hit
+    - nmfe_setup_step_2
+  s_barrier_target_active{current_player.nmfe_step==0}:
+    - nmfe_step_1_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_1_shot_hit
+    - nmfe_setup_step_2
+  s_ramp_tower_exit_active{current_player.nmfe_step==0}:
+    - nmfe_step_1_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_1_shot_hit
+    - nmfe_setup_step_2
+  s_orbit_upper_active{current_player.nmfe_step==0}:
+    - nmfe_step_1_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_1_shot_hit
+    - nmfe_setup_step_2
+  s_orbit_lower_active{current_player.nmfe_step==0}:
+    - nmfe_step_1_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_1_shot_hit
+    - nmfe_setup_step_2
+  s_ramp_inner_exit_active{current_player.nmfe_step==0}:
+    - nmfe_step_1_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_1_shot_hit
+    - nmfe_setup_step_2
+  right_orbit_shot_hit{current_player.nmfe_step==0}:
+    - nmfe_step_1_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_1_shot_hit
+    - nmfe_setup_step_2
+  s_ramp_right_exit_active{current_player.nmfe_step==0}:
+    - nmfe_step_1_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_1_shot_hit
+    - nmfe_setup_step_2
+
+  ##############################################
+  ## STEP 2 — LL bad; LO LR SP CNT TWR TL TR RR lit
+  ##############################################
+  left_orbit_shot_hit{current_player.nmfe_step==1}:
+    - nmfe_step_2_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_2_shot_hit
+    - nmfe_setup_step_3
+  s_ramp_left_exit_active{current_player.nmfe_step==1}:
+    - nmfe_step_2_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_2_shot_hit
+    - nmfe_setup_step_3
+  spinner_shot_made{current_player.nmfe_step==1 and not device.timers.spinner_shot_lockout.running}:
+    - nmfe_step_2_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_2_shot_hit
+    - nmfe_setup_step_3
+  s_barrier_target_active{current_player.nmfe_step==1}:
+    - nmfe_step_2_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_2_shot_hit
+    - nmfe_setup_step_3
+  s_ramp_tower_exit_active{current_player.nmfe_step==1}:
+    - nmfe_step_2_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_2_shot_hit
+    - nmfe_setup_step_3
+  s_orbit_upper_active{current_player.nmfe_step==1}:
+    - nmfe_step_2_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_2_shot_hit
+    - nmfe_setup_step_3
+  s_ramp_inner_exit_active{current_player.nmfe_step==1}:
+    - nmfe_step_2_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_2_shot_hit
+    - nmfe_setup_step_3
+  s_ramp_right_exit_active{current_player.nmfe_step==1}:
+    - nmfe_step_2_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_2_shot_hit
+    - nmfe_setup_step_3
+  # BAD
+  s_lane_left_active{current_player.nmfe_step==1}:
+    - nmfe_bad_shot
+
+  ##############################################
+  ## STEP 3 — LL LO bad; LR SP CNT TWR TL TR RR lit
+  ##############################################
+  s_ramp_left_exit_active{current_player.nmfe_step==2}:
+    - nmfe_step_3_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_3_shot_hit
+    - nmfe_setup_step_4
+  spinner_shot_made{current_player.nmfe_step==2 and not device.timers.spinner_shot_lockout.running}:
+    - nmfe_step_3_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_3_shot_hit
+    - nmfe_setup_step_4
+  s_barrier_target_active{current_player.nmfe_step==2}:
+    - nmfe_step_3_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_3_shot_hit
+    - nmfe_setup_step_4
+  s_ramp_tower_exit_active{current_player.nmfe_step==2}:
+    - nmfe_step_3_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_3_shot_hit
+    - nmfe_setup_step_4
+  s_orbit_upper_active{current_player.nmfe_step==2}:
+    - nmfe_step_3_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_3_shot_hit
+    - nmfe_setup_step_4
+  s_ramp_inner_exit_active{current_player.nmfe_step==2}:
+    - nmfe_step_3_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_3_shot_hit
+    - nmfe_setup_step_4
+  s_ramp_right_exit_active{current_player.nmfe_step==2}:
+    - nmfe_step_3_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_3_shot_hit
+    - nmfe_setup_step_4
+  # BAD
+  s_lane_left_active{current_player.nmfe_step==2}:
+    - nmfe_bad_shot
+  left_orbit_shot_hit{current_player.nmfe_step==2}:
+    - nmfe_bad_shot
+
+  ##############################################
+  ## STEP 4 — LL LO RO/RR bad; LR SP CNT TWR TL TR lit
+  ##############################################
+  s_ramp_left_exit_active{current_player.nmfe_step==3}:
+    - nmfe_step_4_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_4_shot_hit
+    - nmfe_setup_step_5
+  spinner_shot_made{current_player.nmfe_step==3 and not device.timers.spinner_shot_lockout.running}:
+    - nmfe_step_4_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_4_shot_hit
+    - nmfe_setup_step_5
+  s_barrier_target_active{current_player.nmfe_step==3}:
+    - nmfe_step_4_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_4_shot_hit
+    - nmfe_setup_step_5
+  s_ramp_tower_exit_active{current_player.nmfe_step==3}:
+    - nmfe_step_4_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_4_shot_hit
+    - nmfe_setup_step_5
+  s_orbit_upper_active{current_player.nmfe_step==3}:
+    - nmfe_step_4_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_4_shot_hit
+    - nmfe_setup_step_5
+  s_ramp_inner_exit_active{current_player.nmfe_step==3}:
+    - nmfe_step_4_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_4_shot_hit
+    - nmfe_setup_step_5
+  # BAD
+  s_lane_left_active{current_player.nmfe_step==3}:
+    - nmfe_bad_shot
+  left_orbit_shot_hit{current_player.nmfe_step==3}:
+    - nmfe_bad_shot
+  right_orbit_shot_hit{current_player.nmfe_step==3}:
+    - nmfe_bad_shot
+  s_ramp_right_exit_active{current_player.nmfe_step==3}:
+    - nmfe_bad_shot
+
+  ##############################################
+  ## STEP 5 — LL LO CNT RO/RR bad; LR SP TWR TL TR lit
+  ##############################################
+  s_ramp_left_exit_active{current_player.nmfe_step==4}:
+    - nmfe_step_5_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_5_shot_hit
+    - nmfe_setup_step_6
+  spinner_shot_made{current_player.nmfe_step==4 and not device.timers.spinner_shot_lockout.running}:
+    - nmfe_step_5_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_5_shot_hit
+    - nmfe_setup_step_6
+  s_ramp_tower_exit_active{current_player.nmfe_step==4}:
+    - nmfe_step_5_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_5_shot_hit
+    - nmfe_setup_step_6
+  s_orbit_upper_active{current_player.nmfe_step==4}:
+    - nmfe_step_5_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_5_shot_hit
+    - nmfe_setup_step_6
+  s_ramp_inner_exit_active{current_player.nmfe_step==4}:
+    - nmfe_step_5_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_5_shot_hit
+    - nmfe_setup_step_6
+  # BAD
+  s_lane_left_active{current_player.nmfe_step==4}:
+    - nmfe_bad_shot
+  left_orbit_shot_hit{current_player.nmfe_step==4}:
+    - nmfe_bad_shot
+  s_barrier_target_active{current_player.nmfe_step==4}:
+    - nmfe_bad_shot
+  right_orbit_shot_hit{current_player.nmfe_step==4}:
+    - nmfe_bad_shot
+  s_ramp_right_exit_active{current_player.nmfe_step==4}:
+    - nmfe_bad_shot
+
+  ##############################################
+  ## STEP 6 — LL LO CNT TWR RO/RR bad; LR SP TL TR lit
+  ##############################################
+  s_ramp_left_exit_active{current_player.nmfe_step==5}:
+    - nmfe_step_6_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_6_shot_hit
+    - nmfe_setup_step_7
+  spinner_shot_made{current_player.nmfe_step==5 and not device.timers.spinner_shot_lockout.running}:
+    - nmfe_step_6_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_6_shot_hit
+    - nmfe_setup_step_7
+  s_orbit_upper_active{current_player.nmfe_step==5}:
+    - nmfe_step_6_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_6_shot_hit
+    - nmfe_setup_step_7
+  s_ramp_inner_exit_active{current_player.nmfe_step==5}:
+    - nmfe_step_6_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_6_shot_hit
+    - nmfe_setup_step_7
+  # BAD
+  s_lane_left_active{current_player.nmfe_step==5}:
+    - nmfe_bad_shot
+  left_orbit_shot_hit{current_player.nmfe_step==5}:
+    - nmfe_bad_shot
+  s_barrier_target_active{current_player.nmfe_step==5}:
+    - nmfe_bad_shot
+  s_ramp_tower_exit_active{current_player.nmfe_step==5}:
+    - nmfe_bad_shot
+  right_orbit_shot_hit{current_player.nmfe_step==5}:
+    - nmfe_bad_shot
+  s_ramp_right_exit_active{current_player.nmfe_step==5}:
+    - nmfe_bad_shot
+
+  ##############################################
+  ## STEP 7 — LR SP LO lit only; rest bad
+  ##############################################
+  s_ramp_left_exit_active{current_player.nmfe_step==6}:
+    - nmfe_step_7_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_7_shot_hit
+    - nmfe_setup_step_8
+  spinner_shot_made{current_player.nmfe_step==6 and not device.timers.spinner_shot_lockout.running}:
+    - nmfe_step_7_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_7_shot_hit
+    - nmfe_setup_step_8
+  left_orbit_shot_hit{current_player.nmfe_step==6}:
+    - nmfe_step_7_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_7_shot_hit
+    - nmfe_setup_step_8
+  # BAD
+  s_lane_left_active{current_player.nmfe_step==6}:
+    - nmfe_bad_shot
+  s_barrier_target_active{current_player.nmfe_step==6}:
+    - nmfe_bad_shot
+  s_ramp_tower_exit_active{current_player.nmfe_step==6}:
+    - nmfe_bad_shot
+  s_orbit_upper_active{current_player.nmfe_step==6}:
+    - nmfe_bad_shot
+  s_orbit_lower_active{current_player.nmfe_step==6}:
+    - nmfe_bad_shot
+  s_ramp_inner_exit_active{current_player.nmfe_step==6}:
+    - nmfe_bad_shot
+  right_orbit_shot_hit{current_player.nmfe_step==6}:
+    - nmfe_bad_shot
+  s_ramp_right_exit_active{current_player.nmfe_step==6}:
+    - nmfe_bad_shot
+
+  ##############################################
+  ## STEP 8 — TWR TL TO RR lit; TOP RAMP UP; rest bad
+  ## nmfe_setup_step_8 raises top ramp (event_player handles servo above)
+  ##############################################
+  s_ramp_tower_exit_active{current_player.nmfe_step==7}:
+    - nmfe_step_8_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_8_shot_hit
+    - nmfe_setup_step_9
+  s_orbit_upper_active{current_player.nmfe_step==7}:
+    - nmfe_step_8_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_8_shot_hit
+    - nmfe_setup_step_9
+  s_orbit_lower_active{current_player.nmfe_step==7}:
+    - nmfe_step_8_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_8_shot_hit
+    - nmfe_setup_step_9
+  s_ramp_right_exit_active{current_player.nmfe_step==7}:
+    - nmfe_step_8_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_8_shot_hit
+    - nmfe_setup_step_9
+  # BAD
+  s_lane_left_active{current_player.nmfe_step==7}:
+    - nmfe_bad_shot
+  left_orbit_shot_hit{current_player.nmfe_step==7}:
+    - nmfe_bad_shot
+  s_ramp_left_exit_active{current_player.nmfe_step==7}:
+    - nmfe_bad_shot
+  spinner_shot_made{current_player.nmfe_step==7 and not device.timers.spinner_shot_lockout.running}:
+    - nmfe_bad_shot
+  s_barrier_target_active{current_player.nmfe_step==7}:
+    - nmfe_bad_shot
+  right_orbit_shot_hit{current_player.nmfe_step==7}:
+    - nmfe_bad_shot
+
+  ##############################################
+  ## STEP 9 — SP CNT TWR lit; TOP RAMP DOWN; rest bad
+  ## nmfe_setup_step_9 lowers top ramp (event_player handles servo above)
+  ##############################################
+  spinner_shot_made{current_player.nmfe_step==8 and not device.timers.spinner_shot_lockout.running}:
+    - nmfe_step_9_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_9_shot_hit
+    - nmfe_setup_step_10
+  s_barrier_target_active{current_player.nmfe_step==8}:
+    - nmfe_step_9_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_9_shot_hit
+    - nmfe_setup_step_10
+  s_ramp_tower_exit_active{current_player.nmfe_step==8}:
+    - nmfe_step_9_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_9_shot_hit
+    - nmfe_setup_step_10
+  # BAD
+  s_lane_left_active{current_player.nmfe_step==8}:
+    - nmfe_bad_shot
+  left_orbit_shot_hit{current_player.nmfe_step==8}:
+    - nmfe_bad_shot
+  s_ramp_left_exit_active{current_player.nmfe_step==8}:
+    - nmfe_bad_shot
+  s_orbit_upper_active{current_player.nmfe_step==8}:
+    - nmfe_bad_shot
+  s_orbit_lower_active{current_player.nmfe_step==8}:
+    - nmfe_bad_shot
+  s_ramp_inner_exit_active{current_player.nmfe_step==8}:
+    - nmfe_bad_shot
+  right_orbit_shot_hit{current_player.nmfe_step==8}:
+    - nmfe_bad_shot
+  s_ramp_right_exit_active{current_player.nmfe_step==8}:
+    - nmfe_bad_shot
+
+  ##############################################
+  ## STEP 10 — LO LR lit only; rest bad
+  ##############################################
+  left_orbit_shot_hit{current_player.nmfe_step==9}:
+    - nmfe_step_10_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_10_shot_hit
+    - nmfe_setup_step_11
+  s_ramp_left_exit_active{current_player.nmfe_step==9}:
+    - nmfe_step_10_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_10_shot_hit
+    - nmfe_setup_step_11
+  # BAD
+  s_lane_left_active{current_player.nmfe_step==9}:
+    - nmfe_bad_shot
+  spinner_shot_made{current_player.nmfe_step==9 and not device.timers.spinner_shot_lockout.running}:
+    - nmfe_bad_shot
+  s_barrier_target_active{current_player.nmfe_step==9}:
+    - nmfe_bad_shot
+  s_ramp_tower_exit_active{current_player.nmfe_step==9}:
+    - nmfe_bad_shot
+  s_orbit_upper_active{current_player.nmfe_step==9}:
+    - nmfe_bad_shot
+  s_orbit_lower_active{current_player.nmfe_step==9}:
+    - nmfe_bad_shot
+  s_ramp_inner_exit_active{current_player.nmfe_step==9}:
+    - nmfe_bad_shot
+  right_orbit_shot_hit{current_player.nmfe_step==9}:
+    - nmfe_bad_shot
+  s_ramp_right_exit_active{current_player.nmfe_step==9}:
+    - nmfe_bad_shot
+
+  ##############################################
+  ## STEP 11 — SP TL RO lit; RIGHT RAMP UP; rest bad
+  ## nmfe_setup_step_11 raises right ramp (event_player handles servo above)
+  ## Won shot fires nmfe_step_11_complete (handled above in won-but-waiting section)
+  ##############################################
+  spinner_shot_made{current_player.nmfe_step==10 and not device.timers.spinner_shot_lockout.running}:
+    - nmfe_step_11_complete
+  s_orbit_upper_active{current_player.nmfe_step==10}:
+    - nmfe_step_11_complete
+  right_orbit_shot_hit{current_player.nmfe_step==10}:
+    - nmfe_step_11_complete
+  # BAD
+  s_lane_left_active{current_player.nmfe_step==10}:
+    - nmfe_bad_shot
+  left_orbit_shot_hit{current_player.nmfe_step==10}:
+    - nmfe_bad_shot
+  s_ramp_left_exit_active{current_player.nmfe_step==10}:
+    - nmfe_bad_shot
+  s_barrier_target_active{current_player.nmfe_step==10}:
+    - nmfe_bad_shot
+  s_ramp_tower_exit_active{current_player.nmfe_step==10}:
+    - nmfe_bad_shot
+  s_orbit_lower_active{current_player.nmfe_step==10}:
+    - nmfe_bad_shot
+  s_ramp_inner_exit_active{current_player.nmfe_step==10}:
+    - nmfe_bad_shot
+  s_ramp_right_exit_active{current_player.nmfe_step==10}:
+    - nmfe_bad_shot
+
+
+####################################################################################
+# COIL PLAYER
+####################################################################################
+
+coil_player:
+
+  # Pre-emptive diverter open — fires when right orbit switch hits at step 10/11
+  # Ball is in orbit heading left, needs diverter open before it arrives
+  nmfe_preemptive_open_diverter:
+    c_left_orbit_diverter:
+      action: enable
+
+  # Won catch — opens diverter AND raises left lane post
+  # Fires after step 11 shot confirmed; also fires on re-shots at step==11
+  nmfe_activate_won_catch:
+    c_left_orbit_diverter:
+      action: enable
+    c_left_lane_up_post:
+      action: enable
+
+  # Close diverter only (post stays up to hold ball during won video)
+  nmfe_close_left_diverter:
+    c_left_orbit_diverter:
+      action: disable
+
+  # Release ball after 18s won video completes
+  timer_nmfe_complete_delay_complete:
+    c_left_lane_up_post:
+      action: disable
+
+  # Safety cleanup — both coils off
+  nmfe_cleanup:
+    c_left_orbit_diverter:
+      action: disable
+    c_left_lane_up_post:
+      action: disable
+
+####################################################################################
+# SLIDE PLAYER
+####################################################################################
+
+slide_player:
+
+  # Mode start — show intro video only (timer/HUD show after ball released)
+  mode_no_margin_for_error_started:
+    no_margin_for_error_intro:
+      action: play
+      priority: 900
+
+  # Ball released — intro done, start HUD slides + instructions
+  nmfe_ball_released:
+    no_margin_for_error_intro:
+      action: remove
+    no_margin_for_error_timer:
+      action: play
+      priority: 800
+    no_margin_for_error_shots_remaining:
+      action: play
+      priority: 800
+    no_margin_for_error_instructions:
+      action: play
+      priority: 800
+
+  # Penalty slide on/off
+  nmfe_show_penalty_slide:
+    no_margin_for_error_no_hold_penalty:
+      action: play
+      priority: 870
+
+  nmfe_no_hold_end:
+    no_margin_for_error_no_hold_penalty:
+      action: remove
+
+  # STEP VIDEOS — play on shot hit, remove when next step video plays
+  # Previous step video is removed by the NEXT step's shot_hit event
+  nmfe_step_1_shot_hit:
+    no_margin_for_error_step_1:
+      action: play
+      priority: 810
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  nmfe_step_2_shot_hit:
+    no_margin_for_error_step_1:
+      action: remove
+    no_margin_for_error_step_2:
+      action: play
+      priority: 810
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  nmfe_step_3_shot_hit:
+    no_margin_for_error_step_2:
+      action: remove
+    no_margin_for_error_step_3:
+      action: play
+      priority: 810
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  nmfe_step_4_shot_hit:
+    no_margin_for_error_step_3:
+      action: remove
+    no_margin_for_error_step_4:
+      action: play
+      priority: 810
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  nmfe_step_5_shot_hit:
+    no_margin_for_error_step_4:
+      action: remove
+    no_margin_for_error_step_5:
+      action: play
+      priority: 810
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  nmfe_step_6_shot_hit:
+    no_margin_for_error_step_5:
+      action: remove
+    no_margin_for_error_step_6:
+      action: play
+      priority: 810
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  nmfe_step_7_shot_hit:
+    no_margin_for_error_step_6:
+      action: remove
+    no_margin_for_error_step_7:
+      action: play
+      priority: 810
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  nmfe_step_8_shot_hit:
+    no_margin_for_error_step_7:
+      action: remove
+    no_margin_for_error_step_8:
+      action: play
+      priority: 810
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  nmfe_step_9_shot_hit:
+    no_margin_for_error_step_8:
+      action: remove
+    no_margin_for_error_step_9:
+      action: play
+      priority: 810
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  nmfe_step_10_shot_hit:
+    no_margin_for_error_step_9:
+      action: remove
+    no_margin_for_error_step_10:
+      action: play
+      priority: 810
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  # Step 11 shot made — remove step 10 video, remove HUD
+  # Won video plays when ball physically enters left lane (nmfe_won)
+  nmfe_step_11_shot_hit:
+    no_margin_for_error_step_10:
+      action: remove
+    no_margin_for_error_timer:
+      action: remove
+    no_margin_for_error_shots_remaining:
+      action: remove
+    no_margin_for_error_instructions:
+      action: remove
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  # Won — ball entered left lane, play won video
+  nmfe_won:
+    no_margin_for_error_won:
+      action: play
+      priority: 900
+    no_margin_for_error_no_hold_penalty:
+      action: remove
+
+  # Failed — timer expired or drain, play lost video
+  nmfe_failed:
+    no_margin_for_error_timer:
+      action: remove
+    no_margin_for_error_shots_remaining:
+      action: remove
+    no_margin_for_error_no_hold_penalty:
+      action: remove
+    no_margin_for_error_instructions:
+      action: remove
+    no_margin_for_error_lost:
+      action: play
+      priority: 900
+
+  # Safety cleanup on mode stop
+  mode_no_margin_for_error_stopped:
+    no_margin_for_error_timer:
+      action: remove
+    no_margin_for_error_shots_remaining:
+      action: remove
+    no_margin_for_error_no_hold_penalty:
+      action: remove
+    no_margin_for_error_intro:
+      action: remove
+    no_margin_for_error_instructions:
+      action: remove
+
+
+####################################################################################
+# SHOW PLAYER
+####################################################################################
+# Shot lights: Yellow flash (sync_flash_mode) for lit shots, solid red for bad shots
+# At each step setup ALL previous shows are explicitly stopped then new ones started.
+# This clean-slate approach handles shots going bad then good again (e.g. LO at step 7)
+#
+# Show keys used:
+#   nmfe_y_ll, nmfe_y_lo, nmfe_y_lr, nmfe_y_sp, nmfe_y_cnt, nmfe_y_twr
+#   nmfe_y_tl, nmfe_y_to_tr, nmfe_y_ro_rr
+#   nmfe_r_ll, nmfe_r_lo, nmfe_r_lr, nmfe_r_sp, nmfe_r_cnt, nmfe_r_twr
+#   nmfe_r_tl, nmfe_r_to_tr, nmfe_r_ro_rr
+####################################################################################
+
+show_player:
+
+  ##############################################
+  ## SHOT FEEDBACK SHOWS
+  ##############################################
+  nmfe_good_shot_hit:
+    nmfe_made_show:
+      show: no_margin_for_error_made
+      speed: 30
+      loops: 0
+
+  nmfe_bad_shot:
+    nmfe_miss_show:
+      show: no_margin_for_error_miss
+      speed: 30
+      loops: 0
+
+  ##############################################
+  ## GI — Yellow at mode start
+  ##############################################
+  nmfe_set_gi_yellow:
+    nmfe_gi_mode:
+      show: nmfe_gi_yellow
+      key: nmfe_gi_mode
+      loops: -1
+
+  ##############################################
+  ## PENALTY GI STROBE — Red flash on penalty lights
+  ##############################################
+  nmfe_penalty_gi_start:
+    nmfe_penalty_gi:
+      show: nmfe_gi_penalty_strobe
+      key: nmfe_penalty_gi_effect
+      loops: -1
+
+  nmfe_no_hold_end:
+    stop_penalty_gi:
+      show: nmfe_gi_penalty_strobe
+      action: stop
+      key: nmfe_penalty_gi_effect
+    restore_gi_yellow:
+      show: nmfe_gi_yellow
+      key: nmfe_gi_mode
+      loops: -1
+
+  ##############################################
+  ## STEP 1 SETUP — All 9 shots yellow flash
+  ##############################################
+  nmfe_setup_step_1:
+    nmfe_y_ll:
+      show: sync_flash_mode
+      key: nmfe_y_ll
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_left_lane, color: FFFF00 }
+    nmfe_y_lo:
+      show: sync_flash_mode
+      key: nmfe_y_lo
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_left_orbit, color: FFFF00 }
+    nmfe_y_lr:
+      show: sync_flash_mode
+      key: nmfe_y_lr
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_left_ramp, color: FFFF00 }
+    nmfe_y_sp:
+      show: sync_flash_mode
+      key: nmfe_y_sp
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_spinner, color: FFFF00 }
+    nmfe_y_cnt:
+      show: sync_flash_mode
+      key: nmfe_y_cnt
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_barrier, color: FFFF00 }
+    nmfe_y_twr:
+      show: sync_flash_mode
+      key: nmfe_y_twr
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_tower_ramp, color: FFFF00 }
+    nmfe_y_tl:
+      show: sync_flash_mode
+      key: nmfe_y_tl
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_upper_orbit, color: FFFF00 }
+    nmfe_y_to_tr:
+      show: sync_flash_mode
+      key: nmfe_y_to_tr
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_middle_ramp, color: FFFF00 }
+    nmfe_y_ro_rr:
+      show: sync_flash_mode
+      key: nmfe_y_ro_rr
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_right_orbit, color: FFFF00 }
+
+  ##############################################
+  ## STEP 2 SETUP — LL goes red; rest stays yellow
+  ##############################################
+  nmfe_setup_step_2:
+    stop_y_ll:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_ll
+    nmfe_r_ll:
+      show: nmfe_solid_red
+      key: nmfe_r_ll
+      loops: -1
+      show_tokens: { led: l_shot_left_lane }
+
+  ##############################################
+  ## STEP 3 SETUP — LO goes red (LL already red)
+  ##############################################
+  nmfe_setup_step_3:
+    stop_y_lo:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_lo
+    nmfe_r_lo:
+      show: nmfe_solid_red
+      key: nmfe_r_lo
+      loops: -1
+      show_tokens: { led: l_shot_left_orbit }
+
+  ##############################################
+  ## STEP 4 SETUP — RO/RR goes red (LL, LO already red)
+  ##############################################
+  nmfe_setup_step_4:
+    stop_y_ro_rr:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_ro_rr
+    nmfe_r_ro_rr:
+      show: nmfe_solid_red
+      key: nmfe_r_ro_rr
+      loops: -1
+      show_tokens: { led: l_shot_right_orbit }
+
+  ##############################################
+  ## STEP 5 SETUP — CNT goes red (LL, LO, RO/RR already red)
+  ##############################################
+  nmfe_setup_step_5:
+    stop_y_cnt:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_cnt
+    nmfe_r_cnt:
+      show: nmfe_solid_red
+      key: nmfe_r_cnt
+      loops: -1
+      show_tokens: { led: l_shot_barrier }
+
+  ##############################################
+  ## STEP 6 SETUP — TWR goes red (LL, LO, CNT, RO/RR already red)
+  ##############################################
+  nmfe_setup_step_6:
+    stop_y_twr:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_twr
+    nmfe_r_twr:
+      show: nmfe_solid_red
+      key: nmfe_r_twr
+      loops: -1
+      show_tokens: { led: l_shot_tower_ramp }
+
+  ##############################################
+  ## STEP 7 SETUP — LR, SP, LO lit; rest bad
+  ## CLEAN SLATE: LO was red (steps 3-6), now comes back yellow
+  ## TL and TO/TR were yellow, now go red
+  ##############################################
+  nmfe_setup_step_7:
+    # Stop any yellow shows still running (LR, SP, TL, TO/TR)
+    stop_y_lr_s7:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_lr
+    stop_y_sp_s7:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_sp
+    stop_y_tl_s7:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_tl
+    stop_y_to_tr_s7:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_to_tr
+    # Stop LO red show (it's coming back as a lit shot)
+    stop_r_lo_s7:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_lo
+    # Start new yellow shows for LR, SP, LO
+    nmfe_y_lr_s7:
+      show: sync_flash_mode
+      key: nmfe_y_lr
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_left_ramp, color: FFFF00 }
+    nmfe_y_sp_s7:
+      show: sync_flash_mode
+      key: nmfe_y_sp
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_spinner, color: FFFF00 }
+    nmfe_y_lo_s7:
+      show: sync_flash_mode
+      key: nmfe_y_lo
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_left_orbit, color: FFFF00 }
+    # TL and TO/TR go red
+    nmfe_r_tl_s7:
+      show: nmfe_solid_red
+      key: nmfe_r_tl
+      loops: -1
+      show_tokens: { led: l_shot_upper_orbit }
+    nmfe_r_to_tr_s7:
+      show: nmfe_solid_red
+      key: nmfe_r_to_tr
+      loops: -1
+      show_tokens: { led: l_shot_middle_ramp }
+
+  ##############################################
+  ## STEP 8 SETUP — TWR TL TO RR lit; TOP RAMP UP
+  ## CLEAN SLATE: Many shots changing state
+  ## LR, SP, LO were yellow — all go red
+  ## TWR, TL, RO/RR were red — TWR, TL go yellow
+  ## TO/TR: TO (s_orbit_lower) goes yellow; RR (s_ramp_right_exit) uses RO/RR light yellow
+  ##############################################
+  nmfe_setup_step_8:
+    # Stop yellow shows from step 7
+    stop_y_lr_s8:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_lr
+    stop_y_sp_s8:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_sp
+    stop_y_lo_s8:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_lo
+    # Stop red shows that are now lit
+    stop_r_twr_s8:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_twr
+    stop_r_tl_s8:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_tl
+    stop_r_to_tr_s8:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_to_tr
+    stop_r_ro_rr_s8:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_ro_rr
+    # Start yellow for lit shots
+    nmfe_y_twr_s8:
+      show: sync_flash_mode
+      key: nmfe_y_twr
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_tower_ramp, color: FFFF00 }
+    nmfe_y_tl_s8:
+      show: sync_flash_mode
+      key: nmfe_y_tl
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_upper_orbit, color: FFFF00 }
+    nmfe_y_to_tr_s8:
+      show: sync_flash_mode
+      key: nmfe_y_to_tr
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_middle_ramp, color: FFFF00 }
+    nmfe_y_ro_rr_s8:
+      show: sync_flash_mode
+      key: nmfe_y_ro_rr
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_right_orbit, color: FFFF00 }
+    # Red shots: LL, LO, LR, SP, CNT
+    nmfe_r_lr_s8:
+      show: nmfe_solid_red
+      key: nmfe_r_lr
+      loops: -1
+      show_tokens: { led: l_shot_left_ramp }
+    nmfe_r_sp_s8:
+      show: nmfe_solid_red
+      key: nmfe_r_sp
+      loops: -1
+      show_tokens: { led: l_shot_spinner }
+    nmfe_r_lo_s8:
+      show: nmfe_solid_red
+      key: nmfe_r_lo
+      loops: -1
+      show_tokens: { led: l_shot_left_orbit }
+
+  ##############################################
+  ## STEP 9 SETUP — SP CNT TWR lit; TOP RAMP DOWN
+  ## CLEAN SLATE
+  ## SP, CNT, TWR were all red — go yellow
+  ## TL, TO/TR, RO/RR were yellow — go red
+  ## LR, LO, LL stay red
+  ##############################################
+  nmfe_setup_step_9:
+    # Stop yellow shows
+    stop_y_twr_s9:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_twr
+    stop_y_tl_s9:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_tl
+    stop_y_to_tr_s9:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_to_tr
+    stop_y_ro_rr_s9:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_ro_rr
+    # Stop red shows for newly lit shots
+    stop_r_sp_s9:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_sp
+    stop_r_cnt_s9:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_cnt
+    # TWR was yellow — stop yellow, it will restart below
+    # (Note: nmfe_r_twr was stopped at step 8 setup; nmfe_y_twr is running)
+    # Start yellow for SP, CNT, TWR
+    nmfe_y_sp_s9:
+      show: sync_flash_mode
+      key: nmfe_y_sp
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_spinner, color: FFFF00 }
+    nmfe_y_cnt_s9:
+      show: sync_flash_mode
+      key: nmfe_y_cnt
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_barrier, color: FFFF00 }
+    # TWR already yellow (started in step 8 setup), no restart needed
+    # Red shots: TL, TO/TR, RO/RR (LL, LO, LR already red)
+    nmfe_r_tl_s9:
+      show: nmfe_solid_red
+      key: nmfe_r_tl
+      loops: -1
+      show_tokens: { led: l_shot_upper_orbit }
+    nmfe_r_to_tr_s9:
+      show: nmfe_solid_red
+      key: nmfe_r_to_tr
+      loops: -1
+      show_tokens: { led: l_shot_middle_ramp }
+    nmfe_r_ro_rr_s9:
+      show: nmfe_solid_red
+      key: nmfe_r_ro_rr
+      loops: -1
+      show_tokens: { led: l_shot_right_orbit }
+
+  ##############################################
+  ## STEP 10 SETUP — LO LR lit only; rest bad
+  ## CLEAN SLATE
+  ## LO, LR were red — go yellow
+  ## SP, CNT, TWR were yellow — go red
+  ##############################################
+  nmfe_setup_step_10:
+    # Stop yellow shows
+    stop_y_sp_s10:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_sp
+    stop_y_cnt_s10:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_cnt
+    stop_y_twr_s10:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_twr
+    # Stop red shows for newly lit shots
+    stop_r_lo_s10:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_lo
+    stop_r_lr_s10:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_lr
+    # Start yellow for LO, LR
+    nmfe_y_lo_s10:
+      show: sync_flash_mode
+      key: nmfe_y_lo
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_left_orbit, color: FFFF00 }
+    nmfe_y_lr_s10:
+      show: sync_flash_mode
+      key: nmfe_y_lr
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_left_ramp, color: FFFF00 }
+    # Red shots: SP, CNT, TWR (LL already red; TL, TO/TR, RO/RR already red)
+    nmfe_r_sp_s10:
+      show: nmfe_solid_red
+      key: nmfe_r_sp
+      loops: -1
+      show_tokens: { led: l_shot_spinner }
+    nmfe_r_cnt_s10:
+      show: nmfe_solid_red
+      key: nmfe_r_cnt
+      loops: -1
+      show_tokens: { led: l_shot_barrier }
+    nmfe_r_twr_s10:
+      show: nmfe_solid_red
+      key: nmfe_r_twr
+      loops: -1
+      show_tokens: { led: l_shot_tower_ramp }
+
+  ##############################################
+  ## STEP 11 SETUP — SP TL RO lit; RIGHT RAMP UP; rest bad
+  ## CLEAN SLATE
+  ## SP, TL were red — go yellow; RO/RR light — RO is lit so yellow
+  ## LO, LR were yellow — go red
+  ##############################################
+  nmfe_setup_step_11:
+    # Stop yellow shows
+    stop_y_lo_s11:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_lo
+    stop_y_lr_s11:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_lr
+    # Stop red shows for newly lit shots
+    stop_r_sp_s11:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_sp
+    stop_r_tl_s11:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_tl
+    stop_r_ro_rr_s11:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_ro_rr
+    # Start yellow for SP, TL, RO (l_shot_right_orbit)
+    nmfe_y_sp_s11:
+      show: sync_flash_mode
+      key: nmfe_y_sp
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_spinner, color: FFFF00 }
+    nmfe_y_tl_s11:
+      show: sync_flash_mode
+      key: nmfe_y_tl
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_upper_orbit, color: FFFF00 }
+    nmfe_y_ro_s11:
+      show: sync_flash_mode
+      key: nmfe_y_ro_rr
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_right_orbit, color: FFFF00 }
+    # LL lights up to indicate left lane is now the target
+    nmfe_y_ll_s11:
+      show: sync_flash_mode
+      key: nmfe_y_ll
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_left_lane, color: FFFF00 }
+    # Red shots: LO, LR, CNT, TWR, TO/TR (LL already lit yellow above)
+    nmfe_r_lo_s11:
+      show: nmfe_solid_red
+      key: nmfe_r_lo
+      loops: -1
+      show_tokens: { led: l_shot_left_orbit }
+    nmfe_r_lr_s11:
+      show: nmfe_solid_red
+      key: nmfe_r_lr
+      loops: -1
+      show_tokens: { led: l_shot_left_ramp }
+
+  ##############################################
+  ## CLEANUP — Stop all shot shows
+  ##############################################
+  nmfe_cleanup:
+    stop_all_y_ll:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_ll
+    stop_all_y_lo:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_lo
+    stop_all_y_lr:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_lr
+    stop_all_y_sp:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_sp
+    stop_all_y_cnt:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_cnt
+    stop_all_y_twr:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_twr
+    stop_all_y_tl:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_tl
+    stop_all_y_to_tr:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_to_tr
+    stop_all_y_ro_rr:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_ro_rr
+    stop_all_r_ll:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_ll
+    stop_all_r_lo:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_lo
+    stop_all_r_lr:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_lr
+    stop_all_r_sp:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_sp
+    stop_all_r_cnt:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_cnt
+    stop_all_r_twr:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_twr
+    stop_all_r_tl:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_tl
+    stop_all_r_to_tr:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_to_tr
+    stop_all_r_ro_rr:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_ro_rr
+    stop_gi_mode:
+      show: nmfe_gi_yellow
+      action: stop
+      key: nmfe_gi_mode
+    stop_gi_penalty:
+      show: nmfe_gi_penalty_strobe
+      action: stop
+      key: nmfe_penalty_gi_effect
+
+
+####################################################################################
+# SOUND PLAYER — Voice callouts only (music handled in base.yaml)
+####################################################################################
+
+sound_player:
+  nmfe_ball_released:
+    no_margin_for_error_intro_callout:
+      bus: voice
+      loops: 0
+
+####################################################################################
+# SHOWS
+# GI lights are type: grb — using hex codes per MPF bug workaround (same as battle_jester)
+# FFFF00 = yellow (works on both rgb and grb since both R and G channels are FF)
+# FF0000 = red (following battle_jester pattern for grb lights)
+####################################################################################
+
+shows:
+
+  ##############################################
+  ## FLASH YELLOW — Lit shot indicator (synced)
+  ## Uses sync_flash_mode from base config (referenced via show_player)
+  ##############################################
+
+  ##############################################
+  ## SOLID RED — Bad shot indicator
+  ##############################################
+  nmfe_solid_red:
+    - duration: 1s
+      lights:
+        (led):
+          color: FF0000
+
+  ##############################################
+  ## GI YELLOW — Mode GI color (all GI lights)
+  ##############################################
+  nmfe_gi_yellow:
+    - duration: 1s
+      lights:
+        l_gi_light_1:
+          color: FFFF00
+        l_gi_light_2:
+          color: FFFF00
+        l_gi_light_3:
+          color: FFFF00
+        l_gi_light_4:
+          color: FFFF00
+        l_gi_light_5:
+          color: FFFF00
+        l_gi_light_6:
+          color: FFFF00
+        l_gi_light_7:
+          color: FFFF00
+        l_gi_light_8:
+          color: FFFF00
+        l_gi_light_9:
+          color: FFFF00
+        l_gi_light_10:
+          color: FFFF00
+        l_gi_light_11:
+          color: FFFF00
+        l_gi_light_12:
+          color: FFFF00
+        l_gi_light_13:
+          color: FFFF00
+        l_gi_light_14:
+          color: FFFF00
+        l_gi_light_15:
+          color: FFFF00
+        l_gi_light_16:
+          color: FFFF00
+        l_gi_light_17:
+          color: FFFF00
+        l_gi_light_18:
+          color: FFFF00
+        l_gi_light_19:
+          color: FFFF00
+        l_gi_light_20:
+          color: FFFF00
+        l_gi_light_21:
+          color: FFFF00
+        l_apron_light_1:
+          color: FFFF00
+        l_apron_light_2:
+          color: FFFF00
+        l_apron_light_3:
+          color: FFFF00
+        l_apron_light_4:
+          color: FFFF00
+
+  ##############################################
+  ## GI PENALTY STROBE — Red fade in/out, never fully off, slow pulse
+  ## Fades between dim red (20%) and full red over 200ms each direction
+  ## loops: -1 in show_player keeps it running until nmfe_no_hold_end stops it
+  ##############################################
+  nmfe_gi_penalty_strobe:
+    - duration: 200ms
+      lights:
+        l_gi_light_1:
+          color: FF0000
+          fade: 200ms
+        l_gi_light_2:
+          color: FF0000
+          fade: 200ms
+        l_gi_light_3:
+          color: FF0000
+          fade: 200ms
+        l_gi_light_4:
+          color: FF0000
+          fade: 200ms
+        l_gi_light_18:
+          color: FF0000
+          fade: 200ms
+        l_gi_light_19:
+          color: FF0000
+          fade: 200ms
+        l_gi_light_20:
+          color: FF0000
+          fade: 200ms
+        l_gi_light_21:
+          color: FF0000
+          fade: 200ms
+    - duration: 200ms
+      lights:
+        l_gi_light_1:
+          color: 330000
+          fade: 200ms
+        l_gi_light_2:
+          color: 330000
+          fade: 200ms
+        l_gi_light_3:
+          color: 330000
+          fade: 200ms
+        l_gi_light_4:
+          color: 330000
+          fade: 200ms
+        l_gi_light_18:
+          color: 330000
+          fade: 200ms
+        l_gi_light_19:
+          color: 330000
+          fade: 200ms
+        l_gi_light_20:
+          color: 330000
+          fade: 200ms
+        l_gi_light_21:
+          color: 330000
+          fade: 200ms

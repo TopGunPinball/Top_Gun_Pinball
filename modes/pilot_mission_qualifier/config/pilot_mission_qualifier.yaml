@@ -461,9 +461,6 @@ variable_player:
     mode_below_the_hard_deck_played:
       action: set
       int: 1
-    mode_no_margin_for_error_played:
-      action: set
-      int: 1
 
   mode_rescue_cougar_stopped:
     letter_collection_paused:
@@ -565,6 +562,36 @@ variable_player:
   
   # Clear pause flags when canyon_run stops
   mode_canyon_run_stopped:
+    letter_collection_paused:
+      action: set
+      int: 0
+    pilot_mode_active:
+      action: set
+      int: 0
+    missiles_perk_active:
+      action: set
+      int: current_player.missiles_perk_saved
+    topgun_letter_t:
+      action: set
+      int: 0
+    topgun_letter_o:
+      action: set
+      int: 0
+    topgun_letter_p:
+      action: set
+      int: 0
+    topgun_letter_g:
+      action: set
+      int: 0
+    topgun_letter_u:
+      action: set
+      int: 0
+    topgun_letter_n:
+      action: set
+      int: 0
+
+  # No Margin For Error
+  mode_no_margin_for_error_stopped:
     letter_collection_paused:
       action: set
       int: 0
@@ -1924,6 +1951,11 @@ event_player:
 
   # Canyon Run
   mode_canyon_run_stopped{current_player.pilot_mode_drain_pending==1}:
+    - pilot_mission_bonus_ready
+    - pilot_mission_drain_complete
+
+  # No Margin For Error
+  mode_no_margin_for_error_stopped{current_player.pilot_mode_drain_pending==1}:
     - pilot_mission_bonus_ready
     - pilot_mission_drain_complete
 
@@ -3492,9 +3524,6 @@ light_player:
     l_mode_below_the_hard_deck:
       color: yellow
       fade: 0ms
-    l_mode_no_margin_for_error:
-      color: yellow
-      fade: 0ms
 
   ##############################################
   ## MYSTERY AWARD - Light Control
@@ -3821,47 +3850,3 @@ random_event_player:
       - play_topgun_complete_random_3
       - play_topgun_complete_random_4
 
-# sound_player:
-#   s_lane_left_active:
-#     sfx_letter:
-#       action: play
-#   s_orbit_left_active:
-#     sfx_letter:
-#       action: play
-#   s_ramp_left_exit_active:
-#     sfx_letter:
-#       action: play
-#   s_spinner_active:
-#     sfx_letter:
-#       action: play
-#   s_ramp_tower_exit_active:
-#     sfx_letter:
-#       action: play
-#   s_orbit_upper_active:
-#     sfx_letter:
-#       action: play
-#   s_ramp_inner_exit_active:
-#     sfx_letter:
-#       action: play
-#   s_ramp_right_exit_active:
-#     sfx_letter:
-#       action: play
-#   
-#   topgun_qualified:
-#     sfx_topgun_complete:
-#       action: play
-#   
-#   rotate_qualified_mode:
-#     sfx_mode_rotate:
-#       action: play
-
-# sounds:
-#   sfx_letter:
-#     file: letter_collect.wav
-#     streaming: false
-#   sfx_topgun_complete:
-#     file: topgun_qualified.wav
-#     streaming: false
-#   sfx_mode_rotate:
-#     file: mode_change.wav
-#     streaming: false

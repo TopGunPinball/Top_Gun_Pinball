@@ -46,6 +46,7 @@ timers:
 
   # Main countdown timer - 20 seconds at active mach level
   # Inverted perk extends by +20s (total 40s) via mach_inverted_extend_timer
+  # Pauses when ball is held in scoop or by left lane post
   mach_timer:
     start_value: 20
     end_value: 0
@@ -64,8 +65,22 @@ timers:
       - action: add
         event: mach_inverted_extend_timer
         value: 20
+      - action: pause
+        event: s_mode_start_active
+      - action: start
+        event: s_mode_start_inactive
+      - action: pause
+        event: s_lane_left_active
+      - action: start
+        event: s_lane_left_inactive
 
 event_player:
+  # TL (s_orbit_upper) and TO (s_orbit_lower) progress mach scoring identically to TR
+  s_orbit_upper_active:
+    - mach_ramp_hit
+  s_orbit_lower_active:
+    - mach_ramp_hit
+
   # First hit - no mach scoring yet
   mach_ramp_hit{current_player.mach_step==0}:
     mach_first_hit:
