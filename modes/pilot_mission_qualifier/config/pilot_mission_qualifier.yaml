@@ -1669,6 +1669,19 @@ variable_player:
       action: add
       int: 1
 
+  ##############################################
+  ## SKILLSHOT: TOPGUN Letter Grant
+  ## Fired with staggered delays from skillshot.yaml so each letter
+  ## lights individually (player_topgun_shots_collected events fire per value).
+  ## MIG skillshots fire this twice (200ms apart) = 2 letters.
+  ## All other skillshots fire this three times (200ms apart) = 3 letters.
+  ## Cap at <6 — no carry-over past qualification.
+  ##############################################
+  skillshot_add_topgun_letter{current_player.topgun_shots_collected<6}:
+    topgun_shots_collected:
+      action: add
+      int: 1
+
 
 ##############################################
 ## Coil Player - Mode Barrier Control

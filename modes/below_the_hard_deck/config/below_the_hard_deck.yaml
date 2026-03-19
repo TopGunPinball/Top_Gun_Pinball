@@ -595,6 +595,7 @@ event_player:
   # Won video flow — cleanup fires AFTER won video (not before — would kill the show)
   bthd_won:
     - timer_bthd_complete_delay_start
+    - right_ramp_down
 
   timer_bthd_complete_delay_complete:
     - bthd_cleanup
@@ -1755,6 +1756,25 @@ show_player:
       sync_ms: 1000
       loops: -1
       show_tokens: { led: l_shot_right_orbit, color: FFA500 }
+
+  ##############################################
+  ## WON — Stop shot lights immediately when ball captured (left lane switch)
+  ## Right ramp lowers via event_player. Full GI/show cleanup happens after
+  ## victory video via bthd_cleanup.
+  ##############################################
+  bthd_won:
+    stop_good_on_capture:
+      show: sync_flash_mode
+      action: stop
+      key: bthd_good_shot_key
+    stop_bad1_on_capture:
+      show: bthd_solid_red
+      action: stop
+      key: bthd_bad_1_key
+    stop_bad2_on_capture:
+      show: bthd_solid_red
+      action: stop
+      key: bthd_bad_2_key
 
   ##############################################
   ## CLEANUP — Stop all shot shows and GI

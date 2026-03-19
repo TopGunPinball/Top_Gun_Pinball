@@ -15,6 +15,7 @@ mode_settings:
     - presented_by
     - hotrod_pinball_logo
     - mpf_logo
+    - high_score_top_5
     - credits
     - last_scores_1p{machine.player1_score and not machine.player2_score}
     - last_scores_2p{machine.player2_score and not machine.player3_score}
@@ -31,6 +32,11 @@ sound_player:
     top_gun_pinball_attract_scene_music:
       bus: music
       loops: -1
+
+  timer_attract_music_stop_timer_complete:
+    silence:
+      bus: music
+      loops: 0
 
 # Kick off the chained cycle and home all servos
 # Also clear any ball stuck in mode scoop (barrier blocks eject on cold boot)
@@ -147,6 +153,18 @@ timers:
         action: stop
       - event: flipper_cradle_release
         action: restart
+
+  # Stop music after 2 minutes — lights keep going
+  attract_music_stop_timer:
+    start_value: 0
+    end_value: 120
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: mode_attract_started
+        action: restart
+      - event: mode_attract_will_stop
+        action: stop
 
   # Delay before raising barrier after scoop clears stuck ball
   attract_scoop_clear_delay:

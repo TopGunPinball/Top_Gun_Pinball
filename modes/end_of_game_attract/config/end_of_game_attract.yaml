@@ -245,8 +245,16 @@ variable_player:
 ##############################################################################
 
 sound_player:
-  # Silence music bus so the video audio plays cleanly
-  mode_end_of_game_attract_started:
+  # Start high score music when leaderboard slides begin (hs_entry_made==1 path only).
+  # Owned by this mode's context so it survives high_score mode stop.
+  hs_display_start:
+    music_high_score:
+      bus: music
+      loops: -1
+
+  # Silence music bus when video slide starts (after any HS leaderboard slides)
+  # so the video audio plays cleanly. High score music plays up until this point.
+  hs_display_skip:
     silence:
       bus: music
       loops: 0

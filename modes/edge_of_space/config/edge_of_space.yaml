@@ -105,7 +105,7 @@ timers:
       - event: edge_of_space_ball_released
         action: restart
 
-  # Shot value decay: 150 ticks x 100ms = 15s to reach floor
+  # Shot value decay: 150 ticks x 100ms = 15s timer (decay_per_tick reduced to 2.5x slower)
   edge_of_space_decay_timer:
     start_value: 0
     end_value: 150
@@ -321,7 +321,7 @@ variable_player:
       int: 100000
     edge_of_space_decay_per_tick:
       action: set
-      int: 2667
+      int: 1067
     edge_of_space_combo_step:
       action: set
       int: 0
@@ -365,7 +365,7 @@ variable_player:
       int: 100000
     edge_of_space_decay_per_tick:
       action: set
-      int: 2667
+      int: 1067
 
   edge_of_space_setup_step_2:
     edge_of_space_current_shot_value:
@@ -376,7 +376,7 @@ variable_player:
       int: 110000
     edge_of_space_decay_per_tick:
       action: set
-      int: 2933
+      int: 1173
 
   edge_of_space_setup_step_3:
     edge_of_space_current_shot_value:
@@ -387,7 +387,7 @@ variable_player:
       int: 120000
     edge_of_space_decay_per_tick:
       action: set
-      int: 3200
+      int: 1280
 
   # Step 4b (TWR) value - set when ball is released from left lane hold
   edge_of_space_step4_ball_released:
@@ -399,7 +399,7 @@ variable_player:
       int: 130000
     edge_of_space_decay_per_tick:
       action: set
-      int: 3467
+      int: 1387
 
   edge_of_space_setup_step_5:
     edge_of_space_current_shot_value:
@@ -410,7 +410,7 @@ variable_player:
       int: 140000
     edge_of_space_decay_per_tick:
       action: set
-      int: 3733
+      int: 1493
 
   edge_of_space_setup_step_6:
     edge_of_space_current_shot_value:
@@ -421,7 +421,7 @@ variable_player:
       int: 140000
     edge_of_space_decay_per_tick:
       action: set
-      int: 3733
+      int: 1493
 
   edge_of_space_setup_step_7:
     edge_of_space_current_shot_value:
@@ -432,7 +432,7 @@ variable_player:
       int: 150000
     edge_of_space_decay_per_tick:
       action: set
-      int: 4000
+      int: 1600
 
   edge_of_space_setup_step_8:
     edge_of_space_current_shot_value:
@@ -443,7 +443,7 @@ variable_player:
       int: 160000
     edge_of_space_decay_per_tick:
       action: set
-      int: 4267
+      int: 1707
 
   # Step completions — bank decaying value, advance step, decrement remaining
   edge_of_space_step_1_complete:
@@ -617,6 +617,16 @@ variable_player:
   timer_edge_of_space_timer_complete{current_player.afterburner_perk_active==0 and current_player.edge_of_space_step < 13}:
     score:
       action: add
+      int: current_player.edge_of_space_points_bank
+
+  # Drain: pay out the bank just like timer expiry
+  # Guard: complete_flag==0 prevents double-pay if drain happens after a win
+  edge_of_space_drain_detected{current_player.edge_of_space_complete_flag==0}:
+    score:
+      action: add
+      int: current_player.edge_of_space_points_bank
+    mode_points_scored:
+      action: set
       int: current_player.edge_of_space_points_bank
 
   # Choice: take 1x bank payout

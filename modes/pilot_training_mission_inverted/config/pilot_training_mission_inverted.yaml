@@ -219,7 +219,7 @@ variable_player:
       int: 0
     pilot_training_mission_inverted_switches_needed:
       action: set
-      int: 50
+      int: 25
     pilot_training_mission_inverted_current_switch_value:
       action: set
       int: 10000
@@ -3220,10 +3220,10 @@ variable_player:
       int: 0
     pilot_training_mission_inverted_switches_needed:
       action: set
-      int: 100
+      int: 50
     pilot_training_mission_inverted_current_switch_value:
       action: set
-      int: 12500
+      int: 15000
 
   # Step 3 start - set step to 3 when returning from step 9 restart
   pilot_training_mission_inverted_step_3_start:
@@ -3232,10 +3232,10 @@ variable_player:
       int: 3
     pilot_training_mission_inverted_current_switch_value:
       action: set
-      int: 12500
+      int: 15000
     pilot_training_mission_inverted_switches_needed:
       action: set
-      int: 100
+      int: 50
 
   # Step 3 → Step 4 (100 switches hit, jackpot lit)
   pilot_training_mission_inverted_step_3_complete:
@@ -3253,10 +3253,10 @@ variable_player:
       int: 0
     pilot_training_mission_inverted_switches_needed:
       action: set
-      int: 150
+      int: 100
     pilot_training_mission_inverted_current_switch_value:
       action: set
-      int: 15000
+      int: 25000
 
   # Step 5 start - set step to 5
   pilot_training_mission_inverted_step_5_start:
@@ -3265,10 +3265,10 @@ variable_player:
       int: 5
     pilot_training_mission_inverted_current_switch_value:
       action: set
-      int: 15000
+      int: 25000
     pilot_training_mission_inverted_switches_needed:
       action: set
-      int: 150
+      int: 100
 
   # Step 5 → Step 6 (150 switches hit, jackpot lit)
   pilot_training_mission_inverted_step_5_complete:
@@ -3286,10 +3286,10 @@ variable_player:
       int: 0
     pilot_training_mission_inverted_switches_needed:
       action: set
-      int: 200
+      int: 150
     pilot_training_mission_inverted_current_switch_value:
       action: set
-      int: 17500
+      int: 50000
 
   # Step 7 start - set step to 7
   pilot_training_mission_inverted_step_7_start:
@@ -3298,10 +3298,10 @@ variable_player:
       int: 7
     pilot_training_mission_inverted_current_switch_value:
       action: set
-      int: 17500
+      int: 50000
     pilot_training_mission_inverted_switches_needed:
       action: set
-      int: 200
+      int: 150
 
   # Step 7 → Step 8 (200 switches hit, jackpot lit)
   pilot_training_mission_inverted_step_7_complete:
@@ -3325,7 +3325,7 @@ variable_player:
       int: 0
     pilot_training_mission_inverted_switches_needed:
       action: set
-      int: 50
+      int: 25
     pilot_training_mission_inverted_current_switch_value:
       action: set
       int: 10000
@@ -3420,7 +3420,7 @@ event_player:
     - pilot_training_mission_inverted_setup_mode_shot
 
   # Step 1 complete check (50 switches)
-  player_pilot_training_mission_inverted_switches_hit{value>=30 and current_player.pilot_training_mission_inverted_step==1}:
+  player_pilot_training_mission_inverted_switches_hit{value>=25 and current_player.pilot_training_mission_inverted_step==1}:
     - pilot_training_mission_inverted_step_1_complete
     - pilot_training_mission_inverted_setup_step_2
     - pilot_training_mission_inverted_stop_mode_shot_timer
@@ -3444,7 +3444,7 @@ event_player:
     - pilot_training_mission_inverted_setup_mode_shot
 
   # Step 3 complete check (100 switches)
-  player_pilot_training_mission_inverted_switches_hit{value>=75 and current_player.pilot_training_mission_inverted_step==3}:
+  player_pilot_training_mission_inverted_switches_hit{value>=50 and current_player.pilot_training_mission_inverted_step==3}:
     - pilot_training_mission_inverted_step_3_complete
     - pilot_training_mission_inverted_setup_step_4
     - pilot_training_mission_inverted_stop_mode_shot_timer
@@ -3493,7 +3493,7 @@ event_player:
     - pilot_training_mission_inverted_setup_mode_shot
 
   # Step 7 complete check (200 switches)
-  player_pilot_training_mission_inverted_switches_hit{value>=200 and current_player.pilot_training_mission_inverted_step==7}:
+  player_pilot_training_mission_inverted_switches_hit{value>=150 and current_player.pilot_training_mission_inverted_step==7}:
     - pilot_training_mission_inverted_step_7_complete
     - pilot_training_mission_inverted_setup_step_8
     - pilot_training_mission_inverted_stop_mode_shot_timer
@@ -4415,6 +4415,12 @@ show_player:
       key: inverted_jackpot
       loops: -1
       speed: 30
+    inverted_jackpot_barrier_flash:
+      show: sync_flash_mode
+      key: inverted_jackpot_barrier
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_barrier, color: FF0000 }
 
   # Stop jackpot show after collection
   pilot_training_mission_inverted_jackpot_reset:
@@ -4422,6 +4428,10 @@ show_player:
       show: inverted_jackpot_strobe
       action: stop
       key: inverted_jackpot
+    stop_jackpot_barrier:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_jackpot_barrier
 
   # Super jackpot lit show (Left Lane) - uses show file in mode's shows folder
   pilot_training_mission_inverted_super_jackpot_lit:
@@ -4452,6 +4462,10 @@ show_player:
       show: inverted_jackpot_strobe
       action: stop
       key: inverted_jackpot
+    stop_jackpot_barrier_cleanup:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_jackpot_barrier
     stop_super_jackpot_cleanup:
       show: pilot_training_mission_inverted_super_jackpot_lit
       action: stop
