@@ -66,19 +66,25 @@ timers:
         event: mach_inverted_extend_timer
         value: 20
       - action: pause
-        event: s_mode_start_active
+        event: mach_timer_pause
       - action: start
-        event: s_mode_start_inactive
-      - action: pause
-        event: s_lane_left_active
-      - action: start
-        event: s_lane_left_inactive
+        event: mach_timer_resume
 
 event_player:
+  # Pause mach timer when ball held in scoop or left lane — only when mach is active
+  s_mode_start_active{current_player.mach_step>=2}:
+    - mach_timer_pause
+  s_mode_start_inactive{current_player.mach_step>=2}:
+    - mach_timer_resume
+  s_lane_left_active{current_player.mach_step>=2}:
+    - mach_timer_pause
+  s_lane_left_inactive{current_player.mach_step>=2}:
+    - mach_timer_resume
+
   # TL (s_orbit_upper) and TO (s_orbit_lower) progress mach scoring identically to TR
-  s_orbit_upper_active:
+  s_orbit_upper_active{current_player.pilot_mode_active==0}:
     - mach_ramp_hit
-  s_orbit_lower_active:
+  s_orbit_lower_active{current_player.pilot_mode_active==0}:
     - mach_ramp_hit
 
   # First hit - no mach scoring yet

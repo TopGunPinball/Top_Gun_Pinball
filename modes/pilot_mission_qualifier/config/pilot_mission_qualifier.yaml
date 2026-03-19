@@ -265,22 +265,23 @@ slide_player:
       priority: 200
   
   # Play completion video based on modes_completed_count
-  topgun_qualified{current_player.modes_completed_count==0}:
+  # 2 second delay applied via event_player (topgun_show_complete_N events)
+  topgun_show_complete_1:
     topgun_letters_complete_1:
       action: play
       priority: 300
   
-  topgun_qualified{current_player.modes_completed_count==1}:
+  topgun_show_complete_2:
     topgun_letters_complete_2:
       action: play
       priority: 300
   
-  topgun_qualified{current_player.modes_completed_count==2}:
+  topgun_show_complete_3:
     topgun_letters_complete_3:
       action: play
       priority: 300
   
-  topgun_qualified{current_player.modes_completed_count==3}:
+  topgun_show_complete_4:
     topgun_letters_complete_4:
       action: play
       priority: 300
@@ -288,7 +289,7 @@ slide_player:
   # For 5th+ qualification, random videos are triggered via event_player -> random_event_player
   # See event_player and random_event_player sections below
   
-  # Random video player entries (triggered by random_event_player)
+  # Random video player entries (triggered by random_event_player, 2s delay applied upstream)
   play_topgun_complete_random_1:
     topgun_letters_complete_1:
       action: play
@@ -458,9 +459,6 @@ variable_player:
     mode_no_points_for_second_place_played:
       action: set
       int: 1
-    mode_below_the_hard_deck_played:
-      action: set
-      int: 1
 
   mode_rescue_cougar_stopped:
     letter_collection_paused:
@@ -592,6 +590,36 @@ variable_player:
 
   # No Margin For Error
   mode_no_margin_for_error_stopped:
+    letter_collection_paused:
+      action: set
+      int: 0
+    pilot_mode_active:
+      action: set
+      int: 0
+    missiles_perk_active:
+      action: set
+      int: current_player.missiles_perk_saved
+    topgun_letter_t:
+      action: set
+      int: 0
+    topgun_letter_o:
+      action: set
+      int: 0
+    topgun_letter_p:
+      action: set
+      int: 0
+    topgun_letter_g:
+      action: set
+      int: 0
+    topgun_letter_u:
+      action: set
+      int: 0
+    topgun_letter_n:
+      action: set
+      int: 0
+
+  # Below The Hard Deck
+  mode_below_the_hard_deck_stopped:
     letter_collection_paused:
       action: set
       int: 0
@@ -1847,9 +1875,19 @@ event_player:
   ## 5th+ QUALIFICATION - RANDOM VIDEO SELECTION
   ## For modes_completed_count >= 4, trigger random video selection
   ##############################################
-  
+
+  # 2s delay before topgun complete video plays (modes 1-4)
+  topgun_qualified{current_player.modes_completed_count==0}:
+    - topgun_show_complete_1|2000ms
+  topgun_qualified{current_player.modes_completed_count==1}:
+    - topgun_show_complete_2|2000ms
+  topgun_qualified{current_player.modes_completed_count==2}:
+    - topgun_show_complete_3|2000ms
+  topgun_qualified{current_player.modes_completed_count==3}:
+    - topgun_show_complete_4|2000ms
+
   topgun_qualified{current_player.modes_completed_count>=4}:
-    - play_random_topgun_complete
+    - play_random_topgun_complete|2000ms
 
   ##############################################
   ## SPINNER SHOT DETECTION
@@ -1951,6 +1989,11 @@ event_player:
 
   # Canyon Run
   mode_canyon_run_stopped{current_player.pilot_mode_drain_pending==1}:
+    - pilot_mission_bonus_ready
+    - pilot_mission_drain_complete
+
+  # Below The Hard Deck
+  mode_below_the_hard_deck_stopped{current_player.pilot_mode_drain_pending==1}:
     - pilot_mission_bonus_ready
     - pilot_mission_drain_complete
 
@@ -3521,10 +3564,6 @@ light_player:
     l_mode_no_points_for_second_place:
       color: yellow
       fade: 0ms
-    l_mode_below_the_hard_deck:
-      color: yellow
-      fade: 0ms
-
   ##############################################
   ## MYSTERY AWARD - Light Control
   ## Turn on l_mystery_lit when qualified, off when consumed.
@@ -3600,17 +3639,17 @@ light_player:
   
   mode_pilot_mission_qualifier_started{current_player.mode_edge_of_space_played==1}:
     l_mode_edge_of_space:
-      color: yellow
+      color: white
       fade: 0ms
   
   mode_pilot_mission_qualifier_started{current_player.mode_below_the_hard_deck_played==1}:
     l_mode_below_the_hard_deck:
-      color: yellow
+      color: white
       fade: 0ms
   
   mode_pilot_mission_qualifier_started{current_player.mode_canyon_run_played==1}:
     l_mode_canyon_run:
-      color: yellow
+      color: white
       fade: 0ms
   
   mode_pilot_mission_qualifier_started{current_player.mode_rise_of_phoenix_played==1}:
@@ -3620,7 +3659,7 @@ light_player:
   
   mode_pilot_mission_qualifier_started{current_player.mode_no_margin_for_error_played==1}:
     l_mode_no_margin_for_error:
-      color: yellow
+      color: white
       fade: 0ms
 
   # Restore base mode light on ball start if qualified (pulsing handled by show_player)
@@ -3660,13 +3699,16 @@ light_player:
     l_mode_rescue_cougar:
       color: off
     l_mode_balls_of_fire:
-      color: off
+      color: yellow
+      fade: 0ms
     l_mode_cool_under_pressure:
-      color: off
+      color: yellow
+      fade: 0ms
     l_mode_battle_jester:
       color: off
     l_mode_no_points_for_second_place:
-      color: off
+      color: yellow
+      fade: 0ms
     l_mode_edge_of_space:
       color: off
     l_mode_below_the_hard_deck:
@@ -3706,17 +3748,17 @@ light_player:
   
   stop_all_mode_pulse_shows{current_player.mode_edge_of_space_played==1}:
     l_mode_edge_of_space:
-      color: yellow
+      color: white
       fade: 0ms
   
   stop_all_mode_pulse_shows{current_player.mode_below_the_hard_deck_played==1}:
     l_mode_below_the_hard_deck:
-      color: yellow
+      color: white
       fade: 0ms
   
   stop_all_mode_pulse_shows{current_player.mode_canyon_run_played==1}:
     l_mode_canyon_run:
-      color: yellow
+      color: white
       fade: 0ms
   
   stop_all_mode_pulse_shows{current_player.mode_rise_of_phoenix_played==1}:
@@ -3726,7 +3768,7 @@ light_player:
   
   stop_all_mode_pulse_shows{current_player.mode_no_margin_for_error_played==1}:
     l_mode_no_margin_for_error:
-      color: yellow
+      color: white
       fade: 0ms
 
   # Initial light when qualified (will be overridden by pulsing show)
@@ -3849,4 +3891,3 @@ random_event_player:
       - play_topgun_complete_random_2
       - play_topgun_complete_random_3
       - play_topgun_complete_random_4
-
