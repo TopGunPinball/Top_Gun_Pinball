@@ -168,6 +168,15 @@ timers:
 ##############################################################################
 
 event_player:
+  # BALL SAVE BLOCKER — if any ball save is active when the outlane is hit,
+  # abort the ejection seat immediately and restore the player's qualification.
+  # We post ejection_seat_ball_save_blocked as an intermediate event so that
+  # the variable_player below can restore eject_mode_qualified AFTER
+  # goose_letters clears it on mode_ejection_seat_started (priority 200).
+  mode_ejection_seat_started{device.ball_saves.new_ball_save.enabled==True or device.ball_saves.mode_ball_save.enabled==True or device.ball_saves.scoop_eject_save.enabled==True}:
+    - ejection_seat_ball_save_blocked
+    - ejection_seat_cleanup_complete
+
   # When activation delay completes, activate the magnet
   timer_ejection_activation_delay_complete:
     - ejection_magnet_activated
@@ -229,6 +238,15 @@ event_player:
 ##############################################################################
 
 variable_player:
+  # BALL SAVE BLOCKER RESTORE — fires after mode_ejection_seat_started has fully
+  # processed (including goose_letters clearing eject_mode_qualified to 0).
+  # Restores the flag so the player keeps their ejection seat for the next drain.
+  # Works regardless of whether qualification came from goose_letters or mystery award.
+  ejection_seat_ball_save_blocked:
+    eject_mode_qualified:
+      action: set
+      int: 1
+
   # Reset qualification and award points on success
   ejection_success:
     eject_mode_qualified:
@@ -342,22 +360,56 @@ light_player:
     l_eject:
       color: off
 
-  # Turn off shoot_again when ball save ends or mode stops
+  # Restore GI return lane lights to white on success
+  ejection_success:
+    l_gi_light_1: { color: white, fade: 200ms }
+    l_gi_light_2: { color: white, fade: 200ms }
+    l_gi_light_20: { color: white, fade: 200ms }
+    l_gi_light_21: { color: white, fade: 200ms }
+
+  # Restore GI return lane lights to white on failure
+  ejection_failed:
+    l_gi_light_1: { color: white, fade: 200ms }
+    l_gi_light_2: { color: white, fade: 200ms }
+    l_gi_light_20: { color: white, fade: 200ms }
+    l_gi_light_21: { color: white, fade: 200ms }
+
+  # Turn off shoot_again when ball save ends
   ball_save_ejection_seat_ball_save_disabled:
     l_shoot_again:
       color: off
 
+  # Restore GI and shoot_again when mode stops (safety net)
   mode_ejection_seat_stopped:
     l_shoot_again:
       color: off
+    l_gi_light_1: { color: white, fade: 200ms }
+    l_gi_light_2: { color: white, fade: 200ms }
+    l_gi_light_20: { color: white, fade: 200ms }
+    l_gi_light_21: { color: white, fade: 200ms }
+
+  # If extra ball is lit when mode stops, restore shoot_again to yellow
+  mode_ejection_seat_stopped{device.extra_balls.extra_ball_main.enabled==True}:
+    l_shoot_again:
+      color: yellow
 
 ##############################################################################
 ## SHOW PLAYER - Flash shoot_again light during ball save
 ##############################################################################
 
 show_player:
-  # Start flashing shoot_again on success (ball save active)
+  # Start chase show when magnet activates (player needs to act)
+  ejection_magnet_activated:
+    ejection_seat_chase:
+      key: ejection_chase
+      loops: -1
+      speed: 1
+
+  # Stop chase show on success
   ejection_success:
+    ejection_seat_chase:
+      action: stop
+      key: ejection_chase
     flash_shoot_again:
       loops: -1
       speed: 4
@@ -375,8 +427,16 @@ show_player:
       action: stop
 
   mode_ejection_seat_stopped:
+    ejection_seat_chase:
+      action: stop
+      key: ejection_chase
     flash_shoot_again:
       action: stop
+
+  ejection_failed:
+    ejection_seat_chase:
+      action: stop
+      key: ejection_chase
 
 ##############################################################################
 ## SHOWS
@@ -391,28 +451,73 @@ shows:
       lights:
         (led): off
 
-##############################################################################
-## SOUND PLAYER (Optional - uncomment and customize)
-##############################################################################
-
-# sound_player:
-#   mode_ejection_seat_started:
-#     sfx_ejection_alert:
-#       bus: sfx
-#   
-#   ejection_magnet_activated:
-#     sfx_magnet_hum:
-#       bus: sfx
-#       loops: -1
-#   
-#   ejection_fling_started:
-#     sfx_magnet_hum:
-#       action: stop
-#   
-#   ejection_success:
-#     sfx_ejection_success:
-#       bus: sfx
-#   
-#   ejection_failed:
-#     sfx_ejection_failed:
-#       bus: sfx
+  ##############################################################################
+  ## EJECTION SEAT CHASE SHOW
+  ## Chases outward: shoot_again → gi_light_1+21 → gi_light_2+20 → all off
+  ## Total loop: 1 second. GI lights are type:grb, yellow FFFF00 safe on grb.
+  ##
+  ## Frame 1 (250ms): shoot_again WHITE on, GI lights off
+  ## Frame 2 (250ms): gi_light_1+21 YELLOW fade in, shoot_again fades out
+  ## Frame 3 (250ms): gi_light_2+20 YELLOW fade in, gi_light_1+21 fade out
+  ## Frame 4 (250ms): gi_light_2+20 fade out
+  ##############################################################################
+  ejection_seat_chase:
+    - duration: 150ms
+      lights:
+        l_shoot_again:
+          color: white
+          fade: 0ms
+        l_gi_light_1:
+          color: off
+          fade: 0ms
+        l_gi_light_21:
+          color: off
+          fade: 0ms
+        l_gi_light_2:
+          color: off
+          fade: 0ms
+        l_gi_light_20:
+          color: off
+          fade: 0ms
+    - duration: 150ms
+      lights:
+        l_shoot_again:
+          color: off
+          fade: 150ms
+        l_gi_light_1:
+          color: FFFF00
+          fade: 150ms
+        l_gi_light_21:
+          color: FFFF00
+          fade: 150ms
+        l_gi_light_2:
+          color: off
+          fade: 0ms
+        l_gi_light_20:
+          color: off
+          fade: 0ms
+    - duration: 150ms
+      lights:
+        l_shoot_again:
+          color: off
+          fade: 0ms
+        l_gi_light_1:
+          color: off
+          fade: 150ms
+        l_gi_light_21:
+          color: off
+          fade: 150ms
+        l_gi_light_2:
+          color: FFFF00
+          fade: 150ms
+        l_gi_light_20:
+          color: FFFF00
+          fade: 150ms
+    - duration: 150ms
+      lights:
+        l_gi_light_2:
+          color: off
+          fade: 150ms
+        l_gi_light_20:
+          color: off
+          fade: 150ms

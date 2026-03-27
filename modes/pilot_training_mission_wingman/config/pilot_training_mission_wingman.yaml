@@ -498,8 +498,8 @@ variable_player:
   ## Position checked BEFORE increment
   ##############################################
   
-  # Position 0-1: 250,000 per good shot
-  wingman_score_good{current_player.wingman_position>=0 and current_player.wingman_position<=1}:
+  # Position 0-1: 250,000 per good shot (not final shot)
+  wingman_score_good{current_player.wingman_position>=0 and current_player.wingman_position<=1 and current_player.wingman_position<5}:
     wingman_points_bank:
       action: add
       int: 250000 * current_player.total_scoring_multiplier
@@ -510,8 +510,8 @@ variable_player:
       action: set
       int: 250000 * current_player.total_scoring_multiplier
   
-  # Position 2-3: 500,000 per good shot
-  wingman_score_good{current_player.wingman_position>=2 and current_player.wingman_position<=3}:
+  # Position 2-3: 500,000 per good shot (not final shot)
+  wingman_score_good{current_player.wingman_position>=2 and current_player.wingman_position<=3 and current_player.wingman_position<5}:
     wingman_points_bank:
       action: add
       int: 500000 * current_player.total_scoring_multiplier
@@ -522,8 +522,8 @@ variable_player:
       action: set
       int: 500000 * current_player.total_scoring_multiplier
   
-  # Position 4-5: 1,000,000 per good shot
-  wingman_score_good{current_player.wingman_position>=4 and current_player.wingman_position<=5}:
+  # Position 4: 1,000,000 per good shot (not final shot — position 5 is final)
+  wingman_score_good{current_player.wingman_position==4}:
     wingman_points_bank:
       action: add
       int: 1000000 * current_player.total_scoring_multiplier
@@ -571,9 +571,6 @@ variable_player:
   
   wingman_score_bad:
     wingman_points_bank:
-      action: add
-      int: -250000
-    score:
       action: add
       int: -250000
     wingman_bad_shots_count:
@@ -645,8 +642,13 @@ variable_player:
     training_missions_won:
       action: add
       int: 1
-    # training_wingman_complete now set on mode_started (played = started)
-    # Points already scored live - no bank payout needed
+    # Pay out the full bank on the winning shot
+    score:
+      action: add
+      int: current_player.wingman_points_bank * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: current_player.wingman_points_bank * current_player.total_scoring_multiplier
 
   # Perfect run bonus: 5,000,000 if no bad shots were hit
   wingman_perfect_run_bonus:
@@ -924,7 +926,7 @@ event_player:
     - wingman_bad_shot
 
   # SP (spinner_shot_made): LEFT=NEUTRAL, MIDDLE=GOOD, RIGHT=NEUTRAL
-  spinner_shot_made{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==2}:
+  spinner_shot_made{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==2 and not device.timers.spinner_shot_lockout.running}:
     - wingman_good_shot
 
   # TWR (s_ramp_tower_exit): LEFT=NEUTRAL, MIDDLE=GOOD, RIGHT=NEUTRAL

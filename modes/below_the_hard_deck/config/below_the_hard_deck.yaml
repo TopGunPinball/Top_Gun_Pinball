@@ -87,7 +87,7 @@ timers:
 
   # Main mode countdown — starts on ball release
   bthd_timer:
-    start_value: 180
+    start_value: 120
     end_value: 0
     direction: down
     tick_interval: 1s
@@ -176,6 +176,9 @@ timers:
     control_events:
       - event: bthd_won
         action: start
+      - event: bthd_skip_end_video
+        action: jump
+        value: 17
 
   # Lost video delay — 12s
   bthd_failed_delay:
@@ -186,6 +189,9 @@ timers:
     control_events:
       - event: bthd_failed
         action: start
+      - event: bthd_skip_end_video
+        action: jump
+        value: 12
 
   # Drain cleanup delay — holds ball_ending queue during lost video
   # Must be >= bthd_failed_delay so lost video plays fully before bonus
@@ -197,6 +203,9 @@ timers:
     control_events:
       - event: bthd_drain_detected
         action: start
+      - event: bthd_skip_end_video
+        action: jump
+        value: 12
 
 ####################################################################################
 # QUEUE RELAY PLAYER
@@ -257,7 +266,7 @@ variable_player:
       int: 8
     bthd_timer_ticks:
       action: set
-      int: 180
+      int: 120
     mode_points_scored:
       action: set
       int: 0
@@ -465,6 +474,26 @@ event_player:
     - afterburner_extend_bthd_timer|500ms
 
   ##############################################
+  ## SKIP END VIDEOS (won/lost/drain) — both flippers held
+  ## Guard is the specific delay timer running — naturally excludes gameplay
+  ##############################################
+  s_flipper_left_active{device.timers.bthd_complete_delay.running}:
+    - bthd_check_skip_end_video
+  s_flipper_right_active{device.timers.bthd_complete_delay.running}:
+    - bthd_check_skip_end_video
+  s_flipper_left_active{device.timers.bthd_failed_delay.running}:
+    - bthd_check_skip_end_video
+  s_flipper_right_active{device.timers.bthd_failed_delay.running}:
+    - bthd_check_skip_end_video
+  s_flipper_left_active{device.timers.bthd_drain_delay.running}:
+    - bthd_check_skip_end_video
+  s_flipper_right_active{device.timers.bthd_drain_delay.running}:
+    - bthd_check_skip_end_video
+
+  bthd_check_skip_end_video{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - bthd_skip_end_video
+
+  ##############################################
   ## MOVING SHOT — bthd_move_timer drives movement
   ## Timer expires → bthd_move_shot → advance position → setup new position → timer restarts
   ## Good shot → bthd_move_shot fires immediately → same chain (timer restarts fresh)
@@ -634,11 +663,12 @@ event_player:
     - pilot_mode_cleanup_complete
 
   ##############################################
-  ## CLEANUP — Ramps down, all shows stopped
+  ## CLEANUP — Ramps down, diverter closed, all shows stopped
   ##############################################
   bthd_cleanup:
     - right_ramp_down
     - barrier_raise
+    - left_orbit_diverter_closed
 
   ##############################################
   ## GOOD SHOT DETECTION — Position 0 (LO)

@@ -2,7 +2,7 @@
 
 ####################################################################################
 # NO MARGIN FOR ERROR - PILOT MISSION MODE
-# Timer: 180 seconds countdown | Steps: 11 | GI: Yellow
+# Timer: 120 seconds countdown | Steps: 11 | GI: Yellow
 # Scoring: Direct to score (multiplier applied)
 # Flipper Mechanic: Bad shots = no-hold flippers for 10s (resets on each bad shot)
 #                   Good shot = immediately restores normal flippers
@@ -41,7 +41,7 @@
 #   l_gi_light_18, l_gi_light_19, l_gi_light_20, l_gi_light_21
 #
 # ADJUSTABLE TIMING:
-#   Mode timer:         180s  (nmfe_timer start_value)
+#   Mode timer:         120s  (nmfe_timer start_value)
 #   Intro video:         43s  (nmfe_intro_video_delay end_value)
 #   No-hold penalty:     10s  (nmfe_no_hold_timer start_value)
 #   Left diverter hold:   3s  (nmfe_left_diverter_timer end_value)
@@ -86,7 +86,7 @@ timers:
 
   # Main mode countdown — starts on ball release (NOT mode start, avoids scoop bounce)
   nmfe_timer:
-    start_value: 180
+    start_value: 120
     end_value: 0
     direction: down
     tick_interval: 1s
@@ -164,6 +164,9 @@ timers:
     control_events:
       - event: nmfe_won
         action: start
+      - event: nmfe_skip_end_video
+        action: jump
+        value: 18
 
   # Lost video delay — 14s
   nmfe_failed_delay:
@@ -174,6 +177,9 @@ timers:
     control_events:
       - event: nmfe_failed
         action: start
+      - event: nmfe_skip_end_video
+        action: jump
+        value: 14
 
   # Drain cleanup delay — holds ball_ending queue while lost video plays
   nmfe_drain_delay:
@@ -184,6 +190,9 @@ timers:
     control_events:
       - event: nmfe_drain_detected
         action: start
+      - event: nmfe_skip_end_video
+        action: jump
+        value: 5
 
   # Servo stagger — fires top_ramp_down 500ms after nmfe_cleanup
   # (right_ramp_down fires immediately on nmfe_cleanup in event_player)
@@ -519,6 +528,26 @@ event_player:
     - afterburner_extend_nmfe_timer|500ms
 
   ##############################################
+  ## SKIP END VIDEOS (won/lost/drain) — both flippers held
+  ## Guard is the specific delay timer running — naturally excludes gameplay
+  ##############################################
+  s_flipper_left_active{device.timers.nmfe_complete_delay.running}:
+    - nmfe_check_skip_end_video
+  s_flipper_right_active{device.timers.nmfe_complete_delay.running}:
+    - nmfe_check_skip_end_video
+  s_flipper_left_active{device.timers.nmfe_failed_delay.running}:
+    - nmfe_check_skip_end_video
+  s_flipper_right_active{device.timers.nmfe_failed_delay.running}:
+    - nmfe_check_skip_end_video
+  s_flipper_left_active{device.timers.nmfe_drain_delay.running}:
+    - nmfe_check_skip_end_video
+  s_flipper_right_active{device.timers.nmfe_drain_delay.running}:
+    - nmfe_check_skip_end_video
+
+  nmfe_check_skip_end_video{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - nmfe_skip_end_video
+
+  ##############################################
   ## NO-HOLD PENALTY SYSTEM
   ## nmfe_bad_shot fires nmfe_penalty_activate
   ## First activation (no_hold_active==0): swap flippers, show slide, start GI strobe
@@ -648,6 +677,74 @@ event_player:
 
   nmfe_setup_step_11:
     - right_ramp_up
+
+  ##############################################
+  ## MISSILES PERK — Spots current step's primary good shot
+  ## LR for steps 1-7 and 10, TWR for step 8, SP for steps 9 and 11.
+  ## Step 11 also fires nmfe_complete to trigger the victory sequence.
+  ##############################################
+  missiles_perk_complete_shot{current_player.nmfe_step==0 and current_player.nmfe_complete_flag==0}:
+    - nmfe_step_1_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_1_shot_hit
+    - nmfe_setup_step_2
+
+  missiles_perk_complete_shot{current_player.nmfe_step==1 and current_player.nmfe_complete_flag==0}:
+    - nmfe_step_2_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_2_shot_hit
+    - nmfe_setup_step_3
+
+  missiles_perk_complete_shot{current_player.nmfe_step==2 and current_player.nmfe_complete_flag==0}:
+    - nmfe_step_3_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_3_shot_hit
+    - nmfe_setup_step_4
+
+  missiles_perk_complete_shot{current_player.nmfe_step==3 and current_player.nmfe_complete_flag==0}:
+    - nmfe_step_4_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_4_shot_hit
+    - nmfe_setup_step_5
+
+  missiles_perk_complete_shot{current_player.nmfe_step==4 and current_player.nmfe_complete_flag==0}:
+    - nmfe_step_5_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_5_shot_hit
+    - nmfe_setup_step_6
+
+  missiles_perk_complete_shot{current_player.nmfe_step==5 and current_player.nmfe_complete_flag==0}:
+    - nmfe_step_6_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_6_shot_hit
+    - nmfe_setup_step_7
+
+  missiles_perk_complete_shot{current_player.nmfe_step==6 and current_player.nmfe_complete_flag==0}:
+    - nmfe_step_7_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_7_shot_hit
+    - nmfe_setup_step_8
+
+  missiles_perk_complete_shot{current_player.nmfe_step==7 and current_player.nmfe_complete_flag==0}:
+    - nmfe_step_8_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_8_shot_hit
+    - nmfe_setup_step_9
+
+  missiles_perk_complete_shot{current_player.nmfe_step==8 and current_player.nmfe_complete_flag==0}:
+    - nmfe_step_9_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_9_shot_hit
+    - nmfe_setup_step_10
+
+  missiles_perk_complete_shot{current_player.nmfe_step==9 and current_player.nmfe_complete_flag==0}:
+    - nmfe_step_10_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_10_shot_hit
+    - nmfe_setup_step_11
+
+  # Step 11 (nmfe_step==10) intentionally omitted — completion requires
+  # ball to physically enter the left lane via diverter catch sequence.
 
   ##############################################
   ## STEP 1 — ALL SHOTS LIT
@@ -1848,6 +1945,91 @@ show_player:
       key: nmfe_r_lr
       loops: -1
       show_tokens: { led: l_shot_left_ramp }
+
+  ##############################################
+  ## WON — Stop all shot shows immediately when won video starts
+  ##############################################
+  nmfe_won:
+    stop_won_y_ll:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_ll
+    stop_won_y_lo:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_lo
+    stop_won_y_lr:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_lr
+    stop_won_y_sp:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_sp
+    stop_won_y_cnt:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_cnt
+    stop_won_y_twr:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_twr
+    stop_won_y_tl:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_tl
+    stop_won_y_to_tr:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_to_tr
+    stop_won_y_ro_rr:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_ro_rr
+    stop_won_r_ll:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_ll
+    stop_won_r_lo:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_lo
+    stop_won_r_lr:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_lr
+    stop_won_r_sp:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_sp
+    stop_won_r_cnt:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_cnt
+    stop_won_r_twr:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_twr
+    stop_won_r_tl:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_tl
+    stop_won_r_to_tr:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_to_tr
+    stop_won_r_ro_rr:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_ro_rr
+    stop_won_gi_mode:
+      show: nmfe_gi_yellow
+      action: stop
+      key: nmfe_gi_mode
+    stop_won_gi_penalty:
+      show: nmfe_gi_penalty_strobe
+      action: stop
+      key: nmfe_penalty_gi_effect
 
   ##############################################
   ## CLEANUP — Stop all shot shows

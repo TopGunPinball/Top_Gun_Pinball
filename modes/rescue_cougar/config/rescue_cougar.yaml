@@ -738,6 +738,9 @@ timers:
     control_events:
       - event: timer_rescue_cougar_complete_delay_start
         action: start
+      - event: rescue_cougar_skip_end_video
+        action: jump
+        value: 0
   
   rescue_cougar_failed_delay:
     start_value: 16
@@ -748,6 +751,9 @@ timers:
     control_events:
       - event: timer_rescue_cougar_failed_delay_start
         action: start
+      - event: rescue_cougar_skip_end_video
+        action: jump
+        value: 0
 
   # DRAIN DELAY TIMER - Holds ball_ending until lost video plays
   # Uses queue_relay_player to hold the ball_ending process
@@ -759,6 +765,9 @@ timers:
     control_events:
       - event: rescue_cougar_drain_detected
         action: start
+      - event: rescue_cougar_skip_end_video
+        action: jump
+        value: 16
 
 ####################################################################################
 # EVENT PLAYER
@@ -772,6 +781,27 @@ event_player:
   ##############################################
   rescue_cougar_ball_released{current_player.afterburner_perk_active==1}:
     - afterburner_extend_rescue_cougar_timer|500ms
+
+  ##############################################
+  ## SKIP END VIDEOS (won/lost/drain) — both flippers held
+  ## Guard is the specific delay timer running — safe during left lane post hold
+  ## (left_lane_post skip uses a separate check event and timer guard)
+  ##############################################
+  s_flipper_left_active{device.timers.rescue_cougar_complete_delay.running}:
+    - rescue_cougar_check_skip_end_video
+  s_flipper_right_active{device.timers.rescue_cougar_complete_delay.running}:
+    - rescue_cougar_check_skip_end_video
+  s_flipper_left_active{device.timers.rescue_cougar_failed_delay.running}:
+    - rescue_cougar_check_skip_end_video
+  s_flipper_right_active{device.timers.rescue_cougar_failed_delay.running}:
+    - rescue_cougar_check_skip_end_video
+  s_flipper_left_active{device.timers.rescue_cougar_drain_delay.running}:
+    - rescue_cougar_check_skip_end_video
+  s_flipper_right_active{device.timers.rescue_cougar_drain_delay.running}:
+    - rescue_cougar_check_skip_end_video
+
+  rescue_cougar_check_skip_end_video{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - rescue_cougar_skip_end_video
 
   ##############################################
   ## DRAIN HANDLING - Critical for proper cleanup

@@ -977,7 +977,9 @@ event_player:
 
   # Also start ejection seat if G was the letter that completed GOOSE and qualified eject
   # (The ball is already in the outlane, so we need to start immediately)
-  eject_mode_qualified_event{current_player.goose_last_letter_collected==1 and mode.mystery_award.active==0}:
+  # goose_completing==1 ensures this only fires during the active completion sequence,
+  # not from a stale goose_last_letter_collected value carried over from a prior ball.
+  eject_mode_qualified_event{current_player.goose_last_letter_collected==1 and current_player.goose_completing==1 and mode.mystery_award.active==0}:
     - start_mode_ejection_seat
 
   # Check if GOOSE is complete after each lane hit
@@ -1368,22 +1370,10 @@ light_player:
   ## Eject Light Control
   ##############################################
 
-  # Light eject when qualified (solid white)
-  eject_mode_qualified_event:
-    l_eject:
-      color: yellow
-      fade: 0ms
-
-  # Turn off eject light when mode starts
+  # Turn off eject light when mode starts (ejection_seat restores it if blocked)
   mode_ejection_seat_started:
     l_eject:
       color: off
-
-  # Restore eject light on ball start if already qualified
-  mode_goose_letters_started{current_player.eject_mode_qualified==1}:
-    l_eject:
-      color: yellow
-      fade: 0ms
 
   ##############################################
   ## Mystery Award Light - Purple Pulse
@@ -1446,6 +1436,37 @@ show_player:
       loops: 0
       speed: 40
       sync_ms: true
+
+  ##############################################
+  ## Eject Light - Breathing Pulse (yellow, fades in and out)
+  ## Starts when qualified (via goose or mystery), restores on ball start
+  ##############################################
+  eject_mode_qualified_event:
+    eject_pulse:
+      show: eject_qualified_pulse
+      key: eject_light_pulse
+      loops: -1
+
+  mode_goose_letters_started{current_player.eject_mode_qualified==1}:
+    eject_pulse_restore:
+      show: eject_qualified_pulse
+      key: eject_light_pulse
+      loops: -1
+
+  mode_ejection_seat_started:
+    eject_pulse_stop:
+      show: eject_qualified_pulse
+      action: stop
+      key: eject_light_pulse
+
+  # Restore the pulse when ejection seat is skipped due to active ball save.
+  # Must live in goose_letters (always active), NOT ejection_seat — the mode
+  # tears down its own show_player entries the same tick it stops.
+  ejection_seat_ball_save_blocked:
+    eject_pulse_blocked_restore:
+      show: eject_qualified_pulse
+      key: eject_light_pulse
+      loops: -1
 
   ##############################################
   ## Missile Perk - Red Flash Indicators (sync_flash_mb)
@@ -1710,6 +1731,19 @@ shows:
     - duration: 0.5s
       lights:
         (led): off
+
+  # Breathing pulse for eject light — fades white in and out, never fully off
+  eject_qualified_pulse:
+    - duration: 800ms
+      lights:
+        l_eject:
+          color: FFFFFF
+          fade: 800ms
+    - duration: 800ms
+      lights:
+        l_eject:
+          color: 333333
+          fade: 800ms
 
   # Missile flash with GOOSE letter - alternates cyan (collected) with missile color
   missile_flash_goose:

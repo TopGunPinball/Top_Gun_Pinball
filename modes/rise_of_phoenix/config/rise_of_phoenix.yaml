@@ -409,6 +409,9 @@ timers:
     control_events:
       - event: timer_rise_of_phoenix_complete_delay_start
         action: start
+      - event: rise_of_phoenix_skip_end_video
+        action: jump
+        value: 0
 
   rise_of_phoenix_failed_delay:
     start_value: 4
@@ -419,6 +422,9 @@ timers:
     control_events:
       - event: timer_rise_of_phoenix_failed_delay_start
         action: start
+      - event: rise_of_phoenix_skip_end_video
+        action: jump
+        value: 0
 
   # DRAIN DELAY TIMER - Holds ball_ending until lost video plays
   # Uses queue_relay_player to hold the ball_ending process
@@ -430,6 +436,9 @@ timers:
     control_events:
       - event: rise_of_phoenix_drain_detected
         action: start
+      - event: rise_of_phoenix_skip_end_video
+        action: jump
+        value: 4
 
   # VICTORY BARRIER DELAY - After ball is kicked out on victory, wait then raise barrier
   # Uses same timing pattern as intro barrier delay
@@ -466,11 +475,32 @@ event_player:
   rise_of_phoenix_ball_released{current_player.afterburner_perk_active==1}:
     - afterburner_extend_rise_of_phoenix_timer|500ms
 
+  ##############################################
+  ## SKIP END VIDEOS (won/lost/drain) — both flippers held
+  ## Guard is the specific delay timer running — naturally excludes gameplay
+  ##############################################
+  s_flipper_left_active{device.timers.rise_of_phoenix_complete_delay.running}:
+    - rise_of_phoenix_check_skip_end_video
+  s_flipper_right_active{device.timers.rise_of_phoenix_complete_delay.running}:
+    - rise_of_phoenix_check_skip_end_video
+  s_flipper_left_active{device.timers.rise_of_phoenix_failed_delay.running}:
+    - rise_of_phoenix_check_skip_end_video
+  s_flipper_right_active{device.timers.rise_of_phoenix_failed_delay.running}:
+    - rise_of_phoenix_check_skip_end_video
+  s_flipper_left_active{device.timers.rise_of_phoenix_drain_delay.running}:
+    - rise_of_phoenix_check_skip_end_video
+  s_flipper_right_active{device.timers.rise_of_phoenix_drain_delay.running}:
+    - rise_of_phoenix_check_skip_end_video
+
+  rise_of_phoenix_check_skip_end_video{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - rise_of_phoenix_skip_end_video
+
   # Post pilot_mode_cleanup_complete when delay timer completes (for bonus delay)
   timer_rise_of_phoenix_complete_delay_complete:
     - pilot_mode_cleanup_complete
     - rise_of_phoenix_cleanup
-    - rise_of_phoenix_victory_ball_released
+    - scoop_ball_release              # Drop barrier first
+    - rise_of_phoenix_victory_ball_released|400ms   # Ball exits 400ms later once barrier is down
   timer_rise_of_phoenix_failed_delay_complete:
     - pilot_mode_cleanup_complete
     - rise_of_phoenix_cleanup
@@ -684,6 +714,7 @@ event_player:
 
   # Mission Complete
   rise_of_phoenix_complete:
+    - barrier_raise                # Raise barrier while won video plays (ball held in scoop)
     - rise_of_phoenix_cleanup
     - timer_rise_of_phoenix_timer_stop
     - timer_rise_of_phoenix_complete_delay_start

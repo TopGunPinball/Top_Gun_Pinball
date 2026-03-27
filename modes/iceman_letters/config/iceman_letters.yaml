@@ -625,19 +625,53 @@ event_player:
     wrap_mission_to_one
 
   # Auto-skip completed missions during pop bumper rotation
-  # If rotation lands on a completed mission, advance to next
-  player_training_mission_qualified{value==1 and current_player.training_inverted_complete==1}:
+  # Sets directly to the next UNCOMPLETED mission value so the variable
+  # always stays in sync with what's actually lit on the playfield.
+  # Conditions are ordered most-specific first so MPF matches correctly.
+
+  # Skip value==1 (inverted complete) — find next uncompleted
+  player_training_mission_qualified{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==0}:
     training_mission_qualified:
       action: set
       int: 2
-  player_training_mission_qualified{value==2 and current_player.training_missles_complete==1}:
+  player_training_mission_qualified{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==0}:
     training_mission_qualified:
       action: set
       int: 3
-  player_training_mission_qualified{value==3 and current_player.training_afterburner_complete==1}:
+  player_training_mission_qualified{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==0}:
     training_mission_qualified:
       action: set
       int: 4
+  player_training_mission_qualified{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1}:
+    training_mission_qualified:
+      action: set
+      int: 5
+
+  # Skip value==2 (missiles complete) — find next uncompleted
+  player_training_mission_qualified{value==2 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==0}:
+    training_mission_qualified:
+      action: set
+      int: 3
+  player_training_mission_qualified{value==2 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==0}:
+    training_mission_qualified:
+      action: set
+      int: 4
+  player_training_mission_qualified{value==2 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1}:
+    training_mission_qualified:
+      action: set
+      int: 5
+
+  # Skip value==3 (afterburner complete) — find next uncompleted
+  player_training_mission_qualified{value==3 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==0}:
+    training_mission_qualified:
+      action: set
+      int: 4
+  player_training_mission_qualified{value==3 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1}:
+    training_mission_qualified:
+      action: set
+      int: 5
+
+  # Skip value==4 (wingman complete) — jump to dogfight
   player_training_mission_qualified{value==4 and current_player.training_wingman_complete==1}:
     training_mission_qualified:
       action: set
@@ -1034,7 +1068,7 @@ show_player:
       speed: 1
       key: iceman_pop_bumpers_fade
 
-  # Stop pop bumper fade and pilot training lit fade when training mission starts
+  # Stop pop bumper fade when training mission starts
   mode_pilot_training_mission_inverted_started:
     iceman_pop_bumpers_fade:
       action: stop
@@ -1687,102 +1721,3 @@ sound_player:
     voice_pilot_training_qualified:
       bus: voice
       loops: 0
-
-  # Individual letter hits
-  # s_i_iceman_target_active{current_player.iceman_letter_i==0}:
-  #   sfx_iceman_letter:
-  #     bus: effects
-  #     loops: 0
-  # s_c_iceman_target_active{current_player.iceman_letter_c==0}:
-  #   sfx_iceman_letter:
-  #     bus: effects
-  #     loops: 0
-  # s_e_iceman_target_active{current_player.iceman_letter_e==0}:
-  #   sfx_iceman_letter:
-  #     bus: effects
-  #     loops: 0
-  # s_m_iceman_target_active{current_player.iceman_letter_m==0}:
-  #   sfx_iceman_letter:
-  #     bus: effects
-  #     loops: 0
-  # s_a_iceman_target_active{current_player.iceman_letter_a==0}:
-  #   sfx_iceman_letter:
-  #     bus: effects
-  #     loops: 0
-  # s_n_iceman_target_active{current_player.iceman_letter_n==0}:
-  #   sfx_iceman_letter:
-  #     bus: effects
-  #     loops: 0
-  # 
-  # # ICE completed
-  # ice_complete:
-  #   sfx_ice_complete:
-  #     bus: effects
-  #     loops: 0
-  # 
-  # # MAN completed
-  # man_complete:
-  #   sfx_man_complete:
-  #     bus: effects
-  #     loops: 0
-  # 
-  # # ICEMAN completed
-  # iceman_complete:
-  #   sfx_iceman_complete:
-  #     bus: effects
-  #     loops: 0
-  # 
-  # # Mission rotation
-  # s_pop_bumper_left_active{current_player.training_mission_qualified>0}:
-  #   sfx_mission_rotate:
-  #     bus: effects
-  #     loops: 0
-  # s_pop_bumper_right_active{current_player.training_mission_qualified>0}:
-  #   sfx_mission_rotate:
-  #     bus: effects
-  #     loops: 0
-  # s_pop_bumper_bottom_active{current_player.training_mission_qualified>0}:
-  #   sfx_mission_rotate:
-  #     bus: effects
-  #     loops: 0
-
-##############################################
-## Slide Player (Placeholders - Uncomment when slides are ready)
-##############################################
-
-# slide_player:
-#   # ICEMAN completed slide
-#   iceman_complete:
-#     iceman_complete_slide:
-#       expire: 3s
-#       priority: 300
-
-# slides:
-#   iceman_complete_slide:
-#     widgets:
-#       - type: text
-#         text: "ICEMAN COMPLETE!"
-#         font_size: 60
-#         color: cyan
-#       - type: text
-#         text: "PILOT TRAINING QUALIFIED"
-#         font_size: 40
-#         color: cyan
-#         y: -50
-
-# sounds:
-#   sfx_iceman_letter:
-#     file: iceman_letter.wav
-#     streaming: false
-#   sfx_ice_complete:
-#     file: ice_complete.wav
-#     streaming: false
-#   sfx_man_complete:
-#     file: man_complete.wav
-#     streaming: false
-#   sfx_iceman_complete:
-#     file: iceman_complete.wav
-#     streaming: false
-#   sfx_mission_rotate:
-#     file: mission_rotate.wav
-#     streaming: false

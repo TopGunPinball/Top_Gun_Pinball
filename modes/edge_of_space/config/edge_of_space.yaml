@@ -138,12 +138,15 @@ timers:
 
   edge_of_space_drain_delay:
     start_value: 0
-    end_value: 5
+    end_value: 13
     direction: up
     tick_interval: 1s
     control_events:
       - event: edge_of_space_drain_detected
         action: start
+      - event: edge_of_space_skip_end_video
+        action: jump
+        value: 13
 
   edge_of_space_complete_delay:
     start_value: 0
@@ -153,6 +156,9 @@ timers:
     control_events:
       - event: edge_of_space_complete
         action: start
+      - event: edge_of_space_skip_end_video
+        action: jump
+        value: 5
 
   edge_of_space_failed_delay:
     start_value: 0
@@ -162,6 +168,9 @@ timers:
     control_events:
       - event: edge_of_space_failed
         action: start
+      - event: edge_of_space_skip_end_video
+        action: jump
+        value: 13
 
   # Ball held in left lane for step 4 (12 seconds)
   edge_of_space_step4_hold_timer:
@@ -241,6 +250,9 @@ timers:
     control_events:
       - event: edge_of_space_choice_no
         action: start
+      - event: edge_of_space_skip_end_video
+        action: jump
+        value: 18
 
   # Combo: LR → 10s window for RR
   edge_of_space_combo_lr_timer:
@@ -747,6 +759,31 @@ event_player:
   edge_of_space_ball_released{current_player.afterburner_perk_active==1}:
     - afterburner_extend_edge_of_space_timer|500ms
 
+  ##############################################
+  ## SKIP END VIDEOS (won/lost/drain) — both flippers held
+  ## Guard is the specific delay timer running — safe during decision/combo phases
+  ## (decision and combo use different timers; none of these run simultaneously)
+  ##############################################
+  s_flipper_left_active{device.timers.edge_of_space_complete_delay.running}:
+    - edge_of_space_check_skip_end_video
+  s_flipper_right_active{device.timers.edge_of_space_complete_delay.running}:
+    - edge_of_space_check_skip_end_video
+  s_flipper_left_active{device.timers.edge_of_space_failed_delay.running}:
+    - edge_of_space_check_skip_end_video
+  s_flipper_right_active{device.timers.edge_of_space_failed_delay.running}:
+    - edge_of_space_check_skip_end_video
+  s_flipper_left_active{device.timers.edge_of_space_drain_delay.running}:
+    - edge_of_space_check_skip_end_video
+  s_flipper_right_active{device.timers.edge_of_space_drain_delay.running}:
+    - edge_of_space_check_skip_end_video
+  s_flipper_left_active{device.timers.edge_of_space_no_hold_delay.running}:
+    - edge_of_space_check_skip_end_video
+  s_flipper_right_active{device.timers.edge_of_space_no_hold_delay.running}:
+    - edge_of_space_check_skip_end_video
+
+  edge_of_space_check_skip_end_video{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - edge_of_space_skip_end_video
+
   # Drain handling
   edge_of_space_ball_ending_hold:
     - edge_of_space_failed
@@ -974,7 +1011,7 @@ event_player:
   ## Left flipper = NO (1x bank), Right flipper = YES (combo)
   ## Decision timer expiry = NO
   ##############################################
-  s_flipper_left_active{current_player.edge_of_space_step==12}:
+  s_flipper_left_active{current_player.edge_of_space_step==12 and not device.timers.edge_of_space_no_hold_delay.running}:
     - edge_of_space_choice_no
 
   s_flipper_right_active{current_player.edge_of_space_step==12}:
@@ -2012,6 +2049,11 @@ sound_player:
     mach_scoring_soundfx_sound_barrier:
       bus: voice
       loops: 0
+
+  # Stop decision callout if player skips the end video
+  edge_of_space_skip_end_video:
+    voice_edge_of_space_decision:
+      action: stop
 
 ####################################################################################
 # SHOWS

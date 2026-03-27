@@ -13,6 +13,7 @@ mode:
     - timer_canyon_run_complete_delay_complete
     - timer_canyon_run_failed_delay_complete
     - canyon_run_drain_cleanup_complete
+    - canyon_run_victory_ball_released    # Won video skip path
   priority: 600
   game_mode: true
   use_wait_queue: true
@@ -553,6 +554,8 @@ timers:
     control_events:
       - event: timer_canyon_run_complete_delay_start
         action: start
+      - event: canyon_run_victory_ball_released
+        action: stop
 
   # Failure video hold - 12s (canyon_run_lost video length)
   canyon_run_failed_delay:
@@ -564,6 +567,9 @@ timers:
     control_events:
       - event: timer_canyon_run_failed_delay_start
         action: start
+      - event: canyon_run_skip_end_video
+        action: jump
+        value: 0
 
   # Drain delay - holds ball_ending until lost video plays (12s)
   canyon_run_drain_delay:
@@ -574,6 +580,9 @@ timers:
     control_events:
       - event: canyon_run_drain_detected
         action: start
+      - event: canyon_run_skip_end_video
+        action: jump
+        value: 12
 
   # Step 8 - first position holds for 7 seconds
   canyon_run_step8_initial:
@@ -640,10 +649,14 @@ event_player:
     - canyon_run_ball_released|400ms
     - canyon_run_setup_step_1|400ms
 
-  # After won video: release ball hold (barrier already raised by canyon_run_complete)
+  # After won video skip: replicate timer_canyon_run_complete_delay_complete behavior.
+  # scoop_ball_release drops the barrier. Mode stops via canyon_run_victory_ball_released
+  # being in stop_events, which fires release_all on the ball hold.
   canyon_run_victory_ball_released:
     - canyon_run_set_skip_won_fired
-    - canyon_run_victory_ball_exit|400ms
+    - canyon_run_cleanup
+    - scoop_ball_release
+    - pilot_mode_cleanup_complete
 
   # Skip intro detection - both flippers
   s_flipper_left_active{current_player.canyon_run_step==0 and device.timers.canyon_run_intro_video_delay.running}:
@@ -660,6 +673,19 @@ event_player:
     - canyon_run_check_skip_won
   canyon_run_check_skip_won{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
     - canyon_run_victory_ball_released
+
+  # Skip lost/drain videos - both flippers held
+  s_flipper_left_active{device.timers.canyon_run_failed_delay.running}:
+    - canyon_run_check_skip_end_video
+  s_flipper_right_active{device.timers.canyon_run_failed_delay.running}:
+    - canyon_run_check_skip_end_video
+  s_flipper_left_active{device.timers.canyon_run_drain_delay.running}:
+    - canyon_run_check_skip_end_video
+  s_flipper_right_active{device.timers.canyon_run_drain_delay.running}:
+    - canyon_run_check_skip_end_video
+
+  canyon_run_check_skip_end_video{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - canyon_run_skip_end_video
 
   # Timer expired
   timer_canyon_run_timer_complete{current_player.afterburner_perk_active==0}:

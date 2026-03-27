@@ -263,6 +263,9 @@ timers:
     control_events:
       - event: battle_jester_drain_detected
         action: start
+      - event: battle_jester_skip_end_video
+        action: jump
+        value: 5
 
   # Mode completion delay (for won video)
   battle_jester_complete_delay:
@@ -273,6 +276,9 @@ timers:
     control_events:
       - event: battle_jester_complete
         action: start
+      - event: battle_jester_skip_end_video
+        action: jump
+        value: 5
 
   # Mode failure delay (for lost video)
   battle_jester_failed_delay:
@@ -283,6 +289,9 @@ timers:
     control_events:
       - event: battle_jester_failed
         action: start
+      - event: battle_jester_skip_end_video
+        action: jump
+        value: 5
         
   # Tower challenge won delay (150% payout video)
   battle_jester_tower_won_delay:
@@ -293,6 +302,9 @@ timers:
     control_events:
       - event: battle_jester_tower_won
         action: start
+      - event: battle_jester_skip_end_video
+        action: jump
+        value: 5
         
   # Tower challenge lost delay (50% payout video)
   battle_jester_tower_lost_delay:
@@ -303,6 +315,9 @@ timers:
     control_events:
       - event: battle_jester_tower_lost
         action: start
+      - event: battle_jester_skip_end_video
+        action: jump
+        value: 5
 
   # Step 1 shot timer (30 seconds - 3 shots turn off)
   battle_jester_step_1_timer:
@@ -927,6 +942,35 @@ event_player:
     - barrier_drop
     - battle_jester_ball_released
     - battle_jester_setup_step_1
+
+  ##############################################
+  ## SKIP END VIDEOS (won/lost/drain) — both flippers held
+  ## Guard is the specific delay timer running — safe during decision phase
+  ## (decision uses a different timer; none of these run simultaneously)
+  ##############################################
+  s_flipper_left_active{device.timers.battle_jester_complete_delay.running}:
+    - battle_jester_check_skip_end_video
+  s_flipper_right_active{device.timers.battle_jester_complete_delay.running}:
+    - battle_jester_check_skip_end_video
+  s_flipper_left_active{device.timers.battle_jester_failed_delay.running}:
+    - battle_jester_check_skip_end_video
+  s_flipper_right_active{device.timers.battle_jester_failed_delay.running}:
+    - battle_jester_check_skip_end_video
+  s_flipper_left_active{device.timers.battle_jester_tower_won_delay.running}:
+    - battle_jester_check_skip_end_video
+  s_flipper_right_active{device.timers.battle_jester_tower_won_delay.running}:
+    - battle_jester_check_skip_end_video
+  s_flipper_left_active{device.timers.battle_jester_tower_lost_delay.running}:
+    - battle_jester_check_skip_end_video
+  s_flipper_right_active{device.timers.battle_jester_tower_lost_delay.running}:
+    - battle_jester_check_skip_end_video
+  s_flipper_left_active{device.timers.battle_jester_drain_delay.running}:
+    - battle_jester_check_skip_end_video
+  s_flipper_right_active{device.timers.battle_jester_drain_delay.running}:
+    - battle_jester_check_skip_end_video
+
+  battle_jester_check_skip_end_video{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - battle_jester_skip_end_video
 
   # Raise barrier after delay (ball released from intro or step 6)
   timer_battle_jester_barrier_delay_complete:
