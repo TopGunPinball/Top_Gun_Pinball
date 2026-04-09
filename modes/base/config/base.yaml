@@ -94,9 +94,8 @@ event_player:
   ## spinner_shot_made: 3 spins detected within inactivity window
   ##############################################
 
-  # 3rd spin detected (spinner_count is 2 before this hit increments it)
-  s_spinner_active{current_player.spinner_count==2}:
-    - spinner_shot_made
+  # spinner_shot_made is fired by pilot_mission_qualifier which owns spinner
+  # composite detection with proper lockout guards. Do NOT duplicate here.
 
   # Release lock servo at ball start ONLY if no balls are physically in locks
   # Uses switch state (not player variables) because balls persist across players
@@ -231,6 +230,9 @@ variable_player:
       action: set
       int: 0
     diverter_temporarily_disabled:
+      action: set
+      int: 0
+    spinner_sound_toggle:
       action: set
       int: 0
 
@@ -901,6 +903,158 @@ light_player:
     l_gi_light_pop_bottom:
       color: white
       fade: 0ms
+    # Backbox Lights - 80% white (E6E6E6 = 204/255 per channel = 80%)
+    # Split across two Neuron ports, 25 LEDs each (~6W per port, within 10W limit)
+    # PORT1: l_backbox_1-25, PORT2: l_backbox_26-50
+    l_backbox_1:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_2:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_3:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_4:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_5:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_6:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_7:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_8:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_9:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_10:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_11:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_12:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_13:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_14:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_15:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_16:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_17:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_18:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_19:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_20:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_21:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_22:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_23:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_24:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_25:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_26:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_27:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_28:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_29:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_30:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_31:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_32:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_33:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_34:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_35:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_36:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_37:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_38:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_39:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_40:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_41:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_42:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_43:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_44:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_45:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_46:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_47:
+      color: E6E6E6
+      fade: 0ms
+    l_backbox_48:
+      color: E6E6E6
+      fade: 0ms
+    # Reset mode light at ball start so previous game state does not persist
+    l_mode_no_points_for_second_place:
+      color: off
+      fade: 0ms
+
 
   ##############################################
   ## SHUTDOWN CLEANUP - Turn off all lights when MPF exits
@@ -942,6 +1096,56 @@ light_player:
     l_gi_light_pop_left: off
     l_gi_light_pop_right: off
     l_gi_light_pop_bottom: off
+    # Backbox Lights
+    l_backbox_1: off
+    l_backbox_2: off
+    l_backbox_3: off
+    l_backbox_4: off
+    l_backbox_5: off
+    l_backbox_6: off
+    l_backbox_7: off
+    l_backbox_8: off
+    l_backbox_9: off
+    l_backbox_10: off
+    l_backbox_11: off
+    l_backbox_12: off
+    l_backbox_13: off
+    l_backbox_14: off
+    l_backbox_15: off
+    l_backbox_16: off
+    l_backbox_17: off
+    l_backbox_18: off
+    l_backbox_19: off
+    l_backbox_20: off
+    l_backbox_21: off
+    l_backbox_22: off
+    l_backbox_23: off
+    l_backbox_24: off
+    l_backbox_25: off
+    l_backbox_26: off
+    l_backbox_27: off
+    l_backbox_28: off
+    l_backbox_29: off
+    l_backbox_30: off
+    l_backbox_31: off
+    l_backbox_32: off
+    l_backbox_33: off
+    l_backbox_34: off
+    l_backbox_35: off
+    l_backbox_36: off
+    l_backbox_37: off
+    l_backbox_38: off
+    l_backbox_39: off
+    l_backbox_40: off
+    l_backbox_41: off
+    l_backbox_42: off
+    l_backbox_43: off
+    l_backbox_44: off
+    l_backbox_45: off
+    l_backbox_46: off
+    l_backbox_47: off
+    l_backbox_48: off
+
     # Shot Lights
     l_shot_left_lane: off
     l_shot_left_orbit: off
@@ -1036,14 +1240,9 @@ slide_player:
 random_event_player:
 
   ##############################################
-  ## SPINNER - Pick one of 4 cannon burst sounds randomly on each spin
+  ## SPINNER - Single gun fire sound on each spin
   ##############################################
-  s_spinner_active:
-    events:
-      - spinner_cannon_burst_1_play
-      - spinner_cannon_burst_2_play
-      - spinner_cannon_burst_3_play
-      - spinner_cannon_burst_4_play
+  # (random cannon burst removed — replaced with soundfx_spinner_gun_fire in sound_player)
 
 sound_player:
   ##############################################################################
@@ -1090,25 +1289,14 @@ sound_player:
       loops: 0
 
 ####################################################################################
-  # SPINNER CANNON BURST - Random sound per spin
-  # random_event_player fires one of these 4 events on each s_spinner_active
+  # SPINNER SOUND
 ####################################################################################
-  spinner_cannon_burst_1_play:
-    spinner_cannon_burst_1:
-      bus: voice
+  s_spinner_active:
+    soundfx_spinner_gun_fire_end:
+      bus: effects
       loops: 0
-  spinner_cannon_burst_2_play:
-    spinner_cannon_burst_2:
-      bus: voice
-      loops: 0
-  spinner_cannon_burst_3_play:
-    spinner_cannon_burst_3:
-      bus: voice
-      loops: 0
-  spinner_cannon_burst_4_play:
-    spinner_cannon_burst_4:
-      bus: voice
-      loops: 0
+      volume: .7
+
 
 #################################################################################### 
   # CRITICAL: Mode Scoop Silence - Works for ALL pilot mission modes
@@ -1118,7 +1306,7 @@ sound_player:
 
   # Silence for all modes EXCEPT battle_jester step 6 and playing_with_the_boys step 7
   # (PTB step 7: ball enters scoop for victory — music restarts 200ms later via ptb_step_7_keep_music)
-  s_mode_start_active{(mode.battle_jester.active==False or current_player.battle_jester_step!=5) and (mode.hard_deck_playing_with_the_boys.active==False or current_player.ptb_step!=7) and mode.mystery_award.active==False}:
+  s_mode_start_active{(mode.battle_jester.active==False or current_player.battle_jester_step!=5) and (mode.hard_deck_playing_with_the_boys.active==False or current_player.ptb_step!=7) and mode.mystery_award.active==False and mode.no_points_for_second_place.active==False}:
     silence:
       bus: music
       loops: 0
@@ -1595,6 +1783,32 @@ sound_player:
       bus: music
       loops: -1
 
+#################################################################################### 
+  # No Points For Second Place Mode Music Handler
+  # PATTERN: Music starts on ball_released (after intro video or skip)
+####################################################################################
+
+  no_points_for_second_place_ball_released:
+    npfsp_music:
+      bus: music
+      loops: -1
+
+  no_points_for_second_place_failed:
+    silence:
+      bus: music
+      loops: 0
+
+  no_points_for_second_place_complete:
+    silence:
+      bus: music
+      loops: 0
+
+  # Restart base music when mode stops (but NOT if drain pending — bonus handles it)
+  mode_no_points_for_second_place_stopped{current_player.pilot_mode_drain_pending==0}:
+    music_danger_zone:
+      bus: music
+      loops: -1
+
 ####################################################################################
 # SYNCHRONIZED FLASH SHOWS - For Mode/Multiball Stacking
 ####################################################################################
@@ -1639,3 +1853,22 @@ shows:
         (led):
           color: (color)
           fade: 0ms
+
+  ##############################################
+  ## MODE SHOT PULSE — Breathe in and out, never fully off
+  ## Use for shots/inserts that should glow rather than flash.
+  ## Total cycle: 2000ms. Use sync_ms: 2000 in show_player for alignment.
+  ## Show tokens: { led: l_shot_xxx, color: RRGGBB }
+  ## "Off" state is 0D0D0D (~5% white) — maintains a faint glow at minimum.
+  ##############################################
+  sync_pulse_mode:
+    - duration: 1000ms
+      lights:
+        (led):
+          color: (color)
+          fade: 800ms
+    - duration: 1000ms
+      lights:
+        (led):
+          color: 0D0D0D
+          fade: 800ms

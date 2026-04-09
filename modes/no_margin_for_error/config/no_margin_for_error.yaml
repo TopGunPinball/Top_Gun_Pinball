@@ -2,7 +2,7 @@
 
 ####################################################################################
 # NO MARGIN FOR ERROR - PILOT MISSION MODE
-# Timer: 120 seconds countdown | Steps: 11 | GI: Yellow
+# Timer: 180 seconds countdown | Steps: 11 | GI: Yellow
 # Scoring: Direct to score (multiplier applied)
 # Flipper Mechanic: Bad shots = no-hold flippers for 10s (resets on each bad shot)
 #                   Good shot = immediately restores normal flippers
@@ -41,7 +41,7 @@
 #   l_gi_light_18, l_gi_light_19, l_gi_light_20, l_gi_light_21
 #
 # ADJUSTABLE TIMING:
-#   Mode timer:         120s  (nmfe_timer start_value)
+#   Mode timer:         180s  (nmfe_timer start_value)
 #   Intro video:         43s  (nmfe_intro_video_delay end_value)
 #   No-hold penalty:     10s  (nmfe_no_hold_timer start_value)
 #   Left diverter hold:   3s  (nmfe_left_diverter_timer end_value)
@@ -86,7 +86,7 @@ timers:
 
   # Main mode countdown — starts on ball release (NOT mode start, avoids scoop bounce)
   nmfe_timer:
-    start_value: 120
+    start_value: 180
     end_value: 0
     direction: down
     tick_interval: 1s
@@ -164,9 +164,6 @@ timers:
     control_events:
       - event: nmfe_won
         action: start
-      - event: nmfe_skip_end_video
-        action: jump
-        value: 18
 
   # Lost video delay — 14s
   nmfe_failed_delay:
@@ -177,9 +174,6 @@ timers:
     control_events:
       - event: nmfe_failed
         action: start
-      - event: nmfe_skip_end_video
-        action: jump
-        value: 14
 
   # Drain cleanup delay — holds ball_ending queue while lost video plays
   nmfe_drain_delay:
@@ -190,9 +184,6 @@ timers:
     control_events:
       - event: nmfe_drain_detected
         action: start
-      - event: nmfe_skip_end_video
-        action: jump
-        value: 5
 
   # Servo stagger — fires top_ramp_down 500ms after nmfe_cleanup
   # (right_ramp_down fires immediately on nmfe_cleanup in event_player)
@@ -526,26 +517,6 @@ event_player:
 
   nmfe_ball_released{current_player.afterburner_perk_active==1}:
     - afterburner_extend_nmfe_timer|500ms
-
-  ##############################################
-  ## SKIP END VIDEOS (won/lost/drain) — both flippers held
-  ## Guard is the specific delay timer running — naturally excludes gameplay
-  ##############################################
-  s_flipper_left_active{device.timers.nmfe_complete_delay.running}:
-    - nmfe_check_skip_end_video
-  s_flipper_right_active{device.timers.nmfe_complete_delay.running}:
-    - nmfe_check_skip_end_video
-  s_flipper_left_active{device.timers.nmfe_failed_delay.running}:
-    - nmfe_check_skip_end_video
-  s_flipper_right_active{device.timers.nmfe_failed_delay.running}:
-    - nmfe_check_skip_end_video
-  s_flipper_left_active{device.timers.nmfe_drain_delay.running}:
-    - nmfe_check_skip_end_video
-  s_flipper_right_active{device.timers.nmfe_drain_delay.running}:
-    - nmfe_check_skip_end_video
-
-  nmfe_check_skip_end_video{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
-    - nmfe_skip_end_video
 
   ##############################################
   ## NO-HOLD PENALTY SYSTEM
@@ -1241,10 +1212,25 @@ slide_player:
       priority: 900
 
   # Ball released — intro done, start HUD slides + instructions
-  nmfe_ball_released:
+  # Normal path: show countdown timer
+  nmfe_ball_released{current_player.afterburner_perk_active==0}:
     no_margin_for_error_intro:
       action: remove
     no_margin_for_error_timer:
+      action: play
+      priority: 800
+    no_margin_for_error_shots_remaining:
+      action: play
+      priority: 800
+    no_margin_for_error_instructions:
+      action: play
+      priority: 800
+
+  # Afterburner perk active: show infinity slide instead of countdown timer
+  nmfe_ball_released{current_player.afterburner_perk_active==1}:
+    no_margin_for_error_intro:
+      action: remove
+    timer_perk_activated:
       action: play
       priority: 800
     no_margin_for_error_shots_remaining:

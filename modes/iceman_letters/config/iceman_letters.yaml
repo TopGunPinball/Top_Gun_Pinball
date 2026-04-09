@@ -335,28 +335,40 @@ timers:
         action: restart
   
   # Left MIG post - holds for 2 seconds after spinner hit
+  # control_events: restart action on restart_left_mig_post_timer event
+  # end_value: 2 ticks × tick_interval: 1s = 2 seconds total hold
   left_mig_post_timer:
     start_value: 0
-    end_value: 2000  # 2000ms = 2 seconds (adjust as needed during testing)
+    end_value: 2
     direction: up
-    tick_interval: 100ms
+    tick_interval: 1s
     start_running: false
+    control_events:
+      - event: restart_left_mig_post_timer
+        action: restart
   
   # Right MIG post - holds for 2 seconds after left orbit hit
+  # Same fix applied: control_events + correct end_value/tick_interval
   right_mig_post_timer:
     start_value: 0
-    end_value: 2000  # 2000ms = 2 seconds (adjust as needed during testing)
+    end_value: 2
     direction: up
-    tick_interval: 100ms
+    tick_interval: 1s
     start_running: false
+    control_events:
+      - event: restart_right_mig_post_timer
+        action: restart
   
   # Lockout timer - prevents right post activation if ball came from right side
   right_orbit_lockout_timer:
     start_value: 0
-    end_value: 3000  # 3 seconds lockout
+    end_value: 3
     direction: up
-    tick_interval: 100ms
+    tick_interval: 1s
     start_running: false
+    control_events:
+      - event: restart_right_orbit_lockout_timer
+        action: restart
 
 ##############################################
 ## Event Player - Check for Completion & Handle Logic
@@ -765,8 +777,8 @@ event_player:
   ## MIG Post Timer Control Events
   ##############################################
 
-  # Start left post timer when spinner hit (if training qualified and no training mission running)
-  s_spinner_active{current_player.training_mission_qualified>0 and current_player.training_mission_active==0}:
+  # Start left post timer when spinner hit — only during base mode (not during pilot modes, hard deck, or multiball)
+  s_spinner_active{current_player.training_mission_qualified>0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
     - restart_left_mig_post_timer
 
   # Start right post timer when left orbit hit (if training qualified, NOT locked out, and no training mission running)
@@ -783,18 +795,10 @@ event_player:
   s_orbit_upper_active:
     - restart_right_orbit_lockout_timer
 
-  # Custom events to restart timers
-  restart_left_mig_post_timer:
-    - timer_left_mig_post_timer_stop
-    - timer_left_mig_post_timer_start
-
-  restart_right_mig_post_timer:
-    - timer_right_mig_post_timer_stop
-    - timer_right_mig_post_timer_start
-
-  restart_right_orbit_lockout_timer:
-    - timer_right_orbit_lockout_timer_stop
-    - timer_right_orbit_lockout_timer_start
+  # Timer restarts are handled directly by control_events on each timer above.
+  # restart_left_mig_post_timer, restart_right_mig_post_timer, and
+  # restart_right_orbit_lockout_timer are consumed by the timers' control_events
+  # (action: restart) and no additional event posting is needed.
 
 ##############################################
 ## Coil Player - Control Barrier Target & MIG Posts
@@ -825,8 +829,8 @@ coil_player:
   ## MIG Post Control
   ##############################################
 
-  # LEFT MIG POST - Activate when spinner hit and training mission qualified (not during active training)
-  s_spinner_active{current_player.training_mission_qualified>0 and current_player.training_mission_active==0}:
+  # LEFT MIG POST - Activate when spinner hit, training mission qualified, and in base mode only
+  s_spinner_active{current_player.training_mission_qualified>0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
     c_left_mig_up_post:
       action: pulse
       hold_power: 0.125
@@ -1583,26 +1587,26 @@ light_player:
     l_mode_dogfight:
       color: cyan
 
-  # Reset inverted insert to white on ball end (perk slide removed by slide_player)
-  ball_will_end{current_player.training_inverted_complete==1}:
+  # Reset insert lights to white on tilt (perks now persist for whole game)
+  tilt{current_player.training_inverted_complete==1}:
     l_mode_inverted:
       color: white
       fade: 0ms
 
-  # Reset missiles insert to white on ball end
-  ball_will_end{current_player.training_missles_complete==1}:
+  # Reset missiles insert to white on tilt
+  tilt{current_player.training_missles_complete==1}:
     l_mode_missles:
       color: white
       fade: 0ms
 
-  # Reset afterburner insert to white on ball end
-  ball_will_end{current_player.training_afterburner_complete==1}:
+  # Reset afterburner insert to white on tilt
+  tilt{current_player.training_afterburner_complete==1}:
     l_mode_afterburner:
       color: white
       fade: 0ms
 
-  # Reset wingman insert to white on ball end
-  ball_will_end{current_player.training_wingman_complete==1}:
+  # Reset wingman insert to white on tilt
+  tilt{current_player.training_wingman_complete==1}:
     l_mode_wingman:
       color: white
       fade: 0ms
@@ -1704,12 +1708,23 @@ slide_player:
       action: play
       priority: 750
 
-  # Remove perk slides when ball ends
-  ball_will_end:
+  # Remove perk slides on tilt (perks now persist for the whole game)
+  tilt:
     inverted_perk_active:
       action: remove
     missiles_perk_active:
       action: remove
+
+  # Restore perk slides at ball start if perk is still active
+  ball_started{current_player.inverted_perk_active==1}:
+    inverted_perk_active:
+      action: play
+      priority: 750
+
+  ball_started{current_player.missiles_perk_active==1}:
+    missiles_perk_active:
+      action: play
+      priority: 750
 
 ##############################################
 ## Sound Player
