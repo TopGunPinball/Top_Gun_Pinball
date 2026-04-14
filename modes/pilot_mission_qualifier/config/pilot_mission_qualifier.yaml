@@ -190,30 +190,29 @@ slide_player:
       priority: 200
   
   # Show slide for pre-lit letters - ONLY if not qualified
+  # GMC stale-slide fix: mode_pilot_mission_qualifier_stopped removes these slides
+  # milliseconds before ball-start re-fires this same event. GMC silently ignores
+  # immediate re-plays of recently removed slides. Pattern: remove first here,
+  # then event_player fires a 200ms delayed restore event to re-play it fresh.
   mode_pilot_mission_qualifier_started{current_player.topgun_shots_collected==3 and current_player.qualified_mode_number==0}:
     topgun_3:
-      action: play
-      priority: 200
-  
+      action: remove
+
   mode_pilot_mission_qualifier_started{current_player.topgun_shots_collected==4 and current_player.qualified_mode_number==0}:
     topgun_4:
-      action: play
-      priority: 200
-  
+      action: remove
+
   mode_pilot_mission_qualifier_started{current_player.topgun_shots_collected==5 and current_player.qualified_mode_number==0}:
     topgun_5:
-      action: play
-      priority: 200
-  
+      action: remove
+
   mode_pilot_mission_qualifier_started{current_player.topgun_shots_collected==2 and current_player.qualified_mode_number==0}:
     topgun_2:
-      action: play
-      priority: 200
-  
+      action: remove
+
   mode_pilot_mission_qualifier_started{current_player.topgun_shots_collected==1 and current_player.qualified_mode_number==0}:
     topgun_1:
-      action: play
-      priority: 200
+      action: remove
   
   # If qualified and have completed all 6 letters, show topgun_6 on ball start
   mode_pilot_mission_qualifier_started{current_player.topgun_shots_collected==0 and current_player.qualified_mode_number>0}:
@@ -332,6 +331,28 @@ slide_player:
   # Re-play topgun_6 after brief delay (fired from event_player)
   restore_qualifier_slide_after_wingman:
     topgun_6:
+      action: play
+      priority: 200
+
+  # Re-play topgun progress slides after 200ms delay on ball start (GMC stale-slide fix)
+  restore_topgun_progress_slide_1:
+    topgun_1:
+      action: play
+      priority: 200
+  restore_topgun_progress_slide_2:
+    topgun_2:
+      action: play
+      priority: 200
+  restore_topgun_progress_slide_3:
+    topgun_3:
+      action: play
+      priority: 200
+  restore_topgun_progress_slide_4:
+    topgun_4:
+      action: play
+      priority: 200
+  restore_topgun_progress_slide_5:
+    topgun_5:
       action: play
       priority: 200
   
@@ -462,9 +483,6 @@ variable_player:
   # To re-enable a mode: remove its entry here AND change light to white.
   ##########################################################################
   mode_pilot_mission_qualifier_started:
-    mode_balls_of_fire_played:
-      action: set
-      int: 1
     mode_cool_under_pressure_played:
       action: set
       int: 1
@@ -659,6 +677,36 @@ variable_player:
 
   # Edge of Space
   mode_edge_of_space_stopped:
+    letter_collection_paused:
+      action: set
+      int: 0
+    pilot_mode_active:
+      action: set
+      int: 0
+    missiles_perk_active:
+      action: set
+      int: current_player.missiles_perk_saved
+    topgun_letter_t:
+      action: set
+      int: 0
+    topgun_letter_o:
+      action: set
+      int: 0
+    topgun_letter_p:
+      action: set
+      int: 0
+    topgun_letter_g:
+      action: set
+      int: 0
+    topgun_letter_u:
+      action: set
+      int: 0
+    topgun_letter_n:
+      action: set
+      int: 0
+
+  # Great Balls of Fire
+  mode_great_balls_of_fire_stopped:
     letter_collection_paused:
       action: set
       int: 0
@@ -1450,7 +1498,7 @@ variable_player:
   #     int: 1
   
   # Clear qualified number when mode starts
-  mode_balls_of_fire_started:
+  mode_great_balls_of_fire_started:
     qualified_mode_number:
       action: set
       int: 0
@@ -1974,6 +2022,9 @@ event_player:
   mode_no_margin_for_error_stopped{current_player.pilot_missions_played==1}:
     - spot_topgun_letter|300ms
     - spot_topgun_letter|500ms
+  mode_great_balls_of_fire_stopped{current_player.pilot_missions_played==1}:
+    - spot_topgun_letter|300ms
+    - spot_topgun_letter|500ms
 
   # After 2nd mission stops (any mode): spot 1 letter
   mode_rescue_cougar_stopped{current_player.pilot_missions_played==2}:
@@ -1989,6 +2040,8 @@ event_player:
   mode_rise_of_phoenix_stopped{current_player.pilot_missions_played==2}:
     - spot_topgun_letter|300ms
   mode_no_margin_for_error_stopped{current_player.pilot_missions_played==2}:
+    - spot_topgun_letter|300ms
+  mode_great_balls_of_fire_stopped{current_player.pilot_missions_played==2}:
     - spot_topgun_letter|300ms
 
   ##############################################
@@ -2136,6 +2189,11 @@ event_player:
     - pilot_mission_bonus_ready
     - pilot_mission_drain_complete
 
+  # Great Balls of Fire
+  mode_great_balls_of_fire_stopped{current_player.pilot_mode_drain_pending==1}:
+    - pilot_mission_bonus_ready
+    - pilot_mission_drain_complete
+
   # No Points For Second Place
   mode_no_points_for_second_place_stopped{current_player.pilot_mode_drain_pending==1}:
     - pilot_mission_bonus_ready
@@ -2212,6 +2270,8 @@ event_player:
   # The rotate_qualified_mode chain from each slot already skips all played modes
   # in one call and lands on the first unplayed one.
   topgun_qualified{current_player.qualified_mode_number==1 and current_player.mode_rescue_cougar_played==1}:
+    - rotate_qualified_mode
+  topgun_qualified{current_player.qualified_mode_number==2 and current_player.mode_balls_of_fire_played==1}:
     - rotate_qualified_mode
   topgun_qualified{current_player.qualified_mode_number==4 and current_player.mode_battle_jester_played==1}:
     - rotate_qualified_mode
@@ -2932,7 +2992,7 @@ event_player:
   ##############################################
   mb_choice_start_qualified_mode{current_player.qualified_mode_number==1}:
     - start_mode_rescue_cougar
-  mb_choice_start_qualified_mode{current_player.qualified_mode_number==2}:
+  mb_choice_start_qualified_mode{current_player.qualified_mode_number==2 and current_player.mode_balls_of_fire_played==0}:
     - start_mode_balls_of_fire
   mb_choice_start_qualified_mode{current_player.qualified_mode_number==3}:
     - start_mode_cool_under_pressure
@@ -2975,6 +3035,18 @@ event_player:
   mode_pilot_training_mission_wingman_stopped{current_player.qualified_mode_number>0}:
     - restore_qualifier_slide_after_wingman|100ms
 
+  # GMC stale-slide fix: fire delayed restore for topgun progress slides on ball start
+  mode_pilot_mission_qualifier_started{current_player.topgun_shots_collected==1 and current_player.qualified_mode_number==0}:
+    - restore_topgun_progress_slide_1|200ms
+  mode_pilot_mission_qualifier_started{current_player.topgun_shots_collected==2 and current_player.qualified_mode_number==0}:
+    - restore_topgun_progress_slide_2|200ms
+  mode_pilot_mission_qualifier_started{current_player.topgun_shots_collected==3 and current_player.qualified_mode_number==0}:
+    - restore_topgun_progress_slide_3|200ms
+  mode_pilot_mission_qualifier_started{current_player.topgun_shots_collected==4 and current_player.qualified_mode_number==0}:
+    - restore_topgun_progress_slide_4|200ms
+  mode_pilot_mission_qualifier_started{current_player.topgun_shots_collected==5 and current_player.qualified_mode_number==0}:
+    - restore_topgun_progress_slide_5|200ms
+
   ## TOPGUN Reset Handler
   ##############################################
   
@@ -2992,7 +3064,7 @@ event_player:
     - ball_search_reset
     - ball_search_block
   
-  mode_balls_of_fire_started:
+  mode_great_balls_of_fire_started:
     - reset_topgun_letters
     - check_all_pilot_modes_played
     - ball_search_reset
@@ -3751,9 +3823,10 @@ show_player:
         color: white
   
   qualify_balls_of_fire:
-    pulse_mode_light:
+    sync_pulse_mode:
       loops: -1
       speed: 1
+      sync_ms: 2000
       show_tokens:
         led: l_mode_balls_of_fire
         color: white
@@ -3901,7 +3974,7 @@ show_player:
     barrier_qualified_flash:
       action: stop
   
-  mode_balls_of_fire_started:
+  mode_great_balls_of_fire_started:
     balls_of_fire_pulse:
       action: stop
     barrier_qualified_flash:
@@ -3966,9 +4039,10 @@ show_player:
       key: rescue_cougar_pulse
   
   restore_qualified_mode_light{current_player.qualified_mode_number==2 and current_player.mode_balls_of_fire_played==0}:
-    pulse_mode_light:
+    sync_pulse_mode:
       loops: -1
       speed: 1
+      sync_ms: 2000
       show_tokens:
         led: l_mode_balls_of_fire
         color: white
@@ -4091,11 +4165,16 @@ light_player:
   ## Fired 200ms after mode_started to avoid race with variable_player
   ##############################################
   set_uncoded_mode_lights:
-    l_mode_balls_of_fire:
-      color: yellow
-      fade: 0ms
     l_mode_cool_under_pressure:
       color: yellow
+      fade: 0ms
+
+  # Turn off pilot_mission_lit and set mode light white when great_balls_of_fire starts
+  mode_great_balls_of_fire_started:
+    l_pilot_mission_lit:
+      color: off
+    l_mode_balls_of_fire:
+      color: white
       fade: 0ms
   ##############################################
   ## MYSTERY AWARD - Light Control
@@ -4160,7 +4239,7 @@ light_player:
   
   mode_pilot_mission_qualifier_started{current_player.mode_balls_of_fire_played==1}:
     l_mode_balls_of_fire:
-      color: yellow
+      color: white
       fade: 0ms
   
   mode_pilot_mission_qualifier_started{current_player.mode_cool_under_pressure_played==1}:
@@ -4240,7 +4319,7 @@ light_player:
     l_mode_rescue_cougar:
       color: off
     l_mode_balls_of_fire:
-      color: yellow
+      color: off
       fade: 0ms
     l_mode_cool_under_pressure:
       color: yellow
@@ -4269,7 +4348,7 @@ light_player:
   
   stop_all_mode_pulse_shows{current_player.mode_balls_of_fire_played==1}:
     l_mode_balls_of_fire:
-      color: yellow
+      color: white
       fade: 0ms
   
   stop_all_mode_pulse_shows{current_player.mode_cool_under_pressure_played==1}:
@@ -4349,13 +4428,6 @@ light_player:
     l_pilot_mission_lit:
       color: off
     l_mode_rescue_cougar:
-      color: white
-      fade: 0ms
-      
-  mode_balls_of_fire_started:
-    l_pilot_mission_lit:
-      color: off
-    l_mode_balls_of_fire:
       color: white
       fade: 0ms
       

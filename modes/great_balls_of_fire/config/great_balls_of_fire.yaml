@@ -43,7 +43,52 @@ mode:
   use_wait_queue: true
 
 mode_settings:
-  can_stack_with_multiball: true
+  can_stack_with_multiball: false
+
+####################################################################################
+# MULTIBALL DEVICE
+####################################################################################
+
+multiballs:
+  gbof_multiball:
+    ball_count: 2
+    ball_count_type: total
+    shoot_again: 15s
+    start_events: gbof_mb_start
+    stop_events: mode_great_balls_of_fire_will_stop
+    add_a_ball_events: gbof_add_a_ball
+    ball_locks:
+    source_playfield: playfield
+
+####################################################################################
+# BALL SAVE
+####################################################################################
+
+ball_saves:
+  gbof_launch_ball_save:
+    active_time: 5s
+    hurry_up_time: 2s
+    grace_period: 500ms
+    auto_launch: true
+    balls_to_save: 1
+    enable_events:
+      - gbof_ball_released
+    disable_events:
+      - gbof_collection_complete
+      - ball_will_end
+
+  gbof_multiball_ball_save:
+    active_time: 20s
+    hurry_up_time: 2s
+    grace_period: 500ms
+    auto_launch: true
+    balls_to_save: -1
+    enable_events:
+      - gbof_mb_intro_release
+      - gbof_add_a_ball
+    disable_events:
+      - gbof_mb_mode_ended
+      - ball_will_end
 
 ####################################################################################
 # BALL HOLDS
@@ -57,7 +102,38 @@ ball_holds:
       - mode_great_balls_of_fire_started
     release_one_events:
       - gbof_ball_released          # Intro normal/skip path
-      - gbof_victory_ball_exit      # Phase 2 victory (400ms delayed event)
+    disable_events:
+      - gbof_ball_released          # Disable hold once Phase 1 starts — scoop must be free
+    release_all_events:
+      - mode_great_balls_of_fire_will_stop
+
+  # Phase 2: holds ball in scoop during 12s MB intro countdown.
+  # Enabled at gbof_collection_complete (not on scoop hit) so the hold is
+  # active BEFORE the ball arrives — avoids race with scoop auto-eject.
+  gbof_mb_intro_hold:
+    balls_to_hold: 1
+    hold_devices: bd_mode_scoop
+    enable_events:
+      - gbof_collection_complete
+    release_one_events:
+      - gbof_mb_intro_release
+    disable_events:
+      - gbof_mb_intro_release
+      - mode_great_balls_of_fire_will_stop
+    release_all_events:
+      - mode_great_balls_of_fire_will_stop
+
+  # Phase 2: holds ball in scoop during 3s super jackpot animation
+  gbof_super_jp_hold:
+    balls_to_hold: 1
+    hold_devices: bd_mode_scoop
+    enable_events:
+      - gbof_super_now_lit
+    release_one_events:
+      - gbof_super_jp_release
+    disable_events:
+      - gbof_p2_super_reset
+      - mode_great_balls_of_fire_will_stop
     release_all_events:
       - mode_great_balls_of_fire_will_stop
 
@@ -66,7 +142,10 @@ ball_holds:
 ####################################################################################
 
 queue_relay_player:
-  ball_ending{mode.great_balls_of_fire.active==True}:
+  # Only intercept ball_ending during Phase 1 (step==1, single ball in play).
+  # Phase 2 multiball (step==3) handles drains via the multiball device — if the
+  # queue_relay runs there it fires gbof_failed (the 42s lost video) which is wrong.
+  ball_ending{mode.great_balls_of_fire.active==True and current_player.gbof_step<=1}:
     post: gbof_ball_ending_hold
     wait_for: gbof_drain_cleanup_complete
     priority: 1000
@@ -89,10 +168,10 @@ timers:
       - event: gbof_skip_intro
         action: stop
 
-  # Main 60s collection timer.
+  # Main 120s collection timer.
   # CRITICAL: starts on gbof_ball_released, NOT mode_started or scoop switch.
   gbof_collection_timer:
-    start_value: 60
+    start_value: 120
     end_value: 0
     direction: down
     tick_interval: 1s
@@ -103,8 +182,6 @@ timers:
       - event: gbof_collection_complete
         action: stop
       - event: gbof_failed
-        action: stop
-      - event: gbof_drain_detected
         action: stop
       - event: afterburner_extend_gbof_collection_timer
         action: jump
@@ -163,6 +240,7 @@ timers:
         value: 5
 
   # Shot lockout: 1500ms prevents double-counting on same switch.
+  # Covers both Phase 1 and Phase 2 shots.
   gbof_shot_lockout:
     start_value: 0
     end_value: 1500
@@ -178,6 +256,74 @@ timers:
         action: restart
       - event: gbof_rr_hit
         action: restart
+      - event: gbof_p2_lo_hit
+        action: restart
+      - event: gbof_p2_lr_hit
+        action: restart
+      - event: gbof_p2_sp_hit
+        action: restart
+      - event: gbof_p2_twr_hit
+        action: restart
+      - event: gbof_p2_tl_hit
+        action: restart
+      - event: gbof_p2_tr_hit
+        action: restart
+      - event: gbof_p2_rr_hit
+        action: restart
+
+  # Phase 2: 12s countdown while ball held in scoop; fires release + MB launch
+  gbof_mb_intro_delay:
+    start_value: 0
+    end_value: 12
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: gbof_scoop_hit_for_mb
+        action: restart
+      - event: mode_great_balls_of_fire_will_stop
+        action: stop
+
+  # Phase 2: auto-plunger — fires 300ms after ball lands on shooter lane
+  gbof_auto_plunger_delay:
+    start_value: 0
+    end_value: 300
+    direction: up
+    tick_interval: 1ms
+    start_running: false
+    control_events:
+      - event: s_shooter_lane_active
+        action: restart
+      - event: s_shooter_lane_inactive
+        action: stop
+      - event: mode_great_balls_of_fire_will_stop
+        action: stop
+
+  # Phase 2: 3s super jackpot animation while ball held in scoop
+  gbof_super_jp_animation:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: gbof_super_jackpot_collected
+        action: start
+      - event: mode_great_balls_of_fire_will_stop
+        action: stop
+
+  # Phase 2: 400ms after super JP ball exits → raise barrier
+  gbof_mb_barrier_delay:
+    start_value: 0
+    end_value: 400
+    direction: up
+    tick_interval: 1ms
+    start_running: false
+    control_events:
+      - event: gbof_super_jp_release
+        action: restart
+      - event: mode_great_balls_of_fire_will_stop
+        action: stop
 
 ####################################################################################
 # VARIABLE PLAYER
@@ -237,7 +383,7 @@ variable_player:
       int: 2
     gbof_timer_display:
       action: set
-      int: 60
+      int: 120
     mode_points_scored:
       action: set
       int: 0
@@ -261,32 +407,32 @@ variable_player:
       int: 1
 
   # ── LEFT ORBIT PROGRESSION ─────────────────────────────────────────────────────
-  # Conditions evaluate at event time (snapshot of variables when event fires),
-  # BEFORE variable_player updates them for this event tick.
-  # So hits==0 on the event means "the player has 0 previous hits; this is hit 1."
-  gbof_lo_hit{current_player.gbof_lo_hits==0 and current_player.gbof_lo_complete==0}:
+  # Variable updates fire on the intermediate events (gbof_lo_hit_1/2/forged),
+  # NOT on conditional gbof_lo_hit{hits==N}. This prevents MPF's variable_player
+  # from cascading through all three conditions in one event tick.
+  gbof_lo_hit_1:
     gbof_lo_hits:
       action: set
       int: 1
     score:
       action: add
-      int: 50000 * current_player.total_scoring_multiplier
+      int: 150000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 50000 * current_player.total_scoring_multiplier
+      int: 150000 * current_player.total_scoring_multiplier
 
-  gbof_lo_hit{current_player.gbof_lo_hits==1 and current_player.gbof_lo_complete==0}:
+  gbof_lo_hit_2:
     gbof_lo_hits:
       action: set
       int: 2
     score:
       action: add
-      int: 100000 * current_player.total_scoring_multiplier
+      int: 350000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 100000 * current_player.total_scoring_multiplier
+      int: 350000 * current_player.total_scoring_multiplier
 
-  gbof_lo_hit{current_player.gbof_lo_hits==2 and current_player.gbof_lo_complete==0}:
+  gbof_lo_forged:
     gbof_lo_hits:
       action: set
       int: 3
@@ -298,35 +444,35 @@ variable_player:
       int: 1
     score:
       action: add
-      int: 250000 * current_player.total_scoring_multiplier
+      int: 500000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 250000 * current_player.total_scoring_multiplier
+      int: 500000 * current_player.total_scoring_multiplier
 
   # ── LEFT RAMP PROGRESSION ──────────────────────────────────────────────────────
-  gbof_lr_hit{current_player.gbof_lr_hits==0 and current_player.gbof_lr_complete==0}:
+  gbof_lr_hit_1:
     gbof_lr_hits:
       action: set
       int: 1
     score:
       action: add
-      int: 50000 * current_player.total_scoring_multiplier
+      int: 150000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 50000 * current_player.total_scoring_multiplier
+      int: 150000 * current_player.total_scoring_multiplier
 
-  gbof_lr_hit{current_player.gbof_lr_hits==1 and current_player.gbof_lr_complete==0}:
+  gbof_lr_hit_2:
     gbof_lr_hits:
       action: set
       int: 2
     score:
       action: add
-      int: 100000 * current_player.total_scoring_multiplier
+      int: 350000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 100000 * current_player.total_scoring_multiplier
+      int: 350000 * current_player.total_scoring_multiplier
 
-  gbof_lr_hit{current_player.gbof_lr_hits==2 and current_player.gbof_lr_complete==0}:
+  gbof_lr_forged:
     gbof_lr_hits:
       action: set
       int: 3
@@ -338,35 +484,35 @@ variable_player:
       int: 1
     score:
       action: add
-      int: 250000 * current_player.total_scoring_multiplier
+      int: 500000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 250000 * current_player.total_scoring_multiplier
+      int: 500000 * current_player.total_scoring_multiplier
 
   # ── TOWER RAMP PROGRESSION ─────────────────────────────────────────────────────
-  gbof_twr_hit{current_player.gbof_twr_hits==0 and current_player.gbof_twr_complete==0}:
+  gbof_twr_hit_1:
     gbof_twr_hits:
       action: set
       int: 1
     score:
       action: add
-      int: 50000 * current_player.total_scoring_multiplier
+      int: 150000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 50000 * current_player.total_scoring_multiplier
+      int: 150000 * current_player.total_scoring_multiplier
 
-  gbof_twr_hit{current_player.gbof_twr_hits==1 and current_player.gbof_twr_complete==0}:
+  gbof_twr_hit_2:
     gbof_twr_hits:
       action: set
       int: 2
     score:
       action: add
-      int: 100000 * current_player.total_scoring_multiplier
+      int: 350000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 100000 * current_player.total_scoring_multiplier
+      int: 350000 * current_player.total_scoring_multiplier
 
-  gbof_twr_hit{current_player.gbof_twr_hits==2 and current_player.gbof_twr_complete==0}:
+  gbof_twr_forged:
     gbof_twr_hits:
       action: set
       int: 3
@@ -378,35 +524,35 @@ variable_player:
       int: 1
     score:
       action: add
-      int: 250000 * current_player.total_scoring_multiplier
+      int: 500000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 250000 * current_player.total_scoring_multiplier
+      int: 500000 * current_player.total_scoring_multiplier
 
   # ── RIGHT RAMP PROGRESSION ─────────────────────────────────────────────────────
-  gbof_rr_hit{current_player.gbof_rr_hits==0 and current_player.gbof_rr_complete==0}:
+  gbof_rr_hit_1:
     gbof_rr_hits:
       action: set
       int: 1
     score:
       action: add
-      int: 50000 * current_player.total_scoring_multiplier
+      int: 150000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 50000 * current_player.total_scoring_multiplier
+      int: 150000 * current_player.total_scoring_multiplier
 
-  gbof_rr_hit{current_player.gbof_rr_hits==1 and current_player.gbof_rr_complete==0}:
+  gbof_rr_hit_2:
     gbof_rr_hits:
       action: set
       int: 2
     score:
       action: add
-      int: 100000 * current_player.total_scoring_multiplier
+      int: 350000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 100000 * current_player.total_scoring_multiplier
+      int: 350000 * current_player.total_scoring_multiplier
 
-  gbof_rr_hit{current_player.gbof_rr_hits==2 and current_player.gbof_rr_complete==0}:
+  gbof_rr_forged:
     gbof_rr_hits:
       action: set
       int: 3
@@ -418,10 +564,10 @@ variable_player:
       int: 1
     score:
       action: add
-      int: 250000 * current_player.total_scoring_multiplier
+      int: 500000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 250000 * current_player.total_scoring_multiplier
+      int: 500000 * current_player.total_scoring_multiplier
 
   # ── MB BALL COUNT: recalculate when a ball is forged ───────────────────────────
   # gbof_ball_forged fires as a NEW event (queued after current event completes),
@@ -442,8 +588,226 @@ variable_player:
       action: set
       int: 5
 
-  # ── COLLECTION COMPLETE: set won/bonus tracking flags ──────────────────────────
+  # ── COLLECTION COMPLETE: Phase 1 → Phase 2 transition ─────────────────────────
+  # Won tracking REMOVED — real win is Phase 2 multiball end (gbof_mb_mode_ended).
+  # All 7 Phase 2 shot variables init here at 0.
   gbof_collection_complete:
+    gbof_step:
+      action: set
+      int: 2
+    # Phase 2 shot tracking (7 shots)
+    gbof_p2_lo_hits: { action: set, int: 0 }
+    gbof_p2_lo_complete: { action: set, int: 0 }
+    gbof_p2_lr_hits: { action: set, int: 0 }
+    gbof_p2_lr_complete: { action: set, int: 0 }
+    gbof_p2_sp_hits: { action: set, int: 0 }
+    gbof_p2_sp_complete: { action: set, int: 0 }
+    gbof_p2_twr_hits: { action: set, int: 0 }
+    gbof_p2_twr_complete: { action: set, int: 0 }
+    gbof_p2_tl_hits: { action: set, int: 0 }
+    gbof_p2_tl_complete: { action: set, int: 0 }
+    gbof_p2_tr_hits: { action: set, int: 0 }
+    gbof_p2_tr_complete: { action: set, int: 0 }
+    gbof_p2_rr_hits: { action: set, int: 0 }
+    gbof_p2_rr_complete: { action: set, int: 0 }
+    # Super jackpot state
+    gbof_super_jackpot_value: { action: set, int: 0 }
+    gbof_p2_shots_completed: { action: set, int: 0 }
+    gbof_super_lit: { action: set, int: 0 }
+    gbof_jp_video_index: { action: set, int: 1 }
+    mode_points_scored: { action: set, int: 0 }
+
+  # ── PHASE 2 SETUP: step 3 = MB running, all shot detection active ────────────
+  gbof_p2_setup:
+    gbof_step:
+      action: set
+      int: 3
+
+  # ── PHASE 2 HIT SCORING ─────────────────────────────────────────────────────────
+  # Each hit_1 fires from event_player when hits==0; hit_2 when hits==1; jp when hits==2.
+  # Super jackpot accumulates: hit_1 += 100K, hit_2 += 250K, jp += 500K (all shots).
+
+  # LO — 150K / 300K / 500K
+  gbof_p2_lo_hit_1:
+    gbof_p2_lo_hits: { action: set, int: 1 }
+    score: { action: add, int: 150000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 150000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 100000 }
+  gbof_p2_lo_hit_2:
+    gbof_p2_lo_hits: { action: set, int: 2 }
+    score: { action: add, int: 300000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 300000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 250000 }
+  gbof_p2_lo_jp:
+    gbof_p2_lo_hits: { action: set, int: 3 }
+    gbof_p2_lo_complete: { action: set, int: 1 }
+    gbof_p2_shots_completed: { action: add, int: 1 }
+    score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 500000 }
+
+  # LR — 250K / 500K / 750K
+  gbof_p2_lr_hit_1:
+    gbof_p2_lr_hits: { action: set, int: 1 }
+    score: { action: add, int: 250000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 100000 }
+  gbof_p2_lr_hit_2:
+    gbof_p2_lr_hits: { action: set, int: 2 }
+    score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 250000 }
+  gbof_p2_lr_jp:
+    gbof_p2_lr_hits: { action: set, int: 3 }
+    gbof_p2_lr_complete: { action: set, int: 1 }
+    gbof_p2_shots_completed: { action: add, int: 1 }
+    score: { action: add, int: 750000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 750000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 500000 }
+
+  # SP — 150K / 300K / 500K
+  gbof_p2_sp_hit_1:
+    gbof_p2_sp_hits: { action: set, int: 1 }
+    score: { action: add, int: 150000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 150000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 100000 }
+  gbof_p2_sp_hit_2:
+    gbof_p2_sp_hits: { action: set, int: 2 }
+    score: { action: add, int: 300000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 300000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 250000 }
+  gbof_p2_sp_jp:
+    gbof_p2_sp_hits: { action: set, int: 3 }
+    gbof_p2_sp_complete: { action: set, int: 1 }
+    gbof_p2_shots_completed: { action: add, int: 1 }
+    score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 500000 }
+
+  # TWR — 250K / 500K / 750K
+  gbof_p2_twr_hit_1:
+    gbof_p2_twr_hits: { action: set, int: 1 }
+    score: { action: add, int: 250000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 100000 }
+  gbof_p2_twr_hit_2:
+    gbof_p2_twr_hits: { action: set, int: 2 }
+    score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 250000 }
+  gbof_p2_twr_jp:
+    gbof_p2_twr_hits: { action: set, int: 3 }
+    gbof_p2_twr_complete: { action: set, int: 1 }
+    gbof_p2_shots_completed: { action: add, int: 1 }
+    score: { action: add, int: 750000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 750000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 500000 }
+
+  # TL (Top Loop) — 500K / 750K / 1M
+  gbof_p2_tl_hit_1:
+    gbof_p2_tl_hits: { action: set, int: 1 }
+    score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 100000 }
+  gbof_p2_tl_hit_2:
+    gbof_p2_tl_hits: { action: set, int: 2 }
+    score: { action: add, int: 750000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 750000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 250000 }
+  gbof_p2_tl_jp:
+    gbof_p2_tl_hits: { action: set, int: 3 }
+    gbof_p2_tl_complete: { action: set, int: 1 }
+    gbof_p2_shots_completed: { action: add, int: 1 }
+    score: { action: add, int: 1000000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 1000000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 500000 }
+
+  # TR (Top Ramp) — 500K / 750K / 1M
+  gbof_p2_tr_hit_1:
+    gbof_p2_tr_hits: { action: set, int: 1 }
+    score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 100000 }
+  gbof_p2_tr_hit_2:
+    gbof_p2_tr_hits: { action: set, int: 2 }
+    score: { action: add, int: 750000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 750000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 250000 }
+  gbof_p2_tr_jp:
+    gbof_p2_tr_hits: { action: set, int: 3 }
+    gbof_p2_tr_complete: { action: set, int: 1 }
+    gbof_p2_shots_completed: { action: add, int: 1 }
+    score: { action: add, int: 1000000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 1000000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 500000 }
+
+  # RR — 250K / 500K / 750K
+  gbof_p2_rr_hit_1:
+    gbof_p2_rr_hits: { action: set, int: 1 }
+    score: { action: add, int: 250000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 100000 }
+  gbof_p2_rr_hit_2:
+    gbof_p2_rr_hits: { action: set, int: 2 }
+    score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 250000 }
+  gbof_p2_rr_jp:
+    gbof_p2_rr_hits: { action: set, int: 3 }
+    gbof_p2_rr_complete: { action: set, int: 1 }
+    gbof_p2_shots_completed: { action: add, int: 1 }
+    score: { action: add, int: 750000 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: 750000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 500000 }
+
+  # ── SUPER JACKPOT STATE ────────────────────────────────────────────────────────
+  gbof_super_now_lit:
+    gbof_super_lit:
+      action: set
+      int: 1
+
+  # ── SUPER JACKPOT COLLECTED: score + full reset ─────────────────────────────────
+  gbof_super_jackpot_collected:
+    score:
+      action: add
+      int: current_player.gbof_super_jackpot_value
+    mode_points_scored:
+      action: set
+      int: current_player.gbof_super_jackpot_value
+    gbof_super_lit: { action: set, int: 0 }
+    gbof_super_jackpot_value: { action: set, int: 0 }
+    gbof_p2_shots_completed: { action: set, int: 0 }
+    gbof_p2_lo_hits: { action: set, int: 0 }
+    gbof_p2_lo_complete: { action: set, int: 0 }
+    gbof_p2_lr_hits: { action: set, int: 0 }
+    gbof_p2_lr_complete: { action: set, int: 0 }
+    gbof_p2_sp_hits: { action: set, int: 0 }
+    gbof_p2_sp_complete: { action: set, int: 0 }
+    gbof_p2_twr_hits: { action: set, int: 0 }
+    gbof_p2_twr_complete: { action: set, int: 0 }
+    gbof_p2_tl_hits: { action: set, int: 0 }
+    gbof_p2_tl_complete: { action: set, int: 0 }
+    gbof_p2_tr_hits: { action: set, int: 0 }
+    gbof_p2_tr_complete: { action: set, int: 0 }
+    gbof_p2_rr_hits: { action: set, int: 0 }
+    gbof_p2_rr_complete: { action: set, int: 0 }
+    gbof_jp_video_index: { action: set, int: 1 }
+
+  # ── JP VIDEO INDEX ADVANCE ──────────────────────────────────────────────────────
+  gbof_jp_advance_index:
+    gbof_jp_video_index:
+      action: add
+      int: 1
+  gbof_jp_reset_index:
+    gbof_jp_video_index:
+      action: set
+      int: 1
+
+  # ── MODE WON: fires when Phase 2 multiball ends (1 ball left) ───────────────────
+  gbof_mb_mode_ended:
+    gbof_step:
+      action: set
+      int: 4
     gbof_complete_flag:
       action: set
       int: 1
@@ -463,6 +827,12 @@ variable_player:
       action: set
       int: 0
 
+  # ── MODE FAILED: immediately block all shot detection ────────────────────────────
+  gbof_failed:
+    gbof_step:
+      action: set
+      int: 4
+
 ####################################################################################
 # EVENT PLAYER
 ####################################################################################
@@ -472,6 +842,11 @@ event_player:
   # ── INIT ────────────────────────────────────────────────────────────────────────
   mode_great_balls_of_fire_started:
     - barrier_raise           # Raise barrier to protect scoop during intro video
+
+  # Block skillshot from starting while this mode is active (Phase 2 MB balls
+  # hit the shooter lane and would otherwise trigger the skillshot mode).
+  mode_skillshot_will_start{mode.great_balls_of_fire.active==True}:
+    - stop_mode_skillshot
 
   # ── AFTERBURNER PERK ────────────────────────────────────────────────────────────
   gbof_ball_released{current_player.afterburner_perk_active==1}:
@@ -502,9 +877,16 @@ event_player:
     - barrier_raise
 
   # ── DRAIN HANDLING ──────────────────────────────────────────────────────────────
-  gbof_ball_ending_hold:
+  # Only fire gbof_failed here. Do NOT also fire gbof_drain_detected — that starts
+  # the 5s drain timer which races against the 42s lost video and wins at 5s.
+  # The queue_relay is released by gbof_drain_cleanup_complete which fires from
+  # timer_gbof_failed_delay_complete (after the full 42s video plays).
+  # complete_flag==0 → Phase 1 failed or still in Phase 1 → 42s lost video
+  # complete_flag==1 → Phase 2 won → mode already handled, just release queue
+  gbof_ball_ending_hold{current_player.gbof_complete_flag==0}:
     - gbof_failed
-    - gbof_drain_detected
+  gbof_ball_ending_hold{current_player.gbof_complete_flag==1}:
+    - gbof_drain_cleanup_complete
 
   timer_gbof_drain_delay_complete:
     - gbof_drain_cleanup_complete
@@ -534,81 +916,91 @@ event_player:
   gbof_skip_end_video{device.timers.gbof_drain_delay.running}:
     - gbof_drain_cleanup_complete
     - gbof_cleanup
+  # Phase 2 won skip: step==3, no ball in scoop to release
   gbof_skip_end_video{device.timers.gbof_complete_delay.running}:
     - gbof_cleanup
-    - scoop_ball_release
-    - gbof_victory_ball_exit|400ms
     - pilot_mode_cleanup_complete
+    - gbof_drain_cleanup_complete
 
   # ── SHOT DETECTION ──────────────────────────────────────────────────────────────
+  # gbof_any_hit_video_clear fires BEFORE the shot hit event so all in-progress
+  # hit videos from any shot are removed before the new video plays.
   # Left Orbit — composite event from pilot_mission_qualifier (already has orbit lockout)
   left_orbit_shot_hit{current_player.gbof_step==1 and current_player.gbof_lo_complete==0 and device.timers.gbof_shot_lockout.running==False}:
+    - gbof_any_hit_video_clear
     - gbof_lo_hit
     - gbof_any_shot_hit
 
   # Left Ramp
   s_ramp_left_exit_active{current_player.gbof_step==1 and current_player.gbof_lr_complete==0 and device.timers.gbof_shot_lockout.running==False}:
+    - gbof_any_hit_video_clear
     - gbof_lr_hit
     - gbof_any_shot_hit
 
   # Tower Ramp
   s_ramp_tower_exit_active{current_player.gbof_step==1 and current_player.gbof_twr_complete==0 and device.timers.gbof_shot_lockout.running==False}:
+    - gbof_any_hit_video_clear
     - gbof_twr_hit
     - gbof_any_shot_hit
 
   # Right Ramp
   s_ramp_right_exit_active{current_player.gbof_step==1 and current_player.gbof_rr_complete==0 and device.timers.gbof_shot_lockout.running==False}:
+    - gbof_any_hit_video_clear
     - gbof_rr_hit
     - gbof_any_shot_hit
 
   # ── INTERMEDIATE HIT EVENTS ─────────────────────────────────────────────────────
-  # Conditions check variable state AT event time (before variable_player updates).
-  # hits==0 → this is the 1st hit → post gbof_xx_hit_1 (drives yellow show + video)
-  # hits==1 → this is the 2nd hit → post gbof_xx_hit_2 (drives orange show + video)
-  # hits==2 → this is the 3rd hit → post forged events  (drives fire show + video)
+  # event_player conditions evaluate at event dispatch time (before variable_player
+  # updates), so hits==0 correctly means "this is the 1st hit."
+  # gbof_show_points fires on ALL hits so mode_points_scored slide always displays.
+  # NOTE: gbof_lo_hit_3 removed — 3rd hit goes straight to gbof_lo_forged.
 
   # LO
   gbof_lo_hit{current_player.gbof_lo_hits==0 and current_player.gbof_lo_complete==0}:
     - gbof_lo_hit_1
+    - gbof_show_points
   gbof_lo_hit{current_player.gbof_lo_hits==1 and current_player.gbof_lo_complete==0}:
     - gbof_lo_hit_2
+    - gbof_show_points
   gbof_lo_hit{current_player.gbof_lo_hits==2 and current_player.gbof_lo_complete==0}:
-    - gbof_lo_hit_3
-    - gbof_ball_forged
     - gbof_lo_forged
+    - gbof_ball_forged
     - gbof_show_points
 
   # LR
   gbof_lr_hit{current_player.gbof_lr_hits==0 and current_player.gbof_lr_complete==0}:
     - gbof_lr_hit_1
+    - gbof_show_points
   gbof_lr_hit{current_player.gbof_lr_hits==1 and current_player.gbof_lr_complete==0}:
     - gbof_lr_hit_2
+    - gbof_show_points
   gbof_lr_hit{current_player.gbof_lr_hits==2 and current_player.gbof_lr_complete==0}:
-    - gbof_lr_hit_3
-    - gbof_ball_forged
     - gbof_lr_forged
+    - gbof_ball_forged
     - gbof_show_points
 
   # TWR
   gbof_twr_hit{current_player.gbof_twr_hits==0 and current_player.gbof_twr_complete==0}:
     - gbof_twr_hit_1
+    - gbof_show_points
   gbof_twr_hit{current_player.gbof_twr_hits==1 and current_player.gbof_twr_complete==0}:
     - gbof_twr_hit_2
+    - gbof_show_points
   gbof_twr_hit{current_player.gbof_twr_hits==2 and current_player.gbof_twr_complete==0}:
-    - gbof_twr_hit_3
-    - gbof_ball_forged
     - gbof_twr_forged
+    - gbof_ball_forged
     - gbof_show_points
 
   # RR
   gbof_rr_hit{current_player.gbof_rr_hits==0 and current_player.gbof_rr_complete==0}:
     - gbof_rr_hit_1
+    - gbof_show_points
   gbof_rr_hit{current_player.gbof_rr_hits==1 and current_player.gbof_rr_complete==0}:
     - gbof_rr_hit_2
+    - gbof_show_points
   gbof_rr_hit{current_player.gbof_rr_hits==2 and current_player.gbof_rr_complete==0}:
-    - gbof_rr_hit_3
-    - gbof_ball_forged
     - gbof_rr_forged
+    - gbof_ball_forged
     - gbof_show_points
 
   # ── MB BALL COUNT CLAMP ──────────────────────────────────────────────────────────
@@ -626,13 +1018,249 @@ event_player:
 
   timer_gbof_collection_timer_complete{current_player.gbof_balls_collected>=1}:
     - gbof_collection_complete
-    # Phase 2 multiball launch will be added here in next coding session
+
+  # ── EARLY PHASE 2: all 4 balls forged before timer expires ──────────────────────
+  # player_gbof_balls_collected fires AFTER variable_player increments the count,
+  # so value==4 means the 4th ball was just forged. Fire gbof_collection_complete
+  # immediately — the timer's stop control_event on gbof_collection_complete will
+  # cancel it so the player doesn't wait the remaining time.
+  player_gbof_balls_collected{value==4 and current_player.gbof_step==1}:
+    - gbof_collection_complete
+
+  # ════════════════════════════════════════════════════════════════════════════════
+  # PHASE 2 — MULTIBALL
+  # step==2: intro (barrier down, player shoots scoop to lock ball for 12s)
+  # step==3: MB running (7 shots, super jackpot, mode ends on 1 ball left)
+  # ════════════════════════════════════════════════════════════════════════════════
+
+  # ── PHASE 2 INTRO ───────────────────────────────────────────────────────────────
+  gbof_collection_complete:
+    - barrier_drop
+    - gbof_p2_barrier_flash_start
+
+  # Player shoots scoop during intro → hold ball 12s then launch MB
+  s_mode_start_active{current_player.gbof_step==2}:
+    - gbof_scoop_hit_for_mb
+
+  timer_gbof_mb_intro_delay_complete:
+    - gbof_mb_intro_release
+    - barrier_raise|400ms     # Raise barrier 400ms after ball exits scoop
+    - gbof_mb_start|600ms     # 600ms delay: scoop ball must register on playfield BEFORE
+                               # multiball device starts counting. At 200ms it fired with
+                               # playfield=0, so device ejected 2 balls from trough. Scoop
+                               # ball then also joined = 3 initial balls → 6 total with
+                               # 3 add_a_balls, but device only tracked 5. Mode ended 1 ball early.
+    - gbof_p2_setup|800ms
+
+  # ── MULTIBALL BALL DELIVERY ──────────────────────────────────────────────────────
+  # Multiball starts at ball_count: 2 (1 extra ball). Fire staggered add_a_ball
+  # events for balls_collected >= 3/4/5.
+  # Staggered add_a_ball: tight enough for rapid sequential delivery.
+  # Cycle: ball enters lane → 300ms → plunge → 200ms → trough ejects → ~300ms travel → lane
+  # Total ~800ms per cycle. Offsets here give the first trough ball time to clear the lane
+  # before the next one arrives.
+  gbof_mb_start{current_player.gbof_mb_ball_count >= 3}:
+    - gbof_add_a_ball|800ms
+  gbof_mb_start{current_player.gbof_mb_ball_count >= 4}:
+    - gbof_add_a_ball|1600ms
+  gbof_mb_start{current_player.gbof_mb_ball_count >= 5}:
+    - gbof_add_a_ball|2400ms
+
+  # Auto-plunger: coil_player fires c_plunger directly on this event (see coil_player section)
+  # do_auto_plunge is NOT fired here to avoid double-firing the plunger at two different powers
+
+  # ── PHASE 2 SHOT DETECTION (step==3) ────────────────────────────────────────────
+  # LO: uses composite event (includes orbit switch debounce from qualifier)
+  left_orbit_shot_hit{current_player.gbof_step==3 and current_player.gbof_p2_lo_complete==0 and device.timers.gbof_shot_lockout.running==False}:
+    - gbof_p2_lo_hit
+    - gbof_any_shot_hit
+
+  # LR
+  s_ramp_left_exit_active{current_player.gbof_step==3 and current_player.gbof_p2_lr_complete==0 and device.timers.gbof_shot_lockout.running==False}:
+    - gbof_p2_lr_hit
+    - gbof_any_shot_hit
+
+  # SP (spinner_shot_made from qualifier, 3 spins)
+  spinner_shot_made{current_player.gbof_step==3 and current_player.gbof_p2_sp_complete==0 and device.timers.gbof_shot_lockout.running==False}:
+    - gbof_p2_sp_hit
+    - gbof_any_shot_hit
+
+  # TWR
+  s_ramp_tower_exit_active{current_player.gbof_step==3 and current_player.gbof_p2_twr_complete==0 and device.timers.gbof_shot_lockout.running==False}:
+    - gbof_p2_twr_hit
+    - gbof_any_shot_hit
+
+  # TL (Top Loop)
+  s_orbit_upper_active{current_player.gbof_step==3 and current_player.gbof_p2_tl_complete==0 and device.timers.gbof_shot_lockout.running==False}:
+    - gbof_p2_tl_hit
+    - gbof_any_shot_hit
+
+  # TR (Top Ramp)
+  s_ramp_inner_exit_active{current_player.gbof_step==3 and current_player.gbof_p2_tr_complete==0 and device.timers.gbof_shot_lockout.running==False}:
+    - gbof_p2_tr_hit
+    - gbof_any_shot_hit
+
+  # RR
+  s_ramp_right_exit_active{current_player.gbof_step==3 and current_player.gbof_p2_rr_complete==0 and device.timers.gbof_shot_lockout.running==False}:
+    - gbof_p2_rr_hit
+    - gbof_any_shot_hit
+
+  # ── PHASE 2 INTERMEDIATE HIT EVENTS (same cascade-safe pattern as Phase 1) ──────
+  # LO
+  gbof_p2_lo_hit{current_player.gbof_p2_lo_hits==0 and current_player.gbof_p2_lo_complete==0}:
+    - gbof_p2_lo_hit_1
+    - gbof_show_points
+  gbof_p2_lo_hit{current_player.gbof_p2_lo_hits==1 and current_player.gbof_p2_lo_complete==0}:
+    - gbof_p2_lo_hit_2
+    - gbof_show_points
+  gbof_p2_lo_hit{current_player.gbof_p2_lo_hits==2 and current_player.gbof_p2_lo_complete==0}:
+    - gbof_p2_lo_jp
+    - gbof_jp_any_collected
+    - gbof_show_points
+
+  # LR
+  gbof_p2_lr_hit{current_player.gbof_p2_lr_hits==0 and current_player.gbof_p2_lr_complete==0}:
+    - gbof_p2_lr_hit_1
+    - gbof_show_points
+  gbof_p2_lr_hit{current_player.gbof_p2_lr_hits==1 and current_player.gbof_p2_lr_complete==0}:
+    - gbof_p2_lr_hit_2
+    - gbof_show_points
+  gbof_p2_lr_hit{current_player.gbof_p2_lr_hits==2 and current_player.gbof_p2_lr_complete==0}:
+    - gbof_p2_lr_jp
+    - gbof_jp_any_collected
+    - gbof_show_points
+
+  # SP
+  gbof_p2_sp_hit{current_player.gbof_p2_sp_hits==0 and current_player.gbof_p2_sp_complete==0}:
+    - gbof_p2_sp_hit_1
+    - gbof_show_points
+  gbof_p2_sp_hit{current_player.gbof_p2_sp_hits==1 and current_player.gbof_p2_sp_complete==0}:
+    - gbof_p2_sp_hit_2
+    - gbof_show_points
+  gbof_p2_sp_hit{current_player.gbof_p2_sp_hits==2 and current_player.gbof_p2_sp_complete==0}:
+    - gbof_p2_sp_jp
+    - gbof_jp_any_collected
+    - gbof_show_points
+
+  # TWR
+  gbof_p2_twr_hit{current_player.gbof_p2_twr_hits==0 and current_player.gbof_p2_twr_complete==0}:
+    - gbof_p2_twr_hit_1
+    - gbof_show_points
+  gbof_p2_twr_hit{current_player.gbof_p2_twr_hits==1 and current_player.gbof_p2_twr_complete==0}:
+    - gbof_p2_twr_hit_2
+    - gbof_show_points
+  gbof_p2_twr_hit{current_player.gbof_p2_twr_hits==2 and current_player.gbof_p2_twr_complete==0}:
+    - gbof_p2_twr_jp
+    - gbof_jp_any_collected
+    - gbof_show_points
+
+  # TL
+  gbof_p2_tl_hit{current_player.gbof_p2_tl_hits==0 and current_player.gbof_p2_tl_complete==0}:
+    - gbof_p2_tl_hit_1
+    - gbof_show_points
+  gbof_p2_tl_hit{current_player.gbof_p2_tl_hits==1 and current_player.gbof_p2_tl_complete==0}:
+    - gbof_p2_tl_hit_2
+    - gbof_show_points
+  gbof_p2_tl_hit{current_player.gbof_p2_tl_hits==2 and current_player.gbof_p2_tl_complete==0}:
+    - gbof_p2_tl_jp
+    - gbof_jp_any_collected
+    - gbof_show_points
+
+  # TR
+  gbof_p2_tr_hit{current_player.gbof_p2_tr_hits==0 and current_player.gbof_p2_tr_complete==0}:
+    - gbof_p2_tr_hit_1
+    - gbof_show_points
+  gbof_p2_tr_hit{current_player.gbof_p2_tr_hits==1 and current_player.gbof_p2_tr_complete==0}:
+    - gbof_p2_tr_hit_2
+    - gbof_show_points
+  gbof_p2_tr_hit{current_player.gbof_p2_tr_hits==2 and current_player.gbof_p2_tr_complete==0}:
+    - gbof_p2_tr_jp
+    - gbof_jp_any_collected
+    - gbof_show_points
+
+  # RR
+  gbof_p2_rr_hit{current_player.gbof_p2_rr_hits==0 and current_player.gbof_p2_rr_complete==0}:
+    - gbof_p2_rr_hit_1
+    - gbof_show_points
+  gbof_p2_rr_hit{current_player.gbof_p2_rr_hits==1 and current_player.gbof_p2_rr_complete==0}:
+    - gbof_p2_rr_hit_2
+    - gbof_show_points
+  gbof_p2_rr_hit{current_player.gbof_p2_rr_hits==2 and current_player.gbof_p2_rr_complete==0}:
+    - gbof_p2_rr_jp
+    - gbof_jp_any_collected
+    - gbof_show_points
+
+  # ── JP VIDEO CYCLING (index evaluated BEFORE variable_player advances it) ────────
+  gbof_jp_any_collected{current_player.gbof_jp_video_index==1}:
+    - gbof_show_jp_1
+  gbof_jp_any_collected{current_player.gbof_jp_video_index==2}:
+    - gbof_show_jp_2
+  gbof_jp_any_collected{current_player.gbof_jp_video_index==3}:
+    - gbof_show_jp_3
+  gbof_jp_any_collected{current_player.gbof_jp_video_index==4}:
+    - gbof_show_jp_4
+  gbof_jp_any_collected{current_player.gbof_jp_video_index < 4}:
+    - gbof_jp_advance_index
+  gbof_jp_any_collected{current_player.gbof_jp_video_index >= 4}:
+    - gbof_jp_reset_index
+
+  # ── SUPER JACKPOT TRIGGER (4 of 7 shots completed) ──────────────────────────────
+  # player_gbof_p2_shots_completed fires AFTER variable_player increments it.
+  player_gbof_p2_shots_completed{value >= 4 and current_player.gbof_super_lit==0}:
+    - gbof_super_now_lit
+
+  # ── SUPER JACKPOT LIT ────────────────────────────────────────────────────────────
+  gbof_super_now_lit:
+    - barrier_drop
+    - gbof_super_barrier_flash_start
+
+  # Scoop hit while super lit → collect super jackpot
+  s_mode_start_active{current_player.gbof_step==3 and current_player.gbof_super_lit==1}:
+    - gbof_super_jackpot_collected
+
+  # ── SUPER JACKPOT ANIMATION + RELEASE ────────────────────────────────────────────
+  timer_gbof_super_jp_animation_complete:
+    - gbof_super_jp_release
+
+  # 400ms after ball exits scoop → raise barrier; 500ms → disable hold + restart shots
+  gbof_super_jp_release:
+    - timer_gbof_mb_barrier_delay_start
+
+  timer_gbof_mb_barrier_delay_complete:
+    - barrier_raise
+    - gbof_p2_super_reset|100ms
+
+  # Super reset: restart all 7 green flashes (hold disabled via disable_events above)
+  gbof_p2_super_reset:
+    - gbof_p2_restart_shot_flashes
+
+  # ── STUCK BALL CATCH (step==3, super NOT lit) ────────────────────────────────────
+  # Barrier is UP between supers. If a ball somehow enters the scoop, release it.
+  s_mode_start_active{current_player.gbof_step==3 and current_player.gbof_super_lit==0}:
+    - scoop_ball_release
+
+  # ── MULTIBALL END CHECK ──────────────────────────────────────────────────────────
+  multiball_gbof_multiball_ball_lost:
+    - gbof_mb_check_end
+
+  multiball_gbof_multiball_ended:
+    - gbof_mb_mode_ended
+
+  gbof_mb_check_end{device.multiballs.gbof_multiball.balls_live_target==1}:
+    - gbof_mb_mode_ended
+
+  # Mode won: score tracking + trigger victory flow
+  gbof_mb_mode_ended:
+    - gbof_complete
 
   # ── FAILED FLOW ─────────────────────────────────────────────────────────────────
   # NOTE: gbof_cleanup is deliberately NOT on gbof_failed — only after delay timer.
   # Firing cleanup on gbof_failed would kill the lost video show in the same tick.
+  # gbof_drain_cleanup_complete is posted here to release the queue_relay wait_for
+  # in both drain and non-drain failure cases (harmless if no queue is active).
   timer_gbof_failed_delay_complete:
     - gbof_cleanup
+    - gbof_drain_cleanup_complete
     - pilot_mode_cleanup_complete
 
   # ── VICTORY FLOW (Phase 2 placeholder) ──────────────────────────────────────────
@@ -644,17 +1272,11 @@ event_player:
 
   timer_gbof_complete_delay_complete:
     - gbof_cleanup
-    - scoop_ball_release
-    - gbof_victory_ball_exit|400ms
     - pilot_mode_cleanup_complete
+    - gbof_drain_cleanup_complete
 
 ####################################################################################
 # SLIDE PLAYER
-# Short hit videos (ball_X_video_1/2/3) play HERE in mode context.
-# They auto-expire in 3s, well within the 60s collection phase.
-# Forge slides (great_balls_of_fire_ball_1/2/3/4, persistent background layers)
-# are played from base.yaml via gbof_lo_forged etc. events — see notes at bottom.
-# mode_points_scored slide is played from base.yaml via gbof_show_points event.
 ####################################################################################
 
 slide_player:
@@ -674,96 +1296,112 @@ slide_player:
       action: remove
     great_balls_of_fire_timer:
       action: play
-      priority: 610
+      priority: 590
 
-  # ── SHORT HIT VIDEOS: each removes predecessor to prevent layering ─────────────
+  # ── HIT VIDEO CLEAR: removes all 12 possible in-progress hit videos ─────────────
+  # Fires before every shot hit so cross-shot videos never layer on each other.
+  # action: remove on a non-playing slide is harmless in MPF.
+  gbof_any_hit_video_clear:
+    great_balls_of_fire_ball_1_video_1: { action: remove }
+    great_balls_of_fire_ball_1_video_2: { action: remove }
+    great_balls_of_fire_ball_1_video_3: { action: remove }
+    great_balls_of_fire_ball_2_video_1: { action: remove }
+    great_balls_of_fire_ball_2_video_2: { action: remove }
+    great_balls_of_fire_ball_2_video_3: { action: remove }
+    great_balls_of_fire_ball_3_video_1: { action: remove }
+    great_balls_of_fire_ball_3_video_2: { action: remove }
+    great_balls_of_fire_ball_3_video_3: { action: remove }
+    great_balls_of_fire_ball_4_video_1: { action: remove }
+    great_balls_of_fire_ball_4_video_2: { action: remove }
+    great_balls_of_fire_ball_4_video_3: { action: remove }
+
+  # ── SHORT HIT VIDEOS: each just plays its video (clear already handled above) ────
+  # No expire — videos run to natural end.
   # LO (ball_1)
   gbof_lo_hit_1:
     great_balls_of_fire_ball_1_video_1:
       action: play
       priority: 650
-      expire: 3s
   gbof_lo_hit_2:
-    great_balls_of_fire_ball_1_video_1:
-      action: remove
     great_balls_of_fire_ball_1_video_2:
       action: play
       priority: 650
-      expire: 3s
-  gbof_lo_hit_3:
-    great_balls_of_fire_ball_1_video_2:
-      action: remove
+  gbof_lo_forged:
     great_balls_of_fire_ball_1_video_3:
       action: play
       priority: 650
-      expire: 3s
 
   # LR (ball_2)
   gbof_lr_hit_1:
     great_balls_of_fire_ball_2_video_1:
       action: play
       priority: 650
-      expire: 3s
   gbof_lr_hit_2:
-    great_balls_of_fire_ball_2_video_1:
-      action: remove
     great_balls_of_fire_ball_2_video_2:
       action: play
       priority: 650
-      expire: 3s
-  gbof_lr_hit_3:
-    great_balls_of_fire_ball_2_video_2:
-      action: remove
+  gbof_lr_forged:
     great_balls_of_fire_ball_2_video_3:
       action: play
       priority: 650
-      expire: 3s
 
   # TWR (ball_3)
   gbof_twr_hit_1:
     great_balls_of_fire_ball_3_video_1:
       action: play
       priority: 650
-      expire: 3s
   gbof_twr_hit_2:
-    great_balls_of_fire_ball_3_video_1:
-      action: remove
     great_balls_of_fire_ball_3_video_2:
       action: play
       priority: 650
-      expire: 3s
-  gbof_twr_hit_3:
-    great_balls_of_fire_ball_3_video_2:
-      action: remove
+  gbof_twr_forged:
     great_balls_of_fire_ball_3_video_3:
       action: play
       priority: 650
-      expire: 3s
 
   # RR (ball_4)
   gbof_rr_hit_1:
     great_balls_of_fire_ball_4_video_1:
       action: play
       priority: 650
-      expire: 3s
   gbof_rr_hit_2:
-    great_balls_of_fire_ball_4_video_1:
-      action: remove
     great_balls_of_fire_ball_4_video_2:
       action: play
       priority: 650
-      expire: 3s
-  gbof_rr_hit_3:
-    great_balls_of_fire_ball_4_video_2:
-      action: remove
+  gbof_rr_forged:
     great_balls_of_fire_ball_4_video_3:
       action: play
       priority: 650
-      expire: 3s
 
   # ── FAILED / COLLECTION COMPLETE ─────────────────────────────────────────────
   gbof_failed:
+    great_balls_of_fire_background:
+      action: remove
     great_balls_of_fire_timer:
+      action: remove
+    great_balls_of_fire_ball_1_video_1:
+      action: remove
+    great_balls_of_fire_ball_1_video_2:
+      action: remove
+    great_balls_of_fire_ball_1_video_3:
+      action: remove
+    great_balls_of_fire_ball_2_video_1:
+      action: remove
+    great_balls_of_fire_ball_2_video_2:
+      action: remove
+    great_balls_of_fire_ball_2_video_3:
+      action: remove
+    great_balls_of_fire_ball_3_video_1:
+      action: remove
+    great_balls_of_fire_ball_3_video_2:
+      action: remove
+    great_balls_of_fire_ball_3_video_3:
+      action: remove
+    great_balls_of_fire_ball_4_video_1:
+      action: remove
+    great_balls_of_fire_ball_4_video_2:
+      action: remove
+    great_balls_of_fire_ball_4_video_3:
       action: remove
     great_balls_of_fire_lost:
       action: play
@@ -773,12 +1411,58 @@ slide_player:
   gbof_collection_complete:
     great_balls_of_fire_timer:
       action: remove
+    great_balls_of_fire_start_mb:
+      action: play
+      priority: 700
+
+  gbof_mb_start:
+    great_balls_of_fire_start_mb:
+      action: remove
+
+  # Jackpot value display: shows current super jackpot accumulation during Phase 2 MB
+  gbof_p2_setup:
+    great_balls_of_fire_jackpot_value:
+      action: play
+      priority: 615
+
+  # Phase 2 JP videos: each removes the previous one; expire after 8s naturally
+  gbof_show_jp_1:
+    great_balls_of_fire_jp_4: { action: remove }
+    great_balls_of_fire_jp_1: { action: play, priority: 660, expire: 8s }
+  gbof_show_jp_2:
+    great_balls_of_fire_jp_1: { action: remove }
+    great_balls_of_fire_jp_2: { action: play, priority: 660, expire: 8s }
+  gbof_show_jp_3:
+    great_balls_of_fire_jp_2: { action: remove }
+    great_balls_of_fire_jp_3: { action: play, priority: 660, expire: 8s }
+  gbof_show_jp_4:
+    great_balls_of_fire_jp_3: { action: remove }
+    great_balls_of_fire_jp_4: { action: play, priority: 660, expire: 8s }
+
+  # Phase 2 won video (plays while remaining ball is still in play; expires with mode)
+  gbof_complete:
+    great_balls_of_fire_won:
+      action: play
+      priority: 700
+      expire: 30s
+
+  # Super jackpot collected: play 3-second celebration slide, remove when animation ends
+  gbof_super_jackpot_collected:
+    great_balls_of_fire_super_jackpot:
+      action: play
+      priority: 690
+
+  timer_gbof_super_jp_animation_complete:
+    great_balls_of_fire_super_jackpot:
+      action: remove
 
   # Cleanup removes all persistent mode slides
   gbof_cleanup:
     great_balls_of_fire_background:
       action: remove
     great_balls_of_fire_timer:
+      action: remove
+    great_balls_of_fire_jackpot_value:
       action: remove
     great_balls_of_fire_lost:
       action: remove
@@ -796,9 +1480,9 @@ show_player:
       key: gbof_gi_playfield_key
       loops: -1
     gbof_fire_gi_show:
-      show: gbof_fire_gi
+      show: gbof_fire_gi         # external show file in light shows folder
       key: gbof_gi_fire_key
-      speed: 20
+      speed: 30
       loops: -1
 
   # ── GI SHOT FLASH: 3 rapid all-GI pulses on any hit ──────────────────────────
@@ -864,7 +1548,7 @@ show_player:
       loops: -1
       show_tokens:
         led: l_shot_left_orbit
-        color: 'FF4400'
+        color: 'FF8800'
 
   gbof_lo_forged:
     gbof_lo_flash_stop:
@@ -874,7 +1558,7 @@ show_player:
     gbof_lo_fire_start:
       show: gbof_insert_fire
       key: gbof_lo_fire_key
-      speed: 20
+      speed: 30
       loops: -1
       show_tokens:
         led: l_shot_left_orbit
@@ -898,7 +1582,7 @@ show_player:
       loops: -1
       show_tokens:
         led: l_shot_left_ramp
-        color: 'FF4400'
+        color: 'FF8800'
 
   gbof_lr_forged:
     gbof_lr_flash_stop:
@@ -908,7 +1592,7 @@ show_player:
     gbof_lr_fire_start:
       show: gbof_insert_fire
       key: gbof_lr_fire_key
-      speed: 20
+      speed: 30
       loops: -1
       show_tokens:
         led: l_shot_left_ramp
@@ -932,7 +1616,7 @@ show_player:
       loops: -1
       show_tokens:
         led: l_shot_tower_ramp
-        color: 'FF4400'
+        color: 'FF8800'
 
   gbof_twr_forged:
     gbof_twr_flash_stop:
@@ -942,7 +1626,7 @@ show_player:
     gbof_twr_fire_start:
       show: gbof_insert_fire
       key: gbof_twr_fire_key
-      speed: 20
+      speed: 30
       loops: -1
       show_tokens:
         led: l_shot_tower_ramp
@@ -966,7 +1650,7 @@ show_player:
       loops: -1
       show_tokens:
         led: l_shot_right_orbit
-        color: 'FF4400'
+        color: 'FF8800'
 
   gbof_rr_forged:
     gbof_rr_flash_stop:
@@ -976,10 +1660,387 @@ show_player:
     gbof_rr_fire_start:
       show: gbof_insert_fire
       key: gbof_rr_fire_key
-      speed: 20
+      speed: 30
       loops: -1
       show_tokens:
         led: l_shot_right_orbit
+
+  # ── COLLECTION PHASE COMPLETE: stop incomplete flash shows; start barrier flash ─
+  gbof_collection_complete:
+    stop_lo_flash_end:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_lo_flash
+    stop_lr_flash_end:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_lr_flash
+    stop_twr_flash_end:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_twr_flash
+    stop_rr_flash_end:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_rr_flash
+
+  # ── SCOOP HIT FOR MB: stop intro barrier flash the instant ball is captured ───────
+  gbof_scoop_hit_for_mb:
+    stop_intro_barrier_on_hit:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_intro_barrier_flash
+
+  # ── PHASE 2 INTRO BARRIER FLASH ─────────────────────────────────────────────────
+  gbof_p2_barrier_flash_start:
+    gbof_intro_barrier:
+      show: sync_flash_mode
+      key: gbof_intro_barrier_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_barrier
+        color: 'FF6600'
+
+  # ── PHASE 2 SETUP: start all 7 shot green flashes ────────────────────────────────
+  gbof_p2_setup:
+    # ── Stop any Phase 1 fire shows still running on forged shots ────────────────
+    stop_lo_fire_p2:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_lo_fire_key
+    stop_lr_fire_p2:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_lr_fire_key
+    stop_twr_fire_p2:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_twr_fire_key
+    stop_rr_fire_p2:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_rr_fire_key
+    # ── Start all 7 Phase 2 green flashes ────────────────────────────────────────
+    lo_p2_green:
+      show: sync_flash_mode
+      key: gbof_p2_lo_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_orbit
+        color: '00FF00'
+    lr_p2_green:
+      show: sync_flash_mode
+      key: gbof_p2_lr_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+        color: '00FF00'
+    sp_p2_green:
+      show: sync_flash_mode
+      key: gbof_p2_sp_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_spinner
+        color: '00FF00'
+    twr_p2_green:
+      show: sync_flash_mode
+      key: gbof_p2_twr_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_tower_ramp
+        color: '00FF00'
+    tl_p2_green:
+      show: sync_flash_mode
+      key: gbof_p2_tl_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: '00FF00'
+    tr_p2_green:
+      show: sync_flash_mode
+      key: gbof_p2_tr_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: '00FF00'
+    rr_p2_green:
+      show: sync_flash_mode
+      key: gbof_p2_rr_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_right_orbit
+        color: '00FF00'
+
+  # ── PHASE 2 HIT PROGRESSIONS ─────────────────────────────────────────────────────
+  # LO
+  gbof_p2_lo_hit_1:
+    lo_p2_yellow:
+      show: sync_flash_mode
+      key: gbof_p2_lo_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_left_orbit, color: 'FFFF00' }
+  gbof_p2_lo_hit_2:
+    lo_p2_orange:
+      show: sync_flash_mode
+      key: gbof_p2_lo_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_left_orbit, color: 'FF8800' }
+  gbof_p2_lo_jp:
+    lo_p2_flash_stop:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_lo_flash
+    lo_p2_fire:
+      show: gbof_insert_fire
+      key: gbof_p2_lo_fire_key
+      speed: 30
+      loops: -1
+      show_tokens: { led: l_shot_left_orbit }
+
+  # LR
+  gbof_p2_lr_hit_1:
+    lr_p2_yellow:
+      show: sync_flash_mode
+      key: gbof_p2_lr_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_left_ramp, color: 'FFFF00' }
+  gbof_p2_lr_hit_2:
+    lr_p2_orange:
+      show: sync_flash_mode
+      key: gbof_p2_lr_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_left_ramp, color: 'FF8800' }
+  gbof_p2_lr_jp:
+    lr_p2_flash_stop:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_lr_flash
+    lr_p2_fire:
+      show: gbof_insert_fire
+      key: gbof_p2_lr_fire_key
+      speed: 30
+      loops: -1
+      show_tokens: { led: l_shot_left_ramp }
+
+  # SP
+  gbof_p2_sp_hit_1:
+    sp_p2_yellow:
+      show: sync_flash_mode
+      key: gbof_p2_sp_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_spinner, color: 'FFFF00' }
+  gbof_p2_sp_hit_2:
+    sp_p2_orange:
+      show: sync_flash_mode
+      key: gbof_p2_sp_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_spinner, color: 'FF8800' }
+  gbof_p2_sp_jp:
+    sp_p2_flash_stop:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_sp_flash
+    sp_p2_fire:
+      show: gbof_insert_fire
+      key: gbof_p2_sp_fire_key
+      speed: 30
+      loops: -1
+      show_tokens: { led: l_shot_spinner }
+
+  # TWR
+  gbof_p2_twr_hit_1:
+    twr_p2_yellow:
+      show: sync_flash_mode
+      key: gbof_p2_twr_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_tower_ramp, color: 'FFFF00' }
+  gbof_p2_twr_hit_2:
+    twr_p2_orange:
+      show: sync_flash_mode
+      key: gbof_p2_twr_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_tower_ramp, color: 'FF8800' }
+  gbof_p2_twr_jp:
+    twr_p2_flash_stop:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_twr_flash
+    twr_p2_fire:
+      show: gbof_insert_fire
+      key: gbof_p2_twr_fire_key
+      speed: 30
+      loops: -1
+      show_tokens: { led: l_shot_tower_ramp }
+
+  # TL
+  gbof_p2_tl_hit_1:
+    tl_p2_yellow:
+      show: sync_flash_mode
+      key: gbof_p2_tl_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_upper_orbit, color: 'FFFF00' }
+  gbof_p2_tl_hit_2:
+    tl_p2_orange:
+      show: sync_flash_mode
+      key: gbof_p2_tl_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_upper_orbit, color: 'FF8800' }
+  gbof_p2_tl_jp:
+    tl_p2_flash_stop:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_tl_flash
+    tl_p2_fire:
+      show: gbof_insert_fire
+      key: gbof_p2_tl_fire_key
+      speed: 30
+      loops: -1
+      show_tokens: { led: l_shot_upper_orbit }
+
+  # TR
+  gbof_p2_tr_hit_1:
+    tr_p2_yellow:
+      show: sync_flash_mode
+      key: gbof_p2_tr_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_middle_ramp, color: 'FFFF00' }
+  gbof_p2_tr_hit_2:
+    tr_p2_orange:
+      show: sync_flash_mode
+      key: gbof_p2_tr_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_middle_ramp, color: 'FF8800' }
+  gbof_p2_tr_jp:
+    tr_p2_flash_stop:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_tr_flash
+    tr_p2_fire:
+      show: gbof_insert_fire
+      key: gbof_p2_tr_fire_key
+      speed: 30
+      loops: -1
+      show_tokens: { led: l_shot_middle_ramp }
+
+  # RR
+  gbof_p2_rr_hit_1:
+    rr_p2_yellow:
+      show: sync_flash_mode
+      key: gbof_p2_rr_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_right_orbit, color: 'FFFF00' }
+  gbof_p2_rr_hit_2:
+    rr_p2_orange:
+      show: sync_flash_mode
+      key: gbof_p2_rr_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_right_orbit, color: 'FF8800' }
+  gbof_p2_rr_jp:
+    rr_p2_flash_stop:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_rr_flash
+    rr_p2_fire:
+      show: gbof_insert_fire
+      key: gbof_p2_rr_fire_key
+      speed: 30
+      loops: -1
+      show_tokens: { led: l_shot_right_orbit }
+
+  # ── SUPER JACKPOT LIT: barrier insert flickers with fire animation ───────────────
+  gbof_super_barrier_flash_start:
+    gbof_super_barrier:
+      show: gbof_insert_fire
+      key: gbof_super_barrier_flash
+      speed: 30
+      loops: -1
+      show_tokens:
+        led: l_shot_barrier
+
+  # ── SUPER JACKPOT COLLECTED: stop barrier fire, start GI animation ───────────────
+  gbof_super_jackpot_collected:
+    stop_super_barrier:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_super_barrier_flash
+    gbof_super_gi_anim:
+      show: gbof_super_jp_gi
+      key: gbof_super_gi_key
+      speed: 30
+      loops: -1
+
+  timer_gbof_super_jp_animation_complete:
+    stop_super_gi:
+      show: gbof_super_jp_gi
+      action: stop
+      key: gbof_super_gi_key
+
+  # ── SUPER RESET: restart all 7 shot green flashes after super collected ──────────
+  gbof_p2_restart_shot_flashes:
+    lo_p2_reset:
+      show: sync_flash_mode
+      key: gbof_p2_lo_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_left_orbit, color: '00FF00' }
+    lr_p2_reset:
+      show: sync_flash_mode
+      key: gbof_p2_lr_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_left_ramp, color: '00FF00' }
+    sp_p2_reset:
+      show: sync_flash_mode
+      key: gbof_p2_sp_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_spinner, color: '00FF00' }
+    twr_p2_reset:
+      show: sync_flash_mode
+      key: gbof_p2_twr_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_tower_ramp, color: '00FF00' }
+    tl_p2_reset:
+      show: sync_flash_mode
+      key: gbof_p2_tl_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_upper_orbit, color: '00FF00' }
+    tr_p2_reset:
+      show: sync_flash_mode
+      key: gbof_p2_tr_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_middle_ramp, color: '00FF00' }
+    rr_p2_reset:
+      show: sync_flash_mode
+      key: gbof_p2_rr_flash
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_right_orbit, color: '00FF00' }
 
   # ── CLEANUP: stop all mode shows ─────────────────────────────────────────────
   gbof_cleanup:
@@ -1027,6 +2088,77 @@ show_player:
       show: gbof_fire_gi
       action: stop
       key: gbof_gi_fire_key
+    # Phase 2 flash shows
+    stop_p2_lo_flash:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_lo_flash
+    stop_p2_lr_flash:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_lr_flash
+    stop_p2_sp_flash:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_sp_flash
+    stop_p2_twr_flash:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_twr_flash
+    stop_p2_tl_flash:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_tl_flash
+    stop_p2_tr_flash:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_tr_flash
+    stop_p2_rr_flash:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_rr_flash
+    # Phase 2 fire shows
+    stop_p2_lo_fire:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_lo_fire_key
+    stop_p2_lr_fire:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_lr_fire_key
+    stop_p2_sp_fire:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_sp_fire_key
+    stop_p2_twr_fire:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_twr_fire_key
+    stop_p2_tl_fire:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_tl_fire_key
+    stop_p2_tr_fire:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_tr_fire_key
+    stop_p2_rr_fire:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_rr_fire_key
+    # Phase 2 barrier / super shows
+    stop_intro_barrier:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_intro_barrier_flash
+    stop_super_barrier:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_super_barrier_flash
+    stop_super_gi:
+      show: gbof_super_jp_gi
+      action: stop
+      key: gbof_super_gi_key
 
 ####################################################################################
 # SHOWS
@@ -1036,7 +2168,8 @@ show_player:
 
 shows:
 
-  # ── PLAYFIELD GI: odd=red, even=orange (static, loops forever) ───────────────
+  # ── PLAYFIELD GI: odd=red, even=orange (lights 1-21 only) ───────────────────
+  # Lights 22-27 and apron are handled by the external gbof_fire_gi show.
   gbof_playfield_gi:
     - time: 0
       lights:
@@ -1061,53 +2194,6 @@ shows:
         l_gi_light_19: 'FF0000'
         l_gi_light_20: 'FF4400'
         l_gi_light_21: 'FF0000'
-        l_gi_light_22: 'FF2200'
-        l_gi_light_23: 'FF2200'
-        l_gi_light_26: 'FF2200'
-        l_gi_light_27: 'FF2200'
-
-  # ── FIRE GI: engine fire lights (24/25) + apron — rapid flicker animation ────
-  gbof_fire_gi:
-    - time: 0
-      lights:
-        l_gi_light_24: 'FF0000'
-        l_gi_light_25: 'FF4400'
-        l_apron_light_1: 'FF0000'
-        l_apron_light_2: 'FF4400'
-        l_apron_light_3: 'FF0000'
-        l_apron_light_4: 'FF4400'
-    - time: 50ms
-      lights:
-        l_gi_light_24: 'FF6600'
-        l_gi_light_25: 'FF0000'
-        l_apron_light_1: 'FF4400'
-        l_apron_light_2: 'FF0000'
-        l_apron_light_3: 'FF6600'
-        l_apron_light_4: 'FF0000'
-    - time: 100ms
-      lights:
-        l_gi_light_24: 'FF2200'
-        l_gi_light_25: 'FF6600'
-        l_apron_light_1: 'FF0000'
-        l_apron_light_2: 'FF6600'
-        l_apron_light_3: 'FF2200'
-        l_apron_light_4: 'FF6600'
-    - time: 150ms
-      lights:
-        l_gi_light_24: 'FF4400'
-        l_gi_light_25: 'FF2200'
-        l_apron_light_1: 'FF6600'
-        l_apron_light_2: 'FF2200'
-        l_apron_light_3: 'FF4400'
-        l_apron_light_4: 'FF2200'
-    - time: 200ms
-      lights:
-        l_gi_light_24: 'FF0000'
-        l_gi_light_25: 'FF4400'
-        l_apron_light_1: 'FF2200'
-        l_apron_light_2: 'FF4400'
-        l_apron_light_3: 'FF0000'
-        l_apron_light_4: 'FF4400'
 
   # ── GI SHOT FLASH: 3 bright pulses ~770ms total, loops: 0 (plays once) ───────
   gbof_gi_shot_flash:
@@ -1250,33 +2336,71 @@ shows:
         l_gi_light_20: 'FF4400'
         l_gi_light_21: 'FF0000'
 
-  # ── INSERT FIRE: orange/red flicker for a forged shot insert ─────────────────
-  # show_token (led) = the specific insert light, e.g., l_shot_left_orbit
+  # ── INSERT FIRE: duration-based fire flicker matching eos_engine_fire style ──
+  # At speed: 30, each duration:1 = ~33ms, duration:2 = ~66ms.
+  # Cycle: 13 steps × 33ms ≈ 430ms → ~2.3Hz flicker.
+  # show_token (led) = the specific insert light, e.g. l_shot_left_orbit
   gbof_insert_fire:
-    - time: 0
+    - duration: 1
       lights:
-        (led): 'FF2200'
-    - time: 100ms
+        (led): {color: FF4400, fade: 0ms}
+    - duration: 1
       lights:
-        (led): 'FF0000'
-    - time: 200ms
+        (led): {color: FF0000, fade: 0ms}
+    - duration: 2
       lights:
-        (led): 'FF4400'
-    - time: 300ms
+        (led): {color: FFAA00, fade: 0ms}
+    - duration: 1
       lights:
-        (led): 'FF0000'
-    - time: 400ms
+        (led): {color: FF2200, fade: 0ms}
+    - duration: 1
       lights:
-        (led): 'FF6600'
-    - time: 500ms
+        (led): {color: FF6600, fade: 0ms}
+    - duration: 2
       lights:
-        (led): 'FF0000'
-    - time: 600ms
+        (led): {color: FF0000, fade: 0ms}
+    - duration: 1
       lights:
-        (led): 'FF2200'
-    - time: 700ms
+        (led): {color: FFCC00, fade: 0ms}
+    - duration: 1
       lights:
-        (led): 'FF4400'
+        (led): {color: FF4400, fade: 0ms}
+    - duration: 2
+      lights:
+        (led): {color: FF8800, fade: 0ms}
+    - duration: 1
+      lights:
+        (led): {color: FF1100, fade: 0ms}
+
+####################################################################################
+# COIL PLAYER
+# During Phase 2 MB, fire the plunger at full power so balls reach the top of the
+# game. This overrides the normal do_auto_plunge handler (which uses default power)
+# by catching the same timer event directly at mode priority 600.
+####################################################################################
+
+coil_player:
+  timer_gbof_auto_plunger_delay_complete:
+    c_plunger:
+      pulse_ms: 28
+      pulse_power: 0.75
+
+####################################################################################
+# SOUND PLAYER
+####################################################################################
+
+sound_player:
+  # Phase 2 intro: callout plays when player shoots scoop to start MB countdown
+  gbof_scoop_hit_for_mb:
+    gbof_mb_instructions:
+      bus: voice
+      loops: 0
+
+  # Super jackpot collected: play celebration callout
+  gbof_super_jackpot_collected:
+    great_balls_of_fire_super_jackpot_callout:
+      bus: voice
+      loops: 0
 
 ####################################################################################
 # ════════════════════════════════════════════════════════════════════════════════════

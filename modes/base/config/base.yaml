@@ -1210,6 +1210,55 @@ slide_player:
       priority: 840
       expire: 2s
 
+  ##############################################################################
+  # Great Balls of Fire — Forge slides (persistent background layers)
+  # These stack on top of great_balls_of_fire_background at priority 605.
+  # Played from base.yaml so they survive the mode's slide context.
+  ##############################################################################
+  gbof_lo_forged:
+    great_balls_of_fire_ball_1:
+      action: play
+      priority: 605
+  gbof_lr_forged:
+    great_balls_of_fire_ball_2:
+      action: play
+      priority: 605
+  gbof_twr_forged:
+    great_balls_of_fire_ball_3:
+      action: play
+      priority: 605
+  gbof_rr_forged:
+    great_balls_of_fire_ball_4:
+      action: play
+      priority: 605
+  gbof_cleanup:
+    great_balls_of_fire_ball_1:
+      action: remove
+    great_balls_of_fire_ball_2:
+      action: remove
+    great_balls_of_fire_ball_3:
+      action: remove
+    great_balls_of_fire_ball_4:
+      action: remove
+
+  # Great Balls of Fire — remove forge slides when mode fails (before lost video)
+  gbof_failed:
+    great_balls_of_fire_ball_1:
+      action: remove
+    great_balls_of_fire_ball_2:
+      action: remove
+    great_balls_of_fire_ball_3:
+      action: remove
+    great_balls_of_fire_ball_4:
+      action: remove
+
+  # Great Balls of Fire — mode points scored slide
+  gbof_show_points:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
   # Edge of Space shot points — played from base so slide persists after mode stops
   edge_of_space_show_points:
     mode_points_scored:
@@ -1304,9 +1353,9 @@ sound_player:
   # EXCEPTION: battle_jester step 6 - music keeps playing during that scoop entry
 ####################################################################################
 
-  # Silence for all modes EXCEPT battle_jester step 6 and playing_with_the_boys step 7
-  # (PTB step 7: ball enters scoop for victory — music restarts 200ms later via ptb_step_7_keep_music)
-  s_mode_start_active{(mode.battle_jester.active==False or current_player.battle_jester_step!=5) and (mode.hard_deck_playing_with_the_boys.active==False or current_player.ptb_step!=7) and mode.mystery_award.active==False and mode.no_points_for_second_place.active==False}:
+  # Silence for all modes EXCEPT battle_jester step 6, playing_with_the_boys step 7,
+  # and great_balls_of_fire (Phase 2 super jackpot scoop must not cut music)
+  s_mode_start_active{(mode.battle_jester.active==False or current_player.battle_jester_step!=5) and (mode.hard_deck_playing_with_the_boys.active==False or current_player.ptb_step!=7) and mode.mystery_award.active==False and mode.no_points_for_second_place.active==False and mode.great_balls_of_fire.active==False}:
     silence:
       bus: music
       loops: 0
@@ -1554,6 +1603,38 @@ sound_player:
 
   # Restart base music when mode stops (but NOT if drain pending - bonus will handle it)
   mode_edge_of_space_stopped{current_player.pilot_mode_drain_pending==0}:
+    music_danger_zone:
+      bus: music
+      loops: -1
+
+####################################################################################
+  # Great Balls of Fire Mode Music Handler
+  # Phase 1 music starts on gbof_ball_released (after intro video or skip)
+  # Phase 2 music starts on gbof_mb_start (when multiball launches)
+####################################################################################
+
+  # Phase 1: start music when ball releases from scoop into gameplay
+  gbof_ball_released:
+    great_balls_of_fire_music:
+      bus: music
+      loops: -1
+
+  # Phase 2: switch to rock version when multiball starts
+  gbof_mb_start:
+    great_balls_of_fire_music_rock:
+      bus: music
+      loops: -1
+
+  # Silence music only on failed (lost video). Won video keeps rock music playing.
+  gbof_failed:
+    silence:
+      bus: music
+      loops: 0
+
+  # Music continues through the 30s won video — silenced when mode stops below.
+
+  # Restart base music when mode stops (but NOT if drain pending — bonus handles it)
+  mode_great_balls_of_fire_stopped{current_player.pilot_mode_drain_pending==0}:
     music_danger_zone:
       bus: music
       loops: -1

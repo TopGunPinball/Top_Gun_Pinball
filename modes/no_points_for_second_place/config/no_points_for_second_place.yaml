@@ -1322,9 +1322,13 @@ event_player:
 
   timer_no_points_for_second_place_complete_delay_complete:
     - no_points_for_second_place_release_hold
-    - scoop_ball_release           # barrier_drop fires BEFORE cleanup's barrier_raise
-    - no_points_for_second_place_cleanup
-    - pilot_mode_cleanup_complete
+    # scoop_ball_release is NOT fired here — it is already fired by:
+    #   release_hold{wave==1} → victory_ball_released → scoop_ball_release
+    # Firing it here was a duplicate AND caused barrier_drop + barrier_raise in the
+    # same event tick (cleanup fires barrier_raise immediately after release_hold fires
+    # barrier_drop, giving the coil 3ms before it's cancelled → ball hits raised barrier).
+    - no_points_for_second_place_cleanup|600ms   # Delayed 600ms: barrier must stay down
+    - pilot_mode_cleanup_complete|600ms          # until ball has physically cleared the barrier
 
   ##############################################
   ## FAIL

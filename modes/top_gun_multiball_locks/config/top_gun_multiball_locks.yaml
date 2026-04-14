@@ -74,6 +74,7 @@ ball_holds:
       - lock_disable_scoop_for_mode
     release_one_events:
       - mb_balls_release
+      - lock_disable_scoop_for_mode
     release_all_events:
       - mode_top_gun_multiball_locks_will_stop
 
@@ -156,7 +157,7 @@ timers:
     control_events:
       - event: mb_mode_choice_start
         action: restart
-      - event: mb_mode_choice_stack
+      - event: mb_mode_choice_mode_only
         action: stop
       - event: mb_mode_choice_mb_only
         action: stop
@@ -537,6 +538,11 @@ variable_player:
     mb_choice_seconds_remaining:
       action: set
       int: 15
+
+  mb_mode_choice_mode_only:
+    mb_mode_choice_active:
+      action: set
+      int: 0
 
   # Update countdown variable each tick (decrements from 10)
   timer_mb_mode_choice_timer_tick:
@@ -1006,14 +1012,14 @@ event_player:
   ##############################################################################
   # MULTIBALL + MODE CHOICE SYSTEM
   # When both MB and a pilot mode are qualified, let player choose:
-  #   Left flipper  = Stack mode WITH multiball
+  #   Left flipper  = Mode only (multiball stays qualified for later)
   #   Right flipper = Multiball only (mode stays qualified for later)
   #   Timeout (10s) = Defaults to multiball only
   ##############################################################################
 
-  # Left flipper during choice → STACK (mode + MB)
+  # Left flipper during choice → MODE ONLY (no multiball)
   s_flipper_left_active{current_player.mb_mode_choice_active==1}:
-    - mb_mode_choice_stack
+    - mb_mode_choice_mode_only
 
   # Right flipper during choice → MB ONLY
   s_flipper_right_active{current_player.mb_mode_choice_active==1}:
@@ -1023,9 +1029,8 @@ event_player:
   timer_mb_mode_choice_timer_complete:
     - mb_mode_choice_mb_only
 
-  # STACK path: start both MB and the qualified mode
-  mb_mode_choice_stack:
-    - multiball_start_sequence
+  # MODE ONLY path: start just the mode, multiball stays qualified for later
+  mb_mode_choice_mode_only:
     - mb_choice_start_qualified_mode
 
   # MB ONLY path: start just MB, mode stays qualified for later
@@ -1601,7 +1606,7 @@ slide_player:
       action: play
       priority: 900
 
-  mb_mode_choice_stack:
+  mb_mode_choice_mode_only:
     multiball_stack_choice:
       action: remove
 
