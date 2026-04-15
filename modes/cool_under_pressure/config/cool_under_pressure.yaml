@@ -1,0 +1,2470 @@
+#config_version=6
+
+####################################################################################
+# COOL UNDER PRESSURE - PILOT MISSION MODE
+# Based on Iceman (Top Gun 1986 / Top Gun: Maverick)
+# Priority: 600 | No global timer | Steps: 8 | No multiball | Cannot stack
+# GI Color: Ice Blue (4DB8D4) | Good shot inserts: 00AAFF
+#
+# ICE CRYSTAL SYSTEM (composure mechanic):
+#   Start: 3 crystals | Lose on: bad shot hit OR shot timer expiry
+#   3 crystals = 3x points, 1 bad shot lit
+#   2 crystals = 2x points, 2 bad shots lit
+#   1 crystal  = 1x points, 3 bad shots lit
+#   0 crystals = 1x points (floor), max bad shots — next mistake = immediate fail
+#
+# SHOT SEQUENCE:
+#   Step 1:  LR/LO/SP good | TL+(more) bad | 50K×crystals  | 30s
+#   Step 2:  TWR/RR/TR good | LR+(more) bad | 75K×crystals  | 30s
+#   Step 3:  SP/TWR good   | RR+(more) bad | 100K×crystals | 30s
+#   Step 4:  TL/TO good    | LR+(more) bad | 125K×crystals | 25s [top+right ramp UP]
+#   Step 5:  RO good       | Barrier+(more) bad | 150K×crystals | 25s [right UP, top DOWN]
+#   Step 6:  TO good       | TL+(more) bad | 175K×crystals | 40s [top UP, right DOWN]
+#   Step 7:  LO good       | RR+(more) bad | 200K×crystals | 30s [top ramp DOWN]
+#   Step 8:  Scoop good    | LR+(more) bad | 250K×crystals | 25s [barrier DOWN]
+#
+# PERKS:
+#   Afterburner: Shot timer jumps to 9999 (effectively infinite) for entire mode
+#   Missiles:    Auto-collects current step's good shot
+#
+# SLIDES (all defined in Godot):
+#   cool_under_pressure_background         - Always present
+#   cool_under_pressure_1_crystals         - 1st jet iced (shown after 1st bad event)
+#   cool_under_pressure_2_crystals         - 2nd jet iced (adds on top after 2nd bad event)
+#   cool_under_pressure_3_crystals         - 3rd jet iced (adds on top after 3rd bad event)
+#   cool_under_pressure_2_crystals         - 2 crystal overlay
+#   cool_under_pressure_1_crystal          - 1 crystal overlay
+#   cool_under_pressure_intro              - Intro video (15s, skippable)
+#   cool_under_pressure_won                - Won video (15s, skippable)
+#   cool_under_pressure_lost               - Lost video (15s, skippable)
+#   cool_under_pressure_step_1 .. step_7   - Shot completion videos (brief overlays)
+#   cool_under_pressure_timer              - Var: cool_under_pressure_timer_tick
+#   cool_under_pressure_timer_afterburner  - Replaces timer slide when perk active
+#   cool_under_pressure_shots_remaining    - Var: cup_shots_remaining
+#
+# TIMING:
+#   Intro video: 17s | Won video: 25s | Lost video: 20s | Barrier delay: 1s | Drain delay: 5s
+#   Shot timers: Steps 1-3,7: 30s | Steps 4-5,8: 25s | Step 6: 40s
+#
+# LIGHT COLORS:
+#   Good shots: 00AAFF (vivid ice blue) | Bad shots: FF0000 (red, solid)
+#   Unlit shots: off | GI: ice blue ambient
+#
+# BASE.YAML ADDITIONS REQUIRED:
+#   sound_player: cup_ball_released → cup_music (bus: music, loops: -1)
+#                 cup_complete     → silence (bus: music)
+#                 cup_failed       → silence (bus: music)
+#                 mode_cool_under_pressure_stopped → music_danger_zone (bus: music, loops: -1)
+#   slide_player: cup_show_step_X_points → mode_points_scored (priority: 840, expire: 2s)
+#
+# PILOT_MISSION_QUALIFIER.YAML ADDITIONS REQUIRED:
+#   variable_player: mode_cool_under_pressure_stopped → clear letter_collection_paused,
+#                    pilot_mode_active, missiles_perk, topgun letters
+#   event_player:    mode_cool_under_pressure_stopped{pilot_mode_drain_pending==1}
+#                    → pilot_mission_bonus_ready + pilot_mission_drain_complete
+#   light_player:    mode_cool_under_pressure_started → l_pilot_mission_lit off, mode light white
+####################################################################################
+
+mode:
+  start_events: start_mode_cool_under_pressure
+  stop_events:
+    - timer_cup_complete_delay_complete
+    - timer_cup_failed_delay_complete
+    - cup_drain_cleanup_complete
+  priority: 600
+  game_mode: true
+  use_wait_queue: true
+
+mode_settings:
+  can_stack_with_multiball: false
+
+####################################################################################
+# BALL HOLDS
+####################################################################################
+
+ball_holds:
+  cup_scoop_hold:
+    balls_to_hold: 1
+    hold_devices: bd_mode_scoop
+    enable_events:
+      - mode_cool_under_pressure_started
+      - cup_setup_step_8            # Re-enable for final shot hold
+    release_one_events:
+      - cup_ball_released           # Post-intro release
+      - cup_victory_ball_exit       # Delayed version - barrier raises first
+    release_all_events:
+      - mode_cool_under_pressure_will_stop
+
+####################################################################################
+# QUEUE RELAY PLAYER
+####################################################################################
+
+queue_relay_player:
+  ball_ending{mode.cool_under_pressure.active==True}:
+    post: cup_ball_ending_hold
+    wait_for: cup_drain_cleanup_complete
+    priority: 1000
+
+
+####################################################################################
+# TIMERS
+####################################################################################
+
+timers:
+
+  # Per-shot countdown timer — duration set via jump on each setup event
+  # No global mode timer; this is the only timer the player races
+  cup_shot_timer:
+    start_value: 30
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    control_events:
+      # Stop on mode start — doesn't run until ball released
+      - event: mode_cool_under_pressure_started
+        action: stop
+      # Stop on crystal loss — restarts when cup_setup_step_X re-fires
+      - event: cup_crystal_lost
+        action: stop
+      # Stop on any good shot made
+      - event: cup_step_1_complete
+        action: stop
+      - event: cup_step_2_complete
+        action: stop
+      - event: cup_step_3_complete
+        action: stop
+      - event: cup_step_4_complete
+        action: stop
+      - event: cup_step_5_complete
+        action: stop
+      - event: cup_step_6_complete
+        action: stop
+      - event: cup_step_7_complete
+        action: stop
+      - event: cup_step_8_complete
+        action: stop
+      # Stop on mode end
+      - event: cup_complete
+        action: stop
+      - event: cup_failed
+        action: stop
+      # Jump + start for 30s steps (1,2,3,7)
+      - event: cup_start_shot_timer_30
+        action: jump
+        value: 30
+      - event: cup_start_shot_timer_30
+        action: start
+      # Jump + start for 25s steps (4,5,8)
+      - event: cup_start_shot_timer_25
+        action: jump
+        value: 25
+      - event: cup_start_shot_timer_25
+        action: start
+      # Jump + start for 40s step (6)
+      - event: cup_start_shot_timer_40
+        action: jump
+        value: 40
+      - event: cup_start_shot_timer_40
+        action: start
+      # Afterburner perk — effectively infinite time
+      - event: afterburner_extend_cup_shot_timer
+        action: jump
+        value: 9999
+      # Pause/resume for lock sequence
+      - event: lock_sequence_timer_pause
+        action: pause
+      - event: lock_sequence_timer_resume
+        action: start
+
+  # Intro video delay — 18 seconds
+  cup_intro_video_delay:
+    start_value: 0
+    end_value: 18
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: mode_cool_under_pressure_started
+        action: start
+      - event: cup_skip_intro
+        action: stop
+
+  # Voice callout delay — 13 seconds after intro video ends
+  cup_voice_callout_delay:
+    start_value: 0
+    end_value: 13
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: timer_cup_intro_video_delay_complete
+        action: start
+      - event: cup_skip_intro
+        action: stop
+
+  # Bad shot lockout — 3 seconds after any crystal loss.
+  # Prevents coasting switches (especially spinner) from registering
+  # a second bad shot immediately after the first one.
+  cup_bad_shot_lockout:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: cup_crystal_lost
+        action: restart
+      - event: cup_failed
+        action: stop
+      - event: cup_complete
+        action: stop
+
+  # Step complete lockout — 500ms after any step completes.
+  # Prevents two ramp exit switches (e.g. TWR + TR on the same physical shot)
+  # from each firing step_N_complete and double-decrementing shots_remaining.
+  cup_step_complete_lockout:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 500ms
+    start_running: false
+    control_events:
+      - event: cup_step_1_complete
+        action: restart
+      - event: cup_step_2_complete
+        action: restart
+      - event: cup_step_3_complete
+        action: restart
+      - event: cup_step_4_complete
+        action: restart
+      - event: cup_step_5_complete
+        action: restart
+      - event: cup_step_6_complete
+        action: restart
+      - event: cup_step_7_complete
+        action: restart
+      - event: cup_step_8_complete
+        action: restart
+      - event: cup_failed
+        action: stop
+      - event: cup_complete
+        action: stop
+
+  # Spinner lockout — restarts on every spinner_shot_made.
+  # Prevents coasting spinner from scoring a good shot then immediately a bad shot,
+  # or double-completing the same step. Fixes shots_remaining off-by-one caused by
+  # double step completion.
+  cup_spinner_lockout:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: spinner_shot_made
+        action: restart
+      - event: mode_cool_under_pressure_will_stop
+        action: stop
+
+  # Barrier release debounce — 1 second after scoop eject
+  cup_barrier_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: cup_ball_released
+        action: restart
+
+  # Drain delay — holds ball_ending process while lost video plays
+  # MUST match cup_failed_delay end_value so bonus doesn't start before video ends
+  cup_drain_delay:
+    start_value: 0
+    end_value: 20
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: cup_drain_detected
+        action: start
+      - event: cup_skip_drain_video
+        action: jump
+        value: 20
+
+  # Won video delay — 25 seconds
+  cup_complete_delay:
+    start_value: 0
+    end_value: 25
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: cup_complete
+        action: start
+      - event: cup_skip_won_video
+        action: jump
+        value: 25
+
+  # Lost video delay — 20 seconds
+  cup_failed_delay:
+    start_value: 0
+    end_value: 20
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: cup_failed
+        action: start
+      - event: cup_skip_failed_video
+        action: jump
+        value: 20
+
+
+####################################################################################
+# VARIABLE PLAYER
+####################################################################################
+
+variable_player:
+
+  # ─── MODE INIT ───────────────────────────────────────────────────────────────
+  mode_cool_under_pressure_started:
+    pilot_mode_active:
+      action: set
+      int: 1
+    letter_collection_paused:
+      action: set
+      int: 1
+    mode_cool_under_pressure_played:
+      action: set
+      int: 1
+    pilot_missions_played:
+      action: add
+      int: 1
+    cup_step:
+      action: set
+      int: 0
+    cup_crystals:
+      action: set
+      int: 3
+    cup_complete_flag:
+      action: set
+      int: 0
+    cup_shots_remaining:
+      action: set
+      int: 8
+    mode_points_scored:
+      action: set
+      int: 0
+    cool_under_pressure_timer_tick:
+      action: set
+      int: 0
+
+  # ─── DRAIN PENDING ───────────────────────────────────────────────────────────
+  ball_will_end{mode.cool_under_pressure.active==True}:
+    pilot_mode_drain_pending:
+      action: set
+      int: 1
+
+  # ─── STEP TRACKING ───────────────────────────────────────────────────────────
+  cup_setup_step_1:
+    cup_step:
+      action: set
+      int: 1
+
+  cup_setup_step_2:
+    cup_step:
+      action: set
+      int: 2
+
+  cup_setup_step_3:
+    cup_step:
+      action: set
+      int: 3
+
+  cup_setup_step_4:
+    cup_step:
+      action: set
+      int: 4
+
+  cup_setup_step_5:
+    cup_step:
+      action: set
+      int: 5
+
+  cup_setup_step_6:
+    cup_step:
+      action: set
+      int: 6
+
+  cup_setup_step_7:
+    cup_step:
+      action: set
+      int: 7
+
+  cup_setup_step_8:
+    cup_step:
+      action: set
+      int: 8
+
+  # ─── TIMER TICK DISPLAY VARIABLE ─────────────────────────────────────────────
+  # Initialize display variable immediately when each shot timer starts
+  # (before first tick fires) so slide shows correct value from the start
+  cup_start_shot_timer_30:
+    cool_under_pressure_timer_tick:
+      action: set
+      int: 30
+
+  cup_start_shot_timer_25:
+    cool_under_pressure_timer_tick:
+      action: set
+      int: 25
+
+  cup_start_shot_timer_40:
+    cool_under_pressure_timer_tick:
+      action: set
+      int: 40
+
+  timer_cup_shot_timer_tick:
+    cool_under_pressure_timer_tick:
+      action: set
+      int: device.timers.cup_shot_timer.ticks
+
+  # ─── SHOTS REMAINING ─────────────────────────────────────────────────────────
+  cup_step_1_complete:
+    cup_shots_remaining:
+      action: add
+      int: -1
+
+  cup_step_2_complete:
+    cup_shots_remaining:
+      action: add
+      int: -1
+
+  cup_step_3_complete:
+    cup_shots_remaining:
+      action: add
+      int: -1
+
+  cup_step_4_complete:
+    cup_shots_remaining:
+      action: add
+      int: -1
+
+  cup_step_5_complete:
+    cup_shots_remaining:
+      action: add
+      int: -1
+
+  cup_step_6_complete:
+    cup_shots_remaining:
+      action: add
+      int: -1
+
+  cup_step_7_complete:
+    cup_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 8 complete: shots remaining + victory tracking
+  cup_step_8_complete:
+    cup_shots_remaining:
+      action: add
+      int: -1
+    cup_complete_flag:
+      action: set
+      int: 1
+    pilot_missions_won:
+      action: add
+      int: 1
+    missiles_perk_saved:
+      action: set
+      int: current_player.missiles_perk_active
+    missiles_perk_active:
+      action: set
+      int: 0
+    mode_cool_under_pressure_won:
+      action: set
+      int: 1
+
+  mode_cool_under_pressure_stopped:
+    mode_cool_under_pressure_complete:
+      action: set
+      int: current_player.cup_complete_flag
+
+  # ─── CRYSTAL STATE ───────────────────────────────────────────────────────────
+  cup_lost_crystal_now_2:
+    cup_crystals:
+      action: set
+      int: 2
+
+  cup_lost_crystal_now_1:
+    cup_crystals:
+      action: set
+      int: 1
+
+  cup_lost_crystal_now_0:
+    cup_crystals:
+      action: set
+      int: 0
+
+  # ─── CONDITIONAL SCORING: Step 1 (200K base × crystals) ──────────────────────
+  cup_step_1_score{current_player.cup_crystals==3}:
+    score:
+      action: add
+      int: 600000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 600000 * current_player.total_scoring_multiplier
+
+  cup_step_1_score{current_player.cup_crystals==2}:
+    score:
+      action: add
+      int: 400000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 400000 * current_player.total_scoring_multiplier
+
+  cup_step_1_score{current_player.cup_crystals<=1}:
+    score:
+      action: add
+      int: 200000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 200000 * current_player.total_scoring_multiplier
+
+  # ─── CONDITIONAL SCORING: Step 2 (240K base × crystals) ──────────────────────
+  cup_step_2_score{current_player.cup_crystals==3}:
+    score:
+      action: add
+      int: 720000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 720000 * current_player.total_scoring_multiplier
+
+  cup_step_2_score{current_player.cup_crystals==2}:
+    score:
+      action: add
+      int: 480000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 480000 * current_player.total_scoring_multiplier
+
+  cup_step_2_score{current_player.cup_crystals<=1}:
+    score:
+      action: add
+      int: 240000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 240000 * current_player.total_scoring_multiplier
+
+  # ─── CONDITIONAL SCORING: Step 3 (280K base × crystals) ─────────────────────
+  cup_step_3_score{current_player.cup_crystals==3}:
+    score:
+      action: add
+      int: 840000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 840000 * current_player.total_scoring_multiplier
+
+  cup_step_3_score{current_player.cup_crystals==2}:
+    score:
+      action: add
+      int: 560000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 560000 * current_player.total_scoring_multiplier
+
+  cup_step_3_score{current_player.cup_crystals<=1}:
+    score:
+      action: add
+      int: 280000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 280000 * current_player.total_scoring_multiplier
+
+  # ─── CONDITIONAL SCORING: Step 4 (320K base × crystals) ─────────────────────
+  cup_step_4_score{current_player.cup_crystals==3}:
+    score:
+      action: add
+      int: 960000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 960000 * current_player.total_scoring_multiplier
+
+  cup_step_4_score{current_player.cup_crystals==2}:
+    score:
+      action: add
+      int: 640000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 640000 * current_player.total_scoring_multiplier
+
+  cup_step_4_score{current_player.cup_crystals<=1}:
+    score:
+      action: add
+      int: 320000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 320000 * current_player.total_scoring_multiplier
+
+  # ─── CONDITIONAL SCORING: Step 5 (360K base × crystals) ─────────────────────
+  cup_step_5_score{current_player.cup_crystals==3}:
+    score:
+      action: add
+      int: 1080000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 1080000 * current_player.total_scoring_multiplier
+
+  cup_step_5_score{current_player.cup_crystals==2}:
+    score:
+      action: add
+      int: 720000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 720000 * current_player.total_scoring_multiplier
+
+  cup_step_5_score{current_player.cup_crystals<=1}:
+    score:
+      action: add
+      int: 360000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 360000 * current_player.total_scoring_multiplier
+
+  # ─── CONDITIONAL SCORING: Step 6 (400K base × crystals) ─────────────────────
+  cup_step_6_score{current_player.cup_crystals==3}:
+    score:
+      action: add
+      int: 1200000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 1200000 * current_player.total_scoring_multiplier
+
+  cup_step_6_score{current_player.cup_crystals==2}:
+    score:
+      action: add
+      int: 800000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 800000 * current_player.total_scoring_multiplier
+
+  cup_step_6_score{current_player.cup_crystals<=1}:
+    score:
+      action: add
+      int: 400000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 400000 * current_player.total_scoring_multiplier
+
+  # ─── CONDITIONAL SCORING: Step 7 (500K base × crystals) ─────────────────────
+  cup_step_7_score{current_player.cup_crystals==3}:
+    score:
+      action: add
+      int: 1500000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 1500000 * current_player.total_scoring_multiplier
+
+  cup_step_7_score{current_player.cup_crystals==2}:
+    score:
+      action: add
+      int: 1000000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 1000000 * current_player.total_scoring_multiplier
+
+  cup_step_7_score{current_player.cup_crystals<=1}:
+    score:
+      action: add
+      int: 500000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 500000 * current_player.total_scoring_multiplier
+
+  # ─── CONDITIONAL SCORING: Step 8 (700K base × crystals) ─────────────────────
+  cup_step_8_score{current_player.cup_crystals==3}:
+    score:
+      action: add
+      int: 2100000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 2100000 * current_player.total_scoring_multiplier
+
+  cup_step_8_score{current_player.cup_crystals==2}:
+    score:
+      action: add
+      int: 1400000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 1400000 * current_player.total_scoring_multiplier
+
+  cup_step_8_score{current_player.cup_crystals<=1}:
+    score:
+      action: add
+      int: 700000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 700000 * current_player.total_scoring_multiplier
+
+
+####################################################################################
+# EVENT PLAYER
+####################################################################################
+
+event_player:
+
+  # ─── INTRO SKIP (BOTH FLIPPERS) ──────────────────────────────────────────────
+  # Works during BOTH the intro video AND the voice callout delay
+  s_flipper_left_active{current_player.cup_step==0 and (device.timers.cup_intro_video_delay.running or device.timers.cup_voice_callout_delay.running)}:
+    - cup_check_skip_intro
+  s_flipper_right_active{current_player.cup_step==0 and (device.timers.cup_intro_video_delay.running or device.timers.cup_voice_callout_delay.running)}:
+    - cup_check_skip_intro
+  cup_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - cup_skip_intro
+
+  # Raise barrier on mode start (ball held in scoop during intro)
+  # scoop_ball_release (fired on skip/complete) handles the drop before eject
+  mode_cool_under_pressure_started:
+    - barrier_raise
+
+  # Intro complete → voice callout plays (timer auto-starts via control_events)
+  # No ball release here — that happens after the callout timer completes.
+  # (slide swap handled in slide_player, sound in sound_player)
+
+  # Callout complete → release ball and start gameplay
+  timer_cup_voice_callout_delay_complete:
+    - scoop_ball_release
+    - cup_ball_released|400ms
+    - cup_setup_step_1|400ms
+
+  # Skip path (both flippers during intro OR callout) → release immediately
+  # cup_skip_intro stops both timers via their control_events
+  cup_skip_intro:
+    - scoop_ball_release
+    - cup_ball_released|400ms
+    - cup_setup_step_1|400ms
+
+  # ─── AFTERBURNER PERK ────────────────────────────────────────────────────────
+  # 500ms delay ensures shot timer has already started before jump to 9999
+  cup_ball_released{current_player.afterburner_perk_active==1}:
+    - afterburner_extend_cup_shot_timer|500ms
+
+  # ─── STEP SETUP — TIMER + SERVOS (combined, no duplicate keys) ───────────────
+  # Steps 1-3: no servo changes needed
+  cup_setup_step_1:
+    - cup_start_shot_timer_30
+
+  cup_setup_step_2:
+    - cup_start_shot_timer_30
+
+  cup_setup_step_3:
+    - cup_start_shot_timer_30
+
+  # Step 4: top ramp UP first, right ramp UP 500ms later (staggered)
+  cup_setup_step_4:
+    - cup_start_shot_timer_25
+    - top_ramp_up
+    - right_ramp_up|500ms
+
+  # Step 5: lower top ramp (right ramp stays UP from step 4)
+  cup_setup_step_5:
+    - cup_start_shot_timer_25
+    - top_ramp_down
+
+  # Step 6: top ramp UP first, lower right ramp 500ms later
+  cup_setup_step_6:
+    - cup_start_shot_timer_40
+    - top_ramp_up
+    - right_ramp_down|500ms
+
+  # Step 7: lower top ramp
+  cup_setup_step_7:
+    - cup_start_shot_timer_30
+    - top_ramp_down
+
+  # Step 8: drop barrier to expose scoop
+  cup_setup_step_8:
+    - cup_start_shot_timer_25
+    - barrier_drop
+
+  # ─── STEP PROGRESSION (good shot made → score → next setup) ──────────────────
+  # NOTE: cup_stop_step_lights clears all shot lights before next step activates.
+  # Step videos play as brief overlays (slide_player handles them).
+  # Setup delay is longer on servo steps (700ms) to avoid motor overlap on crystal relight.
+  cup_step_1_complete:
+    - cup_step_1_score
+    - cup_show_step_1_points
+    - cup_stop_step_lights
+    - cup_play_step_1_video
+    - cup_setup_step_2|200ms
+
+  cup_step_2_complete:
+    - cup_step_2_score
+    - cup_show_step_2_points
+    - cup_stop_step_lights
+    - cup_play_step_2_video
+    - cup_setup_step_3|200ms
+
+  cup_step_3_complete:
+    - cup_step_3_score
+    - cup_show_step_3_points
+    - cup_stop_step_lights
+    - cup_play_step_3_video
+    - cup_setup_step_4|700ms
+
+  cup_step_4_complete:
+    - cup_step_4_score
+    - cup_show_step_4_points
+    - cup_stop_step_lights
+    - cup_play_step_4_video
+    - cup_setup_step_5|700ms
+
+  cup_step_5_complete:
+    - cup_step_5_score
+    - cup_show_step_5_points
+    - cup_stop_step_lights
+    - cup_play_step_5_video
+    - cup_setup_step_6|700ms
+
+  cup_step_6_complete:
+    - cup_step_6_score
+    - cup_show_step_6_points
+    - cup_stop_step_lights
+    - cup_play_step_6_video
+    - cup_setup_step_7|700ms
+
+  cup_step_7_complete:
+    - cup_step_7_score
+    - cup_show_step_7_points
+    - cup_stop_step_lights
+    - cup_play_step_7_video
+    - cup_setup_step_8|700ms
+
+  # Step 8: score, clear lights, trigger victory (no next setup)
+  cup_step_8_complete:
+    - cup_step_8_score
+    - cup_show_step_8_points
+    - cup_stop_step_lights
+    - cup_complete
+
+  # ─── GOOD SHOT DETECTION ─────────────────────────────────────────────────────
+  # Step 1: LR, LO, Spinner
+  s_ramp_left_exit_active{current_player.cup_step==1 and device.timers.cup_step_complete_lockout.running==False}:
+    - cup_left_shot_hit
+    - cup_step_1_complete
+  left_orbit_shot_hit{current_player.cup_step==1 and device.timers.cup_step_complete_lockout.running==False}:
+    - cup_left_shot_hit
+    - cup_step_1_complete
+  spinner_shot_made{current_player.cup_step==1 and device.timers.cup_spinner_lockout.running==False and device.timers.cup_step_complete_lockout.running==False}:
+    - cup_center_shot_hit
+    - cup_step_1_complete
+
+  # Step 2: TWR, RR, TR
+  s_ramp_tower_exit_active{current_player.cup_step==2 and device.timers.cup_step_complete_lockout.running==False}:
+    - cup_center_shot_hit
+    - cup_step_2_complete
+  s_ramp_right_exit_active{current_player.cup_step==2 and device.timers.cup_step_complete_lockout.running==False}:
+    - cup_right_shot_hit
+    - cup_step_2_complete
+  s_ramp_inner_exit_active{current_player.cup_step==2 and device.timers.cup_step_complete_lockout.running==False}:
+    - cup_right_shot_hit
+    - cup_step_2_complete
+
+  # Step 3: Spinner, TWR
+  spinner_shot_made{current_player.cup_step==3 and device.timers.cup_spinner_lockout.running==False and device.timers.cup_step_complete_lockout.running==False}:
+    - cup_center_shot_hit
+    - cup_step_3_complete
+  s_ramp_tower_exit_active{current_player.cup_step==3 and device.timers.cup_step_complete_lockout.running==False}:
+    - cup_center_shot_hit
+    - cup_step_3_complete
+
+  # Step 4: TL, TO (top ramp is UP)
+  s_orbit_upper_active{current_player.cup_step==4 and device.timers.cup_step_complete_lockout.running==False}:
+    - cup_right_shot_hit
+    - cup_step_4_complete
+  s_orbit_lower_active{current_player.cup_step==4 and device.timers.cup_step_complete_lockout.running==False}:
+    - cup_right_shot_hit
+    - cup_step_4_complete
+
+  # Step 5: RO (right orbit; right ramp is UP)
+  right_orbit_shot_hit{current_player.cup_step==5 and device.timers.cup_step_complete_lockout.running==False}:
+    - cup_right_shot_hit
+    - cup_step_5_complete
+
+  # Step 6: TO (top ramp is UP)
+  s_orbit_lower_active{current_player.cup_step==6 and device.timers.cup_step_complete_lockout.running==False}:
+    - cup_right_shot_hit
+    - cup_step_6_complete
+
+  # Step 7: LO
+  left_orbit_shot_hit{current_player.cup_step==7 and device.timers.cup_step_complete_lockout.running==False}:
+    - cup_left_shot_hit
+    - cup_step_7_complete
+
+  # Step 8: Scoop (barrier is DOWN)
+  s_mode_start_active{current_player.cup_step==8 and device.timers.cup_step_complete_lockout.running==False}:
+    - cup_center_shot_hit
+    - cup_step_8_complete
+
+  # ─── MISSILES PERK — auto-collect current step ────────────────────────────────
+  # Event: missiles_perk_complete_shot (matches all other pilot modes)
+  # complete_flag==0 guard prevents firing after mode is already won.
+  # Step 8 (scoop) intentionally omitted — ball must physically enter scoop.
+  missiles_perk_complete_shot{current_player.cup_step==1 and current_player.cup_complete_flag==0}:
+    - cup_left_shot_hit
+    - cup_step_1_complete
+  missiles_perk_complete_shot{current_player.cup_step==2 and current_player.cup_complete_flag==0}:
+    - cup_right_shot_hit
+    - cup_step_2_complete
+  missiles_perk_complete_shot{current_player.cup_step==3 and current_player.cup_complete_flag==0}:
+    - cup_center_shot_hit
+    - cup_step_3_complete
+  missiles_perk_complete_shot{current_player.cup_step==4 and current_player.cup_complete_flag==0}:
+    - cup_right_shot_hit
+    - cup_step_4_complete
+  missiles_perk_complete_shot{current_player.cup_step==5 and current_player.cup_complete_flag==0}:
+    - cup_right_shot_hit
+    - cup_step_5_complete
+  missiles_perk_complete_shot{current_player.cup_step==6 and current_player.cup_complete_flag==0}:
+    - cup_right_shot_hit
+    - cup_step_6_complete
+  missiles_perk_complete_shot{current_player.cup_step==7 and current_player.cup_complete_flag==0}:
+    - cup_left_shot_hit
+    - cup_step_7_complete
+
+  # ─── BAD SHOT DETECTION ──────────────────────────────────────────────────────
+  # Only registers if the shot is LIT (conditions match crystal count).
+  # Unlit shots (not good, not bad) do nothing.
+
+  # STEP 1 bad shots:
+  # TL always bad (3,2,1,0)
+  s_orbit_upper_active{current_player.cup_step==1}:
+    - cup_bad_shot_hit
+  # TWR bad at 2,1,0 crystals
+  s_ramp_tower_exit_active{current_player.cup_step==1 and current_player.cup_crystals<=2}:
+    - cup_bad_shot_hit
+  # TR bad at 1,0 crystals
+  s_ramp_inner_exit_active{current_player.cup_step==1 and current_player.cup_crystals<=1}:
+    - cup_bad_shot_hit
+  # RR bad at 0 crystals
+  s_ramp_right_exit_active{current_player.cup_step==1 and current_player.cup_crystals==0}:
+    - cup_bad_shot_hit
+
+  # STEP 2 bad shots:
+  # LR always bad
+  s_ramp_left_exit_active{current_player.cup_step==2}:
+    - cup_bad_shot_hit
+  # LO bad at 2,1,0
+  left_orbit_shot_hit{current_player.cup_step==2 and current_player.cup_crystals<=2}:
+    - cup_bad_shot_hit
+  # Spinner bad at 1,0
+  spinner_shot_made{current_player.cup_step==2 and current_player.cup_crystals<=1 and device.timers.cup_spinner_lockout.running==False}:
+    - cup_bad_shot_hit
+  # Barrier bad at 0
+  s_barrier_target_active{current_player.cup_step==2 and current_player.cup_crystals==0}:
+    - cup_bad_shot_hit
+
+  # STEP 3 bad shots:
+  # RR always bad
+  s_ramp_right_exit_active{current_player.cup_step==3}:
+    - cup_bad_shot_hit
+  # LR bad at 2,1,0
+  s_ramp_left_exit_active{current_player.cup_step==3 and current_player.cup_crystals<=2}:
+    - cup_bad_shot_hit
+  # LO bad at 1,0
+  left_orbit_shot_hit{current_player.cup_step==3 and current_player.cup_crystals<=1}:
+    - cup_bad_shot_hit
+  # TR bad at 0
+  s_ramp_inner_exit_active{current_player.cup_step==3 and current_player.cup_crystals==0}:
+    - cup_bad_shot_hit
+
+  # STEP 4 bad shots:
+  # LR always bad
+  s_ramp_left_exit_active{current_player.cup_step==4}:
+    - cup_bad_shot_hit
+  # Spinner bad at 2,1,0
+  spinner_shot_made{current_player.cup_step==4 and current_player.cup_crystals<=2 and device.timers.cup_spinner_lockout.running==False}:
+    - cup_bad_shot_hit
+  # TWR bad at 1,0
+  s_ramp_tower_exit_active{current_player.cup_step==4 and current_player.cup_crystals<=1}:
+    - cup_bad_shot_hit
+  # Barrier bad at 0
+  s_barrier_target_active{current_player.cup_step==4 and current_player.cup_crystals==0}:
+    - cup_bad_shot_hit
+
+  # STEP 5 bad shots:
+  # Barrier always bad
+  s_barrier_target_active{current_player.cup_step==5}:
+    - cup_bad_shot_hit
+  # Spinner bad at 2,1,0
+  spinner_shot_made{current_player.cup_step==5 and current_player.cup_crystals<=2 and device.timers.cup_spinner_lockout.running==False}:
+    - cup_bad_shot_hit
+  # TWR bad at 1,0
+  s_ramp_tower_exit_active{current_player.cup_step==5 and current_player.cup_crystals<=1}:
+    - cup_bad_shot_hit
+  # LR bad at 0
+  s_ramp_left_exit_active{current_player.cup_step==5 and current_player.cup_crystals==0}:
+    - cup_bad_shot_hit
+
+  # STEP 6 bad shots:
+  # TL always bad
+  s_orbit_upper_active{current_player.cup_step==6}:
+    - cup_bad_shot_hit
+  # Barrier bad at 2,1,0
+  s_barrier_target_active{current_player.cup_step==6 and current_player.cup_crystals<=2}:
+    - cup_bad_shot_hit
+  # LR bad at 1,0
+  s_ramp_left_exit_active{current_player.cup_step==6 and current_player.cup_crystals<=1}:
+    - cup_bad_shot_hit
+  # LO bad at 0
+  left_orbit_shot_hit{current_player.cup_step==6 and current_player.cup_crystals==0}:
+    - cup_bad_shot_hit
+
+  # STEP 7 bad shots:
+  # RR always bad
+  s_ramp_right_exit_active{current_player.cup_step==7}:
+    - cup_bad_shot_hit
+  # Spinner bad at 2,1,0
+  spinner_shot_made{current_player.cup_step==7 and current_player.cup_crystals<=2 and device.timers.cup_spinner_lockout.running==False}:
+    - cup_bad_shot_hit
+  # TWR bad at 1,0
+  s_ramp_tower_exit_active{current_player.cup_step==7 and current_player.cup_crystals<=1}:
+    - cup_bad_shot_hit
+  # LR bad at 0 (corrected per user: 0 crystals = RR, Spinner, LR, TWR)
+  s_ramp_left_exit_active{current_player.cup_step==7 and current_player.cup_crystals==0}:
+    - cup_bad_shot_hit
+
+  # STEP 8 bad shots:
+  # LR always bad
+  s_ramp_left_exit_active{current_player.cup_step==8}:
+    - cup_bad_shot_hit
+  # RR bad at 2,1,0
+  s_ramp_right_exit_active{current_player.cup_step==8 and current_player.cup_crystals<=2}:
+    - cup_bad_shot_hit
+  # Spinner bad at 1,0
+  spinner_shot_made{current_player.cup_step==8 and current_player.cup_crystals<=1 and device.timers.cup_spinner_lockout.running==False}:
+    - cup_bad_shot_hit
+  # TWR bad at 0
+  s_ramp_tower_exit_active{current_player.cup_step==8 and current_player.cup_crystals==0}:
+    - cup_bad_shot_hit
+
+  # ─── CRYSTAL LOSS CHAIN ───────────────────────────────────────────────────────
+  # Bad shot hit: check crystal count, fire appropriate loss event.
+  # Lockout guard prevents coasting switches (e.g. spinner) from scoring
+  # a second bad event immediately after the first crystal is lost.
+  cup_bad_shot_hit{current_player.cup_crystals==3 and device.timers.cup_bad_shot_lockout.running==False}:
+    - cup_crystal_lost
+    - cup_lost_crystal_now_2
+  cup_bad_shot_hit{current_player.cup_crystals==2 and device.timers.cup_bad_shot_lockout.running==False}:
+    - cup_crystal_lost
+    - cup_lost_crystal_now_1
+  cup_bad_shot_hit{current_player.cup_crystals==1 and device.timers.cup_bad_shot_lockout.running==False}:
+    - cup_crystal_lost
+    - cup_lost_crystal_now_0
+  cup_bad_shot_hit{current_player.cup_crystals==0 and device.timers.cup_bad_shot_lockout.running==False}:
+    - cup_failed
+
+  # Timer expiry: same chain as bad shot hit
+  timer_cup_shot_timer_complete{current_player.cup_crystals==3}:
+    - cup_crystal_lost
+    - cup_lost_crystal_now_2
+  timer_cup_shot_timer_complete{current_player.cup_crystals==2}:
+    - cup_crystal_lost
+    - cup_lost_crystal_now_1
+  timer_cup_shot_timer_complete{current_player.cup_crystals==1}:
+    - cup_crystal_lost
+    - cup_lost_crystal_now_0
+  timer_cup_shot_timer_complete{current_player.cup_crystals==0}:
+    - cup_failed
+
+  # After crystal loss: re-setup current step lights + restart shot timer.
+  # 100ms delay ensures variable_player has updated cup_crystals first.
+  # NOTE: For servo steps (4-7), refiring setup re-sends servo position — this is safe
+  # (idempotent) but will cause a brief motor pulse on crystal loss during those steps.
+  cup_crystal_lost{current_player.cup_step==1}:
+    - cup_setup_step_1|100ms
+  cup_crystal_lost{current_player.cup_step==2}:
+    - cup_setup_step_2|100ms
+  cup_crystal_lost{current_player.cup_step==3}:
+    - cup_setup_step_3|100ms
+  cup_crystal_lost{current_player.cup_step==4}:
+    - cup_setup_step_4|100ms
+  cup_crystal_lost{current_player.cup_step==5}:
+    - cup_setup_step_5|100ms
+  cup_crystal_lost{current_player.cup_step==6}:
+    - cup_setup_step_6|100ms
+  cup_crystal_lost{current_player.cup_step==7}:
+    - cup_setup_step_7|100ms
+  cup_crystal_lost{current_player.cup_step==8}:
+    - cup_setup_step_8|100ms
+
+  # ─── VICTORY FLOW ────────────────────────────────────────────────────────────
+  cup_complete:
+    - barrier_raise
+    - cup_stop_step_lights    # Clear all inserts immediately — player is done shooting
+    - timer_cup_complete_delay_start
+    - missiles_perk_unload
+
+  timer_cup_complete_delay_complete:
+    - cup_cleanup
+    - scoop_ball_release
+    - pilot_mode_cleanup_complete
+
+  # Won video skip (both flippers)
+  s_flipper_left_active{mode.cool_under_pressure.active and device.timers.cup_complete_delay.running}:
+    - cup_check_skip_won
+  s_flipper_right_active{mode.cool_under_pressure.active and device.timers.cup_complete_delay.running}:
+    - cup_check_skip_won
+  cup_check_skip_won{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - cup_skip_won_video
+
+  # Skip: drop barrier first, release ball 400ms later via delayed exit event
+  cup_skip_won_video:
+    - scoop_ball_release
+    - cup_victory_ball_exit|400ms
+
+  # ─── DRAIN / FAILED FLOW ─────────────────────────────────────────────────────
+  cup_failed:
+    - cup_stop_step_lights    # Clear all inserts immediately — mode is ending
+
+  cup_ball_ending_hold:
+    - cup_failed
+    - cup_drain_detected
+    - missiles_perk_unload
+
+  timer_cup_drain_delay_complete:
+    - cup_drain_cleanup_complete
+    - cup_cleanup
+
+  timer_cup_failed_delay_complete:
+    - cup_cleanup
+    - pilot_mode_cleanup_complete
+
+  # Lost video skip (both flippers)
+  s_flipper_left_active{mode.cool_under_pressure.active and device.timers.cup_failed_delay.running}:
+    - cup_check_skip_lost
+  s_flipper_right_active{mode.cool_under_pressure.active and device.timers.cup_failed_delay.running}:
+    - cup_check_skip_lost
+  cup_check_skip_lost{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - cup_skip_failed_video
+
+  # Drain video skip (both flippers during drain delay)
+  s_flipper_left_active{mode.cool_under_pressure.active and device.timers.cup_drain_delay.running}:
+    - cup_check_skip_drain
+  s_flipper_right_active{mode.cool_under_pressure.active and device.timers.cup_drain_delay.running}:
+    - cup_check_skip_drain
+  cup_check_skip_drain{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - cup_skip_drain_video
+
+  # ─── CLEANUP ─────────────────────────────────────────────────────────────────
+  cup_cleanup:
+    - barrier_raise
+    - top_ramp_down|500ms
+    - right_ramp_down|1000ms
+
+
+####################################################################################
+# SOUND PLAYER
+####################################################################################
+
+sound_player:
+
+  # Voice callout plays immediately after intro video ends (13s)
+  timer_cup_intro_video_delay_complete:
+    cool_under_pressure_voice_instructions:
+      bus: voice
+      loops: 0
+
+  # ─── BAD SHOT CALLOUTS ───────────────────────────────────────────────────────
+  # Fires at cup_crystals value BEFORE the crystal is deducted.
+  # cup_crystals==3 → 0 planes iced → first offence
+  # cup_crystals==2 → 1 plane iced → second offence
+  # cup_crystals==1 → 2 planes iced → third offence
+  # cup_crystals==0 → mode fails immediately, no callout needed
+
+  cup_bad_shot_hit{current_player.cup_crystals==3}:
+    cool_under_pressure_voice_shot_missed_first_time:
+      bus: voice
+      loops: 0
+
+  cup_bad_shot_hit{current_player.cup_crystals==2}:
+    cool_under_pressure_voice_shot_missed_second_time:
+      bus: voice
+      loops: 0
+
+  cup_bad_shot_hit{current_player.cup_crystals==1}:
+    cool_under_pressure_voice_shot_missed_third_time:
+      bus: voice
+      loops: 0
+
+  # ─── TIMER EXPIRY CALLOUTS ───────────────────────────────────────────────────
+
+  timer_cup_shot_timer_complete{current_player.cup_crystals==3}:
+    cool_under_pressure_voice_timer_expired_first_time:
+      bus: voice
+      loops: 0
+
+  timer_cup_shot_timer_complete{current_player.cup_crystals==2}:
+    cool_under_pressure_voice_timer_expired_second_time:
+      bus: voice
+      loops: 0
+
+  timer_cup_shot_timer_complete{current_player.cup_crystals==1}:
+    cool_under_pressure_voice_timer_expired_third_time:
+      bus: voice
+      loops: 0
+
+####################################################################################
+# SHOW PLAYER
+####################################################################################
+# Good shots: sync_flash_mode (vivid ice blue, 00AAFF) — synchronized 1s flash cycle
+# Bad shots: solid red via light_player (no show needed)
+# GI: ice blue ambient throughout mode
+
+show_player:
+
+  # ─── GI AMBIENT ───────────────────────────────────────────────────────────
+  mode_cool_under_pressure_started:
+    cup_gi_ice_blue_ambient:
+      show: cup_gi_ice_blue
+      loops: -1
+      priority: 5
+  # ─── GOOD SHOT SHOWS ─────────────────────────────────────────────────────────
+  # Played once at speed 20 (~450ms) when a good shot is made.
+  # Shows are in modes/cool_under_pressure/shows/
+  cup_left_shot_hit:
+    left_show:
+      show: left_shot_hit
+      speed: 20
+      loops: 0
+
+  cup_center_shot_hit:
+    center_show:
+      show: center_shot_hit
+      speed: 20
+      loops: 0
+
+  cup_right_shot_hit:
+    right_show:
+      show: right_shot_hit
+      speed: 20
+      loops: 0
+
+  cup_bad_shot_hit:
+    cup_gi_bad_shot_strobe_play:
+      show: cup_gi_bad_shot_strobe
+      loops: 0
+      priority: 15
+
+  cup_crystal_lost:
+    cup_gi_crystal_crack:
+      show: cup_gi_crystal_crack
+      loops: 1
+      priority: 10
+
+  cup_complete:
+    cup_gi_ice_blue:
+      show: cup_gi_ice_blue
+      loops: -1
+      priority: 5
+
+  cup_failed:
+    cup_gi_failed:
+      show: cup_gi_failed
+      loops: 1
+      priority: 5
+
+  mode_cool_under_pressure_stopped:
+    cup_gi_ice_blue:
+      show: cup_gi_ice_blue
+      action: stop
+    cup_gi_failed:
+      show: cup_gi_failed
+      action: stop
+
+  # ─── STEP 1: Flash LR, LO, SP (good shots unchanged across crystal levels) ─
+  cup_setup_step_1:
+    cup_s1_lr:
+      show: sync_flash_mode
+      key: cup_good_lr
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_left_ramp, color: 00AAFF }
+    cup_s1_lo:
+      show: sync_flash_mode
+      key: cup_good_lo
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_left_orbit, color: 00AAFF }
+    cup_s1_sp:
+      show: sync_flash_mode
+      key: cup_good_sp
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_spinner, color: 00AAFF }
+
+  # ─── STEP 2: Flash TWR, RR, TR ────────────────────────────────────────────
+  cup_setup_step_2:
+    cup_s2_twr:
+      show: sync_flash_mode
+      key: cup_good_twr
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_tower_ramp, color: 00AAFF }
+    cup_s2_rr:
+      show: sync_flash_mode
+      key: cup_good_rr
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_right_orbit, color: 00AAFF }
+    cup_s2_tr:
+      show: sync_flash_mode
+      key: cup_good_tr
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_middle_ramp, color: 00AAFF }
+
+  # ─── STEP 3: Flash SP, TWR ────────────────────────────────────────────────
+  cup_setup_step_3:
+    cup_s3_sp:
+      show: sync_flash_mode
+      key: cup_good_sp
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_spinner, color: 00AAFF }
+    cup_s3_twr:
+      show: sync_flash_mode
+      key: cup_good_twr
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_tower_ramp, color: 00AAFF }
+
+  # ─── STEP 4: Flash TL, TO ─────────────────────────────────────────────────
+  cup_setup_step_4:
+    cup_s4_tl:
+      show: sync_flash_mode
+      key: cup_good_tl
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_upper_orbit, color: 00AAFF }
+    cup_s4_to:
+      show: sync_flash_mode
+      key: cup_good_to
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_middle_ramp, color: 00AAFF }
+
+  # ─── STEP 5: Flash RO ─────────────────────────────────────────────────────
+  cup_setup_step_5:
+    cup_s5_ro:
+      show: sync_flash_mode
+      key: cup_good_ro
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_right_orbit, color: 00AAFF }
+
+  # ─── STEP 6: Flash TO ─────────────────────────────────────────────────────
+  cup_setup_step_6:
+    cup_s6_to:
+      show: sync_flash_mode
+      key: cup_good_to
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_middle_ramp, color: 00AAFF }
+
+  # ─── STEP 7: Flash LO ─────────────────────────────────────────────────────
+  cup_setup_step_7:
+    cup_s7_lo:
+      show: sync_flash_mode
+      key: cup_good_lo
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_left_orbit, color: 00AAFF }
+
+  # ─── STEP 8: Flash Barrier ────────────────────────────────────────────────
+  cup_setup_step_8:
+    cup_s8_barrier:
+      show: sync_flash_mode
+      key: cup_good_barrier
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_barrier, color: 00AAFF }
+
+  # ─── STOP ALL GOOD SHOT FLASH SHOWS ──────────────────────────────────────
+  # Fires on step complete (before next step starts) and on cleanup.
+  # Covers every key used across all steps — safe to stop even if not running.
+  cup_stop_step_lights:
+    stop_cup_good_lr:
+      show: sync_flash_mode
+      action: stop
+      key: cup_good_lr
+    stop_cup_good_lo:
+      show: sync_flash_mode
+      action: stop
+      key: cup_good_lo
+    stop_cup_good_sp:
+      show: sync_flash_mode
+      action: stop
+      key: cup_good_sp
+    stop_cup_good_twr:
+      show: sync_flash_mode
+      action: stop
+      key: cup_good_twr
+    stop_cup_good_rr:
+      show: sync_flash_mode
+      action: stop
+      key: cup_good_rr
+    stop_cup_good_tr:
+      show: sync_flash_mode
+      action: stop
+      key: cup_good_tr
+    stop_cup_good_tl:
+      show: sync_flash_mode
+      action: stop
+      key: cup_good_tl
+    stop_cup_good_to:
+      show: sync_flash_mode
+      action: stop
+      key: cup_good_to
+    stop_cup_good_ro:
+      show: sync_flash_mode
+      action: stop
+      key: cup_good_ro
+    stop_cup_good_barrier:
+      show: sync_flash_mode
+      action: stop
+      key: cup_good_barrier
+
+####################################################################################
+# SLIDE PLAYER
+####################################################################################
+# Background and crystal overlays are persistent throughout the mode.
+# Step videos play as brief overlays; previous step removed when next fires.
+# Won/Lost/Intro slides play while ball is held or mode is ending.
+# NOTE: mode_points_scored slides must be caught in base.yaml (see base.yaml additions).
+
+slide_player:
+
+  # Mode start: background (always on) + intro video
+  mode_cool_under_pressure_started:
+    cool_under_pressure_background:
+      action: play
+      priority: 800
+    cool_under_pressure_intro:
+      action: play
+      priority: 810
+
+  # Intro complete → remove intro slide (voice callout plays via sound_player only)
+  timer_cup_intro_video_delay_complete:
+    cool_under_pressure_intro:
+      action: remove
+
+  # Skip → remove intro slide (voice callout is audio only, nothing to remove)
+  cup_skip_intro:
+    cool_under_pressure_intro:
+      action: remove
+
+  # Ball released: shots remaining and timer shown; no crystal slide at start.
+  # Crystal slides appear only after a crystal is lost (cup_lost_crystal_now_2 etc).
+  cup_ball_released{current_player.afterburner_perk_active==0}:
+    cool_under_pressure_timer:
+      action: play
+      priority: 805
+    cool_under_pressure_shots_remaining:
+      action: play
+      priority: 805
+
+  cup_ball_released{current_player.afterburner_perk_active==1}:
+    cool_under_pressure_timer_afterburner:
+      action: play
+      priority: 805
+    cool_under_pressure_shots_remaining:
+      action: play
+      priority: 805
+
+  # Crystal damage layers — slides ACCUMULATE, each bad event adds one more.
+  # 1_crystals = 1st jet iced over (1 bad event)
+  # 2_crystals = 2nd jet iced over (2 bad events) — 1_crystals stays
+  # 3_crystals = 3rd jet iced over (3 bad events) — 1_crystals and 2_crystals stay
+  # 4th bad event at 0 crystals = immediate fail via event_player, no new slide.
+  cup_lost_crystal_now_2:
+    cool_under_pressure_1_crystals:
+      action: play
+      priority: 820
+
+  cup_lost_crystal_now_1:
+    cool_under_pressure_2_crystals:
+      action: play
+      priority: 821
+
+  cup_lost_crystal_now_0:
+    cool_under_pressure_3_crystals:
+      action: play
+      priority: 822
+
+  # Step videos — remove previous, play next (brief overlays)
+  cup_play_step_1_video:
+    cool_under_pressure_step_1:
+      action: play
+      priority: 830
+
+  cup_play_step_2_video:
+    cool_under_pressure_step_1:
+      action: remove
+    cool_under_pressure_step_2:
+      action: play
+      priority: 830
+
+  cup_play_step_3_video:
+    cool_under_pressure_step_2:
+      action: remove
+    cool_under_pressure_step_3:
+      action: play
+      priority: 830
+
+  cup_play_step_4_video:
+    cool_under_pressure_step_3:
+      action: remove
+    cool_under_pressure_step_4:
+      action: play
+      priority: 830
+
+  cup_play_step_5_video:
+    cool_under_pressure_step_4:
+      action: remove
+    cool_under_pressure_step_5:
+      action: play
+      priority: 830
+
+  cup_play_step_6_video:
+    cool_under_pressure_step_5:
+      action: remove
+    cool_under_pressure_step_6:
+      action: play
+      priority: 830
+
+  cup_play_step_7_video:
+    cool_under_pressure_step_6:
+      action: remove
+    cool_under_pressure_step_7:
+      action: play
+      priority: 830
+
+  # Points scored slide — shown on each good shot (2s expire)
+  # cup_show_step_N_points fires AFTER cup_step_N_score in the event queue,
+  # so mode_points_scored variable is already updated when this slide displays.
+  cup_show_step_1_points:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  cup_show_step_2_points:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  cup_show_step_3_points:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  cup_show_step_4_points:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  cup_show_step_5_points:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  cup_show_step_6_points:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  cup_show_step_7_points:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  cup_show_step_8_points:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  # Won video (step 8 complete — ball held in scoop)
+  # Remove HUD slides so -1 shots_remaining and stale timer don't show on won screen
+  cup_complete:
+    cool_under_pressure_step_7:
+      action: remove
+    cool_under_pressure_timer:
+      action: remove
+    cool_under_pressure_timer_afterburner:
+      action: remove
+    cool_under_pressure_shots_remaining:
+      action: remove
+    cool_under_pressure_won:
+      action: play
+      priority: 850
+
+  # Lost video — remove HUD slides too
+  cup_failed:
+    cool_under_pressure_timer:
+      action: remove
+    cool_under_pressure_timer_afterburner:
+      action: remove
+    cool_under_pressure_shots_remaining:
+      action: remove
+    cool_under_pressure_lost:
+      action: play
+      priority: 850
+
+
+####################################################################################
+# LIGHT PLAYER
+####################################################################################
+# Good shots: handled by show_player (sync_flash_mode, 00AAFF vivid ice blue)
+# Bad shots:  FF0000 solid red | Unlit shots: off
+# LL (l_shot_left_lane) and 2X (l_shot_pilot_gear) never used — left off.
+# TO and TR share l_shot_middle_ramp. RO and RR share l_shot_right_orbit.
+
+light_player:
+
+  # Clear all shot lights between steps and on cleanup
+  cup_stop_step_lights:
+    l_shot_left_orbit: off
+    l_shot_left_ramp: off
+    l_shot_spinner: off
+    l_shot_barrier: off
+    l_shot_tower_ramp: off
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+    l_shot_right_orbit: off
+
+  mode_cool_under_pressure_started:
+    l_shot_left_orbit: off
+    l_shot_left_ramp: off
+    l_shot_spinner: off
+    l_shot_barrier: off
+    l_shot_tower_ramp: off
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+    l_shot_right_orbit: off
+
+  # ── STEP 1 ── Good: LR, LO, SP | Bad: TL (+TWR, +TR, +RR per crystal loss)
+  # Step 1 — good shots (LR/LO/SP) handled by show_player flash
+  cup_setup_step_1{current_player.cup_crystals==3}:
+    l_shot_upper_orbit: FF0000
+    l_shot_tower_ramp: off
+    l_shot_middle_ramp: off
+    l_shot_right_orbit: off
+    l_shot_barrier: off
+
+  cup_setup_step_1{current_player.cup_crystals==2}:
+    l_shot_upper_orbit: FF0000
+    l_shot_tower_ramp: FF0000
+    l_shot_middle_ramp: off
+    l_shot_right_orbit: off
+    l_shot_barrier: off
+
+  cup_setup_step_1{current_player.cup_crystals==1}:
+    l_shot_upper_orbit: FF0000
+    l_shot_tower_ramp: FF0000
+    l_shot_middle_ramp: FF0000
+    l_shot_right_orbit: off
+    l_shot_barrier: off
+
+  cup_setup_step_1{current_player.cup_crystals==0}:
+    l_shot_upper_orbit: FF0000
+    l_shot_tower_ramp: FF0000
+    l_shot_middle_ramp: FF0000
+    l_shot_right_orbit: FF0000
+    l_shot_barrier: off
+
+  # ── STEP 2 ── Good: TWR, RR, TR | Bad: LR (+LO, +SP, +Barrier)
+  # Step 2 — good shots (TWR/RR/TR) handled by show_player flash
+  cup_setup_step_2{current_player.cup_crystals==3}:
+    l_shot_left_ramp: FF0000
+    l_shot_left_orbit: off
+    l_shot_spinner: off
+    l_shot_upper_orbit: off
+    l_shot_barrier: off
+
+  cup_setup_step_2{current_player.cup_crystals==2}:
+    l_shot_left_ramp: FF0000
+    l_shot_left_orbit: FF0000
+    l_shot_spinner: off
+    l_shot_upper_orbit: off
+    l_shot_barrier: off
+
+  cup_setup_step_2{current_player.cup_crystals==1}:
+    l_shot_left_ramp: FF0000
+    l_shot_left_orbit: FF0000
+    l_shot_spinner: FF0000
+    l_shot_upper_orbit: off
+    l_shot_barrier: off
+
+  cup_setup_step_2{current_player.cup_crystals==0}:
+    l_shot_left_ramp: FF0000
+    l_shot_left_orbit: FF0000
+    l_shot_spinner: FF0000
+    l_shot_upper_orbit: off
+    l_shot_barrier: FF0000
+
+  # ── STEP 3 ── Good: SP, TWR | Bad: RR (+LR, +LO, +TR)
+  # Step 3 — good shots (SP/TWR) handled by show_player flash
+  cup_setup_step_3{current_player.cup_crystals==3}:
+    l_shot_right_orbit: FF0000
+    l_shot_left_ramp: off
+    l_shot_left_orbit: off
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+    l_shot_barrier: off
+
+  cup_setup_step_3{current_player.cup_crystals==2}:
+    l_shot_right_orbit: FF0000
+    l_shot_left_ramp: FF0000
+    l_shot_left_orbit: off
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+    l_shot_barrier: off
+
+  cup_setup_step_3{current_player.cup_crystals==1}:
+    l_shot_right_orbit: FF0000
+    l_shot_left_ramp: FF0000
+    l_shot_left_orbit: FF0000
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+    l_shot_barrier: off
+
+  cup_setup_step_3{current_player.cup_crystals==0}:
+    l_shot_right_orbit: FF0000
+    l_shot_left_ramp: FF0000
+    l_shot_left_orbit: FF0000
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: FF0000
+    l_shot_barrier: off
+
+  # ── STEP 4 ── Good: TL, TO | Bad: LR (+SP, +TWR, +Barrier) [top+right ramp UP]
+  # Step 4 — good shots (TL/TO) handled by show_player flash
+  cup_setup_step_4{current_player.cup_crystals==3}:
+    l_shot_left_ramp: FF0000
+    l_shot_spinner: off
+    l_shot_tower_ramp: off
+    l_shot_left_orbit: off
+    l_shot_right_orbit: off
+    l_shot_barrier: off
+
+  cup_setup_step_4{current_player.cup_crystals==2}:
+    l_shot_left_ramp: FF0000
+    l_shot_spinner: FF0000
+    l_shot_tower_ramp: off
+    l_shot_left_orbit: off
+    l_shot_right_orbit: off
+    l_shot_barrier: off
+
+  cup_setup_step_4{current_player.cup_crystals==1}:
+    l_shot_left_ramp: FF0000
+    l_shot_spinner: FF0000
+    l_shot_tower_ramp: FF0000
+    l_shot_left_orbit: off
+    l_shot_right_orbit: off
+    l_shot_barrier: off
+
+  cup_setup_step_4{current_player.cup_crystals==0}:
+    l_shot_left_ramp: FF0000
+    l_shot_spinner: FF0000
+    l_shot_tower_ramp: FF0000
+    l_shot_left_orbit: off
+    l_shot_right_orbit: off
+    l_shot_barrier: FF0000
+
+  # ── STEP 5 ── Good: RO | Bad: Barrier (+SP, +TWR, +LR) [right ramp UP, top DOWN]
+  # Step 5 — good shot (RO) handled by show_player flash
+  cup_setup_step_5{current_player.cup_crystals==3}:
+    l_shot_barrier: FF0000
+    l_shot_spinner: off
+    l_shot_tower_ramp: off
+    l_shot_left_ramp: off
+    l_shot_left_orbit: off
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+
+  cup_setup_step_5{current_player.cup_crystals==2}:
+    l_shot_barrier: FF0000
+    l_shot_spinner: FF0000
+    l_shot_tower_ramp: off
+    l_shot_left_ramp: off
+    l_shot_left_orbit: off
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+
+  cup_setup_step_5{current_player.cup_crystals==1}:
+    l_shot_barrier: FF0000
+    l_shot_spinner: FF0000
+    l_shot_tower_ramp: FF0000
+    l_shot_left_ramp: off
+    l_shot_left_orbit: off
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+
+  cup_setup_step_5{current_player.cup_crystals==0}:
+    l_shot_barrier: FF0000
+    l_shot_spinner: FF0000
+    l_shot_tower_ramp: FF0000
+    l_shot_left_ramp: FF0000
+    l_shot_left_orbit: off
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+
+  # ── STEP 6 ── Good: TO | Bad: TL (+Barrier, +LR, +LO) [top UP, right DOWN]
+  # Step 6 — good shot (TO) handled by show_player flash
+  cup_setup_step_6{current_player.cup_crystals==3}:
+    l_shot_upper_orbit: FF0000
+    l_shot_barrier: off
+    l_shot_left_ramp: off
+    l_shot_left_orbit: off
+    l_shot_spinner: off
+    l_shot_tower_ramp: off
+    l_shot_right_orbit: off
+
+  cup_setup_step_6{current_player.cup_crystals==2}:
+    l_shot_upper_orbit: FF0000
+    l_shot_barrier: FF0000
+    l_shot_left_ramp: off
+    l_shot_left_orbit: off
+    l_shot_spinner: off
+    l_shot_tower_ramp: off
+    l_shot_right_orbit: off
+
+  cup_setup_step_6{current_player.cup_crystals==1}:
+    l_shot_upper_orbit: FF0000
+    l_shot_barrier: FF0000
+    l_shot_left_ramp: FF0000
+    l_shot_left_orbit: off
+    l_shot_spinner: off
+    l_shot_tower_ramp: off
+    l_shot_right_orbit: off
+
+  cup_setup_step_6{current_player.cup_crystals==0}:
+    l_shot_upper_orbit: FF0000
+    l_shot_barrier: FF0000
+    l_shot_left_ramp: FF0000
+    l_shot_left_orbit: FF0000
+    l_shot_spinner: off
+    l_shot_tower_ramp: off
+    l_shot_right_orbit: off
+
+  # ── STEP 7 ── Good: LO | Bad: RR (+SP, +TWR, +LR) [top ramp DOWN]
+  # Step 7 — good shot (LO) handled by show_player flash
+  cup_setup_step_7{current_player.cup_crystals==3}:
+    l_shot_right_orbit: FF0000
+    l_shot_spinner: off
+    l_shot_tower_ramp: off
+    l_shot_left_ramp: off
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+    l_shot_barrier: off
+
+  cup_setup_step_7{current_player.cup_crystals==2}:
+    l_shot_right_orbit: FF0000
+    l_shot_spinner: FF0000
+    l_shot_tower_ramp: off
+    l_shot_left_ramp: off
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+    l_shot_barrier: off
+
+  cup_setup_step_7{current_player.cup_crystals==1}:
+    l_shot_right_orbit: FF0000
+    l_shot_spinner: FF0000
+    l_shot_tower_ramp: FF0000
+    l_shot_left_ramp: off
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+    l_shot_barrier: off
+
+  cup_setup_step_7{current_player.cup_crystals==0}:
+    l_shot_right_orbit: FF0000
+    l_shot_spinner: FF0000
+    l_shot_tower_ramp: FF0000
+    l_shot_left_ramp: FF0000
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+    l_shot_barrier: off
+
+  # ── STEP 8 ── Good: Scoop (barrier=ice blue) | Bad: LR (+RR, +SP, +TWR) [barrier DOWN]
+  # Step 8 — good shot (Barrier/Scoop) handled by show_player flash
+  cup_setup_step_8{current_player.cup_crystals==3}:
+    l_shot_left_ramp: FF0000
+    l_shot_right_orbit: off
+    l_shot_spinner: off
+    l_shot_tower_ramp: off
+    l_shot_left_orbit: off
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+
+  cup_setup_step_8{current_player.cup_crystals==2}:
+    l_shot_left_ramp: FF0000
+    l_shot_right_orbit: FF0000
+    l_shot_spinner: off
+    l_shot_tower_ramp: off
+    l_shot_left_orbit: off
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+
+  cup_setup_step_8{current_player.cup_crystals==1}:
+    l_shot_left_ramp: FF0000
+    l_shot_right_orbit: FF0000
+    l_shot_spinner: FF0000
+    l_shot_tower_ramp: off
+    l_shot_left_orbit: off
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+
+  cup_setup_step_8{current_player.cup_crystals==0}:
+    l_shot_left_ramp: FF0000
+    l_shot_right_orbit: FF0000
+    l_shot_spinner: FF0000
+    l_shot_tower_ramp: FF0000
+    l_shot_left_orbit: off
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+
+
+####################################################################################
+# COIL PLAYER
+####################################################################################
+
+coil_player:
+  # Safety: ensure no stray coils are left active on cleanup
+  cup_cleanup:
+    c_left_lane_up_post:
+      action: disable
+
+####################################################################################
+# SHOWS
+####################################################################################
+
+shows:
+
+  # GI bad shot strobe — red flash 3x in ~1 second when a bad event occurs
+  cup_gi_bad_shot_strobe:
+    - duration: 83ms
+      lights:
+        l_gi_light_1:
+          color: FF0000
+        l_gi_light_2:
+          color: FF0000
+        l_gi_light_3:
+          color: FF0000
+        l_gi_light_4:
+          color: FF0000
+        l_gi_light_5:
+          color: FF0000
+        l_gi_light_6:
+          color: FF0000
+        l_gi_light_7:
+          color: FF0000
+        l_gi_light_8:
+          color: FF0000
+        l_gi_light_9:
+          color: FF0000
+        l_gi_light_10:
+          color: FF0000
+        l_gi_light_11:
+          color: FF0000
+        l_gi_light_12:
+          color: FF0000
+        l_gi_light_13:
+          color: FF0000
+        l_gi_light_14:
+          color: FF0000
+        l_gi_light_15:
+          color: FF0000
+        l_gi_light_16:
+          color: FF0000
+        l_gi_light_17:
+          color: FF0000
+        l_gi_light_18:
+          color: FF0000
+        l_gi_light_19:
+          color: FF0000
+        l_gi_light_20:
+          color: FF0000
+        l_gi_light_21:
+          color: FF0000
+        l_gi_light_22:
+          color: FF0000
+        l_gi_light_23:
+          color: FF0000
+        l_gi_light_24:
+          color: FF0000
+        l_gi_light_25:
+          color: FF0000
+        l_gi_light_26:
+          color: FF0000
+        l_gi_light_27:
+          color: FF0000
+        l_gi_light_pop_left:
+          color: FF0000
+        l_gi_light_pop_right:
+          color: FF0000
+        l_gi_light_pop_bottom:
+          color: FF0000
+        l_apron_light_1:
+          color: FF0000
+        l_apron_light_2:
+          color: FF0000
+        l_apron_light_3:
+          color: FF0000
+        l_apron_light_4:
+          color: FF0000
+    - duration: 83ms
+      lights:
+        l_gi_light_1:
+          color: 000000
+        l_gi_light_2:
+          color: 000000
+        l_gi_light_3:
+          color: 000000
+        l_gi_light_4:
+          color: 000000
+        l_gi_light_5:
+          color: 000000
+        l_gi_light_6:
+          color: 000000
+        l_gi_light_7:
+          color: 000000
+        l_gi_light_8:
+          color: 000000
+        l_gi_light_9:
+          color: 000000
+        l_gi_light_10:
+          color: 000000
+        l_gi_light_11:
+          color: 000000
+        l_gi_light_12:
+          color: 000000
+        l_gi_light_13:
+          color: 000000
+        l_gi_light_14:
+          color: 000000
+        l_gi_light_15:
+          color: 000000
+        l_gi_light_16:
+          color: 000000
+        l_gi_light_17:
+          color: 000000
+        l_gi_light_18:
+          color: 000000
+        l_gi_light_19:
+          color: 000000
+        l_gi_light_20:
+          color: 000000
+        l_gi_light_21:
+          color: 000000
+        l_gi_light_22:
+          color: 000000
+        l_gi_light_23:
+          color: 000000
+        l_gi_light_24:
+          color: 000000
+        l_gi_light_25:
+          color: 000000
+        l_gi_light_26:
+          color: 000000
+        l_gi_light_27:
+          color: 000000
+        l_gi_light_pop_left:
+          color: 000000
+        l_gi_light_pop_right:
+          color: 000000
+        l_gi_light_pop_bottom:
+          color: 000000
+        l_apron_light_1:
+          color: 000000
+        l_apron_light_2:
+          color: 000000
+        l_apron_light_3:
+          color: 000000
+        l_apron_light_4:
+          color: 000000
+    - duration: 83ms
+      lights:
+        l_gi_light_1:
+          color: FF0000
+        l_gi_light_2:
+          color: FF0000
+        l_gi_light_3:
+          color: FF0000
+        l_gi_light_4:
+          color: FF0000
+        l_gi_light_5:
+          color: FF0000
+        l_gi_light_6:
+          color: FF0000
+        l_gi_light_7:
+          color: FF0000
+        l_gi_light_8:
+          color: FF0000
+        l_gi_light_9:
+          color: FF0000
+        l_gi_light_10:
+          color: FF0000
+        l_gi_light_11:
+          color: FF0000
+        l_gi_light_12:
+          color: FF0000
+        l_gi_light_13:
+          color: FF0000
+        l_gi_light_14:
+          color: FF0000
+        l_gi_light_15:
+          color: FF0000
+        l_gi_light_16:
+          color: FF0000
+        l_gi_light_17:
+          color: FF0000
+        l_gi_light_18:
+          color: FF0000
+        l_gi_light_19:
+          color: FF0000
+        l_gi_light_20:
+          color: FF0000
+        l_gi_light_21:
+          color: FF0000
+        l_gi_light_22:
+          color: FF0000
+        l_gi_light_23:
+          color: FF0000
+        l_gi_light_24:
+          color: FF0000
+        l_gi_light_25:
+          color: FF0000
+        l_gi_light_26:
+          color: FF0000
+        l_gi_light_27:
+          color: FF0000
+        l_gi_light_pop_left:
+          color: FF0000
+        l_gi_light_pop_right:
+          color: FF0000
+        l_gi_light_pop_bottom:
+          color: FF0000
+        l_apron_light_1:
+          color: FF0000
+        l_apron_light_2:
+          color: FF0000
+        l_apron_light_3:
+          color: FF0000
+        l_apron_light_4:
+          color: FF0000
+    - duration: 83ms
+      lights:
+        l_gi_light_1:
+          color: 000000
+        l_gi_light_2:
+          color: 000000
+        l_gi_light_3:
+          color: 000000
+        l_gi_light_4:
+          color: 000000
+        l_gi_light_5:
+          color: 000000
+        l_gi_light_6:
+          color: 000000
+        l_gi_light_7:
+          color: 000000
+        l_gi_light_8:
+          color: 000000
+        l_gi_light_9:
+          color: 000000
+        l_gi_light_10:
+          color: 000000
+        l_gi_light_11:
+          color: 000000
+        l_gi_light_12:
+          color: 000000
+        l_gi_light_13:
+          color: 000000
+        l_gi_light_14:
+          color: 000000
+        l_gi_light_15:
+          color: 000000
+        l_gi_light_16:
+          color: 000000
+        l_gi_light_17:
+          color: 000000
+        l_gi_light_18:
+          color: 000000
+        l_gi_light_19:
+          color: 000000
+        l_gi_light_20:
+          color: 000000
+        l_gi_light_21:
+          color: 000000
+        l_gi_light_22:
+          color: 000000
+        l_gi_light_23:
+          color: 000000
+        l_gi_light_24:
+          color: 000000
+        l_gi_light_25:
+          color: 000000
+        l_gi_light_26:
+          color: 000000
+        l_gi_light_27:
+          color: 000000
+        l_gi_light_pop_left:
+          color: 000000
+        l_gi_light_pop_right:
+          color: 000000
+        l_gi_light_pop_bottom:
+          color: 000000
+        l_apron_light_1:
+          color: 000000
+        l_apron_light_2:
+          color: 000000
+        l_apron_light_3:
+          color: 000000
+        l_apron_light_4:
+          color: 000000
+    - duration: 83ms
+      lights:
+        l_gi_light_1:
+          color: FF0000
+        l_gi_light_2:
+          color: FF0000
+        l_gi_light_3:
+          color: FF0000
+        l_gi_light_4:
+          color: FF0000
+        l_gi_light_5:
+          color: FF0000
+        l_gi_light_6:
+          color: FF0000
+        l_gi_light_7:
+          color: FF0000
+        l_gi_light_8:
+          color: FF0000
+        l_gi_light_9:
+          color: FF0000
+        l_gi_light_10:
+          color: FF0000
+        l_gi_light_11:
+          color: FF0000
+        l_gi_light_12:
+          color: FF0000
+        l_gi_light_13:
+          color: FF0000
+        l_gi_light_14:
+          color: FF0000
+        l_gi_light_15:
+          color: FF0000
+        l_gi_light_16:
+          color: FF0000
+        l_gi_light_17:
+          color: FF0000
+        l_gi_light_18:
+          color: FF0000
+        l_gi_light_19:
+          color: FF0000
+        l_gi_light_20:
+          color: FF0000
+        l_gi_light_21:
+          color: FF0000
+        l_gi_light_22:
+          color: FF0000
+        l_gi_light_23:
+          color: FF0000
+        l_gi_light_24:
+          color: FF0000
+        l_gi_light_25:
+          color: FF0000
+        l_gi_light_26:
+          color: FF0000
+        l_gi_light_27:
+          color: FF0000
+        l_gi_light_pop_left:
+          color: FF0000
+        l_gi_light_pop_right:
+          color: FF0000
+        l_gi_light_pop_bottom:
+          color: FF0000
+        l_apron_light_1:
+          color: FF0000
+        l_apron_light_2:
+          color: FF0000
+        l_apron_light_3:
+          color: FF0000
+        l_apron_light_4:
+          color: FF0000
+    - duration: 83ms
+      lights:
+        l_gi_light_1:
+          color: 000000
+        l_gi_light_2:
+          color: 000000
+        l_gi_light_3:
+          color: 000000
+        l_gi_light_4:
+          color: 000000
+        l_gi_light_5:
+          color: 000000
+        l_gi_light_6:
+          color: 000000
+        l_gi_light_7:
+          color: 000000
+        l_gi_light_8:
+          color: 000000
+        l_gi_light_9:
+          color: 000000
+        l_gi_light_10:
+          color: 000000
+        l_gi_light_11:
+          color: 000000
+        l_gi_light_12:
+          color: 000000
+        l_gi_light_13:
+          color: 000000
+        l_gi_light_14:
+          color: 000000
+        l_gi_light_15:
+          color: 000000
+        l_gi_light_16:
+          color: 000000
+        l_gi_light_17:
+          color: 000000
+        l_gi_light_18:
+          color: 000000
+        l_gi_light_19:
+          color: 000000
+        l_gi_light_20:
+          color: 000000
+        l_gi_light_21:
+          color: 000000
+        l_gi_light_22:
+          color: 000000
+        l_gi_light_23:
+          color: 000000
+        l_gi_light_24:
+          color: 000000
+        l_gi_light_25:
+          color: 000000
+        l_gi_light_26:
+          color: 000000
+        l_gi_light_27:
+          color: 000000
+        l_gi_light_pop_left:
+          color: 000000
+        l_gi_light_pop_right:
+          color: 000000
+        l_gi_light_pop_bottom:
+          color: 000000
+        l_apron_light_1:
+          color: 000000
+        l_apron_light_2:
+          color: 000000
+        l_apron_light_3:
+          color: 000000
+        l_apron_light_4:
+          color: 000000
+
+  # GI ice blue ambient — runs throughout mode
+  cup_gi_ice_blue:
+    - duration: 1s
+      lights:
+        (led):
+          color: 4DB8D4
+
+  # GI crystal crack — harsh white flash when crystal is lost
+  cup_gi_crystal_crack:
+    - duration: 100ms
+      lights:
+        (led):
+          color: FFFFFF
+        l_apron_light_3:
+          color: FFFFFF
+        l_apron_light_4:
+          color: FFFFFF
+    - duration: 100ms
+      lights:
+        (led):
+          color: 4DB8D4
+        l_apron_light_3:
+          color: 4DB8D4
+        l_apron_light_4:
+          color: 4DB8D4
+    - duration: 100ms
+      lights:
+        (led):
+          color: FFFFFF
+        l_apron_light_3:
+          color: FFFFFF
+        l_apron_light_4:
+          color: FFFFFF
+    - duration: 100ms
+      lights:
+        (led):
+          color: 4DB8D4
+        l_apron_light_3:
+          color: 4DB8D4
+        l_apron_light_4:
+          color: 4DB8D4
+    - duration: 300ms
+      lights:
+        (led):
+          color: 4DB8D4
+        l_apron_light_3:
+          color: 4DB8D4
+        l_apron_light_4:
+          color: 4DB8D4
+
+  # GI failed — red pulse on mode fail
+  cup_gi_failed:
+    - duration: 200ms
+      lights:
+        (led):
+          color: FF0000
+        l_apron_light_3:
+          color: FF0000
+        l_apron_light_4:
+          color: FF0000
+    - duration: 200ms
+      lights:
+        (led):
+          color: off
+        l_apron_light_3:
+          color: off
+        l_apron_light_4:
+          color: off
+    - duration: 200ms
+      lights:
+        (led):
+          color: FF0000
+        l_apron_light_3:
+          color: FF0000
+        l_apron_light_4:
+          color: FF0000
+    - duration: 200ms
+      lights:
+        (led):
+          color: off
+        l_apron_light_3:
+          color: off
+        l_apron_light_4:
+          color: off
+    - duration: 400ms
+      lights:
+        (led):
+          color: FF0000
+        l_apron_light_3:
+          color: FF0000
+        l_apron_light_4:
+          color: FF0000

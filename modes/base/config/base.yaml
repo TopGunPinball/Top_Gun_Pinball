@@ -1891,6 +1891,35 @@ sound_player:
       loops: -1
 
 ####################################################################################
+# Cool Under Pressure Music Handler
+# PATTERN: Music starts on cup_ball_released (after intro video or skip)
+####################################################################################
+
+  # Music starts when ball ejects from scoop (NOT mode start)
+  cup_ball_released:
+    cool_under_pressure_music:
+      bus: music
+      loops: -1
+
+  # Silence music when mode completes (won video plays, ball held in scoop)
+  cup_complete:
+    silence:
+      bus: music
+      loops: 0
+
+  # Silence music when mode fails (lost video plays)
+  cup_failed:
+    silence:
+      bus: music
+      loops: 0
+
+  # Restart base music when mode stops — but NOT if drain pending (bonus handles it)
+  mode_cool_under_pressure_stopped{current_player.pilot_mode_drain_pending==0}:
+    music_danger_zone:
+      bus: music
+      loops: -1
+
+####################################################################################
 # SYNCHRONIZED FLASH SHOWS - For Mode/Multiball Stacking
 ####################################################################################
 # These shows provide synchronized flashing for mode shots and future multiball shots.

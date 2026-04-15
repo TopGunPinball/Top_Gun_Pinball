@@ -482,11 +482,6 @@ variable_player:
   # player_added fires BEFORE this mode starts, so we use mode_started.
   # To re-enable a mode: remove its entry here AND change light to white.
   ##########################################################################
-  mode_pilot_mission_qualifier_started:
-    mode_cool_under_pressure_played:
-      action: set
-      int: 1
-
   mode_rescue_cougar_stopped:
     letter_collection_paused:
       action: set
@@ -817,6 +812,36 @@ variable_player:
     goose_letter_s:
       action: set
       int: current_player.npfsp_save_goose_s
+
+  # Cool Under Pressure
+  mode_cool_under_pressure_stopped:
+    letter_collection_paused:
+      action: set
+      int: 0
+    pilot_mode_active:
+      action: set
+      int: 0
+    missiles_perk_active:
+      action: set
+      int: current_player.missiles_perk_saved
+    topgun_letter_t:
+      action: set
+      int: 0
+    topgun_letter_o:
+      action: set
+      int: 0
+    topgun_letter_p:
+      action: set
+      int: 0
+    topgun_letter_g:
+      action: set
+      int: 0
+    topgun_letter_u:
+      action: set
+      int: 0
+    topgun_letter_n:
+      action: set
+      int: 0
 
   # Clear drain pending flag after bonus starts
   pilot_mission_drain_complete:
@@ -1503,15 +1528,15 @@ variable_player:
       action: set
       int: 0
 
-  # Mark mode as complete when the mode is WON (use cool_under_pressure_complete event when mode exists)
-  # cool_under_pressure_complete:
-  #   mode_cool_under_pressure_complete:
-  #     action: set
-  #     int: 1
-  #   modes_completed_count:
-  #     action: add
-  #     int: 1
-  
+  # Cool Under Pressure - mark complete when WON
+  cup_complete:
+    mode_cool_under_pressure_complete:
+      action: set
+      int: 1
+    modes_completed_count:
+      action: add
+      int: 1
+
   # Clear qualified number when mode starts
   mode_cool_under_pressure_started:
     qualified_mode_number:
@@ -2001,6 +2026,9 @@ event_player:
   ##############################################
 
   # After 1st mission stops (any mode): spot 2 letters
+  mode_cool_under_pressure_stopped{current_player.pilot_missions_played==1}:
+    - spot_topgun_letter|300ms
+    - spot_topgun_letter|500ms
   mode_rescue_cougar_stopped{current_player.pilot_missions_played==1}:
     - spot_topgun_letter|300ms
     - spot_topgun_letter|500ms
@@ -2027,6 +2055,8 @@ event_player:
     - spot_topgun_letter|500ms
 
   # After 2nd mission stops (any mode): spot 1 letter
+  mode_cool_under_pressure_stopped{current_player.pilot_missions_played==2}:
+    - spot_topgun_letter|300ms
   mode_rescue_cougar_stopped{current_player.pilot_missions_played==2}:
     - spot_topgun_letter|300ms
   mode_battle_jester_stopped{current_player.pilot_missions_played==2}:
@@ -2189,6 +2219,11 @@ event_player:
     - pilot_mission_bonus_ready
     - pilot_mission_drain_complete
 
+  # Cool Under Pressure
+  mode_cool_under_pressure_stopped{current_player.pilot_mode_drain_pending==1}:
+    - pilot_mission_bonus_ready
+    - pilot_mission_drain_complete
+
   # Great Balls of Fire
   mode_great_balls_of_fire_stopped{current_player.pilot_mode_drain_pending==1}:
     - pilot_mission_bonus_ready
@@ -2238,6 +2273,10 @@ event_player:
     - qualify_rescue_cougar
     - topgun_qualified
 
+  topgun_start_cool_under_pressure:
+    - qualify_cool_under_pressure
+    - topgun_qualified
+
   topgun_start_battle_jester:
     - qualify_battle_jester
     - topgun_qualified
@@ -2272,6 +2311,8 @@ event_player:
   topgun_qualified{current_player.qualified_mode_number==1 and current_player.mode_rescue_cougar_played==1}:
     - rotate_qualified_mode
   topgun_qualified{current_player.qualified_mode_number==2 and current_player.mode_balls_of_fire_played==1}:
+    - rotate_qualified_mode
+  topgun_qualified{current_player.qualified_mode_number==3 and current_player.mode_cool_under_pressure_played==1}:
     - rotate_qualified_mode
   topgun_qualified{current_player.qualified_mode_number==4 and current_player.mode_battle_jester_played==1}:
     - rotate_qualified_mode
@@ -4164,10 +4205,7 @@ light_player:
   ## SHOW BUILD: Set uncoded mode lights to yellow
   ## Fired 200ms after mode_started to avoid race with variable_player
   ##############################################
-  set_uncoded_mode_lights:
-    l_mode_cool_under_pressure:
-      color: yellow
-      fade: 0ms
+  set_uncoded_mode_lights: {}  # No uncoded modes remaining
 
   # Turn off pilot_mission_lit and set mode light white when great_balls_of_fire starts
   mode_great_balls_of_fire_started:
@@ -4244,7 +4282,7 @@ light_player:
   
   mode_pilot_mission_qualifier_started{current_player.mode_cool_under_pressure_played==1}:
     l_mode_cool_under_pressure:
-      color: yellow
+      color: white
       fade: 0ms
   
   mode_pilot_mission_qualifier_started{current_player.mode_battle_jester_played==1}:
@@ -4322,7 +4360,7 @@ light_player:
       color: off
       fade: 0ms
     l_mode_cool_under_pressure:
-      color: yellow
+      color: off
       fade: 0ms
     l_mode_battle_jester:
       color: off
@@ -4353,7 +4391,7 @@ light_player:
   
   stop_all_mode_pulse_shows{current_player.mode_cool_under_pressure_played==1}:
     l_mode_cool_under_pressure:
-      color: yellow
+      color: white
       fade: 0ms
   
   stop_all_mode_pulse_shows{current_player.mode_battle_jester_played==1}:
@@ -4516,12 +4554,13 @@ random_event_player:
   ## Picks a random starting mode when TOPGUN completes.
   ## If the chosen mode is already played, topgun_qualified's rotate
   ## conditions advance to the next available one automatically.
-  ## bof and cup are excluded (always force-played/uncoded).
+  ## bof is excluded (always force-played). cup is now coded and included.
   ##############################################
   topgun_pick_start:
     force_all: false
     events:
       - topgun_start_rescue_cougar
+      - topgun_start_cool_under_pressure
       - topgun_start_battle_jester
       - topgun_start_no_points_for_second_place
       - topgun_start_edge_of_space
