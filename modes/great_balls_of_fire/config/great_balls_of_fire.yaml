@@ -1003,6 +1003,33 @@ event_player:
     - gbof_ball_forged
     - gbof_show_points
 
+  # ── PHASE 1 SHAKER ──────────────────────────────────────────────────────────────
+  # Intermediate forge hits (hit_1, hit_2) → soft; forge complete → medium
+  gbof_lo_hit_1:
+    - shaker_soft
+  gbof_lo_hit_2:
+    - shaker_soft
+  gbof_lr_hit_1:
+    - shaker_soft
+  gbof_lr_hit_2:
+    - shaker_soft
+  gbof_twr_hit_1:
+    - shaker_soft
+  gbof_twr_hit_2:
+    - shaker_soft
+  gbof_rr_hit_1:
+    - shaker_soft
+  gbof_rr_hit_2:
+    - shaker_soft
+  gbof_lo_forged:
+    - shaker_medium
+  gbof_lr_forged:
+    - shaker_medium
+  gbof_twr_forged:
+    - shaker_medium
+  gbof_rr_forged:
+    - shaker_medium
+
   # ── MB BALL COUNT CLAMP ──────────────────────────────────────────────────────────
   # After gbof_ball_forged fires, variable_player sets mb_ball_count = balls_collected+1.
   # gbof_ball_forged fires as a queued event, so by the time its handlers run,
@@ -1190,6 +1217,52 @@ event_player:
     - gbof_jp_any_collected
     - gbof_show_points
 
+  # ── PHASE 2 JACKPOT SHAKER ──────────────────────────────────────────────────────
+  # Intermediate hits (hit_1, hit_2) leading up to jackpot → soft
+  gbof_p2_lo_hit_1:
+    - shaker_soft
+  gbof_p2_lo_hit_2:
+    - shaker_soft
+  gbof_p2_lr_hit_1:
+    - shaker_soft
+  gbof_p2_lr_hit_2:
+    - shaker_soft
+  gbof_p2_sp_hit_1:
+    - shaker_soft
+  gbof_p2_sp_hit_2:
+    - shaker_soft
+  gbof_p2_twr_hit_1:
+    - shaker_soft
+  gbof_p2_twr_hit_2:
+    - shaker_soft
+  gbof_p2_tl_hit_1:
+    - shaker_soft
+  gbof_p2_tl_hit_2:
+    - shaker_soft
+  gbof_p2_tr_hit_1:
+    - shaker_soft
+  gbof_p2_tr_hit_2:
+    - shaker_soft
+  gbof_p2_rr_hit_1:
+    - shaker_soft
+  gbof_p2_rr_hit_2:
+    - shaker_soft
+  # Jackpot collected (3rd hit on any Phase 2 shot) → medium
+  gbof_p2_lo_jp:
+    - shaker_medium
+  gbof_p2_lr_jp:
+    - shaker_medium
+  gbof_p2_sp_jp:
+    - shaker_medium
+  gbof_p2_twr_jp:
+    - shaker_medium
+  gbof_p2_tl_jp:
+    - shaker_medium
+  gbof_p2_tr_jp:
+    - shaker_medium
+  gbof_p2_rr_jp:
+    - shaker_medium
+
   # ── JP VIDEO CYCLING (index evaluated BEFORE variable_player advances it) ────────
   gbof_jp_any_collected{current_player.gbof_jp_video_index==1}:
     - gbof_show_jp_1
@@ -1217,6 +1290,10 @@ event_player:
   # Scoop hit while super lit → collect super jackpot
   s_mode_start_active{current_player.gbof_step==3 and current_player.gbof_super_lit==1}:
     - gbof_super_jackpot_collected
+
+  # Super jackpot collected → rumble
+  gbof_super_jackpot_collected:
+    - shaker_rumble
 
   # ── SUPER JACKPOT ANIMATION + RELEASE ────────────────────────────────────────────
   timer_gbof_super_jp_animation_complete:

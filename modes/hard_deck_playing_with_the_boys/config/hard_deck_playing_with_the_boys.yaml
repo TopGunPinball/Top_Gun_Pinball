@@ -1359,10 +1359,14 @@ event_player:
 
   ##############################################
   ## PHASE 1: TIMER EXPIRED (not during dogfight)
+  ## ptb_cleanup fires IMMEDIATELY (not after failed_delay) so ramps drop,
+  ## barrier raises, and all shot inserts/flashing shows turn off during
+  ## the 5s ended video — not after it.
   ##############################################
   timer_ptb_mode_timer_complete{current_player.ptb_step<8}:
     - ptb_failed_timer_expired
     - ptb_play_ended_video
+    - ptb_cleanup
 
   ##############################################
   ## DRAIN HANDLING — Phase 1

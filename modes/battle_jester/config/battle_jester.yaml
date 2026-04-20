@@ -427,6 +427,24 @@ timers:
       - event: battle_jester_cleanup
         action: restart
 
+  # Spinner lockout — prevents double-counting while spinner is still spinning.
+  # Starts when any spinner_shot_made registers in battle_jester.
+  # Restarts on every s_spinner_active hit, so lockout expires 2s after
+  # the spinner physically stops (not just 2s from the original shot).
+  battle_jester_spinner_lockout:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: battle_jester_spinner_lockout_start
+        action: restart
+      - event: battle_jester_spinner_lockout_extend
+        action: restart
+      - event: mode_battle_jester_will_stop
+        action: stop
+
 ####################################################################################
 # QUEUE RELAY PLAYER - Hold ball_ending until mode cleanup completes
 ####################################################################################
@@ -546,7 +564,7 @@ variable_player:
       action: add
       int: -1
       
-  s_orbit_left_active{current_player.battle_jester_step==0}:
+  left_orbit_shot_hit{current_player.battle_jester_step==0}:
     battle_jester_points_bank:
       action: add
       int: 150000 * current_player.total_scoring_multiplier
@@ -559,7 +577,7 @@ variable_player:
       action: add
       int: 125000 * current_player.total_scoring_multiplier
       
-  spinner_shot_made{current_player.battle_jester_step==0}:
+  spinner_shot_made{current_player.battle_jester_step==0 and device.timers.battle_jester_spinner_lockout.running==False}:
     battle_jester_points_bank:
       action: add
       int: 100000 * current_player.total_scoring_multiplier
@@ -570,7 +588,7 @@ variable_player:
       action: add
       int: 125000 * current_player.total_scoring_multiplier
       
-  spinner_shot_made{current_player.battle_jester_step==1}:
+  spinner_shot_made{current_player.battle_jester_step==1 and device.timers.battle_jester_spinner_lockout.running==False}:
     battle_jester_points_bank:
       action: add
       int: 100000 * current_player.total_scoring_multiplier
@@ -601,7 +619,7 @@ variable_player:
       action: add
       int: 75000 * current_player.total_scoring_multiplier
       
-  s_orbit_right_active{current_player.battle_jester_step==2}:
+  right_orbit_shot_hit{current_player.battle_jester_step==2}:
     battle_jester_points_bank:
       action: add
       int: 150000 * current_player.total_scoring_multiplier
@@ -612,12 +630,12 @@ variable_player:
       action: add
       int: 125000 * current_player.total_scoring_multiplier
       
-  spinner_shot_made{current_player.battle_jester_step==3}:
+  spinner_shot_made{current_player.battle_jester_step==3 and device.timers.battle_jester_spinner_lockout.running==False}:
     battle_jester_points_bank:
       action: add
       int: 100000 * current_player.total_scoring_multiplier
       
-  s_orbit_left_active{current_player.battle_jester_step==3}:
+  left_orbit_shot_hit{current_player.battle_jester_step==3}:
     battle_jester_points_bank:
       action: add
       int: 150000 * current_player.total_scoring_multiplier
@@ -1012,6 +1030,7 @@ event_player:
   
   # Step 3 complete: Lower top ramp immediately, right ramp after 500ms delay
   battle_jester_step_3_complete:
+    - shaker_soft
     - top_ramp_down
   
   timer_battle_jester_servo_step3_done_delay_complete:
@@ -1022,6 +1041,7 @@ event_player:
   
   # Step 5 complete: Lower right ramp
   battle_jester_step_5_complete:
+    - shaker_soft
     - right_ramp_down
   
   # Step 11: Raise right ramp for final shot
@@ -1040,7 +1060,7 @@ event_player:
     - battle_jester_setup_step_2
     - battle_jester_add_time_green
 
-  s_orbit_left_active{current_player.battle_jester_step==0}:
+  left_orbit_shot_hit{current_player.battle_jester_step==0}:
     - battle_jester_step_1_complete
     - battle_jester_setup_step_2
     - battle_jester_add_time_green
@@ -1050,7 +1070,7 @@ event_player:
     - battle_jester_setup_step_2
     - battle_jester_add_time_green
 
-  spinner_shot_made{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks < 10}:
+  spinner_shot_made{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks < 10 and device.timers.battle_jester_spinner_lockout.running==False}:
     - battle_jester_step_1_complete
     - battle_jester_setup_step_2
     - battle_jester_add_time_green
@@ -1059,7 +1079,7 @@ event_player:
   s_lane_left_active{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks >= 20}:
     - battle_jester_subtract_time_red
 
-  spinner_shot_made{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks >= 10}:
+  spinner_shot_made{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks >= 10 and device.timers.battle_jester_spinner_lockout.running==False}:
     - battle_jester_subtract_time_red
 
   ##############################################
@@ -1073,7 +1093,7 @@ event_player:
     - battle_jester_setup_step_3
     - battle_jester_add_time_green
 
-  spinner_shot_made{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks < 20}:
+  spinner_shot_made{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks < 20 and device.timers.battle_jester_spinner_lockout.running==False}:
     - battle_jester_step_2_complete
     - battle_jester_setup_step_3
     - battle_jester_add_time_green
@@ -1092,7 +1112,7 @@ event_player:
   s_orbit_upper_active{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks >= 10}:
     - battle_jester_subtract_time_red
 
-  spinner_shot_made{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks >= 20}:
+  spinner_shot_made{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks >= 20 and device.timers.battle_jester_spinner_lockout.running==False}:
     - battle_jester_subtract_time_red
 
   s_barrier_target_active{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks >= 30}:
@@ -1119,7 +1139,7 @@ event_player:
     - battle_jester_setup_step_4
     - battle_jester_add_time_green
 
-  s_orbit_right_active{current_player.battle_jester_step==2 and device.timers.battle_jester_step_3_timer.ticks < 10}:
+  right_orbit_shot_hit{current_player.battle_jester_step==2 and device.timers.battle_jester_step_3_timer.ticks < 10}:
     - battle_jester_step_3_complete
     - battle_jester_setup_step_4
     - battle_jester_add_time_green
@@ -1131,7 +1151,7 @@ event_player:
   s_flight_gear_target_active{current_player.battle_jester_step==2 and device.timers.battle_jester_step_3_timer.ticks >= 20}:
     - battle_jester_subtract_time_red
 
-  s_orbit_right_active{current_player.battle_jester_step==2 and device.timers.battle_jester_step_3_timer.ticks >= 10}:
+  right_orbit_shot_hit{current_player.battle_jester_step==2 and device.timers.battle_jester_step_3_timer.ticks >= 10}:
     - battle_jester_subtract_time_red
 
   ##############################################
@@ -1145,21 +1165,21 @@ event_player:
     - battle_jester_setup_step_5
     - battle_jester_add_time_green
 
-  spinner_shot_made{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks < 10}:
+  spinner_shot_made{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks < 10 and device.timers.battle_jester_spinner_lockout.running==False}:
     - battle_jester_step_4_complete
     - battle_jester_setup_step_5
     - battle_jester_add_time_green
 
-  s_orbit_left_active{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks < 20}:
+  left_orbit_shot_hit{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks < 20}:
     - battle_jester_step_4_complete
     - battle_jester_setup_step_5
     - battle_jester_add_time_green
 
   # RED shots
-  spinner_shot_made{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks >= 10}:
+  spinner_shot_made{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks >= 10 and device.timers.battle_jester_spinner_lockout.running==False}:
     - battle_jester_subtract_time_red
 
-  s_orbit_left_active{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks >= 20}:
+  left_orbit_shot_hit{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks >= 20}:
     - battle_jester_subtract_time_red
 
   ##############################################
@@ -1316,10 +1336,10 @@ event_player:
   ##############################################
   
   # Spinner or right orbit activates diverter
-  spinner_shot_made{current_player.battle_jester_step==10}:
+  spinner_shot_made{current_player.battle_jester_step==10 and device.timers.battle_jester_spinner_lockout.running==False}:
     - battle_jester_activate_left_diverter
     
-  s_orbit_right_active{current_player.battle_jester_step==10}:
+  right_orbit_shot_hit{current_player.battle_jester_step==10}:
     - battle_jester_activate_left_diverter
     
   # Left lane hit - pause timer, hold ball, deactivate diverter, lower right ramp, and complete step 11
@@ -1397,7 +1417,7 @@ event_player:
   # Step 2 red shots (all non-green: lane_left, orbit_left, ramp_left, middle_ramp, pilot_gear, right_orbit)
   s_lane_left_active{current_player.battle_jester_step==1}:
     - battle_jester_subtract_time_red
-  s_orbit_left_active{current_player.battle_jester_step==1}:
+  left_orbit_shot_hit{current_player.battle_jester_step==1}:
     - battle_jester_subtract_time_red
   s_ramp_left_exit_active{current_player.battle_jester_step==1}:
     - battle_jester_subtract_time_red
@@ -1405,7 +1425,7 @@ event_player:
     - battle_jester_subtract_time_red
   s_flight_gear_target_active{current_player.battle_jester_step==1}:
     - battle_jester_subtract_time_red
-  s_orbit_right_active{current_player.battle_jester_step==1}:
+  right_orbit_shot_hit{current_player.battle_jester_step==1}:
     - battle_jester_subtract_time_red
   s_ramp_right_exit_active{current_player.battle_jester_step==1}:
     - battle_jester_subtract_time_red
@@ -1414,11 +1434,11 @@ event_player:
   # Step 3 red shots
   s_lane_left_active{current_player.battle_jester_step==2}:
     - battle_jester_subtract_time_red
-  s_orbit_left_active{current_player.battle_jester_step==2}:
+  left_orbit_shot_hit{current_player.battle_jester_step==2}:
     - battle_jester_subtract_time_red
   s_ramp_left_exit_active{current_player.battle_jester_step==2}:
     - battle_jester_subtract_time_red
-  spinner_shot_made{current_player.battle_jester_step==2}:
+  spinner_shot_made{current_player.battle_jester_step==2 and device.timers.battle_jester_spinner_lockout.running==False}:
     - battle_jester_subtract_time_red
   s_barrier_target_active{current_player.battle_jester_step==2}:
     - battle_jester_subtract_time_red
@@ -1430,7 +1450,7 @@ event_player:
   # Step 4 red shots
   s_lane_left_active{current_player.battle_jester_step==3}:
     - battle_jester_subtract_time_red
-  s_orbit_left_active{current_player.battle_jester_step==3}:
+  left_orbit_shot_hit{current_player.battle_jester_step==3}:
     - battle_jester_subtract_time_red
   s_ramp_tower_exit_active{current_player.battle_jester_step==3}:
     - battle_jester_subtract_time_red
@@ -1442,7 +1462,7 @@ event_player:
     - battle_jester_subtract_time_red
   s_flight_gear_target_active{current_player.battle_jester_step==3}:
     - battle_jester_subtract_time_red
-  s_orbit_right_active{current_player.battle_jester_step==3}:
+  right_orbit_shot_hit{current_player.battle_jester_step==3}:
     - battle_jester_subtract_time_red
   s_ramp_right_exit_active{current_player.battle_jester_step==3}:
     - battle_jester_subtract_time_red
@@ -1450,11 +1470,11 @@ event_player:
   # Step 5 red shots
   s_lane_left_active{current_player.battle_jester_step==4}:
     - battle_jester_subtract_time_red
-  s_orbit_left_active{current_player.battle_jester_step==4}:
+  left_orbit_shot_hit{current_player.battle_jester_step==4}:
     - battle_jester_subtract_time_red
   s_ramp_left_exit_active{current_player.battle_jester_step==4}:
     - battle_jester_subtract_time_red
-  spinner_shot_made{current_player.battle_jester_step==4}:
+  spinner_shot_made{current_player.battle_jester_step==4 and device.timers.battle_jester_spinner_lockout.running==False}:
     - battle_jester_subtract_time_red
   s_barrier_target_active{current_player.battle_jester_step==4}:
     - battle_jester_subtract_time_red
@@ -1464,25 +1484,25 @@ event_player:
     - battle_jester_subtract_time_red
   s_orbit_lower_active{current_player.battle_jester_step==4}:
     - battle_jester_subtract_time_red
-  s_orbit_right_active{current_player.battle_jester_step==4}:
+  right_orbit_shot_hit{current_player.battle_jester_step==4}:
     - battle_jester_subtract_time_red
     
   # Steps 7-10 red shots (lane_left, orbit_left, barrier, pilot_gear, spinner)
   s_lane_left_active{current_player.battle_jester_step==6}:
     - battle_jester_subtract_time_red
-  s_orbit_left_active{current_player.battle_jester_step==6}:
+  left_orbit_shot_hit{current_player.battle_jester_step==6}:
     - battle_jester_subtract_time_red
   s_barrier_target_active{current_player.battle_jester_step==6}:
     - battle_jester_subtract_time_red
   s_flight_gear_target_active{current_player.battle_jester_step==6}:
     - battle_jester_subtract_time_red
-  spinner_shot_made{current_player.battle_jester_step==6}:
+  spinner_shot_made{current_player.battle_jester_step==6 and device.timers.battle_jester_spinner_lockout.running==False}:
     - battle_jester_subtract_time_red
 
   # Step 10 red shots (after ramps complete, trying to hit left lane)
   # Green: left_lane (goal), spinner & right_orbit (helpers - activate diverter)
   # Red: everything else
-  s_orbit_left_active{current_player.battle_jester_step==10}:
+  left_orbit_shot_hit{current_player.battle_jester_step==10}:
     - battle_jester_subtract_time_red
   s_ramp_left_exit_active{current_player.battle_jester_step==10}:
     - battle_jester_subtract_time_red
@@ -1527,6 +1547,7 @@ event_player:
     - battle_jester_cleanup
     - missiles_perk_unload
   battle_jester_tower_won:
+    - shaker_soft
     - battle_jester_cleanup
     - missiles_perk_unload
   battle_jester_tower_lost:
@@ -1534,6 +1555,27 @@ event_player:
     - missiles_perk_unload
 
   # Mode stops via stop_events in mode header
+
+  # SHAKER — soft bump on step completions (steps 3, 5, tower handled above)
+  battle_jester_step_1_complete:
+    - shaker_soft
+  battle_jester_step_2_complete:
+    - shaker_soft
+  battle_jester_step_4_complete:
+    - shaker_soft
+  battle_jester_step_6_complete:
+    - shaker_soft
+  battle_jester_step_11_complete:
+    - shaker_soft
+
+  ##############################################################################
+  ## SPINNER LOCKOUT — start on any spinner shot, extend while still spinning
+  ##############################################################################
+  spinner_shot_made{mode.battle_jester.active and device.timers.battle_jester_spinner_lockout.running==False}:
+    - battle_jester_spinner_lockout_start
+
+  s_spinner_active{mode.battle_jester.active and device.timers.battle_jester_spinner_lockout.running}:
+    - battle_jester_spinner_lockout_extend
 
 ####################################################################################
 # RANDOM EVENT PLAYER - Random video selection for missed shots
@@ -2191,31 +2233,19 @@ show_player:
 
   # Step 2 flashing
   battle_jester_setup_step_2:
-    # Set step 1 shots to solid red
-    flash_step1_lane_left:
-      show: jester_solid_red
+    # STOP step 1 shows — light_player handles static red colors
+    stop_step1_lane_left:
+      action: stop
       key: mode_l_shot_left_lane
-      loops: -1
-      show_tokens:
-        led: l_shot_left_lane
-    flash_step1_orbit_left:
-      show: jester_solid_red
+    stop_step1_orbit_left:
+      action: stop
       key: mode_l_shot_left_orbit
-      loops: -1
-      show_tokens:
-        led: l_shot_left_orbit
-    flash_step1_ramp_left:
-      show: jester_solid_red
+    stop_step1_ramp_left:
+      action: stop
       key: mode_l_shot_left_ramp
-      loops: -1
-      show_tokens:
-        led: l_shot_left_ramp
-    flash_step1_spinner:
-      show: jester_solid_red
+    stop_step1_spinner:
+      action: stop
       key: mode_l_shot_spinner
-      loops: -1
-      show_tokens:
-        led: l_shot_spinner
     # Start step 2 green flashing
     flash_step2_upper_orbit:
       show: jester_flash_green
@@ -2302,31 +2332,19 @@ show_player:
 
   # Step 3 flashing
   battle_jester_setup_step_3:
-    # Set step 2 shots to solid red
-    flash_step2_upper_orbit:
-      show: jester_solid_red
+    # STOP step 2 shows — light_player handles static red colors
+    stop_step2_upper_orbit:
+      action: stop
       key: mode_l_shot_upper_orbit
-      loops: -1
-      show_tokens:
-        led: l_shot_upper_orbit
-    flash_step2_spinner:
-      show: jester_solid_red
+    stop_step2_spinner:
+      action: stop
       key: mode_l_shot_spinner
-      loops: -1
-      show_tokens:
-        led: l_shot_spinner
-    flash_step2_barrier:
-      show: jester_solid_red
+    stop_step2_barrier:
+      action: stop
       key: mode_l_shot_barrier
-      loops: -1
-      show_tokens:
-        led: l_shot_barrier
-    flash_step2_tower:
-      show: jester_solid_red
+    stop_step2_tower:
+      action: stop
       key: mode_l_shot_tower_ramp
-      loops: -1
-      show_tokens:
-        led: l_shot_tower_ramp
     # Start step 3 green flashing
     flash_step3_upper_orbit:
       show: jester_flash_green
@@ -2410,31 +2428,19 @@ show_player:
 
   # Step 4 flashing
   battle_jester_setup_step_4:
-    # Set step 3 shots to solid red
-    flash_step3_upper_orbit:
-      show: jester_solid_red
+    # STOP step 3 shows — light_player handles static red colors
+    stop_step3_upper_orbit:
+      action: stop
       key: step3_upper_orbit
-      loops: -1
-      show_tokens:
-        led: l_shot_upper_orbit
-    flash_step3_orbit_lower:
-      show: jester_solid_red
+    stop_step3_orbit_lower:
+      action: stop
       key: step3_orbit_lower
-      loops: -1
-      show_tokens:
-        led: l_shot_middle_ramp
-    flash_step3_pilot_gear:
-      show: jester_solid_red
+    stop_step3_pilot_gear:
+      action: stop
       key: mode_l_shot_pilot_gear
-      loops: -1
-      show_tokens:
-        led: l_shot_pilot_gear
-    flash_step3_right_orbit:
-      show: jester_solid_red
+    stop_step3_right_orbit:
+      action: stop
       key: mode_l_shot_right_orbit
-      loops: -1
-      show_tokens:
-        led: l_shot_right_orbit
     # Start step 4 green flashing - ramp_left, spinner, orbit_left
     flash_step4_ramp_left:
       show: jester_flash_green
@@ -2509,25 +2515,16 @@ show_player:
 
   # Step 5 flashing
   battle_jester_setup_step_5:
-    # Set step 4 shots to solid red
-    flash_step4_ramp_left:
-      show: jester_solid_red
+    # STOP step 4 shows — light_player handles static red colors
+    stop_step4_ramp_left:
+      action: stop
       key: mode_l_shot_ramp_left
-      loops: -1
-      show_tokens:
-        led: l_shot_left_ramp
-    flash_step4_spinner:
-      show: jester_solid_red
+    stop_step4_spinner:
+      action: stop
       key: mode_l_shot_spinner
-      loops: -1
-      show_tokens:
-        led: l_shot_spinner
-    flash_step4_orbit_left:
-      show: jester_solid_red
+    stop_step4_orbit_left:
+      action: stop
       key: mode_l_shot_orbit_left
-      loops: -1
-      show_tokens:
-        led: l_shot_left_orbit
     # Start step 5 green flashing
     flash_step5_right_orbit:
       show: jester_flash_green
@@ -2568,22 +2565,10 @@ show_player:
       show_tokens:
         led: l_shot_middle_ramp
 
-  timer_battle_jester_step_5_timer_tick{ticks==14}:
-    flash_step5_right_orbit:
-      show: jester_flash_orange
-      sync_ms: 1000
-      key: mode_l_shot_right_orbit
-      loops: -1
-      show_tokens:
-        led: l_shot_right_orbit
+  # tick 14 removed — ramp_right (RR/RO) never turns off (shares l_shot_right_orbit)
 
   timer_battle_jester_step_5_timer_tick{ticks==16}:
-    flash_step5_right_orbit:
-      show: jester_solid_red
-      key: mode_l_shot_right_orbit
-      loops: -1
-      show_tokens:
-        led: l_shot_right_orbit
+    # right_orbit removed — ramp_right never times out; only pilot_gear turns orange here
     flash_step5_pilot_gear:
       show: jester_flash_orange
       sync_ms: 1000
@@ -2600,27 +2585,18 @@ show_player:
       show_tokens:
         led: l_shot_pilot_gear
 
-  # Step 6 - Set all step 5 shots to red, flash barrier green
+  # Step 6 - Stop step 5 shows, flash barrier green
   battle_jester_setup_step_6:
-    # Set step 5 shots to solid red
-    flash_step5_right_orbit:
-      show: jester_solid_red
+    # STOP step 5 shows — light_player handles static red colors
+    stop_step5_right_orbit:
+      action: stop
       key: mode_l_shot_right_orbit
-      loops: -1
-      show_tokens:
-        led: l_shot_right_orbit
-    flash_step5_pilot_gear:
-      show: jester_solid_red
+    stop_step5_pilot_gear:
+      action: stop
       key: mode_l_shot_pilot_gear
-      loops: -1
-      show_tokens:
-        led: l_shot_pilot_gear
-    flash_step5_middle_ramp:
-      show: jester_solid_red
+    stop_step5_middle_ramp:
+      action: stop
       key: mode_l_shot_middle_ramp
-      loops: -1
-      show_tokens:
-        led: l_shot_middle_ramp
     # Start step 6 - barrier flashing green
     flash_step6_barrier:
       show: jester_flash_green
@@ -2630,14 +2606,11 @@ show_player:
       show_tokens:
         led: l_shot_barrier
 
-  # Step 6 complete - stop barrier flash and set to red
+  # Step 6 complete - stop barrier flash (light_player sets barrier off)
   battle_jester_step_6_complete:
-    flash_step6_barrier:
-      show: jester_solid_red
+    stop_step6_barrier:
+      action: stop
       key: step6_barrier
-      loops: -1
-      show_tokens:
-        led: l_shot_barrier
 
   # Step 7-10 - Flash all ramps green
   battle_jester_setup_step_7:
@@ -2674,27 +2647,18 @@ show_player:
       show_tokens:
         led: l_shot_right_orbit
 
-  # Step 11 - Set step 7 ramp shots to solid red, flash spinner, right_orbit, left_lane green
+  # Step 11 - Stop step 7 ramp shows, flash spinner, right_orbit, left_lane green
   battle_jester_setup_step_11:
-    # Set step 7-10 ramp shots to solid red (except right_orbit - it's a GREEN shot in step 11)
-    flash_step7_ramp_left:
-      show: jester_solid_red
+    # STOP step 7-10 ramp shows — light_player handles static red colors
+    stop_step7_ramp_left:
+      action: stop
       key: mode_l_shot_ramp_left
-      loops: -1
-      show_tokens:
-        led: l_shot_left_ramp
-    flash_step7_ramp_middle:
-      show: jester_solid_red
+    stop_step7_ramp_middle:
+      action: stop
       key: mode_l_shot_ramp_middle
-      loops: -1
-      show_tokens:
-        led: l_shot_middle_ramp
-    flash_step7_ramp_tower:
-      show: jester_solid_red
+    stop_step7_ramp_tower:
+      action: stop
       key: mode_l_shot_ramp_tower
-      loops: -1
-      show_tokens:
-        led: l_shot_tower_ramp
     # Right orbit is GREEN in step 11 - restart flash on same key as step 7
     flash_step11_right_orbit:
       show: jester_flash_green
@@ -2719,85 +2683,21 @@ show_player:
       show_tokens:
         led: l_shot_left_lane
 
-  # Step 11 complete - turn off ALL shots for decision time
+  # Step 11 complete - stop the 3 green shows; light_player sets all shots off
   battle_jester_step_11_complete:
-    # Turn off step 11 shots
-    flash_step11_spinner:
-      show: jester_off
+    stop_step11_spinner:
+      action: stop
       key: step11_spinner
-      priority: 500
-      loops: -1
-      show_tokens:
-        led: l_shot_spinner
-    flash_step11_right_orbit:
-      show: jester_off
+    stop_step11_right_orbit:
+      action: stop
       key: mode_l_shot_ramp_right
-      priority: 500
-      loops: -1
-      show_tokens:
-        led: l_shot_right_orbit
-    flash_step11_left_lane:
-      show: jester_off
+    stop_step11_left_lane:
+      action: stop
       key: step11_left_lane
-      priority: 500
-      loops: -1
-      show_tokens:
-        led: l_shot_left_lane
-    # Turn off step 7 ramp shows (were solid red)
-    flash_step7_ramp_left:
-      show: jester_off
-      key: mode_l_shot_ramp_left
-      priority: 500
-      loops: -1
-      show_tokens:
-        led: l_shot_left_ramp
-    flash_step7_ramp_middle:
-      show: jester_off
-      key: mode_l_shot_ramp_middle
-      priority: 500
-      loops: -1
-      show_tokens:
-        led: l_shot_middle_ramp
-    flash_step7_ramp_tower:
-      show: jester_off
-      key: mode_l_shot_ramp_tower
-      priority: 500
-      loops: -1
-      show_tokens:
-        led: l_shot_tower_ramp
-    # Turn off remaining red lights (orbit_left, barrier, upper_orbit, pilot_gear)
-    flash_step11_orbit_left:
-      show: jester_off
-      key: step11_orbit_left
-      priority: 500
-      loops: -1
-      show_tokens:
-        led: l_shot_left_orbit
-    flash_step11_barrier:
-      show: jester_off
-      key: step11_barrier
-      priority: 500
-      loops: -1
-      show_tokens:
-        led: l_shot_barrier
-    flash_step11_upper_orbit:
-      show: jester_off
-      key: step11_upper_orbit
-      priority: 500
-      loops: -1
-      show_tokens:
-        led: l_shot_upper_orbit
-    flash_step11_pilot_gear:
-      show: jester_off
-      key: step11_pilot_gear
-      priority: 500
-      loops: -1
-      show_tokens:
-        led: l_shot_pilot_gear
 
   # Tower challenge - flash tower ramp green
   battle_jester_tower_challenge_start:
-    # Stop ALL the jester_off shows from step_11_complete that might be blocking
+    # These stops are now redundant (step_11_complete already stopped those shows)
     step7_ramp_tower:
       action: stop
     step11_pilot_gear:
@@ -3373,15 +3273,10 @@ light_player:
     l_shot_middle_ramp:
       color: red
 
-  # Right orbit: green → orange at 14s
-  timer_battle_jester_step_5_timer_tick{ticks==14}:
-    l_shot_right_orbit:
-      color: orange
+  # tick 14 removed — ramp_right (RR/RO) never turns off (shares l_shot_right_orbit)
 
-  # Right orbit: orange → red at 16s, pilot gear: green → orange at 16s
+  # Pilot gear: green → orange at 16s (right orbit removed — never times out)
   timer_battle_jester_step_5_timer_tick{ticks==16}:
-    l_shot_right_orbit:
-      color: red
     l_shot_pilot_gear:
       color: orange
 

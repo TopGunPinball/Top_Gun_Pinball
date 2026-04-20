@@ -1061,6 +1061,11 @@ event_player:
   no_points_for_second_place_check_skip_end_video{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
     - no_points_for_second_place_skip_end_video
 
+  # Drop barrier immediately when skip fires — before timer jumps and mode stops
+  # Gives the barrier maximum physical drop time before ball auto-ejects
+  no_points_for_second_place_skip_end_video:
+    - barrier_drop
+
   ##############################################
   ## DRAIN
   ##############################################
@@ -1162,6 +1167,7 @@ event_player:
     - no_points_for_second_place_wave1_final_shot_hit
 
   no_points_for_second_place_wave1_final_shot_hit:
+    - shaker_soft
     - barrier_raise
     - right_ramp_down
 
@@ -1171,6 +1177,7 @@ event_player:
   ## npfsp_gi_wave_color_flash is wave-aware (see light_player).
   ##############################################
   no_points_for_second_place_wave_shot_hit:
+    - shaker_soft
     - play_shot_made_callout
     - no_points_for_second_place_gi_strobe_flash_on
     - npfsp_gi_wave_color_flash|200ms
@@ -1263,6 +1270,7 @@ event_player:
     - no_points_for_second_place_wave2_final_shot_hit
 
   no_points_for_second_place_wave2_final_shot_hit:
+    - shaker_soft
     - left_orbit_diverter_closed
     - right_ramp_down
 
@@ -1321,12 +1329,14 @@ event_player:
     - no_points_for_second_place_victory_ball_exit|400ms
 
   timer_no_points_for_second_place_complete_delay_complete:
+    - barrier_drop  # Drop barrier same tick as mode stop — wave 4 uses release_all_events, barrier must drop first
     - no_points_for_second_place_release_hold
     # scoop_ball_release is NOT fired here — it is already fired by:
     #   release_hold{wave==1} → victory_ball_released → scoop_ball_release
     # Firing it here was a duplicate AND caused barrier_drop + barrier_raise in the
     # same event tick (cleanup fires barrier_raise immediately after release_hold fires
     # barrier_drop, giving the coil 3ms before it's cancelled → ball hits raised barrier).
+    - barrier_raise|600ms                        # Raise barrier 600ms after ball exits (machine-level event, fires after mode stops)
     - no_points_for_second_place_cleanup|600ms   # Delayed 600ms: barrier must stay down
     - pilot_mode_cleanup_complete|600ms          # until ball has physically cleared the barrier
 
@@ -1343,7 +1353,10 @@ event_player:
     - missiles_perk_unload
     - no_points_for_second_place_release_hold
 
-  timer_no_points_for_second_place_failed_delay_complete:
+  # Only fire cleanup in the failed path (complete_flag==0).
+  # In the won path, skip_end_video also jumps this timer to 0 — without this
+  # condition, cleanup fires immediately and raises the barrier before the ball exits.
+  timer_no_points_for_second_place_failed_delay_complete{current_player.no_points_for_second_place_complete_flag==0}:
     - no_points_for_second_place_cleanup
     - pilot_mode_cleanup_complete
 
@@ -1415,6 +1428,7 @@ event_player:
     - no_points_for_second_place_wave3_final_shot_hit
 
   no_points_for_second_place_wave3_final_shot_hit:
+    - shaker_soft
     - right_ramp_down  # Safety reset
 
   ##############################################
@@ -1478,6 +1492,7 @@ event_player:
   ## No release_hold{wave==4} entry; mode_will_stop triggers ball_holds release_all.
   ## cleanup fires barrier_drop so ball can exit when release_all fires.
   no_points_for_second_place_wave4_final_shot_hit:
+    - shaker_soft
     - barrier_raise
     - no_points_for_second_place_collect
 

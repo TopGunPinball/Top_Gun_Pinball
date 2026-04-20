@@ -123,6 +123,43 @@ timers:
       - action: stop
         event: mode_skillshot_will_stop
 
+  # Shaker pulse timer — fires every 1s to create near-continuous feel
+  # 500ms ON (shaker_shooter_lane_pulse duration) then 500ms natural off
+  # Restarts on flipper press to reset the 20-second inactivity timeout
+  skillshot_shaker_pulse:
+    start_value: 0
+    end_value: 999
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - action: start
+        event: mode_skillshot_started
+      - action: restart
+        event: skillshot_shaker_flipper_activity
+      - action: stop
+        event: s_shooter_lane_inactive
+      - action: stop
+        event: mode_skillshot_will_stop
+
+  # Shaker inactivity timer — stops shaker after 20s of no flipper activity
+  # Resets any time a flipper is pressed
+  skillshot_shaker_idle:
+    start_value: 0
+    end_value: 20
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - action: start
+        event: mode_skillshot_started
+      - action: restart
+        event: skillshot_shaker_flipper_activity
+      - action: stop
+        event: s_shooter_lane_inactive
+      - action: stop
+        event: mode_skillshot_will_stop
+
   # Left MIG post hold timer - 3 seconds when ball is plunged without flipper held
   skillshot_left_mig_post_timer:
     start_value: 0
@@ -438,9 +475,26 @@ event_player:
     - skillshot_add_topgun_letter|200ms    # Letter 2 of 3
     - skillshot_add_topgun_letter|400ms    # Letter 3 of 3
     
-  # On mode start, set position to M
+  # On mode start, set MIG position and fire first shaker pulse immediately
   mode_skillshot_started:
     - skillshot_mig_position_m
+    - shaker_shooter_lane_pulse     # First pulse fires immediately
+
+  # Every 1s tick fires a 500ms pulse — feels nearly continuous, motor gets 500ms rest
+  timer_skillshot_shaker_pulse_tick:
+    - shaker_shooter_lane_pulse
+
+  # 20 second inactivity timeout — stop shaker, wait for flipper to restart
+  timer_skillshot_shaker_idle_complete:
+    - skillshot_shaker_idle_stop    # Stops shaker via config_shaker.yaml stop event
+
+  # Flipper activity — post named event to restart both timers and resume shaker
+  s_flipper_left_active{mode.skillshot.active and device.timers.skillshot_shaker_idle.running==False}:
+    - skillshot_shaker_flipper_activity
+    - shaker_shooter_lane_pulse     # Restart shaker immediately on flipper press
+  s_flipper_right_active{mode.skillshot.active and device.timers.skillshot_shaker_idle.running==False}:
+    - skillshot_shaker_flipper_activity
+    - shaker_shooter_lane_pulse     # Restart shaker immediately on flipper press
 
   # Right flipper: M -> I -> G -> M
   s_flipper_right_active{mode.skillshot.active and current_player.skillshot_mig_position==0}:
@@ -457,6 +511,11 @@ event_player:
     - skillshot_mig_position_i
   s_flipper_left_active{mode.skillshot.active and current_player.skillshot_mig_position==1}:
     - skillshot_mig_position_m
+
+  # Stop shaker immediately when ball is plunged during skillshot
+  # Uses a named event so only skillshot triggers this stop (not multiball etc.)
+  s_shooter_lane_inactive{mode.skillshot.active}:
+    - skillshot_shaker_stop
 
   # LEFT MIG POST CONTROL ON PLUNGE
   # When ball is plunged (leaves shooter lane), check if left flipper is NOT held

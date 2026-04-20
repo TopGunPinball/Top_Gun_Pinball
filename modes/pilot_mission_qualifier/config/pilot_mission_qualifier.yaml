@@ -182,6 +182,44 @@ timers:
         action: stop
 
 
+  ##############################################
+  ## SLIDE COLLISION PREVENTION TIMERS
+  ##############################################
+
+  # Tracks whether a skillshot video is likely still playing.
+  # Restarts on each skillshot hit; 7s covers the longest video (6s inverted + margin).
+  skillshot_video_running:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 7s
+    start_running: false
+    control_events:
+      - event: mig_lane_left_skill_lit_hit
+        action: restart
+      - event: mig_lane_right_skill_lit_hit
+        action: restart
+      - event: spinner_skill_lit_hit
+        action: restart
+      - event: orbit_upper_skill_lit_hit
+        action: restart
+      - event: ramp_inner_skill_lit_hit
+        action: restart
+
+  # 2-second window after LL collects the 6th TOPGUN letter.
+  # If any mode starts during this window the pilot mission video is skipped,
+  # preventing it from colliding with the mode-start callout (e.g. hard deck).
+  topgun_ll_qualify_window:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 2s
+    start_running: false
+    control_events:
+      - event: topgun_ll_window_start
+        action: start
+
+
 slide_player:
   # Show initial slide when mode starts - ONLY if not qualified
   mode_pilot_mission_qualifier_started{current_player.topgun_shots_collected==0 and current_player.qualified_mode_number==0}:
@@ -1170,6 +1208,8 @@ variable_player:
     previous_switch_type:
       action: set
       int: 0
+    topgun_skip_video: { action: set, int: 0 }
+    topgun_ll_sixth_letter: { action: set, int: 0 }
 
   ##############################################
   ## Pause/Unpause During Other Modes
@@ -1684,6 +1724,49 @@ variable_player:
       action: set
       int: 0
   
+  ##############################################
+  ## TOPGUN VIDEO SKIP FLAG — set by eject qualification or LL-window mode start
+  ## Cleared when the queue show event fires (video decision made then, not at topgun_qualified)
+  ##############################################
+
+  # When ejection seat qualifies, flag to skip the pilot mission video
+  # (both fire on the same shot; flag is set before topgun_qualified fires)
+  eject_mode_qualified_event:
+    topgun_skip_video:
+      action: set
+      int: 1
+
+  # When a mode starts (e.g. hard deck) during the 2s LL-last-letter window, skip video
+  player_letter_collection_paused{value==1 and device.timers.topgun_ll_qualify_window.running==True}:
+    topgun_skip_video:
+      action: set
+      int: 1
+
+  # Detect when LL is about to collect the 6th TOPGUN letter.
+  # Condition evaluates BEFORE variable_player increments topgun_shots_collected,
+  # so topgun_shots_collected==5 means this IS the qualifying shot.
+  s_lane_left_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played<=1 and current_player.topgun_shots_collected==5}:
+    topgun_ll_sixth_letter:
+      action: set
+      int: 1
+
+  # Clear both flags when the queue show events fire (keeps the flag lifecycle clean)
+  topgun_queue_show_1:
+    topgun_skip_video: { action: set, int: 0 }
+    topgun_ll_sixth_letter: { action: set, int: 0 }
+  topgun_queue_show_2:
+    topgun_skip_video: { action: set, int: 0 }
+    topgun_ll_sixth_letter: { action: set, int: 0 }
+  topgun_queue_show_3:
+    topgun_skip_video: { action: set, int: 0 }
+    topgun_ll_sixth_letter: { action: set, int: 0 }
+  topgun_queue_show_4:
+    topgun_skip_video: { action: set, int: 0 }
+    topgun_ll_sixth_letter: { action: set, int: 0 }
+  topgun_queue_show_random:
+    topgun_skip_video: { action: set, int: 0 }
+    topgun_ll_sixth_letter: { action: set, int: 0 }
+
   topgun_qualified:
     score:
       action: add
@@ -2053,6 +2136,9 @@ event_player:
   mode_great_balls_of_fire_stopped{current_player.pilot_missions_played==1}:
     - spot_topgun_letter|300ms
     - spot_topgun_letter|500ms
+  mode_no_points_for_second_place_stopped{current_player.pilot_missions_played==1}:
+    - spot_topgun_letter|300ms
+    - spot_topgun_letter|500ms
 
   # After 2nd mission stops (any mode): spot 1 letter
   mode_cool_under_pressure_stopped{current_player.pilot_missions_played==2}:
@@ -2073,24 +2159,67 @@ event_player:
     - spot_topgun_letter|300ms
   mode_great_balls_of_fire_stopped{current_player.pilot_missions_played==2}:
     - spot_topgun_letter|300ms
+  mode_no_points_for_second_place_stopped{current_player.pilot_missions_played==2}:
+    - spot_topgun_letter|300ms
 
   ##############################################
   ## 5th+ QUALIFICATION - RANDOM VIDEO SELECTION
   ## For modes_completed_count >= 4, trigger random video selection
   ##############################################
 
-  # 2s delay before topgun complete video plays (modes 1-4)
-  topgun_qualified{current_player.modes_completed_count==0}:
-    - topgun_show_complete_1|2000ms
-  topgun_qualified{current_player.modes_completed_count==1}:
-    - topgun_show_complete_2|2000ms
-  topgun_qualified{current_player.modes_completed_count==2}:
-    - topgun_show_complete_3|2000ms
-  topgun_qualified{current_player.modes_completed_count==3}:
-    - topgun_show_complete_4|2000ms
+  ##############################################
+  ## PILOT MISSION QUALIFIED VIDEO - two-stage dispatch
+  ##
+  ## Stage 1 (topgun_qualified): schedule the queue show event.
+  ##   - Normal:    2s delay
+  ##   - Skillshot: 5s delay (video still playing)
+  ##
+  ## Stage 2 (topgun_queue_show_N): check skip flag at delivery time.
+  ##   - topgun_skip_video==0 → play video
+  ##   - topgun_skip_video==1 → skip (set by eject qualification or LL-window mode start)
+  ##############################################
 
-  topgun_qualified{current_player.modes_completed_count>=4}:
-    - play_random_topgun_complete|2000ms
+  # Stage 1: schedule queue show (skillshot path = 5s, normal = 2s)
+  topgun_qualified{current_player.modes_completed_count==0 and device.timers.skillshot_video_running.running==True}:
+    - topgun_queue_show_1|5000ms
+  topgun_qualified{current_player.modes_completed_count==0 and not device.timers.skillshot_video_running.running}:
+    - topgun_queue_show_1|2000ms
+
+  topgun_qualified{current_player.modes_completed_count==1 and device.timers.skillshot_video_running.running==True}:
+    - topgun_queue_show_2|5000ms
+  topgun_qualified{current_player.modes_completed_count==1 and not device.timers.skillshot_video_running.running}:
+    - topgun_queue_show_2|2000ms
+
+  topgun_qualified{current_player.modes_completed_count==2 and device.timers.skillshot_video_running.running==True}:
+    - topgun_queue_show_3|5000ms
+  topgun_qualified{current_player.modes_completed_count==2 and not device.timers.skillshot_video_running.running}:
+    - topgun_queue_show_3|2000ms
+
+  topgun_qualified{current_player.modes_completed_count==3 and device.timers.skillshot_video_running.running==True}:
+    - topgun_queue_show_4|5000ms
+  topgun_qualified{current_player.modes_completed_count==3 and not device.timers.skillshot_video_running.running}:
+    - topgun_queue_show_4|2000ms
+
+  topgun_qualified{current_player.modes_completed_count>=4 and device.timers.skillshot_video_running.running==True}:
+    - topgun_queue_show_random|5000ms
+  topgun_qualified{current_player.modes_completed_count>=4 and not device.timers.skillshot_video_running.running}:
+    - topgun_queue_show_random|2000ms
+
+  # Stage 2: gate on skip flag — if clear, play video; if set, silently skip
+  topgun_queue_show_1{current_player.topgun_skip_video==0}:
+    - topgun_show_complete_1
+  topgun_queue_show_2{current_player.topgun_skip_video==0}:
+    - topgun_show_complete_2
+  topgun_queue_show_3{current_player.topgun_skip_video==0}:
+    - topgun_show_complete_3
+  topgun_queue_show_4{current_player.topgun_skip_video==0}:
+    - topgun_show_complete_4
+  topgun_queue_show_random{current_player.topgun_skip_video==0}:
+    - play_random_topgun_complete
+
+  # Start 2s window when LL was the last TOPGUN letter collected
+  topgun_qualified{current_player.topgun_ll_sixth_letter==1}:
+    - topgun_ll_window_start
 
   # After qualifying, re-evaluate LL/TL training/HD shows
   # (topgun_qualified stops qual keys; this restarts training/HD if appropriate)
@@ -2496,17 +2625,20 @@ event_player:
   rotate_qualified_mode{current_player.qualified_mode_number==4 and current_player.mode_no_points_for_second_place_played==0}:
     qualify_no_points_for_second_place
   
-  rotate_qualified_mode{current_player.qualified_mode_number==4 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==0}:
-    qualify_edge_of_space
+  rotate_qualified_mode{current_player.qualified_mode_number==4 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_no_margin_for_error_played==0}:
+    qualify_no_margin_for_error
   
   rotate_qualified_mode{current_player.qualified_mode_number==4 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_no_margin_for_error_played==1 and current_player.mode_rise_of_phoenix_played==0}:
-    qualify_below_the_hard_deck
+    qualify_rise_of_phoenix
   
   rotate_qualified_mode{current_player.qualified_mode_number==4 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_no_margin_for_error_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==0}:
     qualify_canyon_run
   
   rotate_qualified_mode{current_player.qualified_mode_number==4 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_no_margin_for_error_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==0}:
-    qualify_rise_of_phoenix
+    qualify_below_the_hard_deck
+  
+  rotate_qualified_mode{current_player.qualified_mode_number==4 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_no_margin_for_error_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==0}:
+    qualify_edge_of_space
   
   rotate_qualified_mode{current_player.qualified_mode_number==4 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_no_margin_for_error_played==0}:
     qualify_no_margin_for_error
@@ -2857,7 +2989,14 @@ event_player:
   
   rotate_qualified_mode_backwards{current_player.qualified_mode_number==2 and current_player.mode_rescue_cougar_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==0}:
     qualify_below_the_hard_deck
+
+  # Missing conditions: edge+below played but canyon/rise not yet played
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==2 and current_player.mode_rescue_cougar_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==0}:
+    qualify_canyon_run
   
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==2 and current_player.mode_rescue_cougar_played==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==0}:
+    qualify_rise_of_phoenix
+
   rotate_qualified_mode_backwards{current_player.qualified_mode_number==2 and current_player.mode_rescue_cougar_played==1 and current_player.mode_no_margin_for_error_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==0}:
     qualify_canyon_run
   
@@ -2883,7 +3022,14 @@ event_player:
   
   rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==0}:
     qualify_below_the_hard_deck
+
+  # Missing conditions: edge+below played but canyon/rise not yet played
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==0}:
+    qualify_canyon_run
   
+  rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_edge_of_space_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_rise_of_phoenix_played==0}:
+    qualify_rise_of_phoenix
+
   rotate_qualified_mode_backwards{current_player.qualified_mode_number==1 and current_player.mode_no_margin_for_error_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==0}:
     qualify_canyon_run
   
@@ -4292,7 +4438,7 @@ light_player:
   
   mode_pilot_mission_qualifier_started{current_player.mode_no_points_for_second_place_played==1}:
     l_mode_no_points_for_second_place:
-      color: yellow
+      color: white
       fade: 0ms
   
   mode_pilot_mission_qualifier_started{current_player.mode_edge_of_space_played==1}:
@@ -4401,7 +4547,7 @@ light_player:
   
   stop_all_mode_pulse_shows{current_player.mode_no_points_for_second_place_played==1}:
     l_mode_no_points_for_second_place:
-      color: yellow
+      color: white
       fade: 0ms
   
   stop_all_mode_pulse_shows{current_player.mode_edge_of_space_played==1}:

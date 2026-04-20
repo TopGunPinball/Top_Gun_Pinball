@@ -616,7 +616,7 @@ event_player:
     - nmfe_won
 
   # Re-shots while waiting for ball: reopen diverter without scoring again
-  spinner_shot_made{current_player.nmfe_step==11 and not device.timers.spinner_shot_lockout.running}:
+  spinner_shot_made{current_player.nmfe_step==11 and current_player.spinner_shot_locked==0}:
     - nmfe_activate_won_catch
   s_orbit_upper_active{current_player.nmfe_step==11}:
     - nmfe_activate_won_catch
@@ -736,7 +736,7 @@ event_player:
     - nmfe_good_shot_hit
     - nmfe_step_1_shot_hit
     - nmfe_setup_step_2
-  spinner_shot_made{current_player.nmfe_step==0 and not device.timers.spinner_shot_lockout.running}:
+  spinner_shot_made{current_player.nmfe_step==0 and current_player.spinner_shot_locked==0}:
     - nmfe_step_1_complete
     - nmfe_good_shot_hit
     - nmfe_step_1_shot_hit
@@ -790,7 +790,7 @@ event_player:
     - nmfe_good_shot_hit
     - nmfe_step_2_shot_hit
     - nmfe_setup_step_3
-  spinner_shot_made{current_player.nmfe_step==1 and not device.timers.spinner_shot_lockout.running}:
+  spinner_shot_made{current_player.nmfe_step==1 and current_player.spinner_shot_locked==0}:
     - nmfe_step_2_complete
     - nmfe_good_shot_hit
     - nmfe_step_2_shot_hit
@@ -832,7 +832,7 @@ event_player:
     - nmfe_good_shot_hit
     - nmfe_step_3_shot_hit
     - nmfe_setup_step_4
-  spinner_shot_made{current_player.nmfe_step==2 and not device.timers.spinner_shot_lockout.running}:
+  spinner_shot_made{current_player.nmfe_step==2 and current_player.spinner_shot_locked==0}:
     - nmfe_step_3_complete
     - nmfe_good_shot_hit
     - nmfe_step_3_shot_hit
@@ -876,7 +876,7 @@ event_player:
     - nmfe_good_shot_hit
     - nmfe_step_4_shot_hit
     - nmfe_setup_step_5
-  spinner_shot_made{current_player.nmfe_step==3 and not device.timers.spinner_shot_lockout.running}:
+  spinner_shot_made{current_player.nmfe_step==3 and current_player.spinner_shot_locked==0}:
     - nmfe_step_4_complete
     - nmfe_good_shot_hit
     - nmfe_step_4_shot_hit
@@ -919,7 +919,7 @@ event_player:
     - nmfe_good_shot_hit
     - nmfe_step_5_shot_hit
     - nmfe_setup_step_6
-  spinner_shot_made{current_player.nmfe_step==4 and not device.timers.spinner_shot_lockout.running}:
+  spinner_shot_made{current_player.nmfe_step==4 and current_player.spinner_shot_locked==0}:
     - nmfe_step_5_complete
     - nmfe_good_shot_hit
     - nmfe_step_5_shot_hit
@@ -959,7 +959,7 @@ event_player:
     - nmfe_good_shot_hit
     - nmfe_step_6_shot_hit
     - nmfe_setup_step_7
-  spinner_shot_made{current_player.nmfe_step==5 and not device.timers.spinner_shot_lockout.running}:
+  spinner_shot_made{current_player.nmfe_step==5 and current_player.spinner_shot_locked==0}:
     - nmfe_step_6_complete
     - nmfe_good_shot_hit
     - nmfe_step_6_shot_hit
@@ -996,7 +996,7 @@ event_player:
     - nmfe_good_shot_hit
     - nmfe_step_7_shot_hit
     - nmfe_setup_step_8
-  spinner_shot_made{current_player.nmfe_step==6 and not device.timers.spinner_shot_lockout.running}:
+  spinner_shot_made{current_player.nmfe_step==6 and current_player.spinner_shot_locked==0}:
     - nmfe_step_7_complete
     - nmfe_good_shot_hit
     - nmfe_step_7_shot_hit
@@ -1055,7 +1055,7 @@ event_player:
     - nmfe_bad_shot
   s_ramp_left_exit_active{current_player.nmfe_step==7}:
     - nmfe_bad_shot
-  spinner_shot_made{current_player.nmfe_step==7 and not device.timers.spinner_shot_lockout.running}:
+  spinner_shot_made{current_player.nmfe_step==7 and current_player.spinner_shot_locked==0}:
     - nmfe_bad_shot
   s_barrier_target_active{current_player.nmfe_step==7}:
     - nmfe_bad_shot
@@ -1066,7 +1066,7 @@ event_player:
   ## STEP 9 — SP CNT TWR lit; TOP RAMP DOWN; rest bad
   ## nmfe_setup_step_9 lowers top ramp (event_player handles servo above)
   ##############################################
-  spinner_shot_made{current_player.nmfe_step==8 and not device.timers.spinner_shot_lockout.running}:
+  spinner_shot_made{current_player.nmfe_step==8 and current_player.spinner_shot_locked==0}:
     - nmfe_step_9_complete
     - nmfe_good_shot_hit
     - nmfe_step_9_shot_hit
@@ -1115,7 +1115,7 @@ event_player:
   # BAD
   s_lane_left_active{current_player.nmfe_step==9}:
     - nmfe_bad_shot
-  spinner_shot_made{current_player.nmfe_step==9 and not device.timers.spinner_shot_lockout.running}:
+  spinner_shot_made{current_player.nmfe_step==9 and current_player.spinner_shot_locked==0}:
     - nmfe_bad_shot
   s_barrier_target_active{current_player.nmfe_step==9}:
     - nmfe_bad_shot
@@ -1137,7 +1137,7 @@ event_player:
   ## nmfe_setup_step_11 raises right ramp (event_player handles servo above)
   ## Won shot fires nmfe_step_11_complete (handled above in won-but-waiting section)
   ##############################################
-  spinner_shot_made{current_player.nmfe_step==10 and not device.timers.spinner_shot_lockout.running}:
+  spinner_shot_made{current_player.nmfe_step==10 and current_player.spinner_shot_locked==0}:
     - nmfe_step_11_complete
   s_orbit_upper_active{current_player.nmfe_step==10}:
     - nmfe_step_11_complete
@@ -1165,6 +1165,10 @@ event_player:
 ####################################################################################
 # COIL PLAYER
 ####################################################################################
+
+  # Shaker — fires on every good shot
+  nmfe_good_shot_hit:
+    - shaker_soft
 
 coil_player:
 

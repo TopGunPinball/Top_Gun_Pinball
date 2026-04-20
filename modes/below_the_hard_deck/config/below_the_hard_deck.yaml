@@ -569,6 +569,7 @@ event_player:
   ## Bad shot subtracts 2s from current timer (timer control_event add: -2)
   ##############################################
   bthd_good_shot_hit:
+    - shaker_soft
     - bthd_show_made
     - bthd_good_shot_hit_increment
 
@@ -691,13 +692,13 @@ event_player:
   # Bad shots at position 1: CNT, SP
   s_barrier_target_active{current_player.bthd_position==1 and current_player.bthd_complete_flag==0}:
     - bthd_bad_shot_hit
-  spinner_shot_made{current_player.bthd_position==1 and not device.timers.spinner_shot_lockout.running and current_player.bthd_complete_flag==0}:
+  spinner_shot_made{current_player.bthd_position==1 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0}:
     - bthd_bad_shot_hit
 
   ##############################################
   ## POSITION 2 (SP)
   ##############################################
-  spinner_shot_made{current_player.bthd_position==2 and not device.timers.spinner_shot_lockout.running and current_player.bthd_complete_flag==0}:
+  spinner_shot_made{current_player.bthd_position==2 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0}:
     - bthd_good_shot_hit
 
   # Bad shots at position 2: LR, TWR
@@ -727,7 +728,7 @@ event_player:
   # Bad shots at position 4: LO, SP
   left_orbit_shot_hit{current_player.bthd_position==4 and current_player.bthd_complete_flag==0}:
     - bthd_bad_shot_hit
-  spinner_shot_made{current_player.bthd_position==4 and not device.timers.spinner_shot_lockout.running and current_player.bthd_complete_flag==0}:
+  spinner_shot_made{current_player.bthd_position==4 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0}:
     - bthd_bad_shot_hit
 
   ##############################################
@@ -737,7 +738,7 @@ event_player:
     - bthd_good_shot_hit
 
   # Bad shots at position 5: SP, TWR
-  spinner_shot_made{current_player.bthd_position==5 and not device.timers.spinner_shot_lockout.running and current_player.bthd_complete_flag==0}:
+  spinner_shot_made{current_player.bthd_position==5 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0}:
     - bthd_bad_shot_hit
   s_ramp_tower_exit_active{current_player.bthd_position==5 and current_player.bthd_complete_flag==0}:
     - bthd_bad_shot_hit
@@ -762,7 +763,7 @@ event_player:
 
   s_barrier_target_active{current_player.bthd_position==7 and current_player.bthd_complete_flag==0}:
     - bthd_bad_shot_hit
-  spinner_shot_made{current_player.bthd_position==7 and not device.timers.spinner_shot_lockout.running and current_player.bthd_complete_flag==0}:
+  spinner_shot_made{current_player.bthd_position==7 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0}:
     - bthd_bad_shot_hit
 
   ##############################################
@@ -773,13 +774,13 @@ event_player:
 
   left_orbit_shot_hit{current_player.bthd_position==8 and current_player.bthd_complete_flag==0}:
     - bthd_bad_shot_hit
-  spinner_shot_made{current_player.bthd_position==8 and not device.timers.spinner_shot_lockout.running and current_player.bthd_complete_flag==0}:
+  spinner_shot_made{current_player.bthd_position==8 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0}:
     - bthd_bad_shot_hit
 
   ##############################################
   ## POSITION 9 (SP — same bad shots as pos 2)
   ##############################################
-  spinner_shot_made{current_player.bthd_position==9 and not device.timers.spinner_shot_lockout.running and current_player.bthd_complete_flag==0}:
+  spinner_shot_made{current_player.bthd_position==9 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0}:
     - bthd_good_shot_hit
 
   s_ramp_left_exit_active{current_player.bthd_position==9 and current_player.bthd_complete_flag==0}:
@@ -795,7 +796,7 @@ event_player:
 
   left_orbit_shot_hit{current_player.bthd_position==10 and current_player.bthd_complete_flag==0}:
     - bthd_bad_shot_hit
-  spinner_shot_made{current_player.bthd_position==10 and not device.timers.spinner_shot_lockout.running and current_player.bthd_complete_flag==0}:
+  spinner_shot_made{current_player.bthd_position==10 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0}:
     - bthd_bad_shot_hit
 
   ##############################################

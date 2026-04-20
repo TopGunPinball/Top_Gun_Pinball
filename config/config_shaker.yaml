@@ -1,0 +1,50 @@
+#config_version=6
+
+# Shaker motor device config — FAST FP-EXP-1313 board
+# Board is declared in config_hardware_fast.yaml under fast:exp:boards:shaker_board
+# This file defines the shaker device itself and all named control events.
+# 
+# USAGE: Post any control_event name from any mode file's event_player:
+#   event_player:
+#     some_shot_hit:
+#       - shaker_medium
+#
+# POWER SAFETY: Never set power: 1.0 — motor will overheat.
+# Keep long-duration events at power: 0.20 or lower.
+
+shakers:
+  shaker:
+    number: shaker_board-1          #shaker_board = name given in fast:exp:boards; port always 1
+    control_events:
+      shaker_soft:                  #Light bump — minor hits, pop bumpers
+        duration: 300ms
+        power: 0.08
+      shaker_medium:                #Standard hit — ramp completions, shot hits
+        duration: 750ms
+        power: 0.1
+      shaker_hard:                  #Big moment — multiball start, mode victory
+        duration: 850ms
+        power: 0.15
+      shaker_rumble:                #Sustained — LOW power required for long durations
+        duration: 3000ms
+        power: 0.1
+      shaker_long_soft:             #Extended soft — step completions, moderate moments
+        duration: 2000ms
+        power: 0.05
+      shaker_shooter_lane:          #3 second pulse for shooter lane idle rumble (fires every 6s via timer)
+        duration: 3000ms
+        power: 0.05
+      shaker_shooter_lane_pulse:    #500ms pulse for near-continuous feel in shooter lane
+        duration: 500ms             #Fires every 1s via timer — 50% duty cycle protects motor
+        power: 0.05
+      # STOP EVENTS — action: stop cuts the motor immediately, no duration/power needed
+      shutdown:                     #MPF is quitting — stop shaker immediately
+        action: stop
+      game_ended:                   #Game over — stop shaker immediately
+        action: stop
+      tilt:                         #Machine tilted — stop shaker immediately
+        action: stop
+      skillshot_shaker_stop:        #Ball plunged during skillshot — cut rumble immediately
+        action: stop
+      skillshot_shaker_idle_stop:   #20 second inactivity timeout — stop until flipper pressed
+        action: stop
