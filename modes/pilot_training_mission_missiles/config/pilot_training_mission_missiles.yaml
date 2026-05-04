@@ -315,7 +315,7 @@ variable_player:
       int: 1
     missiles_step:
       action: set
-      int: 0
+      int: -1    # sentinel during intro; setup_step_1 sets to 0 when window phase actually opens
     missiles_complete_flag:
       action: set
       int: 0
@@ -589,6 +589,7 @@ variable_player:
 
   # Reset window state at each window phase; also reset pair miss counter
   missiles_setup_step_1:
+    missiles_step: { action: set, int: 0 }    # opens window phase (was -1 sentinel during intro)
     missiles_window_pos: { action: set, int: 0 }
     missiles_window_dir: { action: set, int: 0 }
     missiles_window_lock_shot: { action: set, int: 0 }

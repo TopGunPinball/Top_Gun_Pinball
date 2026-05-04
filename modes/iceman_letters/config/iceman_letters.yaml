@@ -781,8 +781,8 @@ event_player:
   s_spinner_active{current_player.training_mission_qualified>0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
     - restart_left_mig_post_timer
 
-  # Start right post timer when left orbit hit (if training qualified, NOT locked out, and no training mission running)
-  s_orbit_left_active{current_player.training_mission_qualified>0 and current_player.right_post_locked_out==0 and current_player.training_mission_active==0}:
+  # Start right post timer when left orbit hit (if training qualified, NOT locked out, and no training mission/pilot mission/hard deck/multiball running)
+  s_orbit_left_active{current_player.training_mission_qualified>0 and current_player.right_post_locked_out==0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
     - restart_right_mig_post_timer
 
   # Start lockout timer when right-side switches hit
@@ -846,8 +846,8 @@ coil_player:
     c_left_mig_up_post:
       action: disable
 
-  # RIGHT MIG POST - Activate when left orbit hit, NOT locked out, training qualified, and not during active training
-  s_orbit_left_active{current_player.training_mission_qualified>0 and current_player.right_post_locked_out==0 and current_player.training_mission_active==0}:
+  # RIGHT MIG POST - Activate when left orbit hit, NOT locked out, training qualified, and not during active training/pilot mission/hard deck/multiball
+  s_orbit_left_active{current_player.training_mission_qualified>0 and current_player.right_post_locked_out==0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
     c_right_mig_up_post:
       action: pulse
       hold_power: 0.125

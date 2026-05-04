@@ -1,0 +1,1009 @@
+#config_version=6
+
+####################################################################################
+# HARD DECK: HONORING ICEMAN
+# A tribute mode honoring Val Kilmer / Iceman.
+#
+# QUALIFIER (in hard_deck_qualifiers.yaml):
+#   ICEMAN completed 5 times (currently set to 2 for testing)
+#
+# PRIORITY: 600 (same as pilot missions — higher than bonus mode's 500)
+# START EVENT: start_mode_hard_deck_honoring_iceman (from hard_deck_qualifiers)
+# STACKS WITH MULTIBALL: NO
+# TIMER: 150 seconds (starts on honoring_iceman_ball_released)
+# VIDEO + MUSIC: 156s total (6s intro + 150s gameplay), both start on mode_started
+#
+# BALL HOLD: Left lane post (c_left_lane_up_post) for intro
+#            Mode scoop (bd_mode_scoop) for won ball capture
+# BALL SAVE: 5s after ball released from left lane (auto_launch: true)
+#
+# SHOT PROGRESSION (13 total hits, mode_points_scored scales with total_scoring_multiplier):
+#   6 qualifier targets start active (lit solid):
+#     I → LO (left orbit)    [350K]
+#     C → LR (left ramp)     [350K]
+#     E → Spinner            [350K]
+#     M → Tower (TWR)        [350K]
+#     A → TO (top loop, raises top ramp)  [350K]
+#     N → RR (right ramp)    [350K]
+#   Main shots (pulse after qualifier hit), scoring scales by order hit:
+#     1st main shot: 500K
+#     2nd: 600K
+#     3rd: 700K
+#     4th: 800K
+#     5th: 1,000K
+#     6th: 1,300K
+#   After all 6 main shots hit: barrier drops, scoop becomes 7th shot
+#     Scoop: 1,500K → ball captured, end_video_early_won overlays
+#   TOTAL: 8,500,000 × total_scoring_multiplier
+#
+# END CONDITIONS:
+#   Won: scoop hit → ball held → mode runs out OR both flippers skip
+#   Lost (drain): ball_ending → overlay lost slide → timer runs out OR both flippers skip
+#   Lost (timer expires, ball in play): mode ends naturally, back to base
+#
+# GI COLORS:
+#   Alternating odd = 88DDFF (ice blue), even = 0066FF (blue)
+#   Backpanel (22-27): RED / WHITE / BLUE / RED / WHITE / BLUE
+#   Apron: alternating blue / ice blue
+####################################################################################
+
+mode:
+  start_events: start_mode_hard_deck_honoring_iceman
+  stop_events:
+    - timer_hoi_main_timer_complete    # Stops on natural timer expiry (won OR active gameplay)
+    - hoi_drain_cleanup_complete       # Drain path (queue release)
+  priority: 600
+  game_mode: true
+  use_wait_queue: true
+
+mode_settings:
+  can_stack_with_multiball: false
+
+####################################################################################
+# BALL HOLDS — Mode scoop catches ball on the winning (7th) shot
+####################################################################################
+ball_holds:
+  hoi_scoop_hold:
+    balls_to_hold: 1
+    hold_devices: bd_mode_scoop
+    enable_events:
+      - mode_hard_deck_honoring_iceman_started
+    release_all_events:
+      - mode_hard_deck_honoring_iceman_will_stop
+
+####################################################################################
+# BALL SAVES — 5s save after ball release from left lane
+# auto_launch: false — we pulse c_plunger manually when ball arrives at shooter lane.
+# (Global bd_plunger has no eject_coil, so we must fire the plunger explicitly.)
+####################################################################################
+ball_saves:
+  hoi_ball_save:
+    active_time: 5s
+    grace_period: 500ms
+    auto_launch: false
+    balls_to_save: 1
+    enable_events: honoring_iceman_ball_released
+    disable_events: mode_hard_deck_honoring_iceman_will_stop
+
+####################################################################################
+# QUEUE RELAY — Hold ball_ending until mode cleanup completes
+####################################################################################
+queue_relay_player:
+  ball_ending{mode.hard_deck_honoring_iceman.active==True}:
+    post: hoi_ball_ending_hold
+    wait_for: hoi_drain_cleanup_complete
+    priority: 1000
+
+####################################################################################
+# TIMERS
+####################################################################################
+timers:
+  # Intro ball hold timer — 6 seconds before ball release
+  hoi_intro_delay:
+    start_value: 0
+    end_value: 6
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: mode_hard_deck_honoring_iceman_started
+        action: start
+      - event: hoi_skip_intro
+        action: stop
+
+  # Main mode timer — 150s, counts down during gameplay
+  # Never stopped by win or drain — allows tribute video to play to completion.
+  # Both-flipper skip during won/lost jumps the timer to 0, which fires
+  # timer_complete (the mode stop event) and runs the proper cleanup path.
+  hoi_main_timer:
+    start_value: 150
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: honoring_iceman_ball_released
+        action: start
+      - event: hoi_skip_to_end
+        action: jump
+        value: 0
+
+  # Ball save plunge delay — 1s after shooter lane detection, pulse plunger
+  hoi_plunge_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: hoi_plunge_delay_start
+        action: restart
+
+####################################################################################
+# VARIABLE PLAYER
+####################################################################################
+variable_player:
+
+  ##############################################
+  ## MODE INITIALIZATION (on mode_started)
+  ## NOTE: hard_deck_active, letter_collection_paused, hd_hi_played
+  ##       are set by hard_deck_qualifiers.yaml — do NOT duplicate here.
+  ##############################################
+  mode_hard_deck_honoring_iceman_started:
+    hoi_step: { action: set, int: 0 }
+    hoi_complete_flag: { action: set, int: 0 }
+    hoi_scoop_lit: { action: set, int: 0 }
+    hoi_main_shots_hit: { action: set, int: 0 }
+    hoi_shots_remaining: { action: set, int: 13 }
+    hoi_plunge_pending: { action: set, int: 0 }
+    hoi_iceman_i_hit: { action: set, int: 0 }
+    hoi_iceman_c_hit: { action: set, int: 0 }
+    hoi_iceman_e_hit: { action: set, int: 0 }
+    hoi_iceman_m_hit: { action: set, int: 0 }
+    hoi_iceman_a_hit: { action: set, int: 0 }
+    hoi_iceman_n_hit: { action: set, int: 0 }
+    hoi_lo_active: { action: set, int: 0 }
+    hoi_lr_active: { action: set, int: 0 }
+    hoi_spinner_active: { action: set, int: 0 }
+    hoi_tower_active: { action: set, int: 0 }
+    hoi_to_active: { action: set, int: 0 }
+    hoi_rr_active: { action: set, int: 0 }
+    hoi_lo_hit: { action: set, int: 0 }
+    hoi_lr_hit: { action: set, int: 0 }
+    hoi_spinner_hit: { action: set, int: 0 }
+    hoi_tower_hit: { action: set, int: 0 }
+    hoi_to_hit: { action: set, int: 0 }
+    hoi_rr_hit: { action: set, int: 0 }
+    mode_hard_deck_honoring_iceman_played: { action: set, int: 1 }
+    mode_points_scored: { action: set, int: 0 }
+
+  # Gameplay phase starts when ball is released
+  honoring_iceman_ball_released:
+    hoi_step: { action: set, int: 1 }
+
+  # Drain during mode → route bonus
+  ball_will_end{mode.hard_deck_honoring_iceman.active==True}:
+    pilot_mode_drain_pending: { action: set, int: 1 }
+
+  ##############################################
+  ## QUALIFIER HITS (score 350K, activate main shot)
+  ## Each qualifier target → 350K + activate its paired main shot
+  ## Guards: not-already-hit, gameplay phase, not already won
+  ##############################################
+  s_i_iceman_target_active{current_player.hoi_iceman_i_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    score: 350000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 350000 * current_player.total_scoring_multiplier }
+    hoi_iceman_i_hit: { action: set, int: 1 }
+    hoi_lo_active: { action: set, int: 1 }
+    hoi_shots_remaining: { action: add, int: -1 }
+
+  s_c_iceman_target_active{current_player.hoi_iceman_c_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    score: 350000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 350000 * current_player.total_scoring_multiplier }
+    hoi_iceman_c_hit: { action: set, int: 1 }
+    hoi_lr_active: { action: set, int: 1 }
+    hoi_shots_remaining: { action: add, int: -1 }
+
+  s_e_iceman_target_active{current_player.hoi_iceman_e_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    score: 350000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 350000 * current_player.total_scoring_multiplier }
+    hoi_iceman_e_hit: { action: set, int: 1 }
+    hoi_spinner_active: { action: set, int: 1 }
+    hoi_shots_remaining: { action: add, int: -1 }
+
+  s_m_iceman_target_active{current_player.hoi_iceman_m_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    score: 350000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 350000 * current_player.total_scoring_multiplier }
+    hoi_iceman_m_hit: { action: set, int: 1 }
+    hoi_tower_active: { action: set, int: 1 }
+    hoi_shots_remaining: { action: add, int: -1 }
+
+  s_a_iceman_target_active{current_player.hoi_iceman_a_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    score: 350000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 350000 * current_player.total_scoring_multiplier }
+    hoi_iceman_a_hit: { action: set, int: 1 }
+    hoi_to_active: { action: set, int: 1 }
+    hoi_shots_remaining: { action: add, int: -1 }
+
+  s_n_iceman_target_active{current_player.hoi_iceman_n_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    score: 350000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 350000 * current_player.total_scoring_multiplier }
+    hoi_iceman_n_hit: { action: set, int: 1 }
+    hoi_rr_active: { action: set, int: 1 }
+    hoi_shots_remaining: { action: add, int: -1 }
+
+  ##############################################
+  ## MAIN SHOT SCORING DISPATCH
+  ## Each main shot fires hoi_main_shot_scored → dispatcher routes to N-th scoring
+  ## Individual hit flags set by per-shot events below
+  ##############################################
+  hoi_main_shot_1_complete:
+    hoi_main_shots_hit: { action: add, int: 1 }
+    hoi_shots_remaining: { action: add, int: -1 }
+    score: 500000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
+
+  hoi_main_shot_2_complete:
+    hoi_main_shots_hit: { action: add, int: 1 }
+    hoi_shots_remaining: { action: add, int: -1 }
+    score: 600000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 600000 * current_player.total_scoring_multiplier }
+
+  hoi_main_shot_3_complete:
+    hoi_main_shots_hit: { action: add, int: 1 }
+    hoi_shots_remaining: { action: add, int: -1 }
+    score: 700000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 700000 * current_player.total_scoring_multiplier }
+
+  hoi_main_shot_4_complete:
+    hoi_main_shots_hit: { action: add, int: 1 }
+    hoi_shots_remaining: { action: add, int: -1 }
+    score: 800000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 800000 * current_player.total_scoring_multiplier }
+
+  hoi_main_shot_5_complete:
+    hoi_main_shots_hit: { action: add, int: 1 }
+    hoi_shots_remaining: { action: add, int: -1 }
+    score: 1000000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 1000000 * current_player.total_scoring_multiplier }
+
+  hoi_main_shot_6_complete:
+    hoi_main_shots_hit: { action: add, int: 1 }
+    hoi_shots_remaining: { action: add, int: -1 }
+    score: 1300000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 1300000 * current_player.total_scoring_multiplier }
+
+  ##############################################
+  ## PER-SHOT HIT FLAGS (clears active, marks hit)
+  ##############################################
+  hoi_lo_shot_made:
+    hoi_lo_hit: { action: set, int: 1 }
+    hoi_lo_active: { action: set, int: 0 }
+
+  hoi_lr_shot_made:
+    hoi_lr_hit: { action: set, int: 1 }
+    hoi_lr_active: { action: set, int: 0 }
+
+  hoi_spinner_shot_made:
+    hoi_spinner_hit: { action: set, int: 1 }
+    hoi_spinner_active: { action: set, int: 0 }
+
+  hoi_tower_shot_made:
+    hoi_tower_hit: { action: set, int: 1 }
+    hoi_tower_active: { action: set, int: 0 }
+
+  hoi_to_shot_made:
+    hoi_to_hit: { action: set, int: 1 }
+    hoi_to_active: { action: set, int: 0 }
+
+  hoi_rr_shot_made:
+    hoi_rr_hit: { action: set, int: 1 }
+    hoi_rr_active: { action: set, int: 0 }
+
+  ##############################################
+  ## SCOOP SHOT (7th and final shot)
+  ## All 6 main shots complete → scoop becomes the 7th shot
+  ## Hitting it captures ball in scoop and triggers won state
+  ##############################################
+  player_hoi_main_shots_hit{value==6}:
+    hoi_scoop_lit: { action: set, int: 1 }
+
+  s_mode_start_active{current_player.hoi_scoop_lit==1 and current_player.hoi_complete_flag==0}:
+    score: 1500000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 1500000 * current_player.total_scoring_multiplier }
+    hoi_shots_remaining: { action: add, int: -1 }
+    hoi_complete_flag: { action: set, int: 1 }
+    mode_hard_deck_honoring_iceman_won: { action: set, int: 1 }
+    mode_hard_deck_honoring_iceman_complete: { action: set, int: 1 }
+    hard_deck_missions_won: { action: add, int: 1 }
+
+  # Manual ball save plunge flag — set when save fires, cleared after plunge
+  hoi_plunge_pending_set:
+    hoi_plunge_pending: { action: set, int: 1 }
+  hoi_plunge_pending_clear:
+    hoi_plunge_pending: { action: set, int: 0 }
+
+####################################################################################
+# EVENT PLAYER
+####################################################################################
+event_player:
+
+  ##############################################
+  ## INTRO — skip with both flippers held (or timer expires)
+  ##############################################
+  mode_hard_deck_honoring_iceman_started:
+    - ball_search_block
+
+  s_flipper_left_active{current_player.hoi_step==0 and device.timers.hoi_intro_delay.running}:
+    - hoi_check_skip_intro
+  s_flipper_right_active{current_player.hoi_step==0 and device.timers.hoi_intro_delay.running}:
+    - hoi_check_skip_intro
+  hoi_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - hoi_skip_intro
+
+  # Both paths (timer expiry and skip) release the ball
+  hoi_skip_intro:
+    - honoring_iceman_ball_released
+  timer_hoi_intro_delay_complete:
+    - honoring_iceman_ball_released
+
+  ##############################################
+  ## SKIP TO END — both flippers held during won or lost state
+  ## Jumps the main timer to 0, firing timer_complete which routes through
+  ## the existing won/lost cleanup paths (no duplicate logic).
+  ## Music, slides, and ball-eject sequence all run via the same path as a
+  ## natural timer expiry — so nothing gets cut prematurely.
+  ##############################################
+  s_flipper_left_active{current_player.hoi_complete_flag==1}:
+    - hoi_check_skip_end
+  s_flipper_right_active{current_player.hoi_complete_flag==1}:
+    - hoi_check_skip_end
+  s_flipper_left_active{current_player.pilot_mode_drain_pending==1}:
+    - hoi_check_skip_end
+  s_flipper_right_active{current_player.pilot_mode_drain_pending==1}:
+    - hoi_check_skip_end
+  hoi_check_skip_end{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - hoi_skip_to_end
+
+  # Ball release: unblock ball search
+  honoring_iceman_ball_released:
+    - ball_search_unblock
+
+  ##############################################
+  ## MANUAL BALL SAVE PLUNGE
+  ## auto_launch: false on hoi_ball_save — pulse c_plunger explicitly.
+  ## Pattern: ball_save_hoi_ball_save_saving_ball sets pending flag →
+  ##          ball arrives at shooter lane → start 1s delay timer →
+  ##          timer complete → pulse c_plunger (see coil_player).
+  ##############################################
+  ball_save_hoi_ball_save_saving_ball:
+    - hoi_plunge_pending_set
+
+  s_shooter_lane_active{current_player.hoi_plunge_pending==1}:
+    - hoi_plunge_delay_start
+
+  timer_hoi_plunge_delay_complete:
+    - hoi_do_plunge
+    - hoi_plunge_pending_clear
+
+  ##############################################
+  ## QUALIFIER HIT — POST NAMED EVENTS
+  ## slide_player doesn't reliably fire on conditional switch events, so we
+  ## route through named events. variable_player / light_player / show_player
+  ## still key off the switch events directly.
+  ##############################################
+  s_i_iceman_target_active{current_player.hoi_iceman_i_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    - hoi_qualifier_i_hit
+  s_c_iceman_target_active{current_player.hoi_iceman_c_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    - hoi_qualifier_c_hit
+  s_e_iceman_target_active{current_player.hoi_iceman_e_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    - hoi_qualifier_e_hit
+  s_m_iceman_target_active{current_player.hoi_iceman_m_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    - hoi_qualifier_m_hit
+  s_n_iceman_target_active{current_player.hoi_iceman_n_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    - hoi_qualifier_n_hit
+  # (A qualifier already has its own event_player block below — qualifier_a_hit added there)
+
+  ##############################################
+  ## MAIN SHOT DETECTION
+  ## Each main shot switch fires if its active flag is set and mode not won.
+  ## Fires: per-shot hit event + generic scoring dispatcher.
+  ##############################################
+
+  # LO — Left Orbit (composite: s_orbit_left → s_orbit_right)
+  left_orbit_shot_hit{current_player.hoi_lo_active==1 and current_player.hoi_complete_flag==0}:
+    - hoi_lo_shot_made
+    - hoi_main_shot_scored
+
+  # LR — Left Ramp (s_ramp_left_exit)
+  s_ramp_left_exit_active{current_player.hoi_lr_active==1 and current_player.hoi_complete_flag==0}:
+    - hoi_lr_shot_made
+    - hoi_main_shot_scored
+
+  # Spinner — uses composite shot event from pilot_mission_qualifier (3 spins within window)
+  spinner_shot_made{current_player.hoi_spinner_active==1 and current_player.hoi_complete_flag==0}:
+    - hoi_spinner_shot_made
+    - hoi_main_shot_scored
+
+  # Tower — Tower Ramp (s_ramp_tower_exit)
+  s_ramp_tower_exit_active{current_player.hoi_tower_active==1 and current_player.hoi_complete_flag==0}:
+    - hoi_tower_shot_made
+    - hoi_main_shot_scored
+
+  # TO — Top Loop (s_orbit_lower, requires top ramp UP)
+  s_orbit_lower_active{current_player.hoi_to_active==1 and current_player.hoi_complete_flag==0}:
+    - hoi_to_shot_made
+    - hoi_main_shot_scored
+
+  # RR — Right Ramp (s_ramp_right_exit)
+  s_ramp_right_exit_active{current_player.hoi_rr_active==1 and current_player.hoi_complete_flag==0}:
+    - hoi_rr_shot_made
+    - hoi_main_shot_scored
+
+  ##############################################
+  ## MAIN SHOT SCORING DISPATCHER
+  ## Routes to the correct N-th scoring event based on main_shots_hit count.
+  ## Mutually exclusive conditions — only one fires.
+  ## Also fires play_shot_made_callout for random voice line on every main shot.
+  ##############################################
+  hoi_main_shot_scored:
+    - play_shot_made_callout
+  hoi_main_shot_scored{current_player.hoi_main_shots_hit==0}:
+    - hoi_main_shot_1_complete
+  hoi_main_shot_scored{current_player.hoi_main_shots_hit==1}:
+    - hoi_main_shot_2_complete
+  hoi_main_shot_scored{current_player.hoi_main_shots_hit==2}:
+    - hoi_main_shot_3_complete
+  hoi_main_shot_scored{current_player.hoi_main_shots_hit==3}:
+    - hoi_main_shot_4_complete
+  hoi_main_shot_scored{current_player.hoi_main_shots_hit==4}:
+    - hoi_main_shot_5_complete
+  hoi_main_shot_scored{current_player.hoi_main_shots_hit==5}:
+    - hoi_main_shot_6_complete
+
+  ##############################################
+  ## A QUALIFIER — raises top ramp so TO shot is achievable
+  ##############################################
+  s_a_iceman_target_active{current_player.hoi_iceman_a_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    - top_ramp_up
+    - hoi_qualifier_a_hit
+
+  ##############################################
+  ## SCOOP UNLOCK — After 6 main shots, drop barrier so scoop is live
+  ##############################################
+  player_hoi_main_shots_hit{value==6}:
+    - barrier_drop
+
+  ##############################################
+  ## WON STATE — Ball captured in scoop
+  ## Ball sits in scoop, barrier RAISES (up) to block playfield while video plays.
+  ## Mode runs to natural timer expiry (150s) — full tribute video plays out.
+  ## When timer expires, the {hoi_complete_flag==1} handler fires scoop_ball_release
+  ## (drops barrier) and the mode stops via stop_event. mode_will_stop's
+  ## release_all_events on ball_holds then ejects the held ball.
+  ##############################################
+  s_mode_start_active{current_player.hoi_scoop_lit==1 and current_player.hoi_complete_flag==0}:
+    - honoring_iceman_won
+
+  honoring_iceman_won:
+    - barrier_raise                # Raise barrier while ball is held in scoop
+
+  ##############################################
+  ## LOST STATE — Ball drains during mode
+  ## Queue relay posts hoi_ball_ending_hold → fires honoring_iceman_lost
+  ## Timer continues counting down remaining time (video keeps playing)
+  ## Mode stops on timer_complete firing hoi_drain_cleanup_complete.
+  ##############################################
+  hoi_ball_ending_hold:
+    - honoring_iceman_lost
+
+  # Timer expires while drain pending → release queue via drain_cleanup_complete
+  timer_hoi_main_timer_complete{current_player.pilot_mode_drain_pending==1}:
+    - hoi_drain_cleanup_complete
+
+  ##############################################
+  ## VICTORY BALL EXIT — fires when timer expires with mode won
+  ## Drop barrier first; mode_will_stop's release_all_events ejects the ball.
+  ## Handler fires BEFORE mode stops (stop_event evaluated after all handlers).
+  ##############################################
+  timer_hoi_main_timer_complete{current_player.hoi_complete_flag==1}:
+    - scoop_ball_release   # Drops barrier so ball can exit when released by mode stop
+
+  ##############################################
+  ## CLEANUP — fires on mode_will_stop
+  ## LOST path (hoi_complete_flag==0): barrier_raise directly (no ball in scoop)
+  ## WON path: barrier already being dropped by scoop_ball_release above;
+  ##           global_scoop_eject_delay will raise it after ball exits
+  ##           ball_holds release_all_events ejects the held ball
+  ##############################################
+  mode_hard_deck_honoring_iceman_will_stop:
+    - top_ramp_down
+
+  # Raise barrier directly on LOST path only (won path handled by global eject logic)
+  mode_hard_deck_honoring_iceman_will_stop{current_player.hoi_complete_flag==0}:
+    - barrier_raise
+
+####################################################################################
+# COIL PLAYER — Left lane post for intro ball hold
+####################################################################################
+coil_player:
+  # Hold ball at left lane on mode start (for intro video)
+  mode_hard_deck_honoring_iceman_started:
+    c_left_lane_up_post:
+      action: enable
+
+  # Release ball after intro (or skip)
+  honoring_iceman_ball_released:
+    c_left_lane_up_post:
+      action: disable
+
+  # Safety: release post on mode stop
+  mode_hard_deck_honoring_iceman_will_stop:
+    c_left_lane_up_post:
+      action: disable
+
+  # Manual ball save plunge (hoi_ball_save is auto_launch: false)
+  hoi_do_plunge:
+    c_plunger:
+      action: pulse
+
+####################################################################################
+# SOUND PLAYER
+####################################################################################
+# Suppress the spinner gun-fire sound (from base.yaml) while this mode is active.
+# Mode runs at priority 600 → fires this stop AFTER base's play, effectively muting it.
+# Voice callouts (play_shot_made_callout) are handled centrally by
+# shot_made_callout_randomizer mode — we just post the event from event_player.
+####################################################################################
+sound_player:
+  s_spinner_active:
+    soundfx_spinner_gun_fire_end:
+      action: stop
+
+####################################################################################
+# SLIDE PLAYER
+####################################################################################
+slide_player:
+
+  ##############################################
+  ## MAIN VIDEO (background) + HUD slides
+  ## Video + music start on mode_started and run through intro
+  ##############################################
+  mode_hard_deck_honoring_iceman_started:
+    hard_deck_honoring_iceman_video:
+      action: play
+      priority: 800
+
+  # HUD slides appear when gameplay starts
+  honoring_iceman_ball_released:
+    hard_deck_honoring_iceman_timer:
+      action: play
+      priority: 850
+    hard_deck_honoring_iceman_shots_remaining:
+      action: play
+      priority: 850
+
+  ##############################################
+  ## PER-SHOT SLIDES — shown when main shot activates, stay until mode ends
+  ## Triggered from named events (posted by event_player) because slide_player
+  ## does not reliably match conditional switch events (variable_player does,
+  ## but slide_player silently skips them).
+  ## Slides are NOT removed on main shot hit — user wants them to persist
+  ## until mode stops (automatic cleanup when mode ends).
+  ## mode_points_scored slide plays for 2s on each qualifier hit.
+  ##############################################
+  # LO slide on I qualifier hit
+  hoi_qualifier_i_hit:
+    hard_deck_honoring_iceman_left_orbit:
+      action: play
+      priority: 900
+    mode_points_scored:
+      action: play
+      priority: 940
+      expire: 2s
+
+  # LR slide on C qualifier hit
+  hoi_qualifier_c_hit:
+    hard_deck_honoring_iceman_left_ramp:
+      action: play
+      priority: 900
+    mode_points_scored:
+      action: play
+      priority: 940
+      expire: 2s
+
+  # Spinner slide on E qualifier hit
+  hoi_qualifier_e_hit:
+    hard_deck_honoring_iceman_spinner:
+      action: play
+      priority: 900
+    mode_points_scored:
+      action: play
+      priority: 940
+      expire: 2s
+
+  # Tower slide on M qualifier hit
+  hoi_qualifier_m_hit:
+    hard_deck_honoring_iceman_tower:
+      action: play
+      priority: 900
+    mode_points_scored:
+      action: play
+      priority: 940
+      expire: 2s
+
+  # TO (top loop) slide on A qualifier hit
+  hoi_qualifier_a_hit:
+    hard_deck_honoring_iceman_top_loop:
+      action: play
+      priority: 900
+    mode_points_scored:
+      action: play
+      priority: 940
+      expire: 2s
+
+  # RR slide on N qualifier hit
+  hoi_qualifier_n_hit:
+    hard_deck_honoring_iceman_right_ramp:
+      action: play
+      priority: 900
+    mode_points_scored:
+      action: play
+      priority: 940
+      expire: 2s
+
+  ##############################################
+  ## MAIN SHOT + SCOOP SCORING — play mode_points_scored on each
+  ##############################################
+  hoi_main_shot_1_complete:
+    mode_points_scored:
+      action: play
+      priority: 940
+      expire: 2s
+  hoi_main_shot_2_complete:
+    mode_points_scored:
+      action: play
+      priority: 940
+      expire: 2s
+  hoi_main_shot_3_complete:
+    mode_points_scored:
+      action: play
+      priority: 940
+      expire: 2s
+  hoi_main_shot_4_complete:
+    mode_points_scored:
+      action: play
+      priority: 940
+      expire: 2s
+  hoi_main_shot_5_complete:
+    mode_points_scored:
+      action: play
+      priority: 940
+      expire: 2s
+  hoi_main_shot_6_complete:
+    mode_points_scored:
+      action: play
+      priority: 940
+      expire: 2s
+
+  ##############################################
+  ## END OVERLAYS — Won/Lost slides on top of video
+  ## Per-shot slides stay visible (persist until mode ends) — only HUD is hidden.
+  ## mode_points_scored on won shows the 1.5M scoop shot score.
+  ##############################################
+  honoring_iceman_won:
+    hard_deck_honoring_iceman_timer:
+      action: remove
+    hard_deck_honoring_iceman_shots_remaining:
+      action: remove
+    mode_points_scored:
+      action: play
+      priority: 940
+      expire: 2s
+    end_video_early_won:
+      action: play
+      priority: 1000
+
+  honoring_iceman_lost:
+    hard_deck_honoring_iceman_timer:
+      action: remove
+    hard_deck_honoring_iceman_shots_remaining:
+      action: remove
+    end_video_early_lost:
+      action: play
+      priority: 1000
+
+####################################################################################
+# LIGHT PLAYER
+####################################################################################
+light_player:
+
+  ##############################################
+  ## GI + APRON + BACKPANEL on mode start
+  ## Alternating odd = ice blue (88DDFF), even = blue (0066FF)
+  ## Backpanel 22-27: RED / WHITE / BLUE / RED / WHITE / BLUE
+  ##############################################
+  mode_hard_deck_honoring_iceman_started:
+    # Playfield GI — alternating odd/even
+    l_gi_light_1: { color: 88DDFF, fade: 0ms }
+    l_gi_light_2: { color: 0066FF, fade: 0ms }
+    l_gi_light_3: { color: 88DDFF, fade: 0ms }
+    l_gi_light_4: { color: 0066FF, fade: 0ms }
+    l_gi_light_5: { color: 88DDFF, fade: 0ms }
+    l_gi_light_6: { color: 0066FF, fade: 0ms }
+    l_gi_light_7: { color: 88DDFF, fade: 0ms }
+    l_gi_light_8: { color: 0066FF, fade: 0ms }
+    l_gi_light_9: { color: 88DDFF, fade: 0ms }
+    l_gi_light_10: { color: 0066FF, fade: 0ms }
+    l_gi_light_11: { color: 88DDFF, fade: 0ms }
+    l_gi_light_12: { color: 0066FF, fade: 0ms }
+    l_gi_light_13: { color: 88DDFF, fade: 0ms }
+    l_gi_light_14: { color: 0066FF, fade: 0ms }
+    l_gi_light_15: { color: 88DDFF, fade: 0ms }
+    l_gi_light_16: { color: 0066FF, fade: 0ms }
+    l_gi_light_17: { color: 88DDFF, fade: 0ms }
+    l_gi_light_18: { color: 0066FF, fade: 0ms }
+    l_gi_light_19: { color: 88DDFF, fade: 0ms }
+    l_gi_light_20: { color: 0066FF, fade: 0ms }
+    l_gi_light_21: { color: 88DDFF, fade: 0ms }
+    # Backpanel: RED / WHITE / BLUE / RED / WHITE / BLUE
+    l_gi_light_22: { color: FF0000, fade: 0ms }
+    l_gi_light_23: { color: FFFFFF, fade: 0ms }
+    l_gi_light_24: { color: 0066FF, fade: 0ms }
+    l_gi_light_25: { color: FF0000, fade: 0ms }
+    l_gi_light_26: { color: FFFFFF, fade: 0ms }
+    l_gi_light_27: { color: 0066FF, fade: 0ms }
+    # Apron — alternating blue / ice blue
+    l_apron_light_1: { color: 0066FF, fade: 0ms }
+    l_apron_light_2: { color: 88DDFF, fade: 0ms }
+    l_apron_light_3: { color: 0066FF, fade: 0ms }
+    l_apron_light_4: { color: 88DDFF, fade: 0ms }
+    # Pop bumper GI — ice blue
+    l_gi_light_pop_left: { color: 88DDFF, fade: 0ms }
+    l_gi_light_pop_right: { color: 88DDFF, fade: 0ms }
+    l_gi_light_pop_bottom: { color: 88DDFF, fade: 0ms }
+    # All shot inserts off during intro
+    l_shot_left_lane: { color: off, fade: 0ms }
+    l_shot_left_orbit: { color: off, fade: 0ms }
+    l_shot_left_ramp: { color: off, fade: 0ms }
+    l_shot_spinner: { color: off, fade: 0ms }
+    l_shot_barrier: { color: off, fade: 0ms }
+    l_shot_tower_ramp: { color: off, fade: 0ms }
+    l_shot_upper_orbit: { color: off, fade: 0ms }
+    l_shot_middle_ramp: { color: off, fade: 0ms }
+    l_shot_right_orbit: { color: off, fade: 0ms }
+    l_shot_pilot_gear: { color: off, fade: 0ms }
+    # ICEMAN qualifier targets — lit solid ice blue
+    l_iceman_i: { color: 88DDFF, fade: 0ms }
+    l_iceman_c: { color: 88DDFF, fade: 0ms }
+    l_iceman_e: { color: 88DDFF, fade: 0ms }
+    l_iceman_m: { color: 88DDFF, fade: 0ms }
+    l_iceman_a: { color: 88DDFF, fade: 0ms }
+    l_iceman_n: { color: 88DDFF, fade: 0ms }
+    # LOCK letters off
+    # NOTE: l_mig_*, l_goose_*, l_lock_*, l_shoot_again are NOT touched here.
+    # Those are managed by their own modes (mig_letters, goose_letters, etc.)
+    # and must continue to show collected progress during this mode.
+
+  ##############################################
+  ## QUALIFIER HIT — turn off qualifier light (main shot flash starts via show_player)
+  ##############################################
+  s_i_iceman_target_active{current_player.hoi_iceman_i_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    l_iceman_i: { color: off, fade: 0ms }
+
+  s_c_iceman_target_active{current_player.hoi_iceman_c_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    l_iceman_c: { color: off, fade: 0ms }
+
+  s_e_iceman_target_active{current_player.hoi_iceman_e_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    l_iceman_e: { color: off, fade: 0ms }
+
+  s_m_iceman_target_active{current_player.hoi_iceman_m_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    l_iceman_m: { color: off, fade: 0ms }
+
+  s_a_iceman_target_active{current_player.hoi_iceman_a_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    l_iceman_a: { color: off, fade: 0ms }
+
+  s_n_iceman_target_active{current_player.hoi_iceman_n_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    l_iceman_n: { color: off, fade: 0ms }
+
+  ##############################################
+  ## MAIN SHOT HIT — turn main shot insert OFF (flash stopped via show_player)
+  ##############################################
+  hoi_lo_shot_made:
+    l_shot_left_orbit: { color: off, fade: 0ms }
+
+  hoi_lr_shot_made:
+    l_shot_left_ramp: { color: off, fade: 0ms }
+
+  hoi_spinner_shot_made:
+    l_shot_spinner: { color: off, fade: 0ms }
+
+  hoi_tower_shot_made:
+    l_shot_tower_ramp: { color: off, fade: 0ms }
+
+  hoi_to_shot_made:
+    l_shot_middle_ramp: { color: off, fade: 0ms }
+
+  hoi_rr_shot_made:
+    l_shot_right_orbit: { color: off, fade: 0ms }
+
+  ##############################################
+  ## SCOOP UNLOCKED — barrier insert flashes (handled by show_player below)
+  ##############################################
+
+  ##############################################
+  ## WON/LOST — all shot inserts off
+  ##############################################
+  honoring_iceman_won:
+    l_shot_left_orbit: { color: off, fade: 0ms }
+    l_shot_left_ramp: { color: off, fade: 0ms }
+    l_shot_spinner: { color: off, fade: 0ms }
+    l_shot_tower_ramp: { color: off, fade: 0ms }
+    l_shot_middle_ramp: { color: off, fade: 0ms }
+    l_shot_right_orbit: { color: off, fade: 0ms }
+    l_shot_barrier: { color: off, fade: 0ms }
+    l_iceman_i: { color: off, fade: 0ms }
+    l_iceman_c: { color: off, fade: 0ms }
+    l_iceman_e: { color: off, fade: 0ms }
+    l_iceman_m: { color: off, fade: 0ms }
+    l_iceman_a: { color: off, fade: 0ms }
+    l_iceman_n: { color: off, fade: 0ms }
+
+  honoring_iceman_lost:
+    l_shot_left_orbit: { color: off, fade: 0ms }
+    l_shot_left_ramp: { color: off, fade: 0ms }
+    l_shot_spinner: { color: off, fade: 0ms }
+    l_shot_tower_ramp: { color: off, fade: 0ms }
+    l_shot_middle_ramp: { color: off, fade: 0ms }
+    l_shot_right_orbit: { color: off, fade: 0ms }
+    l_shot_barrier: { color: off, fade: 0ms }
+    l_iceman_i: { color: off, fade: 0ms }
+    l_iceman_c: { color: off, fade: 0ms }
+    l_iceman_e: { color: off, fade: 0ms }
+    l_iceman_m: { color: off, fade: 0ms }
+    l_iceman_a: { color: off, fade: 0ms }
+    l_iceman_n: { color: off, fade: 0ms }
+
+####################################################################################
+# SHOW PLAYER — Main shot inserts pulse (sync_pulse_mode) until hit
+####################################################################################
+show_player:
+
+  ##############################################
+  ## QUALIFIER HIT → start pulse on matching main shot insert
+  ##############################################
+  s_i_iceman_target_active{current_player.hoi_iceman_i_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    hoi_flash_lo:
+      show: sync_pulse_mode
+      key: mode_l_shot_left_orbit
+      sync_ms: 2000
+      loops: -1
+      show_tokens: { led: l_shot_left_orbit, color: 88DDFF }
+
+  s_c_iceman_target_active{current_player.hoi_iceman_c_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    hoi_flash_lr:
+      show: sync_pulse_mode
+      key: mode_l_shot_left_ramp
+      sync_ms: 2000
+      loops: -1
+      show_tokens: { led: l_shot_left_ramp, color: 88DDFF }
+
+  s_e_iceman_target_active{current_player.hoi_iceman_e_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    hoi_flash_spinner:
+      show: sync_pulse_mode
+      key: mode_l_shot_spinner
+      sync_ms: 2000
+      loops: -1
+      show_tokens: { led: l_shot_spinner, color: 88DDFF }
+
+  s_m_iceman_target_active{current_player.hoi_iceman_m_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    hoi_flash_tower:
+      show: sync_pulse_mode
+      key: mode_l_shot_tower_ramp
+      sync_ms: 2000
+      loops: -1
+      show_tokens: { led: l_shot_tower_ramp, color: 88DDFF }
+
+  s_a_iceman_target_active{current_player.hoi_iceman_a_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    hoi_flash_to:
+      show: sync_pulse_mode
+      key: mode_l_shot_middle_ramp
+      sync_ms: 2000
+      loops: -1
+      show_tokens: { led: l_shot_middle_ramp, color: 88DDFF }
+
+  s_n_iceman_target_active{current_player.hoi_iceman_n_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+    hoi_flash_rr:
+      show: sync_pulse_mode
+      key: mode_l_shot_right_orbit
+      sync_ms: 2000
+      loops: -1
+      show_tokens: { led: l_shot_right_orbit, color: 88DDFF }
+
+  ##############################################
+  ## MAIN SHOT HIT → stop pulse
+  ##############################################
+  hoi_lo_shot_made:
+    stop_lo:
+      show: sync_pulse_mode
+      action: stop
+      key: mode_l_shot_left_orbit
+
+  hoi_lr_shot_made:
+    stop_lr:
+      show: sync_pulse_mode
+      action: stop
+      key: mode_l_shot_left_ramp
+
+  hoi_spinner_shot_made:
+    stop_spinner:
+      show: sync_pulse_mode
+      action: stop
+      key: mode_l_shot_spinner
+
+  hoi_tower_shot_made:
+    stop_tower:
+      show: sync_pulse_mode
+      action: stop
+      key: mode_l_shot_tower_ramp
+
+  hoi_to_shot_made:
+    stop_to:
+      show: sync_pulse_mode
+      action: stop
+      key: mode_l_shot_middle_ramp
+
+  hoi_rr_shot_made:
+    stop_rr:
+      show: sync_pulse_mode
+      action: stop
+      key: mode_l_shot_right_orbit
+
+  ##############################################
+  ## SCOOP UNLOCKED — barrier insert pulses until scoop shot is hit
+  ##############################################
+  player_hoi_main_shots_hit{value==6}:
+    hoi_flash_scoop:
+      show: sync_pulse_mode
+      key: mode_l_shot_barrier
+      sync_ms: 2000
+      loops: -1
+      show_tokens: { led: l_shot_barrier, color: 88DDFF }
+
+  honoring_iceman_won:
+    stop_scoop:
+      show: sync_pulse_mode
+      action: stop
+      key: mode_l_shot_barrier
+
+  ##############################################
+  ## LOST STATE — stop ALL running pulse shows as cleanup
+  ##############################################
+  honoring_iceman_lost:
+    stop_lo_on_lost:
+      show: sync_pulse_mode
+      action: stop
+      key: mode_l_shot_left_orbit
+    stop_lr_on_lost:
+      show: sync_pulse_mode
+      action: stop
+      key: mode_l_shot_left_ramp
+    stop_spinner_on_lost:
+      show: sync_pulse_mode
+      action: stop
+      key: mode_l_shot_spinner
+    stop_tower_on_lost:
+      show: sync_pulse_mode
+      action: stop
+      key: mode_l_shot_tower_ramp
+    stop_to_on_lost:
+      show: sync_pulse_mode
+      action: stop
+      key: mode_l_shot_middle_ramp
+    stop_rr_on_lost:
+      show: sync_pulse_mode
+      action: stop
+      key: mode_l_shot_right_orbit
+    stop_scoop_on_lost:
+      show: sync_pulse_mode
+      action: stop
+      key: mode_l_shot_barrier

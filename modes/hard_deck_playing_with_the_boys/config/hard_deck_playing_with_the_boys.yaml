@@ -182,6 +182,18 @@ timers:
       - event: ptb_bumper_hit_restart_inactivity
         action: restart
 
+  # Spinner spot-pop cooldown — 3s lockout after each spinner_shot_made
+  # Prevents multiple spinner shots within a short time from spotting more pops.
+  ptb_spinner_spot_cooldown:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: spinner_shot_made
+        action: restart
+
   # Barrier delay — wait before raising barrier after scoop eject
   ptb_barrier_delay:
     start_value: 0
@@ -559,6 +571,71 @@ variable_player:
     ptb_rally_remaining:
       action: add
       int: -1
+
+  ##############################################
+  ## SPOTTED POP BOOKKEEPING — fires once per ptb_spot_N_pops event posted.
+  ## Equivalent in effect to N real bumper hits during a rally step:
+  ##   - Awards N × 50K × multiplier to score
+  ##   - Increments ptb_rally_hits by N (rally progress)
+  ##   - Adds N × 50K to ptb_spike_value (pre-multiplier accumulation)
+  ##   - Decrements ptb_rally_remaining by N (rally countdown)
+  ##   - Sets mode_points_scored to total points awarded for slide popup
+  ## Step gate is on the event_player side — these blocks are unconditional.
+  ##
+  ## NOTE: Posting the same event multiple times in a single handler list
+  ## (e.g. - ptb_spot_pop / - ptb_spot_pop / - ptb_spot_pop) is deduplicated
+  ## by MPF and only fires once. So we use distinct events per pop count.
+  ##############################################
+  ptb_spot_2_pops:
+    score:
+      action: add
+      int: 100000 * current_player.total_scoring_multiplier
+    ptb_rally_hits:
+      action: add
+      int: 2
+    ptb_spike_value:
+      action: add
+      int: 100000
+    ptb_rally_remaining:
+      action: add
+      int: -2
+    mode_points_scored:
+      action: set
+      int: 100000 * current_player.total_scoring_multiplier
+
+  ptb_spot_3_pops:
+    score:
+      action: add
+      int: 150000 * current_player.total_scoring_multiplier
+    ptb_rally_hits:
+      action: add
+      int: 3
+    ptb_spike_value:
+      action: add
+      int: 150000
+    ptb_rally_remaining:
+      action: add
+      int: -3
+    mode_points_scored:
+      action: set
+      int: 150000 * current_player.total_scoring_multiplier
+
+  ptb_spot_4_pops:
+    score:
+      action: add
+      int: 200000 * current_player.total_scoring_multiplier
+    ptb_rally_hits:
+      action: add
+      int: 4
+    ptb_spike_value:
+      action: add
+      int: 200000
+    ptb_rally_remaining:
+      action: add
+      int: -4
+    mode_points_scored:
+      action: set
+      int: 200000 * current_player.total_scoring_multiplier
 
   ##############################################
   ## PHASE 1: SPIKE SHOT SCORING (actual scoring)
@@ -1409,15 +1486,46 @@ event_player:
   s_spinner_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5}:
     - ptb_raise_left_mig
 
+  # TL (s_orbit_upper) during rally → raise left MIG post 3s + 4 spotted pops + shaker
   s_orbit_upper_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5}:
     - ptb_raise_left_mig
+    - ptb_spot_4_pops
+    - shaker_medium
 
+  # LO (s_orbit_left) during rally → raise right MIG post + 3 spotted pops + shaker
+  # (Use raw switch, not composite left_orbit_shot_hit — MIG posts prevent the
+  # ball from completing a full orbit so the composite event won't fire.)
   s_orbit_left_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5}:
     - ptb_raise_right_mig
+    - ptb_spot_3_pops
+    - shaker_medium
 
-  # RO switch (s_orbit_right) during rally → raise left MIG post 3s to feed pops
+  # RO (s_orbit_right) during rally → raise left MIG post + 3 spotted pops + shaker
+  # (Use raw switch, not composite right_orbit_shot_hit — same reason as LO.)
   s_orbit_right_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5}:
     - ptb_raise_left_mig
+    - ptb_spot_3_pops
+    - shaker_medium
+
+  ##############################################
+  ## SPOTTED POPS — Spinner only (the other shots are merged into their raw-
+  ## switch handlers above, so no duplicate keys).
+  ##
+  ## Shot mappings (per user spec):
+  ##   LO  (s_orbit_left_active)  → 3 pops  [merged above]
+  ##   SP  (spinner_shot_made)    → 2 pops, 3s cooldown after each fire
+  ##   TL  (s_orbit_upper_active) → 4 pops  [merged above]
+  ##   RO  (s_orbit_right_active) → 3 pops  [merged above]
+  ##
+  ## Spinner uses the composite spinner_shot_made event (3 spins within window)
+  ## rather than raw s_spinner_active so a single spin doesn't credit pops.
+  ## A 3s cooldown timer prevents repeated rapid-fire spinner credit.
+  ##############################################
+
+  # Spinner — 2 spotted pops, gated by 3s cooldown timer + shaker
+  spinner_shot_made{(current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5) and device.timers.ptb_spinner_spot_cooldown.running==False}:
+    - ptb_spot_2_pops
+    - shaker_medium
 
   # Spike phases: raise top ramp (TO shot needs it UP)
   ptb_setup_step_2:
@@ -1449,6 +1557,13 @@ event_player:
     - top_ramp_down
     - right_ramp_down|500ms
     - ball_search_unblock
+
+  ##############################################
+  ## SHAKER — Spike shot fires medium shaker (rally-step shots already
+  ## have shaker_medium attached above in their merged handlers).
+  ##############################################
+  ptb_spike_shot_scored:
+    - shaker_medium
 
 ####################################################################################
 # SLIDE PLAYER

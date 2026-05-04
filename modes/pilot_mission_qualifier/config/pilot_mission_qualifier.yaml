@@ -2040,8 +2040,10 @@ event_player:
   s_mode_start_active{current_player.scoop_release_pending==1}:
     - global_scoop_eject_cancel
 
-  # Restore complete — raise barrier
-  timer_global_scoop_eject_delay_complete:
+  # Restore complete — raise barrier (UNLESS a pilot mission is now qualified,
+  # in which case the qualifier's mode_*_stopped handler has already dropped
+  # the barrier intentionally for the queued pilot mission).
+  timer_global_scoop_eject_delay_complete{current_player.qualified_mode_number==0}:
     - barrier_raise
   ## eject_coil removed from bd_plunger so it never auto-fires.
   ## Ball save already sets ball_just_saved=1 (in ball_save.yaml)

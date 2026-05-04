@@ -11,6 +11,15 @@
 #   - Auto-plunger for saved balls
 #   - Godot scene "ball_saved" for new ball saves
 #
+# CONSECUTIVE BALL SAVE VIDEO ROUTING:
+#   - 1st save in 20s window: ball_saved scene + starts 20s window timer
+#   - 2nd save in same window: ball_saved_2 scene (timer keeps running)
+#   - 3rd save in same window: ball_saved_3 scene (counter resets)
+#   - 4th save (still in window): cycles back to ball_saved
+#   - 5th save: ball_saved_2, etc.
+#   - Window timer is NEVER restarted by saves 2/3/4/5 - only resets when it
+#     naturally expires after the full 20s from save #1.
+#
 # LIGHT PATTERN:
 #   - Flash speed = time_remaining * 100ms (faster as time runs out)
 #   - Last 2 seconds: light OFF (grace period feel)
@@ -82,6 +91,18 @@ timers:
       - event: s_shooter_lane_inactive
         action: stop
 
+  # Tracks the 20-second consecutive ball save window
+  # Starts on FIRST save only (counter==0); does NOT restart on 2nd/3rd/4th saves
+  # Counter resets to 0 when this timer completes (cycle starts fresh next save)
+  consecutive_save_window:
+    start_value: 20
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    control_events:
+      - event: consecutive_save_window_start
+        action: restart
+
 ##############################################################################
 # EVENT PLAYER
 ##############################################################################
@@ -100,12 +121,29 @@ event_player:
   s_shooter_lane_inactive{device.ball_saves.new_ball_save.enabled==True}:
     - ball_save_new_ball_timer_start
   
-  # When new ball save is triggered, play the scene
-  # MPF's auto_launch: true handles the plunger automatically now that
-  # bd_plunger has eject_coil: c_plunger enabled
+  ##############################################################################
+  # CONSECUTIVE BALL SAVE VIDEO ROUTING
+  # Routes to ball_saved / ball_saved_2 / ball_saved_3 based on counter.
+  # MPF's auto_launch handles plunger automatically.
   # MPF event: ball_save_<device_name>_saving_ball
-  ball_save_new_ball_save_saving_ball:
+  # Increment runs via separate event so condition always sees pre-increment value.
+  ##############################################################################
+  
+  # First save (counter==0): play ball_saved + start 20s window
+  ball_save_new_ball_save_saving_ball{current_player.consecutive_ball_saves==0}:
     - ball_saved_scene_play
+    - consecutive_save_window_start
+    - consecutive_save_did_count
+
+  # Second save (counter==1): play ball_saved_2 (timer keeps running, NOT restarted)
+  ball_save_new_ball_save_saving_ball{current_player.consecutive_ball_saves==1}:
+    - ball_saved_2_scene_play
+    - consecutive_save_did_count
+
+  # Third save (counter==2): play ball_saved_3, then reset counter so #4 cycles back to ball_saved
+  ball_save_new_ball_save_saving_ball{current_player.consecutive_ball_saves==2}:
+    - ball_saved_3_scene_play
+    - consecutive_save_reset
 
   ##############################################################################
   # MODE BALL SAVE - Events for modes to use
@@ -207,7 +245,37 @@ variable_player:
     ball_just_saved:
       action: set
       int: 0
+    consecutive_ball_saves:
+      action: set
+      int: 0
   
+  # Reset consecutive save counter at the start of every ball
+  # (timer dies when mode stops on ball_ending; counter would otherwise persist)
+  mode_ball_save_started:
+    consecutive_ball_saves:
+      action: set
+      int: 0
+
+  # Increment counter via separate event so the conditional handlers above
+  # always evaluate against the pre-increment value
+  consecutive_save_did_count:
+    consecutive_ball_saves:
+      action: add
+      int: 1
+
+  # After the third save, reset counter so save #4 starts the cycle over
+  # (without restarting the 20s window timer)
+  consecutive_save_reset:
+    consecutive_ball_saves:
+      action: set
+      int: 0
+
+  # Reset counter when the 20-second window expires
+  timer_consecutive_save_window_complete:
+    consecutive_ball_saves:
+      action: set
+      int: 0
+
   # MPF event format: ball_save_<device_name>_enabled/disabled
   ball_save_new_ball_save_enabled:
     ball_save_active:
@@ -399,13 +467,26 @@ light_player:
       fade: 0ms
 
 ##############################################################################
-# SLIDE PLAYER - Ball saved scene for new ball saves
+# SLIDE PLAYER - Ball saved scenes for new ball saves
 ##############################################################################
 slide_player:
+  # 1st save in 20s window (video is ~3s)
   ball_saved_scene_play:
     ball_saved:
       action: play
       expire: 3s
+
+  # 2nd save in same 20s window (video is 6s)
+  ball_saved_2_scene_play:
+    ball_saved_2:
+      action: play
+      expire: 6s
+
+  # 3rd save in same 20s window (video is 5s)
+  ball_saved_3_scene_play:
+    ball_saved_3:
+      action: play
+      expire: 5s
 
 ##############################################################################
 # COIL PLAYER - Auto-plunger for saved balls

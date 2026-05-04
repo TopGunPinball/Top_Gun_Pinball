@@ -638,6 +638,43 @@ variable_player:
       action: set
       int: 0
 
+  ##############################################################################
+  # RE-QUALIFY AFTER HARD DECK MODE STOP
+  # When a hard deck mode finishes, hard_deck_qualified_mode was set to 0 on
+  # mode_started (line ~530+). If OTHER hard deck modes are still qualified-
+  # but-not-played, we need to set hard_deck_qualified_mode back so the
+  # remaining qualified mode is lit and playable.
+  #
+  # Posted by event_player below as 'hd_check_requalify'. Checks in priority
+  # order 1→4. Conditions are mutually exclusive — only the first matching
+  # block runs (because later blocks require earlier modes to be already
+  # played-or-unqualified).
+  ##############################################################################
+
+  # Mode 1 (mc) still available
+  hd_check_requalify{current_player.hd_mc_qualified==1 and current_player.hd_mc_played==0}:
+    hard_deck_qualified_mode:
+      action: set
+      int: 1
+
+  # Mode 2 (ptb) still available, mc not
+  hd_check_requalify{(current_player.hd_mc_qualified==0 or current_player.hd_mc_played==1) and current_player.hd_ptb_qualified==1 and current_player.hd_ptb_played==0}:
+    hard_deck_qualified_mode:
+      action: set
+      int: 2
+
+  # Mode 3 (mp) still available, mc + ptb not
+  hd_check_requalify{(current_player.hd_mc_qualified==0 or current_player.hd_mc_played==1) and (current_player.hd_ptb_qualified==0 or current_player.hd_ptb_played==1) and current_player.hd_mp_qualified==1 and current_player.hd_mp_played==0}:
+    hard_deck_qualified_mode:
+      action: set
+      int: 3
+
+  # Mode 4 (hi) still available, mc + ptb + mp not
+  hd_check_requalify{(current_player.hd_mc_qualified==0 or current_player.hd_mc_played==1) and (current_player.hd_ptb_qualified==0 or current_player.hd_ptb_played==1) and (current_player.hd_mp_qualified==0 or current_player.hd_mp_played==1) and current_player.hd_hi_qualified==1 and current_player.hd_hi_played==0}:
+    hard_deck_qualified_mode:
+      action: set
+      int: 4
+
 ####################################################################################
 # EVENT PLAYER
 ####################################################################################
@@ -677,9 +714,9 @@ event_player:
   #   - hd_qualify_maverick_and_penny
 
   # --- HONORING ICEMAN (mode 4) ---
-  # BLOCKED: Mode not yet coded
-  # player_iceman_total_completions{value==10 and current_player.hd_hi_qualified==0 and current_player.hd_hi_played==0}:
-  #   - hd_qualify_honoring_iceman
+  # TESTING: value==2 — change to value==5 for PROD release
+  player_iceman_total_completions{value==5 and current_player.hd_hi_qualified==0 and current_player.hd_hi_played==0}:
+    - hd_qualify_honoring_iceman
 
   ##############################################################################
   # SLINGSHOT ROTATION (forward only, skip unavailable modes)
@@ -817,7 +854,29 @@ event_player:
   mode_rise_of_phoenix_stopped{current_player.hard_deck_qualified_mode>0}:
     - hd_restore_qualified_light
 
-  mode_hard_deck_playing_with_the_boys_stopped{current_player.hard_deck_qualified_mode>0}:
+  ##############################################################################
+  # HARD DECK MODE → STILL-QUALIFIED RESTORE
+  # When a hard deck mode stops, hard_deck_qualified_mode was set to 0 at start.
+  # Post hd_check_requalify first to re-set hard_deck_qualified_mode if any
+  # other hard deck is still qualified-but-not-played, then restore the light.
+  # The hd_restore_qualified_light handler is itself gated by the new value,
+  # so if no mode is still qualified, it just turns the light off (the off
+  # case is covered because no hd_restore_qualified_light{value==N} matches).
+  ##############################################################################
+  mode_hard_deck_maverick_and_charlie_stopped:
+    - hd_check_requalify
+    - hd_restore_qualified_light
+
+  mode_hard_deck_playing_with_the_boys_stopped:
+    - hd_check_requalify
+    - hd_restore_qualified_light
+
+  mode_hard_deck_maverick_and_penny_stopped:
+    - hd_check_requalify
+    - hd_restore_qualified_light
+
+  mode_hard_deck_honoring_iceman_stopped:
+    - hd_check_requalify
     - hd_restore_qualified_light
 
   # Stop pulse shows when any hard deck mode starts

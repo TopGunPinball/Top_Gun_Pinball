@@ -1362,8 +1362,9 @@ sound_player:
 ####################################################################################
 
   # Silence for all modes EXCEPT battle_jester step 6, playing_with_the_boys step 7,
-  # and great_balls_of_fire (Phase 2 super jackpot scoop must not cut music)
-  s_mode_start_active{(mode.battle_jester.active==False or current_player.battle_jester_step!=5) and (mode.hard_deck_playing_with_the_boys.active==False or current_player.ptb_step!=7) and mode.mystery_award.active==False and mode.no_points_for_second_place.active==False and mode.great_balls_of_fire.active==False}:
+  # great_balls_of_fire (Phase 2 super jackpot scoop must not cut music),
+  # and hard_deck_honoring_iceman (winning shot, video keeps playing through full mode)
+  s_mode_start_active{(mode.battle_jester.active==False or current_player.battle_jester_step!=5) and (mode.hard_deck_playing_with_the_boys.active==False or current_player.ptb_step!=7) and mode.mystery_award.active==False and mode.no_points_for_second_place.active==False and mode.great_balls_of_fire.active==False and mode.hard_deck_honoring_iceman.active==False}:
     silence:
       bus: music
       loops: 0
@@ -1696,6 +1697,22 @@ sound_player:
 
   # Restart base music when mode stops (but NOT if drain pending - bonus will handle it)
   mode_hard_deck_playing_with_the_boys_stopped{current_player.pilot_mode_drain_pending==0}:
+    music_danger_zone:
+      bus: music
+      loops: -1
+
+#################################################################################### 
+  # Honoring Iceman (Hard Deck) Music Handler
+####################################################################################
+
+  # Start music when mode starts — plays through intro, gameplay, and end overlays
+  mode_hard_deck_honoring_iceman_started:
+    hard_deck_honoring_iceman_music:
+      bus: music
+      loops: -1
+
+  # Restart base music when mode stops (but NOT if drain pending — bonus will handle it)
+  mode_hard_deck_honoring_iceman_stopped{current_player.pilot_mode_drain_pending==0}:
     music_danger_zone:
       bus: music
       loops: -1
