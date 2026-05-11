@@ -1640,6 +1640,17 @@ sound_player:
       bus: music
       loops: 0
 
+  # Phase 2 MB drain catch: when the last MB ball drains, neither gbof_failed
+  # nor gbof_complete fires (queue_relay only intercepts at gbof_step<=1; MB is
+  # step==3). Without this, the rock music keeps playing through the entire
+  # bonus sequence. ball_will_end fires before bonus starts, so silencing here
+  # gives bonus a clean audio slate. Harmless on Phase 1 drains — fires shortly
+  # before gbof_failed silences again.
+  ball_will_end{mode.great_balls_of_fire.active==True}:
+    silence:
+      bus: music
+      loops: 0
+
   # Music continues through the 30s won video — silenced when mode stops below.
 
   # Restart base music when mode stops (but NOT if drain pending — bonus handles it)

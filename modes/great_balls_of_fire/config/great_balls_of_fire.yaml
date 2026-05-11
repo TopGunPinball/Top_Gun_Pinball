@@ -86,8 +86,26 @@ ball_saves:
     enable_events:
       - gbof_mb_intro_release
       - gbof_add_a_ball
+      - gbof_mb_start                # Also enable on direct MB start (drain-recovery path)
     disable_events:
       - gbof_mb_mode_ended
+      - ball_will_end
+
+  # Phase 1 forge save: activates the moment the first ball is forged and stays
+  # active for the rest of Phase 1. If the ball drains while at least one ball
+  # has been forged, this save returns the ball + the saving_ball event triggers
+  # the drain-to-Phase 2 chain. Disabled by gbof_collection_complete (any Phase 1
+  # end path: drain-recovery, timer expiry with balls, or all-4 forged).
+  gbof_phase1_forge_save:
+    active_time: 130s                # covers the full 120s Phase 1 timer + buffer
+    hurry_up_time: 2s
+    grace_period: 500ms
+    auto_launch: true
+    balls_to_save: 1
+    enable_events:
+      - gbof_ball_forged
+    disable_events:
+      - gbof_collection_complete
       - ball_will_end
 
 ####################################################################################
@@ -110,6 +128,11 @@ ball_holds:
   # Phase 2: holds ball in scoop during 12s MB intro countdown.
   # Enabled at gbof_collection_complete (not on scoop hit) so the hold is
   # active BEFORE the ball arrives — avoids race with scoop auto-eject.
+  # MUST also disable on gbof_mb_start: in the drain-recovery path no scoop-shoot
+  # happens so gbof_mb_intro_release never fires, leaving this hold active for
+  # the entire multiball. It would then intercept the ball at every scoop hit
+  # (including super jackpot collections) and block gbof_super_jp_hold from
+  # claiming the ball, which in turn blocks scoop_ball_release from ejecting.
   gbof_mb_intro_hold:
     balls_to_hold: 1
     hold_devices: bd_mode_scoop
@@ -119,6 +142,7 @@ ball_holds:
       - gbof_mb_intro_release
     disable_events:
       - gbof_mb_intro_release
+      - gbof_mb_start
       - mode_great_balls_of_fire_will_stop
     release_all_events:
       - mode_great_balls_of_fire_will_stop
@@ -142,10 +166,16 @@ ball_holds:
 ####################################################################################
 
 queue_relay_player:
-  # Only intercept ball_ending during Phase 1 (step==1, single ball in play).
-  # Phase 2 multiball (step==3) handles drains via the multiball device — if the
-  # queue_relay runs there it fires gbof_failed (the 42s lost video) which is wrong.
-  ball_ending{mode.great_balls_of_fire.active==True and current_player.gbof_step<=1}:
+  # Intercept ball_ending during Phase 1 (step<=1, single ball in play) OR during
+  # the Phase 2 won state (complete_flag==1, set by gbof_mb_mode_ended). Both
+  # cases run an end-of-mode video (42s lost / 30s won) that must finish before
+  # bonus runs. The queue waits on gbof_drain_cleanup_complete, which is fired
+  # by timer_gbof_failed_delay_complete (lost path) and timer_gbof_complete_delay_complete
+  # (won path) once each respective video has played out.
+  # NOT intercepted at step==3 (MB running, not yet won) — drains there are
+  # handled by the multiball device itself, and the gbof_failed lost video
+  # path would be wrong for MB drains.
+  ball_ending{mode.great_balls_of_fire.active==True and (current_player.gbof_step<=1 or current_player.gbof_complete_flag==1)}:
     post: gbof_ball_ending_hold
     wait_for: gbof_drain_cleanup_complete
     priority: 1000
@@ -299,7 +329,11 @@ timers:
       - event: mode_great_balls_of_fire_will_stop
         action: stop
 
-  # Phase 2: 3s super jackpot animation while ball held in scoop
+  # Phase 2: 3s super jackpot animation while ball held in scoop.
+  # MUST use 'restart' not 'start': a 'start' action is a no-op on a timer that
+  # has already completed once, which would cause the timer's complete event to
+  # fire immediately on the second super (timer sits at end_value=3 after first
+  # run). 'restart' resets the timer to 0 and runs it fresh every time.
   gbof_super_jp_animation:
     start_value: 0
     end_value: 3
@@ -308,7 +342,7 @@ timers:
     start_running: false
     control_events:
       - event: gbof_super_jackpot_collected
-        action: start
+        action: restart
       - event: mode_great_balls_of_fire_will_stop
         action: stop
 
@@ -321,6 +355,26 @@ timers:
     start_running: false
     control_events:
       - event: gbof_super_jp_release
+        action: restart
+      - event: mode_great_balls_of_fire_will_stop
+        action: stop
+
+  # Phase 2 spinner settle: 2s timer that restarts on every spinner spin.
+  # After a spinner shot is counted, gbof_p2_sp_lockout is set to 1. The timer
+  # is constantly restarted while the spinner is still spinning. Once the spinner
+  # stops, the timer expires 2s later and clears the lockout — at which point
+  # the next 3-spin sequence can register as a new shot. This catches the case
+  # of a single hard hit that spins past the 3-spin shot_made threshold many
+  # times: only the first spinner_shot_made counts, subsequent ones during the
+  # same spin-down are blocked.
+  gbof_spinner_settle:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: s_spinner_active
         action: restart
       - event: mode_great_balls_of_fire_will_stop
         action: stop
@@ -387,6 +441,9 @@ variable_player:
     mode_points_scored:
       action: set
       int: 0
+    gbof_drain_recovery_active:    # 1 = Phase 1 drain was saved → use abbreviated Phase 2 intro
+      action: set
+      int: 0
 
   # Step 1 = collection phase active (set when ball releases)
   gbof_setup_collection_phase:
@@ -403,6 +460,13 @@ variable_player:
   # Drain pending flag
   ball_will_end{mode.great_balls_of_fire.active==True}:
     pilot_mode_drain_pending:
+      action: set
+      int: 1
+
+  # Drain-recovery: must set flag BEFORE gbof_collection_complete fires so the
+  # conditional slide_player + event_player handlers route to the abbreviated path.
+  gbof_drain_to_phase2:
+    gbof_drain_recovery_active:
       action: set
       int: 1
 
@@ -616,6 +680,10 @@ variable_player:
     gbof_super_lit: { action: set, int: 0 }
     gbof_jp_video_index: { action: set, int: 1 }
     mode_points_scored: { action: set, int: 0 }
+    # Spinner settle-lockout: 1 while a counted spinner shot is "cooling down"
+    # (spinner still spinning down). Cleared when the 2s spinner_settle timer
+    # expires after the last spin.
+    gbof_p2_sp_lockout: { action: set, int: 0 }
 
   # ── PHASE 2 SETUP: step 3 = MB running, all shot detection active ────────────
   gbof_p2_setup:
@@ -625,140 +693,147 @@ variable_player:
 
   # ── PHASE 2 HIT SCORING ─────────────────────────────────────────────────────────
   # Each hit_1 fires from event_player when hits==0; hit_2 when hits==1; jp when hits==2.
-  # Super jackpot accumulates: hit_1 += 100K, hit_2 += 250K, jp += 500K (all shots).
+  # Super jackpot accumulates the SAME multiplier-adjusted point value as each shot's score.
 
   # LO — 150K / 300K / 500K
   gbof_p2_lo_hit_1:
     gbof_p2_lo_hits: { action: set, int: 1 }
     score: { action: add, int: 150000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 150000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 100000 }
+    gbof_super_jackpot_value: { action: add, int: 150000 * current_player.total_scoring_multiplier }
   gbof_p2_lo_hit_2:
     gbof_p2_lo_hits: { action: set, int: 2 }
     score: { action: add, int: 300000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 300000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 250000 }
+    gbof_super_jackpot_value: { action: add, int: 300000 * current_player.total_scoring_multiplier }
   gbof_p2_lo_jp:
     gbof_p2_lo_hits: { action: set, int: 3 }
     gbof_p2_lo_complete: { action: set, int: 1 }
     gbof_p2_shots_completed: { action: add, int: 1 }
     score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 500000 }
+    gbof_super_jackpot_value: { action: add, int: 500000 * current_player.total_scoring_multiplier }
 
   # LR — 250K / 500K / 750K
   gbof_p2_lr_hit_1:
     gbof_p2_lr_hits: { action: set, int: 1 }
     score: { action: add, int: 250000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 100000 }
+    gbof_super_jackpot_value: { action: add, int: 250000 * current_player.total_scoring_multiplier }
   gbof_p2_lr_hit_2:
     gbof_p2_lr_hits: { action: set, int: 2 }
     score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 250000 }
+    gbof_super_jackpot_value: { action: add, int: 500000 * current_player.total_scoring_multiplier }
   gbof_p2_lr_jp:
     gbof_p2_lr_hits: { action: set, int: 3 }
     gbof_p2_lr_complete: { action: set, int: 1 }
     gbof_p2_shots_completed: { action: add, int: 1 }
     score: { action: add, int: 750000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 750000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 500000 }
+    gbof_super_jackpot_value: { action: add, int: 750000 * current_player.total_scoring_multiplier }
 
   # SP — 150K / 300K / 500K
   gbof_p2_sp_hit_1:
     gbof_p2_sp_hits: { action: set, int: 1 }
     score: { action: add, int: 150000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 150000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 100000 }
+    gbof_super_jackpot_value: { action: add, int: 150000 * current_player.total_scoring_multiplier }
+    gbof_p2_sp_lockout: { action: set, int: 1 }
   gbof_p2_sp_hit_2:
     gbof_p2_sp_hits: { action: set, int: 2 }
     score: { action: add, int: 300000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 300000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 250000 }
+    gbof_super_jackpot_value: { action: add, int: 300000 * current_player.total_scoring_multiplier }
+    gbof_p2_sp_lockout: { action: set, int: 1 }
   gbof_p2_sp_jp:
     gbof_p2_sp_hits: { action: set, int: 3 }
     gbof_p2_sp_complete: { action: set, int: 1 }
     gbof_p2_shots_completed: { action: add, int: 1 }
     score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 500000 }
+    gbof_super_jackpot_value: { action: add, int: 500000 * current_player.total_scoring_multiplier }
+    gbof_p2_sp_lockout: { action: set, int: 1 }
+
+  # Spinner settle timer expired → clear lockout so next 3-spin sequence can count
+  timer_gbof_spinner_settle_complete:
+    gbof_p2_sp_lockout: { action: set, int: 0 }
 
   # TWR — 250K / 500K / 750K
   gbof_p2_twr_hit_1:
     gbof_p2_twr_hits: { action: set, int: 1 }
     score: { action: add, int: 250000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 100000 }
+    gbof_super_jackpot_value: { action: add, int: 250000 * current_player.total_scoring_multiplier }
   gbof_p2_twr_hit_2:
     gbof_p2_twr_hits: { action: set, int: 2 }
     score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 250000 }
+    gbof_super_jackpot_value: { action: add, int: 500000 * current_player.total_scoring_multiplier }
   gbof_p2_twr_jp:
     gbof_p2_twr_hits: { action: set, int: 3 }
     gbof_p2_twr_complete: { action: set, int: 1 }
     gbof_p2_shots_completed: { action: add, int: 1 }
     score: { action: add, int: 750000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 750000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 500000 }
+    gbof_super_jackpot_value: { action: add, int: 750000 * current_player.total_scoring_multiplier }
 
   # TL (Top Loop) — 500K / 750K / 1M
   gbof_p2_tl_hit_1:
     gbof_p2_tl_hits: { action: set, int: 1 }
     score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 100000 }
+    gbof_super_jackpot_value: { action: add, int: 500000 * current_player.total_scoring_multiplier }
   gbof_p2_tl_hit_2:
     gbof_p2_tl_hits: { action: set, int: 2 }
     score: { action: add, int: 750000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 750000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 250000 }
+    gbof_super_jackpot_value: { action: add, int: 750000 * current_player.total_scoring_multiplier }
   gbof_p2_tl_jp:
     gbof_p2_tl_hits: { action: set, int: 3 }
     gbof_p2_tl_complete: { action: set, int: 1 }
     gbof_p2_shots_completed: { action: add, int: 1 }
     score: { action: add, int: 1000000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 1000000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 500000 }
+    gbof_super_jackpot_value: { action: add, int: 1000000 * current_player.total_scoring_multiplier }
 
   # TR (Top Ramp) — 500K / 750K / 1M
   gbof_p2_tr_hit_1:
     gbof_p2_tr_hits: { action: set, int: 1 }
     score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 100000 }
+    gbof_super_jackpot_value: { action: add, int: 500000 * current_player.total_scoring_multiplier }
   gbof_p2_tr_hit_2:
     gbof_p2_tr_hits: { action: set, int: 2 }
     score: { action: add, int: 750000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 750000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 250000 }
+    gbof_super_jackpot_value: { action: add, int: 750000 * current_player.total_scoring_multiplier }
   gbof_p2_tr_jp:
     gbof_p2_tr_hits: { action: set, int: 3 }
     gbof_p2_tr_complete: { action: set, int: 1 }
     gbof_p2_shots_completed: { action: add, int: 1 }
     score: { action: add, int: 1000000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 1000000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 500000 }
+    gbof_super_jackpot_value: { action: add, int: 1000000 * current_player.total_scoring_multiplier }
 
   # RR — 250K / 500K / 750K
   gbof_p2_rr_hit_1:
     gbof_p2_rr_hits: { action: set, int: 1 }
     score: { action: add, int: 250000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 100000 }
+    gbof_super_jackpot_value: { action: add, int: 250000 * current_player.total_scoring_multiplier }
   gbof_p2_rr_hit_2:
     gbof_p2_rr_hits: { action: set, int: 2 }
     score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 250000 }
+    gbof_super_jackpot_value: { action: add, int: 500000 * current_player.total_scoring_multiplier }
   gbof_p2_rr_jp:
     gbof_p2_rr_hits: { action: set, int: 3 }
     gbof_p2_rr_complete: { action: set, int: 1 }
     gbof_p2_shots_completed: { action: add, int: 1 }
     score: { action: add, int: 750000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 750000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 500000 }
+    gbof_super_jackpot_value: { action: add, int: 750000 * current_player.total_scoring_multiplier }
 
   # ── SUPER JACKPOT STATE ────────────────────────────────────────────────────────
   gbof_super_now_lit:
@@ -882,11 +957,12 @@ event_player:
   # The queue_relay is released by gbof_drain_cleanup_complete which fires from
   # timer_gbof_failed_delay_complete (after the full 42s video plays).
   # complete_flag==0 → Phase 1 failed or still in Phase 1 → 42s lost video
-  # complete_flag==1 → Phase 2 won → mode already handled, just release queue
+  # complete_flag==1 → Phase 2 won → 30s won video already playing. NO handler
+  # here: ball_ending_hold sits idle, the queue stays held until
+  # timer_gbof_complete_delay_complete fires gbof_drain_cleanup_complete naturally.
+  # This is what keeps bonus from running concurrently with the won video.
   gbof_ball_ending_hold{current_player.gbof_complete_flag==0}:
     - gbof_failed
-  gbof_ball_ending_hold{current_player.gbof_complete_flag==1}:
-    - gbof_drain_cleanup_complete
 
   timer_gbof_drain_delay_complete:
     - gbof_drain_cleanup_complete
@@ -1061,9 +1137,32 @@ event_player:
   # ════════════════════════════════════════════════════════════════════════════════
 
   # ── PHASE 2 INTRO ───────────────────────────────────────────────────────────────
-  gbof_collection_complete:
+  # Normal path: timer expired or all-4 forged → drop barrier + flash → wait for scoop hit.
+  # Barrier is later raised back up before MB starts (via barrier_raise|400ms in
+  # timer_gbof_mb_intro_delay_complete) so the MB itself runs with barrier UP.
+  gbof_collection_complete{current_player.gbof_drain_recovery_active==0}:
     - barrier_drop
     - gbof_p2_barrier_flash_start
+
+  # Drain-recovery path: no event_player action on gbof_collection_complete.
+  # The barrier was raised at mode_started and never dropped in this path, so it
+  # stays UP into the MB — which is correct. (Barrier will drop later when super
+  # jackpot is lit, via gbof_super_now_lit → barrier_drop.)
+
+  # ── DRAIN RECOVERY → PHASE 2 ───────────────────────────────────────────────────
+  # The Phase 1 forge save catches the drain and posts saving_ball. That triggers
+  # this chain. Timing: saved ball needs ~1s to ride trough → shooter → auto-plunge
+  # → playfield before the multiball device polls "balls live" to decide how many
+  # more to eject. 1500ms gives the saved ball time to register on the playfield
+  # (mirrors the 600ms scoop-to-playfield delay in the normal path, plus extra for
+  # the longer trough → shooter → playfield round trip).
+  ball_save_gbof_phase1_forge_save_saving_ball:
+    - gbof_drain_to_phase2
+
+  gbof_drain_to_phase2:
+    - gbof_collection_complete       # step=2, init p2 vars, disable forge save, kill p1 timer
+    - gbof_mb_start|1500ms           # MB ejects (mb_ball_count - balls_live_on_playfield) more
+    - gbof_p2_setup|1700ms           # step=3, MB shot detection live
 
   # Player shoots scoop during intro → hold ball 12s then launch MB
   s_mode_start_active{current_player.gbof_step==2}:
@@ -1108,7 +1207,10 @@ event_player:
     - gbof_any_shot_hit
 
   # SP (spinner_shot_made from qualifier, 3 spins)
-  spinner_shot_made{current_player.gbof_step==3 and current_player.gbof_p2_sp_complete==0 and device.timers.gbof_shot_lockout.running==False}:
+  # gbof_p2_sp_lockout==0 prevents multiple spinner_shot_made events from a single
+  # long spin sequence from counting. Set to 1 when a shot counts, cleared 2s after
+  # the last spin via timer_gbof_spinner_settle_complete.
+  spinner_shot_made{current_player.gbof_step==3 and current_player.gbof_p2_sp_complete==0 and device.timers.gbof_shot_lockout.running==False and current_player.gbof_p2_sp_lockout==0}:
     - gbof_p2_sp_hit
     - gbof_any_shot_hit
 
@@ -1299,8 +1401,12 @@ event_player:
   timer_gbof_super_jp_animation_complete:
     - gbof_super_jp_release
 
-  # 400ms after ball exits scoop → raise barrier; 500ms → disable hold + restart shots
+  # 400ms after ball exits scoop → raise barrier; 500ms → disable hold + restart shots.
+  # scoop_ball_release fires the kicker coil (the ball_hold's release_one_events
+  # only updates the ball_hold's internal state — the coil has to be fired explicitly).
+  # Barrier is already down from gbof_super_now_lit; barrier_delay timer raises it 400ms later.
   gbof_super_jp_release:
+    - scoop_ball_release
     - timer_gbof_mb_barrier_delay_start
 
   timer_gbof_mb_barrier_delay_complete:
@@ -1485,12 +1591,19 @@ slide_player:
       priority: 700
       expire: 42s
 
-  gbof_collection_complete:
+  # Normal path: remove timer slide, show "shoot the scoop to start MB" prompt
+  gbof_collection_complete{current_player.gbof_drain_recovery_active==0}:
     great_balls_of_fire_timer:
       action: remove
     great_balls_of_fire_start_mb:
       action: play
       priority: 700
+
+  # Drain-recovery path: no scoop-shoot needed → don't show the start_mb prompt.
+  # Just remove the timer slide (background slide stays for Phase 2).
+  gbof_collection_complete{current_player.gbof_drain_recovery_active==1}:
+    great_balls_of_fire_timer:
+      action: remove
 
   gbof_mb_start:
     great_balls_of_fire_start_mb:
@@ -1562,13 +1675,15 @@ show_player:
       speed: 30
       loops: -1
 
-  # ── GI SHOT FLASH: 3 rapid all-GI pulses on any hit ──────────────────────────
+  # ── GI FLICKER ON SHOT: visual cue that a shot was made ──────────────────────
+  # Show is a 250ms off/on/off/on flicker cycle. loops: 6 → ~1500ms total.
+  # Re-triggering with the same key on a subsequent shot replaces the running
+  # instance, effectively restarting the 1.5s flicker on every shot.
   gbof_any_shot_hit:
     gbof_gi_flash_show:
       show: gbof_gi_shot_flash
       key: gbof_gi_hit_key
-      speed: 1
-      loops: 0
+      loops: 6
 
   # ── INSERT FLASHES: all 4 shots start green when collection phase begins ───────
   gbof_setup_collection_phase:
@@ -1778,6 +1893,25 @@ show_player:
       show_tokens:
         led: l_shot_barrier
         color: 'FF6600'
+
+  # ── MB BALL SAVE: flash l_shoot_again while the 20s save is active ──────────────
+  # Fires from the standard MPF ball_save events. _timer_start fires when active_time
+  # begins counting; _disabled fires when the save ends (timer expiry, ball_will_end,
+  # or gbof_mb_mode_ended via the device's disable_events).
+  ball_save_gbof_multiball_ball_save_timer_start:
+    gbof_mb_save_shoot_again:
+      show: sync_flash_mode
+      key: gbof_mb_shoot_again_flash
+      sync_ms: 500
+      loops: -1
+      show_tokens:
+        led: l_shoot_again
+        color: white
+
+  ball_save_gbof_multiball_ball_save_disabled:
+    gbof_mb_save_shoot_again:
+      action: stop
+      key: gbof_mb_shoot_again_flash
 
   # ── PHASE 2 SETUP: start all 7 shot green flashes ────────────────────────────────
   gbof_p2_setup:
@@ -2075,7 +2209,42 @@ show_player:
       key: gbof_super_gi_key
 
   # ── SUPER RESET: restart all 7 shot green flashes after super collected ──────────
+  # CRITICAL: stop any fire shows still running on previously-completed shots first.
+  # gbof_super_jackpot_collected resets all complete flags in variable_player but
+  # does NOT stop the fire shows that started on each JP. Without these explicit
+  # stops, two shows compete for the same insert (the still-running fire show and
+  # the newly-started green flash) — the result is unreliable: sometimes the fire
+  # wins, sometimes the green flash, sometimes neither asserts and the light goes
+  # dark. Stopping the fire shows here gives the green flash a clean slate.
   gbof_p2_restart_shot_flashes:
+    stop_lo_fire_super:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_lo_fire_key
+    stop_lr_fire_super:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_lr_fire_key
+    stop_sp_fire_super:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_sp_fire_key
+    stop_twr_fire_super:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_twr_fire_key
+    stop_tl_fire_super:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_tl_fire_key
+    stop_tr_fire_super:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_tr_fire_key
+    stop_rr_fire_super:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_rr_fire_key
     lo_p2_reset:
       show: sync_flash_mode
       key: gbof_p2_lo_flash
@@ -2272,9 +2441,38 @@ shows:
         l_gi_light_20: 'FF4400'
         l_gi_light_21: 'FF0000'
 
-  # ── GI SHOT FLASH: 3 bright pulses ~770ms total, loops: 0 (plays once) ───────
+  # ── GI SHOT FLASH: off/on flicker as visual cue that a shot was made ─────────
+  # Duration-based asymmetric cycle = 50+90+30+80 = 250ms per loop. The
+  # show_player triggers this on every gbof_any_shot_hit with loops: 6, giving
+  # ~1500ms of flicker (6 × 250ms). Only lights 1-21 are touched — the fire
+  # animation on l_gi_light_22-27 + apron runs independently and is unaffected.
+  # When the show ends, the underlying gbof_playfield_gi show resumes asserting
+  # on these lights automatically (lower-priority show on the same stack).
   gbof_gi_shot_flash:
-    - time: 0
+    - duration: 50ms
+      lights:
+        l_gi_light_1:  '000000'
+        l_gi_light_2:  '000000'
+        l_gi_light_3:  '000000'
+        l_gi_light_4:  '000000'
+        l_gi_light_5:  '000000'
+        l_gi_light_6:  '000000'
+        l_gi_light_7:  '000000'
+        l_gi_light_8:  '000000'
+        l_gi_light_9:  '000000'
+        l_gi_light_10: '000000'
+        l_gi_light_11: '000000'
+        l_gi_light_12: '000000'
+        l_gi_light_13: '000000'
+        l_gi_light_14: '000000'
+        l_gi_light_15: '000000'
+        l_gi_light_16: '000000'
+        l_gi_light_17: '000000'
+        l_gi_light_18: '000000'
+        l_gi_light_19: '000000'
+        l_gi_light_20: '000000'
+        l_gi_light_21: '000000'
+    - duration: 90ms
       lights:
         l_gi_light_1:  'FF8800'
         l_gi_light_2:  'FF8800'
@@ -2297,76 +2495,30 @@ shows:
         l_gi_light_19: 'FF8800'
         l_gi_light_20: 'FF8800'
         l_gi_light_21: 'FF8800'
-    - time: 110ms
+    - duration: 30ms
       lights:
-        l_gi_light_1:  'FF0000'
-        l_gi_light_2:  'FF4400'
-        l_gi_light_3:  'FF0000'
-        l_gi_light_4:  'FF4400'
-        l_gi_light_5:  'FF0000'
-        l_gi_light_6:  'FF4400'
-        l_gi_light_7:  'FF0000'
-        l_gi_light_8:  'FF4400'
-        l_gi_light_9:  'FF0000'
-        l_gi_light_10: 'FF4400'
-        l_gi_light_11: 'FF0000'
-        l_gi_light_12: 'FF4400'
-        l_gi_light_13: 'FF0000'
-        l_gi_light_14: 'FF4400'
-        l_gi_light_15: 'FF0000'
-        l_gi_light_16: 'FF4400'
-        l_gi_light_17: 'FF0000'
-        l_gi_light_18: 'FF4400'
-        l_gi_light_19: 'FF0000'
-        l_gi_light_20: 'FF4400'
-        l_gi_light_21: 'FF0000'
-    - time: 330ms
-      lights:
-        l_gi_light_1:  'FF8800'
-        l_gi_light_2:  'FF8800'
-        l_gi_light_3:  'FF8800'
-        l_gi_light_4:  'FF8800'
-        l_gi_light_5:  'FF8800'
-        l_gi_light_6:  'FF8800'
-        l_gi_light_7:  'FF8800'
-        l_gi_light_8:  'FF8800'
-        l_gi_light_9:  'FF8800'
-        l_gi_light_10: 'FF8800'
-        l_gi_light_11: 'FF8800'
-        l_gi_light_12: 'FF8800'
-        l_gi_light_13: 'FF8800'
-        l_gi_light_14: 'FF8800'
-        l_gi_light_15: 'FF8800'
-        l_gi_light_16: 'FF8800'
-        l_gi_light_17: 'FF8800'
-        l_gi_light_18: 'FF8800'
-        l_gi_light_19: 'FF8800'
-        l_gi_light_20: 'FF8800'
-        l_gi_light_21: 'FF8800'
-    - time: 440ms
-      lights:
-        l_gi_light_1:  'FF0000'
-        l_gi_light_2:  'FF4400'
-        l_gi_light_3:  'FF0000'
-        l_gi_light_4:  'FF4400'
-        l_gi_light_5:  'FF0000'
-        l_gi_light_6:  'FF4400'
-        l_gi_light_7:  'FF0000'
-        l_gi_light_8:  'FF4400'
-        l_gi_light_9:  'FF0000'
-        l_gi_light_10: 'FF4400'
-        l_gi_light_11: 'FF0000'
-        l_gi_light_12: 'FF4400'
-        l_gi_light_13: 'FF0000'
-        l_gi_light_14: 'FF4400'
-        l_gi_light_15: 'FF0000'
-        l_gi_light_16: 'FF4400'
-        l_gi_light_17: 'FF0000'
-        l_gi_light_18: 'FF4400'
-        l_gi_light_19: 'FF0000'
-        l_gi_light_20: 'FF4400'
-        l_gi_light_21: 'FF0000'
-    - time: 660ms
+        l_gi_light_1:  '000000'
+        l_gi_light_2:  '000000'
+        l_gi_light_3:  '000000'
+        l_gi_light_4:  '000000'
+        l_gi_light_5:  '000000'
+        l_gi_light_6:  '000000'
+        l_gi_light_7:  '000000'
+        l_gi_light_8:  '000000'
+        l_gi_light_9:  '000000'
+        l_gi_light_10: '000000'
+        l_gi_light_11: '000000'
+        l_gi_light_12: '000000'
+        l_gi_light_13: '000000'
+        l_gi_light_14: '000000'
+        l_gi_light_15: '000000'
+        l_gi_light_16: '000000'
+        l_gi_light_17: '000000'
+        l_gi_light_18: '000000'
+        l_gi_light_19: '000000'
+        l_gi_light_20: '000000'
+        l_gi_light_21: '000000'
+    - duration: 80ms
       lights:
         l_gi_light_1:  'FF8800'
         l_gi_light_2:  'FF8800'
@@ -2389,29 +2541,6 @@ shows:
         l_gi_light_19: 'FF8800'
         l_gi_light_20: 'FF8800'
         l_gi_light_21: 'FF8800'
-    - time: 770ms
-      lights:
-        l_gi_light_1:  'FF0000'
-        l_gi_light_2:  'FF4400'
-        l_gi_light_3:  'FF0000'
-        l_gi_light_4:  'FF4400'
-        l_gi_light_5:  'FF0000'
-        l_gi_light_6:  'FF4400'
-        l_gi_light_7:  'FF0000'
-        l_gi_light_8:  'FF4400'
-        l_gi_light_9:  'FF0000'
-        l_gi_light_10: 'FF4400'
-        l_gi_light_11: 'FF0000'
-        l_gi_light_12: 'FF4400'
-        l_gi_light_13: 'FF0000'
-        l_gi_light_14: 'FF4400'
-        l_gi_light_15: 'FF0000'
-        l_gi_light_16: 'FF4400'
-        l_gi_light_17: 'FF0000'
-        l_gi_light_18: 'FF4400'
-        l_gi_light_19: 'FF0000'
-        l_gi_light_20: 'FF4400'
-        l_gi_light_21: 'FF0000'
 
   # ── INSERT FIRE: duration-based fire flicker matching eos_engine_fire style ──
   # At speed: 30, each duration:1 = ~33ms, duration:2 = ~66ms.
@@ -2473,6 +2602,13 @@ sound_player:
       bus: voice
       loops: 0
 
+  # Drain-recovery path: same MB callout, fires immediately on transition
+  # (no scoop-shoot in this path, but the audio cue should still play).
+  gbof_drain_to_phase2:
+    gbof_mb_instructions:
+      bus: voice
+      loops: 0
+
   # Super jackpot collected: play celebration callout
   gbof_super_jackpot_collected:
     great_balls_of_fire_super_jackpot_callout:
@@ -2493,6 +2629,13 @@ sound_player:
 #      gbof_complete:
 #        silence: { bus: music, loops: 0 }
 #      gbof_failed:
+#        silence: { bus: music, loops: 0 }
+#      # CRITICAL: catches the Phase 2 MB drain case. When the last MB ball
+#      # drains, neither gbof_complete nor gbof_failed fires (queue_relay does
+#      # not intercept at gbof_step==3). ball_will_end fires before bonus
+#      # mode starts — silencing the music here prevents GBOF music from
+#      # playing through the entire bonus sequence.
+#      ball_will_end{mode.great_balls_of_fire.active==True}:
 #        silence: { bus: music, loops: 0 }
 #      mode_great_balls_of_fire_stopped:
 #        music_danger_zone: { bus: music, loops: -1 }

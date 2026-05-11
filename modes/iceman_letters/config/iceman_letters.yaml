@@ -105,39 +105,39 @@ variable_player:
 
   ##############################################
   ## Qualify Training Missions on ICEMAN Complete
-  ## Only qualify if no mission is currently qualified
+  ## Random selection: training_pick_start (random_event_player at bottom of
+  ## file) picks one of training_start_inverted/missiles/afterburner/wingman.
+  ## Each handler below sets training_mission_qualified directly to that slot.
+  ## If the chosen mode is already played, the existing
+  ## player_training_mission_qualified auto-skip chain (further down in
+  ## event_player) advances to the next uncompleted mission automatically.
+  ## Dogfight (slot 5) is excluded from the random pool because it is gated
+  ## until missions 1-4 are all complete (auto-skip will land on it then).
   ##############################################
 
-  # Default: qualify mission 1 (Inverted) if nothing qualified yet
-  qualify_training_mission:
+  # Random pick → Inverted (slot 1)
+  training_start_inverted:
     training_mission_qualified:
       action: set
       int: 1
 
-  # Override based on what's been completed
-  # Mission 2 if mission 1 is complete
-  qualify_training_mission{current_player.training_inverted_complete==1 and current_player.training_missles_complete==0}:
+  # Random pick → Missiles (slot 2)
+  training_start_missiles:
     training_mission_qualified:
       action: set
       int: 2
 
-  # Mission 3 if missions 1-2 are complete
-  qualify_training_mission{current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==0}:
+  # Random pick → Afterburner (slot 3)
+  training_start_afterburner:
     training_mission_qualified:
       action: set
       int: 3
 
-  # Mission 4 if missions 1-3 are complete
-  qualify_training_mission{current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==0}:
+  # Random pick → Wingman (slot 4)
+  training_start_wingman:
     training_mission_qualified:
       action: set
       int: 4
-
-  # Mission 5 (Dogfight) if missions 1-4 are all complete
-  qualify_training_mission{current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1 and current_player.training_dogfight_complete==0}:
-    training_mission_qualified:
-      action: set
-      int: 5
 
   ##############################################
   ## Handle ICEMAN Completion
@@ -619,7 +619,26 @@ event_player:
       priority: 110
 
   # Qualify training mission ONLY if not already qualified (prevents double qualification)
+  # training_pick_start fires via random_event_player (see bottom of file),
+  # which chooses one of the 4 randomizable training missions.
+  # Each training_start_XXX handler sets training_mission_qualified to that
+  # slot (via variable_player above) and posts qualify_training_mission for
+  # the voice callout.
+  # If the randomly-chosen mode is already played, the auto-skip chain
+  # (player_training_mission_qualified handlers below) advances to the next
+  # uncompleted mission automatically.
   iceman_complete{current_player.training_mission_qualified==0}:
+    training_pick_start
+
+  # Random pick handlers — fire qualify_training_mission for the voice callout
+  # (variable_player above sets training_mission_qualified to the right slot)
+  training_start_inverted:
+    qualify_training_mission
+  training_start_missiles:
+    qualify_training_mission
+  training_start_afterburner:
+    qualify_training_mission
+  training_start_wingman:
     qualify_training_mission
 
   # Restore qualified mission state on ball start
@@ -1736,3 +1755,37 @@ sound_player:
     voice_pilot_training_qualified:
       bus: voice
       loops: 0
+
+##############################################
+## Random Event Player
+##############################################
+
+random_event_player:
+  ##############################################
+  ## RANDOM STARTING TRAINING MISSION SELECTION
+  ## Picks a random starting training mission when ICEMAN completes.
+  ## Includes the 4 randomizable missions (Inverted, Missiles, Afterburner,
+  ## Wingman). Dogfight is excluded because it is gated until the other 4
+  ## are all complete — the auto-skip chain in event_player will land on it
+  ## when appropriate.
+  ## If the randomly-chosen mission is already played, the
+  ## player_training_mission_qualified auto-skip handlers (in event_player)
+  ## advance training_mission_qualified to the next uncompleted slot.
+  ##
+  ## scope: machine + force_all: true → shuffle-bag behavior. The randomizer
+  ## state persists across games for the life of the MPF process. All 4
+  ## events are picked in random order before any repeats. Picked because
+  ## the default (scope: player, force_all: false) creates a fresh randomizer
+  ## every game, so each game's first pick is independent and the same mode
+  ## can land multiple games in a row purely by chance — with only 4 options
+  ## the variance is visible (1/4 chance per game). Shuffle-bag guarantees
+  ## variety across consecutive games.
+  ##############################################
+  training_pick_start:
+    scope: machine
+    force_all: true
+    events:
+      - training_start_inverted
+      - training_start_missiles
+      - training_start_afterburner
+      - training_start_wingman
