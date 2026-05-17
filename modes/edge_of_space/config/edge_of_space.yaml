@@ -108,7 +108,7 @@ timers:
   # Shot value decay: 150 ticks x 100ms = 15s timer (decay_per_tick reduced to 2.5x slower)
   edge_of_space_decay_timer:
     start_value: 0
-    end_value: 150
+    end_value: 200
     direction: up
     tick_interval: 100ms
     start_running: false
@@ -264,6 +264,10 @@ timers:
     control_events:
       - event: edge_of_space_combo_lr_hit
         action: restart
+      - event: edge_of_space_combo_rr_hit
+        action: stop
+      - event: edge_of_space_end_combo
+        action: stop
 
   # Combo: RR → 10s window for SP
   edge_of_space_combo_rr_timer:
@@ -275,7 +279,9 @@ timers:
     control_events:
       - event: edge_of_space_combo_rr_hit
         action: restart
-      - event: edge_of_space_combo_lr_hit
+      - event: edge_of_space_combo_sp_hit
+        action: stop
+      - event: edge_of_space_end_combo
         action: stop
 
   # Combo: SP → 4s window for TL (3x bonus)
@@ -288,7 +294,9 @@ timers:
     control_events:
       - event: edge_of_space_combo_sp_hit
         action: start
-      - event: edge_of_space_combo_rr_hit
+      - event: edge_of_space_combo_3x_payout
+        action: stop
+      - event: edge_of_space_end_combo
         action: stop
 
 ####################################################################################
@@ -327,13 +335,13 @@ variable_player:
       int: 0
     edge_of_space_current_shot_value:
       action: set
-      int: 500000
+      int: 1400000
     edge_of_space_shot_floor:
       action: set
-      int: 100000
+      int: 420000
     edge_of_space_decay_per_tick:
       action: set
-      int: 1067
+      int: 4900
     edge_of_space_combo_step:
       action: set
       int: 0
@@ -358,7 +366,8 @@ variable_player:
       action: set
       int: 1
 
-  # Decay shot value each 100ms tick toward floor
+  # Decay shot value each 100ms tick toward floor (no grace period — decay starts immediately)
+  # Decay runs ticks 0-199 (20s total) until floor is reached
   timer_edge_of_space_decay_timer_tick{current_player.edge_of_space_current_shot_value > current_player.edge_of_space_shot_floor}:
     edge_of_space_current_shot_value:
       action: add
@@ -371,91 +380,91 @@ variable_player:
       int: 1
     edge_of_space_current_shot_value:
       action: set
-      int: 500000
+      int: 1400000
     edge_of_space_shot_floor:
       action: set
-      int: 100000
+      int: 420000
     edge_of_space_decay_per_tick:
       action: set
-      int: 1067
+      int: 4900
 
   edge_of_space_setup_step_2:
     edge_of_space_current_shot_value:
       action: set
-      int: 550000
+      int: 1500000
     edge_of_space_shot_floor:
       action: set
-      int: 110000
+      int: 450000
     edge_of_space_decay_per_tick:
       action: set
-      int: 1173
+      int: 5250
 
   edge_of_space_setup_step_3:
     edge_of_space_current_shot_value:
       action: set
-      int: 600000
+      int: 1650000
     edge_of_space_shot_floor:
       action: set
-      int: 120000
+      int: 495000
     edge_of_space_decay_per_tick:
       action: set
-      int: 1280
+      int: 5775
 
   # Step 4b (TWR) value - set when ball is released from left lane hold
   edge_of_space_step4_ball_released:
     edge_of_space_current_shot_value:
       action: set
-      int: 650000
+      int: 1800000
     edge_of_space_shot_floor:
       action: set
-      int: 130000
+      int: 540000
     edge_of_space_decay_per_tick:
       action: set
-      int: 1387
+      int: 6300
 
   edge_of_space_setup_step_5:
     edge_of_space_current_shot_value:
       action: set
-      int: 700000
+      int: 1950000
     edge_of_space_shot_floor:
       action: set
-      int: 140000
+      int: 585000
     edge_of_space_decay_per_tick:
       action: set
-      int: 1493
+      int: 6825
 
   edge_of_space_setup_step_6:
     edge_of_space_current_shot_value:
       action: set
-      int: 700000
+      int: 1950000
     edge_of_space_shot_floor:
       action: set
-      int: 140000
+      int: 585000
     edge_of_space_decay_per_tick:
       action: set
-      int: 1493
+      int: 6825
 
   edge_of_space_setup_step_7:
     edge_of_space_current_shot_value:
       action: set
-      int: 750000
+      int: 2050000
     edge_of_space_shot_floor:
       action: set
-      int: 150000
+      int: 615000
     edge_of_space_decay_per_tick:
       action: set
-      int: 1600
+      int: 7175
 
   edge_of_space_setup_step_8:
     edge_of_space_current_shot_value:
       action: set
-      int: 800000
+      int: 2200000
     edge_of_space_shot_floor:
       action: set
-      int: 160000
+      int: 660000
     edge_of_space_decay_per_tick:
       action: set
-      int: 1707
+      int: 7700
 
   # Step completions — bank decaying value, advance step, decrement remaining
   edge_of_space_step_1_complete:

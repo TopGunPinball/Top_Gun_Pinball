@@ -9,18 +9,25 @@
 # Music: Controlled in base.yaml
 #
 # STEP SEQUENCE (nmfe_step = steps completed):
-# Step 1  (step==0):  ALL shots lit
-# Step 2  (step==1):  LL bad
-# Step 3  (step==2):  LL, LO bad
-# Step 4  (step==3):  LL, LO, RO/RR bad
-# Step 5  (step==4):  LL, LO, CNT, RO/RR bad
-# Step 6  (step==5):  LL, LO, CNT, TWR, RO/RR bad
-# Step 7  (step==6):  LR, SP, LO lit only
+# Step 1  (step==0):  ALL Phase 1 shots lit — Phase 1 begins
+# Steps 2-6 (step==1..5): Phase 1 — DYNAMIC BURNING SYSTEM
+#                     Each shot hit becomes BAD (red) for the rest of Phase 1.
+#                     EXCEPTION: hitting the spinner makes it DARK (neutral,
+#                     no penalty) — not bad. Forces variety in shot selection.
+# Step 7  (step==6):  LR, SP, LO lit only — Phase 2 begins (lighting fully reset)
 # Step 8  (step==7):  TWR, TL, TO, RR lit; TOP RAMP UP
 # Step 9  (step==8):  SP, CNT, TWR lit; TOP RAMP DOWN
 # Step 10 (step==9):  LO, LR lit only
 # Step 11 (step==10): SP, TL, RO lit; RIGHT RAMP UP (final shot)
 #                     Won when shot made; video plays when ball enters left lane
+#
+# PHASE 1 BURN FLAGS (player vars, reset on mode_started):
+#   nmfe_ll_burned, nmfe_lo_burned, nmfe_lr_burned, nmfe_sp_burned, nmfe_cnt_burned,
+#   nmfe_twr_burned, nmfe_tl_burned, nmfe_tr_burned, nmfe_rr_burned
+#   (TO/RO can't physically fire in Phase 1; no flags needed)
+#
+# MISSILES PERK in Phase 1: burns one shot from priority list (skipping already
+#   burned shots). Order: SP → LL → RR → LO → LR → CNT → TWR
 #
 # SCORING (direct, multiplier applied):
 # 1: 200K  2: 375K  3: 525K  4: 650K  5: 725K  6: 800K
@@ -250,6 +257,73 @@ variable_player:
     mode_points_scored:
       action: set
       int: 0
+    # Phase 1 burn flags — each shot becomes "burned" (bad, or dark for spinner)
+    # once it has been hit successfully during steps 1-6
+    nmfe_ll_burned:
+      action: set
+      int: 0
+    nmfe_lo_burned:
+      action: set
+      int: 0
+    nmfe_lr_burned:
+      action: set
+      int: 0
+    nmfe_sp_burned:
+      action: set
+      int: 0
+    nmfe_cnt_burned:
+      action: set
+      int: 0
+    nmfe_twr_burned:
+      action: set
+      int: 0
+    nmfe_tl_burned:
+      action: set
+      int: 0
+    nmfe_tr_burned:
+      action: set
+      int: 0
+    nmfe_rr_burned:
+      action: set
+      int: 0
+
+  # Phase 1 burn variable handlers — each event sets its own burn flag
+  nmfe_burn_ll:
+    nmfe_ll_burned:
+      action: set
+      int: 1
+  nmfe_burn_lo:
+    nmfe_lo_burned:
+      action: set
+      int: 1
+  nmfe_burn_lr:
+    nmfe_lr_burned:
+      action: set
+      int: 1
+  nmfe_burn_sp:
+    nmfe_sp_burned:
+      action: set
+      int: 1
+  nmfe_burn_cnt:
+    nmfe_cnt_burned:
+      action: set
+      int: 1
+  nmfe_burn_twr:
+    nmfe_twr_burned:
+      action: set
+      int: 1
+  nmfe_burn_tl:
+    nmfe_tl_burned:
+      action: set
+      int: 1
+  nmfe_burn_tr:
+    nmfe_tr_burned:
+      action: set
+      int: 1
+  nmfe_burn_rr:
+    nmfe_rr_burned:
+      action: set
+      int: 1
 
   # Penalty timer display variable — updates every tick for Godot slide
   timer_nmfe_no_hold_timer_tick:
@@ -296,10 +370,10 @@ variable_player:
       int: 1
     score:
       action: add
-      int: 200000 * current_player.total_scoring_multiplier
+      int: 250000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 200000 * current_player.total_scoring_multiplier
+      int: 250000 * current_player.total_scoring_multiplier
     nmfe_shots_remaining:
       action: add
       int: -1
@@ -310,10 +384,10 @@ variable_player:
       int: 2
     score:
       action: add
-      int: 375000 * current_player.total_scoring_multiplier
+      int: 475000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 375000 * current_player.total_scoring_multiplier
+      int: 475000 * current_player.total_scoring_multiplier
     nmfe_shots_remaining:
       action: add
       int: -1
@@ -324,10 +398,10 @@ variable_player:
       int: 3
     score:
       action: add
-      int: 525000 * current_player.total_scoring_multiplier
+      int: 675000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 525000 * current_player.total_scoring_multiplier
+      int: 675000 * current_player.total_scoring_multiplier
     nmfe_shots_remaining:
       action: add
       int: -1
@@ -338,10 +412,10 @@ variable_player:
       int: 4
     score:
       action: add
-      int: 650000 * current_player.total_scoring_multiplier
+      int: 850000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 650000 * current_player.total_scoring_multiplier
+      int: 850000 * current_player.total_scoring_multiplier
     nmfe_shots_remaining:
       action: add
       int: -1
@@ -352,10 +426,10 @@ variable_player:
       int: 5
     score:
       action: add
-      int: 725000 * current_player.total_scoring_multiplier
+      int: 950000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 725000 * current_player.total_scoring_multiplier
+      int: 950000 * current_player.total_scoring_multiplier
     nmfe_shots_remaining:
       action: add
       int: -1
@@ -366,10 +440,10 @@ variable_player:
       int: 6
     score:
       action: add
-      int: 800000 * current_player.total_scoring_multiplier
+      int: 1050000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 800000 * current_player.total_scoring_multiplier
+      int: 1050000 * current_player.total_scoring_multiplier
     nmfe_shots_remaining:
       action: add
       int: -1
@@ -380,10 +454,10 @@ variable_player:
       int: 7
     score:
       action: add
-      int: 875000 * current_player.total_scoring_multiplier
+      int: 1150000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 875000 * current_player.total_scoring_multiplier
+      int: 1150000 * current_player.total_scoring_multiplier
     nmfe_shots_remaining:
       action: add
       int: -1
@@ -394,10 +468,10 @@ variable_player:
       int: 8
     score:
       action: add
-      int: 950000 * current_player.total_scoring_multiplier
+      int: 1250000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 950000 * current_player.total_scoring_multiplier
+      int: 1250000 * current_player.total_scoring_multiplier
     nmfe_shots_remaining:
       action: add
       int: -1
@@ -408,10 +482,10 @@ variable_player:
       int: 9
     score:
       action: add
-      int: 1025000 * current_player.total_scoring_multiplier
+      int: 1350000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 1025000 * current_player.total_scoring_multiplier
+      int: 1350000 * current_player.total_scoring_multiplier
     nmfe_shots_remaining:
       action: add
       int: -1
@@ -422,10 +496,10 @@ variable_player:
       int: 10
     score:
       action: add
-      int: 1125000 * current_player.total_scoring_multiplier
+      int: 1450000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 1125000 * current_player.total_scoring_multiplier
+      int: 1450000 * current_player.total_scoring_multiplier
     nmfe_shots_remaining:
       action: add
       int: -1
@@ -440,10 +514,10 @@ variable_player:
       int: 1
     score:
       action: add
-      int: 1250000 * current_player.total_scoring_multiplier
+      int: 1550000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 1250000 * current_player.total_scoring_multiplier
+      int: 1550000 * current_player.total_scoring_multiplier
     nmfe_shots_remaining:
       action: add
       int: -1
@@ -651,44 +725,68 @@ event_player:
 
   ##############################################
   ## MISSILES PERK — Spots current step's primary good shot
-  ## LR for steps 1-7 and 10, TWR for step 8, SP for steps 9 and 11.
+  ## Phase 1 (steps 1-6): advances the step AND burns one shot from a priority list.
+  ##   Priority order: SP, LL, RR, LO, LR, CNT, TWR (skips any already burned).
+  ##   The lowest-tier non-burned shot in the list is burned.
+  ## Phase 2 (steps 7-11): LR for step 7, TWR for step 8, SP for steps 9 and 11, LR for step 10.
   ## Step 11 also fires nmfe_complete to trigger the victory sequence.
   ##############################################
+
+  # PHASE 1 perk handlers — advance step and trigger priority burn
   missiles_perk_complete_shot{current_player.nmfe_step==0 and current_player.nmfe_complete_flag==0}:
     - nmfe_step_1_complete
     - nmfe_good_shot_hit
     - nmfe_step_1_shot_hit
-    - nmfe_setup_step_2
+    - nmfe_perk_burn_phase1
 
   missiles_perk_complete_shot{current_player.nmfe_step==1 and current_player.nmfe_complete_flag==0}:
     - nmfe_step_2_complete
     - nmfe_good_shot_hit
     - nmfe_step_2_shot_hit
-    - nmfe_setup_step_3
+    - nmfe_perk_burn_phase1
 
   missiles_perk_complete_shot{current_player.nmfe_step==2 and current_player.nmfe_complete_flag==0}:
     - nmfe_step_3_complete
     - nmfe_good_shot_hit
     - nmfe_step_3_shot_hit
-    - nmfe_setup_step_4
+    - nmfe_perk_burn_phase1
 
   missiles_perk_complete_shot{current_player.nmfe_step==3 and current_player.nmfe_complete_flag==0}:
     - nmfe_step_4_complete
     - nmfe_good_shot_hit
     - nmfe_step_4_shot_hit
-    - nmfe_setup_step_5
+    - nmfe_perk_burn_phase1
 
   missiles_perk_complete_shot{current_player.nmfe_step==4 and current_player.nmfe_complete_flag==0}:
     - nmfe_step_5_complete
     - nmfe_good_shot_hit
     - nmfe_step_5_shot_hit
-    - nmfe_setup_step_6
+    - nmfe_perk_burn_phase1
 
   missiles_perk_complete_shot{current_player.nmfe_step==5 and current_player.nmfe_complete_flag==0}:
     - nmfe_step_6_complete
     - nmfe_good_shot_hit
     - nmfe_step_6_shot_hit
+    - nmfe_perk_burn_phase1
     - nmfe_setup_step_7
+
+  # PHASE 1 PERK BURN PRIORITY — finds the lowest-tier non-burned shot and burns it.
+  # Conditions are mutually exclusive: each tier requires all higher-priority shots
+  # to already be burned. At most one of these will match per perk use.
+  nmfe_perk_burn_phase1{current_player.nmfe_sp_burned==0}:
+    - nmfe_burn_sp
+  nmfe_perk_burn_phase1{current_player.nmfe_sp_burned==1 and current_player.nmfe_ll_burned==0}:
+    - nmfe_burn_ll
+  nmfe_perk_burn_phase1{current_player.nmfe_sp_burned==1 and current_player.nmfe_ll_burned==1 and current_player.nmfe_rr_burned==0}:
+    - nmfe_burn_rr
+  nmfe_perk_burn_phase1{current_player.nmfe_sp_burned==1 and current_player.nmfe_ll_burned==1 and current_player.nmfe_rr_burned==1 and current_player.nmfe_lo_burned==0}:
+    - nmfe_burn_lo
+  nmfe_perk_burn_phase1{current_player.nmfe_sp_burned==1 and current_player.nmfe_ll_burned==1 and current_player.nmfe_rr_burned==1 and current_player.nmfe_lo_burned==1 and current_player.nmfe_lr_burned==0}:
+    - nmfe_burn_lr
+  nmfe_perk_burn_phase1{current_player.nmfe_sp_burned==1 and current_player.nmfe_ll_burned==1 and current_player.nmfe_rr_burned==1 and current_player.nmfe_lo_burned==1 and current_player.nmfe_lr_burned==1 and current_player.nmfe_cnt_burned==0}:
+    - nmfe_burn_cnt
+  nmfe_perk_burn_phase1{current_player.nmfe_sp_burned==1 and current_player.nmfe_ll_burned==1 and current_player.nmfe_rr_burned==1 and current_player.nmfe_lo_burned==1 and current_player.nmfe_lr_burned==1 and current_player.nmfe_cnt_burned==1 and current_player.nmfe_twr_burned==0}:
+    - nmfe_burn_twr
 
   missiles_perk_complete_shot{current_player.nmfe_step==6 and current_player.nmfe_complete_flag==0}:
     - nmfe_step_7_complete
@@ -718,274 +816,131 @@ event_player:
   # ball to physically enter the left lane via diverter catch sequence.
 
   ##############################################
-  ## STEP 1 — ALL SHOTS LIT
-  ## Good shots: LL, LO, LR, SP, CNT, TWR, TL, TO, TR, RO, RR
+  ## PHASE 1 (STEPS 1-6) — DYNAMIC BURNING SYSTEM
+  ##
+  ## Each shot starts LIT (yellow). Hitting any shot in steps 1-6:
+  ##   - Non-spinner shots: shot becomes BAD (red) for the rest of Phase 1
+  ##   - Spinner: shot becomes DARK (not lit, not bad — neutral) for rest of Phase 1
+  ##
+  ## Each shot has a per-step "good" handler (advances step + burns the shot) and
+  ## a "burned/bad" handler that fires nmfe_bad_shot regardless of step.
+  ## Spinner has no bad handler — burned spinner simply does nothing.
+  ##
+  ## nmfe_advance_step is a helper that fires step_(N+1)_complete based on current step.
+  ## At step==5 it also fires nmfe_setup_step_7 to transition into Phase 2.
   ##############################################
-  s_lane_left_active{current_player.nmfe_step==0}:
-    - nmfe_step_1_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_1_shot_hit
-    - nmfe_setup_step_2
-  left_orbit_shot_hit{current_player.nmfe_step==0}:
-    - nmfe_step_1_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_1_shot_hit
-    - nmfe_setup_step_2
-  s_ramp_left_exit_active{current_player.nmfe_step==0}:
-    - nmfe_step_1_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_1_shot_hit
-    - nmfe_setup_step_2
-  spinner_shot_made{current_player.nmfe_step==0 and current_player.spinner_shot_locked==0}:
-    - nmfe_step_1_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_1_shot_hit
-    - nmfe_setup_step_2
-  s_barrier_target_active{current_player.nmfe_step==0}:
-    - nmfe_step_1_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_1_shot_hit
-    - nmfe_setup_step_2
-  s_ramp_tower_exit_active{current_player.nmfe_step==0}:
-    - nmfe_step_1_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_1_shot_hit
-    - nmfe_setup_step_2
-  s_orbit_upper_active{current_player.nmfe_step==0}:
-    - nmfe_step_1_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_1_shot_hit
-    - nmfe_setup_step_2
-  s_orbit_lower_active{current_player.nmfe_step==0}:
-    - nmfe_step_1_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_1_shot_hit
-    - nmfe_setup_step_2
-  s_ramp_inner_exit_active{current_player.nmfe_step==0}:
-    - nmfe_step_1_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_1_shot_hit
-    - nmfe_setup_step_2
-  right_orbit_shot_hit{current_player.nmfe_step==0}:
-    - nmfe_step_1_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_1_shot_hit
-    - nmfe_setup_step_2
-  s_ramp_right_exit_active{current_player.nmfe_step==0}:
-    - nmfe_step_1_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_1_shot_hit
-    - nmfe_setup_step_2
 
   ##############################################
-  ## STEP 2 — LL bad; LO LR SP CNT TWR TL TR RR lit
+  ## STEP ADVANCEMENT HELPER — fires correct step_N_complete based on current step
   ##############################################
-  left_orbit_shot_hit{current_player.nmfe_step==1}:
+  nmfe_advance_step{current_player.nmfe_step==0}:
+    - nmfe_step_1_complete
+    - nmfe_good_shot_hit
+    - nmfe_step_1_shot_hit
+  nmfe_advance_step{current_player.nmfe_step==1}:
     - nmfe_step_2_complete
     - nmfe_good_shot_hit
     - nmfe_step_2_shot_hit
-    - nmfe_setup_step_3
-  s_ramp_left_exit_active{current_player.nmfe_step==1}:
-    - nmfe_step_2_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_2_shot_hit
-    - nmfe_setup_step_3
-  spinner_shot_made{current_player.nmfe_step==1 and current_player.spinner_shot_locked==0}:
-    - nmfe_step_2_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_2_shot_hit
-    - nmfe_setup_step_3
-  s_barrier_target_active{current_player.nmfe_step==1}:
-    - nmfe_step_2_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_2_shot_hit
-    - nmfe_setup_step_3
-  s_ramp_tower_exit_active{current_player.nmfe_step==1}:
-    - nmfe_step_2_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_2_shot_hit
-    - nmfe_setup_step_3
-  s_orbit_upper_active{current_player.nmfe_step==1}:
-    - nmfe_step_2_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_2_shot_hit
-    - nmfe_setup_step_3
-  s_ramp_inner_exit_active{current_player.nmfe_step==1}:
-    - nmfe_step_2_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_2_shot_hit
-    - nmfe_setup_step_3
-  s_ramp_right_exit_active{current_player.nmfe_step==1}:
-    - nmfe_step_2_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_2_shot_hit
-    - nmfe_setup_step_3
-  # BAD
-  s_lane_left_active{current_player.nmfe_step==1}:
-    - nmfe_bad_shot
-
-  ##############################################
-  ## STEP 3 — LL LO bad; LR SP CNT TWR TL TR RR lit
-  ##############################################
-  s_ramp_left_exit_active{current_player.nmfe_step==2}:
+  nmfe_advance_step{current_player.nmfe_step==2}:
     - nmfe_step_3_complete
     - nmfe_good_shot_hit
     - nmfe_step_3_shot_hit
-    - nmfe_setup_step_4
-  spinner_shot_made{current_player.nmfe_step==2 and current_player.spinner_shot_locked==0}:
-    - nmfe_step_3_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_3_shot_hit
-    - nmfe_setup_step_4
-  s_barrier_target_active{current_player.nmfe_step==2}:
-    - nmfe_step_3_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_3_shot_hit
-    - nmfe_setup_step_4
-  s_ramp_tower_exit_active{current_player.nmfe_step==2}:
-    - nmfe_step_3_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_3_shot_hit
-    - nmfe_setup_step_4
-  s_orbit_upper_active{current_player.nmfe_step==2}:
-    - nmfe_step_3_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_3_shot_hit
-    - nmfe_setup_step_4
-  s_ramp_inner_exit_active{current_player.nmfe_step==2}:
-    - nmfe_step_3_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_3_shot_hit
-    - nmfe_setup_step_4
-  s_ramp_right_exit_active{current_player.nmfe_step==2}:
-    - nmfe_step_3_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_3_shot_hit
-    - nmfe_setup_step_4
-  # BAD
-  s_lane_left_active{current_player.nmfe_step==2}:
-    - nmfe_bad_shot
-  left_orbit_shot_hit{current_player.nmfe_step==2}:
-    - nmfe_bad_shot
-
-  ##############################################
-  ## STEP 4 — LL LO RO/RR bad; LR SP CNT TWR TL TR lit
-  ##############################################
-  s_ramp_left_exit_active{current_player.nmfe_step==3}:
+  nmfe_advance_step{current_player.nmfe_step==3}:
     - nmfe_step_4_complete
     - nmfe_good_shot_hit
     - nmfe_step_4_shot_hit
-    - nmfe_setup_step_5
-  spinner_shot_made{current_player.nmfe_step==3 and current_player.spinner_shot_locked==0}:
-    - nmfe_step_4_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_4_shot_hit
-    - nmfe_setup_step_5
-  s_barrier_target_active{current_player.nmfe_step==3}:
-    - nmfe_step_4_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_4_shot_hit
-    - nmfe_setup_step_5
-  s_ramp_tower_exit_active{current_player.nmfe_step==3}:
-    - nmfe_step_4_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_4_shot_hit
-    - nmfe_setup_step_5
-  s_orbit_upper_active{current_player.nmfe_step==3}:
-    - nmfe_step_4_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_4_shot_hit
-    - nmfe_setup_step_5
-  s_ramp_inner_exit_active{current_player.nmfe_step==3}:
-    - nmfe_step_4_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_4_shot_hit
-    - nmfe_setup_step_5
-  # BAD
-  s_lane_left_active{current_player.nmfe_step==3}:
-    - nmfe_bad_shot
-  left_orbit_shot_hit{current_player.nmfe_step==3}:
-    - nmfe_bad_shot
-  right_orbit_shot_hit{current_player.nmfe_step==3}:
-    - nmfe_bad_shot
-  s_ramp_right_exit_active{current_player.nmfe_step==3}:
-    - nmfe_bad_shot
-
-  ##############################################
-  ## STEP 5 — LL LO CNT RO/RR bad; LR SP TWR TL TR lit
-  ##############################################
-  s_ramp_left_exit_active{current_player.nmfe_step==4}:
+  nmfe_advance_step{current_player.nmfe_step==4}:
     - nmfe_step_5_complete
     - nmfe_good_shot_hit
     - nmfe_step_5_shot_hit
-    - nmfe_setup_step_6
-  spinner_shot_made{current_player.nmfe_step==4 and current_player.spinner_shot_locked==0}:
-    - nmfe_step_5_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_5_shot_hit
-    - nmfe_setup_step_6
-  s_ramp_tower_exit_active{current_player.nmfe_step==4}:
-    - nmfe_step_5_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_5_shot_hit
-    - nmfe_setup_step_6
-  s_orbit_upper_active{current_player.nmfe_step==4}:
-    - nmfe_step_5_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_5_shot_hit
-    - nmfe_setup_step_6
-  s_ramp_inner_exit_active{current_player.nmfe_step==4}:
-    - nmfe_step_5_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_5_shot_hit
-    - nmfe_setup_step_6
-  # BAD
-  s_lane_left_active{current_player.nmfe_step==4}:
-    - nmfe_bad_shot
-  left_orbit_shot_hit{current_player.nmfe_step==4}:
-    - nmfe_bad_shot
-  s_barrier_target_active{current_player.nmfe_step==4}:
-    - nmfe_bad_shot
-  right_orbit_shot_hit{current_player.nmfe_step==4}:
-    - nmfe_bad_shot
-  s_ramp_right_exit_active{current_player.nmfe_step==4}:
-    - nmfe_bad_shot
-
-  ##############################################
-  ## STEP 6 — LL LO CNT TWR RO/RR bad; LR SP TL TR lit
-  ##############################################
-  s_ramp_left_exit_active{current_player.nmfe_step==5}:
+  nmfe_advance_step{current_player.nmfe_step==5}:
     - nmfe_step_6_complete
     - nmfe_good_shot_hit
     - nmfe_step_6_shot_hit
     - nmfe_setup_step_7
-  spinner_shot_made{current_player.nmfe_step==5 and current_player.spinner_shot_locked==0}:
-    - nmfe_step_6_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_6_shot_hit
-    - nmfe_setup_step_7
-  s_orbit_upper_active{current_player.nmfe_step==5}:
-    - nmfe_step_6_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_6_shot_hit
-    - nmfe_setup_step_7
-  s_ramp_inner_exit_active{current_player.nmfe_step==5}:
-    - nmfe_step_6_complete
-    - nmfe_good_shot_hit
-    - nmfe_step_6_shot_hit
-    - nmfe_setup_step_7
-  # BAD
-  s_lane_left_active{current_player.nmfe_step==5}:
+
+  ##############################################
+  ## LL — Left Lane (s_lane_left)
+  ##############################################
+  s_lane_left_active{current_player.nmfe_step<6 and current_player.nmfe_ll_burned==0}:
+    - nmfe_advance_step
+    - nmfe_burn_ll
+  s_lane_left_active{current_player.nmfe_step<6 and current_player.nmfe_ll_burned==1}:
     - nmfe_bad_shot
-  left_orbit_shot_hit{current_player.nmfe_step==5}:
+
+  ##############################################
+  ## LO — Left Orbit (composite shot)
+  ##############################################
+  left_orbit_shot_hit{current_player.nmfe_step<6 and current_player.nmfe_lo_burned==0}:
+    - nmfe_advance_step
+    - nmfe_burn_lo
+  left_orbit_shot_hit{current_player.nmfe_step<6 and current_player.nmfe_lo_burned==1}:
     - nmfe_bad_shot
-  s_barrier_target_active{current_player.nmfe_step==5}:
+
+  ##############################################
+  ## LR — Left Ramp (s_ramp_left_exit)
+  ##############################################
+  s_ramp_left_exit_active{current_player.nmfe_step<6 and current_player.nmfe_lr_burned==0}:
+    - nmfe_advance_step
+    - nmfe_burn_lr
+  s_ramp_left_exit_active{current_player.nmfe_step<6 and current_player.nmfe_lr_burned==1}:
     - nmfe_bad_shot
-  s_ramp_tower_exit_active{current_player.nmfe_step==5}:
+
+  ##############################################
+  ## SP — Spinner (composite — 3 spins)
+  ## SPECIAL: when burned, the spinner becomes neutral (dark, no penalty)
+  ## No bad handler — burned spinner hits do nothing.
+  ##############################################
+  spinner_shot_made{current_player.nmfe_step<6 and current_player.spinner_shot_locked==0 and current_player.nmfe_sp_burned==0}:
+    - nmfe_advance_step
+    - nmfe_burn_sp
+
+  ##############################################
+  ## CNT — Center Target / Barrier (s_barrier_target, barrier UP)
+  ##############################################
+  s_barrier_target_active{current_player.nmfe_step<6 and current_player.nmfe_cnt_burned==0}:
+    - nmfe_advance_step
+    - nmfe_burn_cnt
+  s_barrier_target_active{current_player.nmfe_step<6 and current_player.nmfe_cnt_burned==1}:
     - nmfe_bad_shot
-  right_orbit_shot_hit{current_player.nmfe_step==5}:
+
+  ##############################################
+  ## TWR — Tower Ramp (s_ramp_tower_exit)
+  ##############################################
+  s_ramp_tower_exit_active{current_player.nmfe_step<6 and current_player.nmfe_twr_burned==0}:
+    - nmfe_advance_step
+    - nmfe_burn_twr
+  s_ramp_tower_exit_active{current_player.nmfe_step<6 and current_player.nmfe_twr_burned==1}:
     - nmfe_bad_shot
-  s_ramp_right_exit_active{current_player.nmfe_step==5}:
+
+  ##############################################
+  ## TL — Upper Orbit / Top Left (s_orbit_upper)
+  ##############################################
+  s_orbit_upper_active{current_player.nmfe_step<6 and current_player.nmfe_tl_burned==0}:
+    - nmfe_advance_step
+    - nmfe_burn_tl
+  s_orbit_upper_active{current_player.nmfe_step<6 and current_player.nmfe_tl_burned==1}:
+    - nmfe_bad_shot
+
+  ##############################################
+  ## TR — Top Ramp Inner Exit (s_ramp_inner_exit, top ramp DOWN)
+  ## Shares light (l_shot_middle_ramp) with TO — burn uses nmfe_r_to_tr key.
+  ##############################################
+  s_ramp_inner_exit_active{current_player.nmfe_step<6 and current_player.nmfe_tr_burned==0}:
+    - nmfe_advance_step
+    - nmfe_burn_tr
+  s_ramp_inner_exit_active{current_player.nmfe_step<6 and current_player.nmfe_tr_burned==1}:
+    - nmfe_bad_shot
+
+  ##############################################
+  ## RR — Right Ramp (s_ramp_right_exit, right ramp DOWN)
+  ## Shares light (l_shot_right_orbit) with RO — burn uses nmfe_r_ro_rr key.
+  ## RO can't physically fire in Phase 1 (right ramp is down), so no handler.
+  ##############################################
+  s_ramp_right_exit_active{current_player.nmfe_step<6 and current_player.nmfe_rr_burned==0}:
+    - nmfe_advance_step
+    - nmfe_burn_rr
+  s_ramp_right_exit_active{current_player.nmfe_step<6 and current_player.nmfe_rr_burned==1}:
     - nmfe_bad_shot
 
   ##############################################
@@ -1535,82 +1490,121 @@ show_player:
       show_tokens: { led: l_shot_right_orbit, color: FFFF00 }
 
   ##############################################
-  ## STEP 2 SETUP — LL goes red; rest stays yellow
+  ## PHASE 1 BURN EVENTS — Each event turns one shot from yellow flash to red
+  ## Spinner is special: yellow stops but no red (light just goes dark)
   ##############################################
-  nmfe_setup_step_2:
-    stop_y_ll:
+  nmfe_burn_ll:
+    stop_y_ll_burn:
       show: sync_flash_mode
       action: stop
       key: nmfe_y_ll
-    nmfe_r_ll:
+    start_r_ll_burn:
       show: nmfe_solid_red
       key: nmfe_r_ll
       loops: -1
       show_tokens: { led: l_shot_left_lane }
 
-  ##############################################
-  ## STEP 3 SETUP — LO goes red (LL already red)
-  ##############################################
-  nmfe_setup_step_3:
-    stop_y_lo:
+  nmfe_burn_lo:
+    stop_y_lo_burn:
       show: sync_flash_mode
       action: stop
       key: nmfe_y_lo
-    nmfe_r_lo:
+    start_r_lo_burn:
       show: nmfe_solid_red
       key: nmfe_r_lo
       loops: -1
       show_tokens: { led: l_shot_left_orbit }
 
-  ##############################################
-  ## STEP 4 SETUP — RO/RR goes red (LL, LO already red)
-  ##############################################
-  nmfe_setup_step_4:
-    stop_y_ro_rr:
+  nmfe_burn_lr:
+    stop_y_lr_burn:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_lr
+    start_r_lr_burn:
+      show: nmfe_solid_red
+      key: nmfe_r_lr
+      loops: -1
+      show_tokens: { led: l_shot_left_ramp }
+
+  # Spinner — yellow stops, NO red. Light goes dark (neutral state).
+  nmfe_burn_sp:
+    stop_y_sp_burn:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_sp
+
+  nmfe_burn_cnt:
+    stop_y_cnt_burn:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_cnt
+    start_r_cnt_burn:
+      show: nmfe_solid_red
+      key: nmfe_r_cnt
+      loops: -1
+      show_tokens: { led: l_shot_barrier }
+
+  nmfe_burn_twr:
+    stop_y_twr_burn:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_twr
+    start_r_twr_burn:
+      show: nmfe_solid_red
+      key: nmfe_r_twr
+      loops: -1
+      show_tokens: { led: l_shot_tower_ramp }
+
+  nmfe_burn_tl:
+    stop_y_tl_burn:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_tl
+    start_r_tl_burn:
+      show: nmfe_solid_red
+      key: nmfe_r_tl
+      loops: -1
+      show_tokens: { led: l_shot_upper_orbit }
+
+  # TR shares light with TO — use the to_tr show keys (same as Phase 2 step 7+)
+  nmfe_burn_tr:
+    stop_y_to_tr_burn:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_to_tr
+    start_r_to_tr_burn:
+      show: nmfe_solid_red
+      key: nmfe_r_to_tr
+      loops: -1
+      show_tokens: { led: l_shot_middle_ramp }
+
+  # RR shares light with RO — use the ro_rr show keys (same as Phase 2 step 7+)
+  nmfe_burn_rr:
+    stop_y_ro_rr_burn:
       show: sync_flash_mode
       action: stop
       key: nmfe_y_ro_rr
-    nmfe_r_ro_rr:
+    start_r_ro_rr_burn:
       show: nmfe_solid_red
       key: nmfe_r_ro_rr
       loops: -1
       show_tokens: { led: l_shot_right_orbit }
 
   ##############################################
-  ## STEP 5 SETUP — CNT goes red (LL, LO, RO/RR already red)
-  ##############################################
-  nmfe_setup_step_5:
-    stop_y_cnt:
-      show: sync_flash_mode
-      action: stop
-      key: nmfe_y_cnt
-    nmfe_r_cnt:
-      show: nmfe_solid_red
-      key: nmfe_r_cnt
-      loops: -1
-      show_tokens: { led: l_shot_barrier }
-
-  ##############################################
-  ## STEP 6 SETUP — TWR goes red (LL, LO, CNT, RO/RR already red)
-  ##############################################
-  nmfe_setup_step_6:
-    stop_y_twr:
-      show: sync_flash_mode
-      action: stop
-      key: nmfe_y_twr
-    nmfe_r_twr:
-      show: nmfe_solid_red
-      key: nmfe_r_twr
-      loops: -1
-      show_tokens: { led: l_shot_tower_ramp }
-
-  ##############################################
   ## STEP 7 SETUP — LR, SP, LO lit; rest bad
-  ## CLEAN SLATE: LO was red (steps 3-6), now comes back yellow
-  ## TL and TO/TR were yellow, now go red
+  ## FULL RESET: Phase 1 ends with any combination of burned/lit shots, so we
+  ## explicitly stop EVERY Phase 1 show then start the step 7 state from scratch.
   ##############################################
   nmfe_setup_step_7:
-    # Stop any yellow shows still running (LR, SP, TL, TO/TR)
+    # Stop ALL Phase 1 yellow shows
+    stop_y_ll_s7:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_ll
+    stop_y_lo_s7:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_lo
     stop_y_lr_s7:
       show: sync_flash_mode
       action: stop
@@ -1619,6 +1613,14 @@ show_player:
       show: sync_flash_mode
       action: stop
       key: nmfe_y_sp
+    stop_y_cnt_s7:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_cnt
+    stop_y_twr_s7:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_twr
     stop_y_tl_s7:
       show: sync_flash_mode
       action: stop
@@ -1627,12 +1629,44 @@ show_player:
       show: sync_flash_mode
       action: stop
       key: nmfe_y_to_tr
-    # Stop LO red show (it's coming back as a lit shot)
+    stop_y_ro_rr_s7:
+      show: sync_flash_mode
+      action: stop
+      key: nmfe_y_ro_rr
+    # Stop ALL Phase 1 red shows
+    stop_r_ll_s7:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_ll
     stop_r_lo_s7:
       show: nmfe_solid_red
       action: stop
       key: nmfe_r_lo
-    # Start new yellow shows for LR, SP, LO
+    stop_r_lr_s7:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_lr
+    stop_r_cnt_s7:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_cnt
+    stop_r_twr_s7:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_twr
+    stop_r_tl_s7:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_tl
+    stop_r_to_tr_s7:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_to_tr
+    stop_r_ro_rr_s7:
+      show: nmfe_solid_red
+      action: stop
+      key: nmfe_r_ro_rr
+    # Start Phase 2 step 7 state — yellow: LR, SP, LO
     nmfe_y_lr_s7:
       show: sync_flash_mode
       key: nmfe_y_lr
@@ -1651,7 +1685,22 @@ show_player:
       sync_ms: 1000
       loops: -1
       show_tokens: { led: l_shot_left_orbit, color: FFFF00 }
-    # TL and TO/TR go red
+    # Red: LL, CNT, TWR, TL, TO/TR, RO/RR
+    nmfe_r_ll_s7:
+      show: nmfe_solid_red
+      key: nmfe_r_ll
+      loops: -1
+      show_tokens: { led: l_shot_left_lane }
+    nmfe_r_cnt_s7:
+      show: nmfe_solid_red
+      key: nmfe_r_cnt
+      loops: -1
+      show_tokens: { led: l_shot_barrier }
+    nmfe_r_twr_s7:
+      show: nmfe_solid_red
+      key: nmfe_r_twr
+      loops: -1
+      show_tokens: { led: l_shot_tower_ramp }
     nmfe_r_tl_s7:
       show: nmfe_solid_red
       key: nmfe_r_tl
@@ -1662,6 +1711,11 @@ show_player:
       key: nmfe_r_to_tr
       loops: -1
       show_tokens: { led: l_shot_middle_ramp }
+    nmfe_r_ro_rr_s7:
+      show: nmfe_solid_red
+      key: nmfe_r_ro_rr
+      loops: -1
+      show_tokens: { led: l_shot_right_orbit }
 
   ##############################################
   ## STEP 8 SETUP — TWR TL TO RR lit; TOP RAMP UP

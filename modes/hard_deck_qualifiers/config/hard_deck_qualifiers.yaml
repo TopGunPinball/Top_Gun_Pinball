@@ -10,13 +10,13 @@
 # PRIORITY: 200 (same as pilot_mission_qualifier and locks - base game layer)
 #
 # HARD DECK MODES:
-#   1 = maverick_and_charlie (pink)    - Beat pilot + training + super jackpot
+#   1 = charlie (pink)    - Beat pilot + training + super jackpot
 #   2 = playing_with_the_boys (yellow) - 50 pop bumper hits
 #   3 = maverick_and_penny (purple)    - Play hard deck + hit all switches 2x
 #   4 = honoring_iceman (ice blue)     - ICEMAN completed 10 times
 #
 # QUALIFICATION CRITERIA:
-#   Mode 1 (maverick_and_charlie):
+#   Mode 1 (charlie):
 #     - Win (not just play) at least 1 pilot mission
 #     - Win (not just play) at least 1 training mission
 #     - Collect at least 1 super jackpot in Top Gun Multiball
@@ -405,13 +405,13 @@ variable_player:
   ##############################################################################
   # QUALIFICATION STATE - Set flags when modes qualify
   ##############################################################################
-  hd_qualify_maverick_and_charlie:
+  hd_qualify_charlie:
     hd_mc_qualified:
       action: set
       int: 1
 
   # Light this mode if nothing currently lit
-  hd_qualify_maverick_and_charlie{current_player.hard_deck_qualified_mode==0}:
+  hd_qualify_charlie{current_player.hard_deck_qualified_mode==0}:
     hard_deck_qualified_mode:
       action: set
       int: 1
@@ -507,7 +507,7 @@ variable_player:
   # hard_deck_active=1 stops barrier flash and other qualifier activity while
   # a hard deck mode is running. Cleared on each mode_stopped below.
   ##############################################################################
-  mode_hard_deck_maverick_and_charlie_started:
+  mode_hard_deck_charlie_started:
     hard_deck_active:
       action: set
       int: 1
@@ -603,7 +603,7 @@ variable_player:
   # Must happen HERE (priority 200) not in the mode file (priority 600)
   # because the mode is already stopped when these fire.
   ##############################################################################
-  mode_hard_deck_maverick_and_charlie_stopped:
+  mode_hard_deck_charlie_stopped:
     hard_deck_active:
       action: set
       int: 0
@@ -685,17 +685,20 @@ event_player:
   # Use player_xxx variable change events to detect when conditions are met
   ##############################################################################
 
-  # --- MAVERICK AND CHARLIE (mode 1) ---
+  # --- CHARLIE (mode 1) ---
+  # PRODUCTION qualification (commented out for testing):
   # All three: pilot_missions_won>=1, training_missions_won>=1, super_jackpots_collected>=1
-  # BLOCKED: Mode not yet coded
   # player_pilot_missions_won{value>=1 and current_player.training_missions_won>=1 and current_player.super_jackpots_collected>=1 and current_player.hd_mc_qualified==0 and current_player.hd_mc_played==0}:
-  #   - hd_qualify_maverick_and_charlie
-
+  #   - hd_qualify_charlie
   # player_training_missions_won{value>=1 and current_player.pilot_missions_won>=1 and current_player.super_jackpots_collected>=1 and current_player.hd_mc_qualified==0 and current_player.hd_mc_played==0}:
-  #   - hd_qualify_maverick_and_charlie
-
+  #   - hd_qualify_charlie
   # player_super_jackpots_collected{value>=1 and current_player.pilot_missions_won>=1 and current_player.training_missions_won>=1 and current_player.hd_mc_qualified==0 and current_player.hd_mc_played==0}:
-  #   - hd_qualify_maverick_and_charlie
+  #   - hd_qualify_charlie
+
+  # TESTING: Qualify Charlie automatically when the qualifier mode starts (ball 1 of game).
+  # Once mc_qualified=1, this won't re-fire. Replace with the commented blocks above once tested.
+  mode_hard_deck_qualifiers_started{current_player.hd_mc_qualified==0 and current_player.hd_mc_played==0}:
+    - hd_qualify_charlie
 
   # --- PLAYING WITH THE BOYS (mode 2) ---
   # Goose Hard Deck qualification — fired when player hits 30 GOOSE completions
@@ -806,7 +809,7 @@ event_player:
   # HARD DECK CHOICE PATH - Start the qualified hard deck mode
   ##############################################################################
   hd_training_choice_hard_deck{current_player.hard_deck_qualified_mode==1}:
-    - start_mode_hard_deck_maverick_and_charlie
+    - start_mode_hard_deck_charlie
 
   hd_training_choice_hard_deck{current_player.hard_deck_qualified_mode==2}:
     - start_mode_hard_deck_playing_with_the_boys
@@ -821,7 +824,7 @@ event_player:
   # DIRECT START (no training qualified, just start the hard deck mode)
   ##############################################################################
   hd_start_qualified_mode{current_player.hard_deck_qualified_mode==1}:
-    - start_mode_hard_deck_maverick_and_charlie
+    - start_mode_hard_deck_charlie
 
   hd_start_qualified_mode{current_player.hard_deck_qualified_mode==2}:
     - start_mode_hard_deck_playing_with_the_boys
@@ -863,7 +866,7 @@ event_player:
   # so if no mode is still qualified, it just turns the light off (the off
   # case is covered because no hd_restore_qualified_light{value==N} matches).
   ##############################################################################
-  mode_hard_deck_maverick_and_charlie_stopped:
+  mode_hard_deck_charlie_stopped:
     - hd_check_requalify
     - hd_restore_qualified_light
 
@@ -880,7 +883,7 @@ event_player:
     - hd_restore_qualified_light
 
   # Stop pulse shows when any hard deck mode starts
-  mode_hard_deck_maverick_and_charlie_started:
+  mode_hard_deck_charlie_started:
     - hd_stop_pulse_show
   mode_hard_deck_playing_with_the_boys_started:
     - hd_stop_pulse_show
@@ -945,7 +948,7 @@ slide_player:
 # SOUND PLAYER
 ####################################################################################
 sound_player:
-  hd_qualify_maverick_and_charlie:
+  hd_qualify_charlie:
     voice_hard_deck_qualified:
       bus: voice
       loops: 0
@@ -970,7 +973,7 @@ sound_player:
 ####################################################################################
 light_player:
   # Qualification lights - solid color on l_hard_deck_lit
-  hd_qualify_maverick_and_charlie:
+  hd_qualify_charlie:
     l_hard_deck_lit:
       color: FF69B4
       fade: 0ms

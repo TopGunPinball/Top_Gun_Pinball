@@ -13,7 +13,7 @@ const MIG_DEFS := {
     "mpf_hit_event":"multiball_mig_hit_tower","mpf_activate_event":"radar_activate_mig_tower","mpf_deactivate_event":"radar_deactivate_mig_tower"},
   "top_orbit": {"clock_deg":30.0,"difficulty":"hard","time_to_center":75.0,"label":"TO","full_name":"TOP ORBIT",
     "mpf_hit_event":"multiball_mig_hit_top_orbit","mpf_activate_event":"radar_activate_mig_top_orbit","mpf_deactivate_event":"radar_deactivate_mig_top_orbit"},
-  "top_ramp": {"clock_deg":45.0,"difficulty":"hard","time_to_center":75.0,"label":"TR","full_name":"TOP RAMP",
+  "top_ramp": {"clock_deg":45.0,"difficulty":"super_hard","time_to_center":75.0,"label":"TR","full_name":"TOP RAMP",
     "mpf_hit_event":"multiball_mig_hit_top_ramp","mpf_activate_event":"radar_activate_mig_top_ramp","mpf_deactivate_event":"radar_deactivate_mig_top_ramp"},
   "right_ramp": {"clock_deg":67.5,"difficulty":"easy","time_to_center":30.0,"label":"RR","full_name":"RIGHT RAMP",
     "mpf_hit_event":"multiball_mig_hit_right_ramp","mpf_activate_event":"radar_activate_mig_right_ramp","mpf_deactivate_event":"radar_deactivate_mig_right_ramp"},
@@ -21,8 +21,8 @@ const MIG_DEFS := {
 const EVASION_SHOTS := ["left_orbit","left_ramp","spinner","barrier","tower","top_ramp","right_ramp"]
 # Wave 1 uses fixed shots matching intro animation (no regeneration)
 const WAVE1_SHOTS := ["left_orbit","left_ramp","right_ramp","tower","spinner"]
-# Display-only scores (MPF handles actual scoring via variable_player)
-const SCORE_TIERS := {"easy":[500000,100000],"medium":[750000,150000],"hard":[1000000,200000]}
+# Display-only scores (MPF handles actual scoring via variable_player) — match MPF base/floor values
+const SCORE_TIERS := {"easy":[1250000,500000],"medium":[2000000,1000000],"hard":[2500000,1500000],"super_hard":[3000000,1750000]}
 const WAVE_CFG := [[1.0,1.0,5],[1.15,1.15,10],[1.25,1.25,20],[1.5,1.5,40],[1.75,1.75,80],[2.0,2.0,160]]
 const SWEEP_SPEED := 1.05
 const TRAIL_ARC := 1.2
@@ -207,77 +207,77 @@ func _draw_panel() -> void:
   var hdr_col = Color(0.45, 0.85, 0.25, 0.9)
 
   if not supLit:
-    _draw_bold(Vector2(cx, cy), "SHOOT DOWN %d MIGS" % ml, 19, hdr_col)
-    cy += 24
-    _draw_bold(Vector2(cx, cy), "TO LITE SUPER JACKPOT", 19, hdr_col)
-    cy += 8
+    _draw_bold(Vector2(cx, cy), "SHOOT DOWN %d MIGS" % ml, 24, hdr_col)
+    cy += 30
+    _draw_bold(Vector2(cx, cy), "TO LITE SUPER JACKPOT", 24, hdr_col)
+    cy += 10
     draw_line(Vector2(cx, cy), Vector2(cx + cw, cy), Color(0.45, 0.85, 0.25, 0.5), 2.0)
   else:
     var fl = abs(sin(Time.get_ticks_msec()*0.006))
-    _draw_bold(Vector2(cx, cy), ">>> SUPER JACKPOT <<<", 20, Color(1,1,0,0.5+fl*0.5))
-    cy += 24
-    _draw_bold(Vector2(cx, cy), "HIT CENTER TARGET!", 18, Color(1,1,0,0.4+fl*0.6))
-    cy += 8
+    _draw_bold(Vector2(cx, cy), ">>> SUPER JACKPOT <<<", 25, Color(1,1,0,0.5+fl*0.5))
+    cy += 30
+    _draw_bold(Vector2(cx, cy), "HIT CENTER TARGET!", 23, Color(1,1,0,0.4+fl*0.6))
+    cy += 10
     draw_line(Vector2(cx, cy), Vector2(cx + cw, cy), Color(1,1,0,0.4), 2.0)
 
-  cy += 18
-  draw_string(df,Vector2(cx, cy),"SUPER JACKPOT BANK",HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color(1,0.9,0.2,0.7))
-  cy += 20
+  cy += 23
+  draw_string(df,Vector2(cx, cy),"SUPER JACKPOT BANK",HORIZONTAL_ALIGNMENT_LEFT,-1,18,Color(1,0.9,0.2,0.7))
+  cy += 25
   # Read MPF's authoritative jackpot total (MPF handles actual scoring/decay)
   var sjb = _get_mpf_var("multiball_jackpot_total", supBank)
-  draw_string(df,Vector2(cx, cy),_comma(sjb) if sjb > 0 else "0",HORIZONTAL_ALIGNMENT_LEFT,-1,20,Color(1,1,0,0.85))
-  cy += 12
-  var bar_w = cw * 0.9; var bar_h = 10.0
+  draw_string(df,Vector2(cx, cy),_comma(sjb) if sjb > 0 else "0",HORIZONTAL_ALIGNMENT_LEFT,-1,25,Color(1,1,0,0.85))
+  cy += 15
+  var bar_w = cw * 0.9; var bar_h = 13.0
   draw_rect(Rect2(cx, cy, bar_w, bar_h),Color(0.08,0.15,0.05,0.6))
   if _wsn() > 0:
     var pct = min(float(kwav)/float(_wsn()), 1.0)
     if pct > 0:
       draw_rect(Rect2(cx, cy, bar_w*pct, bar_h), Color(0,0.8,0,0.7) if not supLit else Color(1,1,0,0.8))
 
-  cy += bar_h + 18
-  draw_string(df,Vector2(cx, cy),"WAVE",HORIZONTAL_ALIGNMENT_LEFT,-1,13,Color(0.4,0.65,0.25,0.55))
-  draw_string(df,Vector2(cx+50, cy),str(wav),HORIZONTAL_ALIGNMENT_LEFT,-1,20,Color(0,0.9,0,0.9))
-  cy += 22
-  draw_string(df,Vector2(cx, cy),"SPEED: %d%%" % int(_ws()*100),HORIZONTAL_ALIGNMENT_LEFT,-1,13,Color(0.5,0.7,0.3,0.55))
-  cy += 22
-  draw_string(df,Vector2(cx, cy),"MIGS:",HORIZONTAL_ALIGNMENT_LEFT,-1,13,Color(0.4,0.65,0.25,0.55))
-  draw_string(df,Vector2(cx+52, cy),"%d / %d" % [kwav, _wsn()],HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color(0,0.85,0,0.85))
-  cy += 18
-  draw_string(df,Vector2(cx, cy),"TOTAL: %d" % ktot,HORIZONTAL_ALIGNMENT_LEFT,-1,12,Color(0.35,0.55,0.2,0.45))
+  cy += bar_h + 23
+  draw_string(df,Vector2(cx, cy),"WAVE",HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color(0.4,0.65,0.25,0.55))
+  draw_string(df,Vector2(cx+63, cy),str(wav),HORIZONTAL_ALIGNMENT_LEFT,-1,25,Color(0,0.9,0,0.9))
+  cy += 28
+  draw_string(df,Vector2(cx, cy),"SPEED: %d%%" % int(_ws()*100),HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color(0.5,0.7,0.3,0.55))
+  cy += 28
+  draw_string(df,Vector2(cx, cy),"MIGS:",HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color(0.4,0.65,0.25,0.55))
+  draw_string(df,Vector2(cx+65, cy),"%d / %d" % [kwav, _wsn()],HORIZONTAL_ALIGNMENT_LEFT,-1,20,Color(0,0.85,0,0.85))
+  cy += 23
+  draw_string(df,Vector2(cx, cy),"TOTAL: %d" % ktot,HORIZONTAL_ALIGNMENT_LEFT,-1,15,Color(0.35,0.55,0.2,0.45))
 
-  cy += 38
-  draw_line(Vector2(cx, cy - 12), Vector2(cx + cw * 0.6, cy - 12), Color(0.5,0.1,0,0.2), 1)
-  draw_string(df,Vector2(cx, cy),"PENALTIES",HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color(0.8,0.15,0.1,0.65))
-  cy += 18
+  cy += 48
+  draw_line(Vector2(cx, cy - 15), Vector2(cx + cw * 0.6, cy - 15), Color(0.5,0.1,0,0.2), 1)
+  draw_string(df,Vector2(cx, cy),"PENALTIES",HORIZONTAL_ALIGNMENT_LEFT,-1,18,Color(0.8,0.15,0.1,0.65))
+  cy += 23
   if pens.size() == 0:
-    draw_string(df,Vector2(cx, cy),"NONE",HORIZONTAL_ALIGNMENT_LEFT,-1,12,Color(0.25,0.45,0.15,0.35))
+    draw_string(df,Vector2(cx, cy),"NONE",HORIZONTAL_ALIGNMENT_LEFT,-1,15,Color(0.25,0.45,0.15,0.35))
   else:
     var fl = abs(sin(Time.get_ticks_msec()*0.005))
     for pen in pens:
       if pen["t"]<=0: continue
-      draw_string(df,Vector2(cx, cy),pen["n"],HORIZONTAL_ALIGNMENT_LEFT,-1,13,Color(1,0.2,0.1,0.5+fl*0.4))
-      cy += 16
-      draw_string(df,Vector2(cx, cy),"%ds" % int(ceil(pen["t"])),HORIZONTAL_ALIGNMENT_LEFT,-1,11,Color(1,0.4,0.2,0.4+fl*0.3))
+      draw_string(df,Vector2(cx, cy),pen["n"],HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color(1,0.2,0.1,0.5+fl*0.4))
       cy += 20
+      draw_string(df,Vector2(cx, cy),"%ds" % int(ceil(pen["t"])),HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color(1,0.4,0.2,0.4+fl*0.3))
+      cy += 25
 
   # --- COMBAT AIDS section (orange) ---
-  cy += 28
-  draw_line(Vector2(cx, cy - 12), Vector2(cx + cw * 0.6, cy - 12), Color(0.8,0.4,0,0.2), 1)
-  draw_string(df,Vector2(cx, cy),"COMBAT AIDS",HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color(0.9,0.5,0.1,0.65))
-  cy += 20
+  cy += 35
+  draw_line(Vector2(cx, cy - 15), Vector2(cx + cw * 0.6, cy - 15), Color(0.8,0.4,0,0.2), 1)
+  draw_string(df,Vector2(cx, cy),"COMBAT AIDS",HORIZONTAL_ALIGNMENT_LEFT,-1,18,Color(0.9,0.5,0.1,0.65))
+  cy += 25
   var aab_ready = _get_mpf_var("mb_add_a_ball_ready", 0)
   var aab_used = _get_mpf_var("mb_add_a_balls_used", 0)
   var aab_text = "YES" if aab_ready == 1 else ("DONE" if aab_used >= 2 else "NO")
   var aab_col = Color(1,0.7,0,0.85) if aab_ready == 1 else Color(0.5,0.3,0.05,0.4)
-  draw_string(df,Vector2(cx, cy),"ADD A BALL:",HORIZONTAL_ALIGNMENT_LEFT,-1,12,Color(0.9,0.5,0.1,0.5))
-  draw_string(df,Vector2(cx+90, cy),aab_text,HORIZONTAL_ALIGNMENT_LEFT,-1,12,aab_col)
-  cy += 18
+  draw_string(df,Vector2(cx, cy),"ADD A BALL:",HORIZONTAL_ALIGNMENT_LEFT,-1,15,Color(0.9,0.5,0.1,0.5))
+  draw_string(df,Vector2(cx+113, cy),aab_text,HORIZONTAL_ALIGNMENT_LEFT,-1,15,aab_col)
+  cy += 23
   var ext_active = _get_mpf_var("wingman_perk_active", 0)
   var ext_used = _get_mpf_var("mb_extender_used", 0)
   var ext_text = "ACTIVE" if (ext_active == 1 and ext_used == 0) else "NO"
   var ext_col = Color(1,0.7,0,0.85) if (ext_active == 1 and ext_used == 0) else Color(0.5,0.3,0.05,0.4)
-  draw_string(df,Vector2(cx, cy),"MB EXTENDER:",HORIZONTAL_ALIGNMENT_LEFT,-1,12,Color(0.9,0.5,0.1,0.5))
-  draw_string(df,Vector2(cx+100, cy),ext_text,HORIZONTAL_ALIGNMENT_LEFT,-1,12,ext_col)
+  draw_string(df,Vector2(cx, cy),"MB EXTENDER:",HORIZONTAL_ALIGNMENT_LEFT,-1,15,Color(0.9,0.5,0.1,0.5))
+  draw_string(df,Vector2(cx+125, cy),ext_text,HORIZONTAL_ALIGNMENT_LEFT,-1,15,ext_col)
 
 func _dlockon() -> void:
   draw_rect(Rect2(Vector2.ZERO,size),Color(0,0,0,0.55))
@@ -314,7 +314,7 @@ func _spawn_init() -> void:
   var h=[]; var m=[]; var e=[]
   for id in MIG_DEFS:
     match MIG_DEFS[id]["difficulty"]:
-      "hard": h.append(id)
+      "hard", "super_hard": h.append(id)
       "medium": m.append(id)
       "easy": e.append(id)
   h.shuffle(); m.shuffle(); e.shuffle()

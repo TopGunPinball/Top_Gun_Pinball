@@ -4,7 +4,11 @@
 # Priority: 150 (below qualifier 200, below pilot modes 600)
 #
 # FLOW:
-#   1. light_extra_ball fires (from goose milestone or mystery award)
+#   1. light_extra_ball fires from any of these sources:
+#        - goose milestone (goose_letters.yaml)
+#        - mystery award (mystery_award.yaml)
+#        - 3 pilot missions won (this file — eb_pilot_missions_lit gate)
+#        - all 4 training missions played (this file — eb_training_missions_lit gate)
 #      → MPF extra_balls device registers as "lit"
 #      → l_extra_ball_lit turns orange (goose_letters handles light)
 #      → extra_ball_lit_video slide plays (goose_letters handles slide)
@@ -12,13 +16,20 @@
 #
 #   2. Player shoots Left Lane (s_lane_left) while extra_ball_lit==1
 #      → c_left_lane_up_post raises/holds ball
-#      → extra_ball_awarded slide plays (4s)
+#      → extra_ball_awarded OR extra_ball_awarded_points slide plays (4s)
+#        depending on machine.extra_ball_award_mode
 #      → voice_extra_ball callout plays
 #      → extra_ball_show plays at speed 30, looping for 4s
 #
-#   3. 4-second timer completes → extra_ball_collect_now fires
-#      → MPF device awards the extra ball → extra_ball_main_awarded fires
+#   3. 4-second timer completes → routes based on machine.extra_ball_award_mode:
+#        - mode 0 (EB):     extra_ball_collect_now → MPF awards extra ball
+#        - mode 1 (Points): extra_ball_collect_points → +10M, then
+#                           extra_ball_main_awarded posted manually for handoff
 #      → slide/show cleared, extra_ball_lit/collecting cleared
+#
+# AWARD MODE TOGGLE (machine_var extra_ball_award_mode in config.yaml):
+#   0 = Award Extra Ball (normal play)
+#   1 = Award 10M Points instead (for shows — disables EBs game-wide)
 #
 #   COIL HANDOFF:
 #      NO mode pending:    post disables on timer_extra_ball_hold_complete
@@ -96,6 +107,41 @@ variable_player:
       action: set
       int: 0
 
+  ##############################################################################
+  ## EB QUALIFIER FLAG SETTERS (one-shot per game)
+  ##############################################################################
+
+  # EB #2 — Set flag when pilot_missions_won reaches 3
+  player_pilot_missions_won{value>=3 and current_player.eb_pilot_missions_lit==0}:
+    eb_pilot_missions_lit:
+      action: set
+      int: 1
+
+  # EB #3 — Set flag when the 4th training _complete flips to 1
+  # (four parallel handlers — fires from whichever training completes last)
+  player_training_inverted_complete{value==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1 and current_player.eb_training_missions_lit==0}:
+    eb_training_missions_lit:
+      action: set
+      int: 1
+  player_training_missles_complete{value==1 and current_player.training_inverted_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1 and current_player.eb_training_missions_lit==0}:
+    eb_training_missions_lit:
+      action: set
+      int: 1
+  player_training_afterburner_complete{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_wingman_complete==1 and current_player.eb_training_missions_lit==0}:
+    eb_training_missions_lit:
+      action: set
+      int: 1
+  player_training_wingman_complete{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.eb_training_missions_lit==0}:
+    eb_training_missions_lit:
+      action: set
+      int: 1
+
+  # Points-mode payout (when machine.extra_ball_award_mode==1)
+  extra_ball_collect_points:
+    score:
+      action: add
+      int: 10000000
+
 ##############################################################################
 ## EVENT PLAYER
 ##############################################################################
@@ -105,13 +151,40 @@ event_player:
   s_lane_left_active{current_player.extra_ball_lit==1 and current_player.extra_ball_collecting==0}:
     - extra_ball_shot_hit
 
-  # Timer complete: award ball
-  timer_extra_ball_hold_complete:
+  # Timer complete — branches on machine.extra_ball_award_mode
+  # mode 0 (EB):     fire extra_ball_collect_now → MPF auto-awards EB → posts extra_ball_main_awarded
+  # mode 1 (Points): fire extra_ball_collect_points (variable_player adds 10M)
+  #                  then post extra_ball_main_awarded manually so the handoff
+  #                  logic (training/hard deck routing, flag cleanup) still runs
+  timer_extra_ball_hold_complete{machine.extra_ball_award_mode==0}:
     - extra_ball_collect_now
+  timer_extra_ball_hold_complete{machine.extra_ball_award_mode==1}:
+    - extra_ball_collect_points
+    - extra_ball_main_awarded
 
   # Drain safety
   ball_drain:
     - extra_ball_drain_cleanup
+
+  ##############################################################################
+  ## EB QUALIFIER #2 — Win 3 pilot missions (one-shot per game)
+  ##############################################################################
+  player_pilot_missions_won{value>=3 and current_player.eb_pilot_missions_lit==0}:
+    - light_extra_ball
+
+  ##############################################################################
+  ## EB QUALIFIER #3 — Play all 4 training missions (one-shot per game)
+  ## Fires from whichever training _complete flips to 1 last.
+  ## "missles" typo preserved to match existing variable name.
+  ##############################################################################
+  player_training_inverted_complete{value==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1 and current_player.eb_training_missions_lit==0}:
+    - light_extra_ball
+  player_training_missles_complete{value==1 and current_player.training_inverted_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1 and current_player.eb_training_missions_lit==0}:
+    - light_extra_ball
+  player_training_afterburner_complete{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_wingman_complete==1 and current_player.eb_training_missions_lit==0}:
+    - light_extra_ball
+  player_training_wingman_complete{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.eb_training_missions_lit==0}:
+    - light_extra_ball
 
   ##############################################################################
   ## POST-AWARD HANDOFF
@@ -178,17 +251,27 @@ coil_player:
 ##############################################################################
 
 slide_player:
-  extra_ball_shot_hit:
+  # Conditional slide based on award mode
+  extra_ball_shot_hit{machine.extra_ball_award_mode==0}:
     extra_ball_awarded:
       action: play
       priority: 500
+  extra_ball_shot_hit{machine.extra_ball_award_mode==1}:
+    extra_ball_awarded_points:
+      action: play
+      priority: 500
 
+  # Cleanup — remove both possible slides regardless of mode (no-op if not active)
   timer_extra_ball_hold_complete:
     extra_ball_awarded:
+      action: remove
+    extra_ball_awarded_points:
       action: remove
 
   extra_ball_drain_cleanup:
     extra_ball_awarded:
+      action: remove
+    extra_ball_awarded_points:
       action: remove
 
 ##############################################################################
@@ -238,7 +321,8 @@ light_player:
       fade: 0ms
 
   # Extra ball awarded — light shoot again solid white
-  extra_ball_main_awarded:
+  # Only in EB mode — in Points mode no actual extra ball is given, so no shoot-again light
+  extra_ball_main_awarded{machine.extra_ball_award_mode==0}:
     l_shoot_again:
       color: white
       fade: 0ms
