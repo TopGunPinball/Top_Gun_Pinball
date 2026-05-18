@@ -1218,6 +1218,16 @@ slide_player:
       priority: 840
       expire: 2s
 
+  # Hard Deck Charlie: points popup after every stage shot
+  # Played from base.yaml so it survives if the mode stops mid-popup
+  # (e.g., quick exit during won video). Priority 880 sits above step slides (870)
+  # but below won/lost videos (900) — won video covers the popup on final shot.
+  charlie_show_points:
+    mode_points_scored:
+      action: play
+      priority: 880
+      expire: 3s
+
   ##############################################################################
   # Great Balls of Fire — Forge slides (persistent background layers)
   # These stack on top of great_balls_of_fire_background at priority 605.
@@ -1929,21 +1939,35 @@ sound_player:
 
 ####################################################################################
   # Hard Deck Charlie Music Handler
-  # PATTERN: Music starts on ball_released (after intro video or skip).
+  # PATTERN: Silence base music when mode starts (intro begins).
+  # Music starts on ball_released (after intro video or skip).
   # Music plays through stages 1/2/3 won and lost videos. Silences only on
   # stage 4 won/lost (TODO when stage 4 is built).
 ####################################################################################
+
+  # Silence Danger Zone (or whatever base music) when intro starts
+  mode_hard_deck_charlie_started:
+    silence:
+      bus: music
+      loops: 0
 
   hard_deck_charlie_ball_released:
     hard_deck_charlie:
       bus: music
       loops: -1
 
-  # TODO: When stage 4 is built, add silence handlers for:
-  #   charlie_stage_4_final_shot_hit:
-  #     silence: { bus: music, loops: 0 }
-  #   hard_deck_charlie_failed_stage_4:
-  #     silence: { bus: music, loops: 0 }
+  # Silence music on stage 4 won (final scoop captured — won video plays for 6s
+  # then ball auto-releases and mode ends)
+  charlie_stage_4_final_shot_hit:
+    silence:
+      bus: music
+      loops: 0
+
+  # Silence music on stage 4 lost (drain or timer expire — lost video plays 9s)
+  hard_deck_charlie_failed_stage_4:
+    silence:
+      bus: music
+      loops: 0
 
   # Restart base music when mode stops (but NOT if drain pending — bonus handles it)
   mode_hard_deck_charlie_stopped{current_player.pilot_mode_drain_pending==0}:

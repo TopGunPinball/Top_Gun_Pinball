@@ -1194,6 +1194,11 @@ slide_player:
   # When eject mode qualifies, remove progress slides and show active slide
   # EXCEPTION: If G was the qualifying letter (goose_last_letter_collected==1),
   # skip the qualified scene since ejection seat mode starts immediately
+  # NOTE: split into two handlers so the qualified video can be suppressed
+  # specifically when hard_deck_charlie is running (charlie qualifies ejection
+  # seat as a stage 3 reward but plays its own won video on the same display,
+  # and we don't want the qualified video overlay covering it). The active
+  # HUD indicator is still played regardless.
   eject_mode_qualified_event{current_player.goose_last_letter_collected!=1}:
     ejection_shots_completed:
       action: remove
@@ -1202,6 +1207,9 @@ slide_player:
     ejection_seat_active:
       action: play
       priority: 210
+
+  # Qualified notification video — only when charlie isn't running.
+  eject_mode_qualified_event{current_player.goose_last_letter_collected!=1 and mode.hard_deck_charlie.active==False}:
     ejection_seat_qualified:
       action: play
       priority: 220

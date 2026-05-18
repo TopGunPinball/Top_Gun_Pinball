@@ -686,18 +686,15 @@ event_player:
   ##############################################################################
 
   # --- CHARLIE (mode 1) ---
-  # PRODUCTION qualification (commented out for testing):
-  # All three: pilot_missions_won>=1, training_missions_won>=1, super_jackpots_collected>=1
-  # player_pilot_missions_won{value>=1 and current_player.training_missions_won>=1 and current_player.super_jackpots_collected>=1 and current_player.hd_mc_qualified==0 and current_player.hd_mc_played==0}:
-  #   - hd_qualify_charlie
-  # player_training_missions_won{value>=1 and current_player.pilot_missions_won>=1 and current_player.super_jackpots_collected>=1 and current_player.hd_mc_qualified==0 and current_player.hd_mc_played==0}:
-  #   - hd_qualify_charlie
-  # player_super_jackpots_collected{value>=1 and current_player.pilot_missions_won>=1 and current_player.training_missions_won>=1 and current_player.hd_mc_qualified==0 and current_player.hd_mc_played==0}:
-  #   - hd_qualify_charlie
-
-  # TESTING: Qualify Charlie automatically when the qualifier mode starts (ball 1 of game).
-  # Once mc_qualified=1, this won't re-fire. Replace with the commented blocks above once tested.
-  mode_hard_deck_qualifiers_started{current_player.hd_mc_qualified==0 and current_player.hd_mc_played==0}:
+  # PRODUCTION qualification: 3+ pilot missions played AND 1+ pilot mission won.
+  # Two triggers because either variable could be the last to satisfy the rule:
+  # listening on both means Charlie qualifies the moment the threshold is crossed,
+  # regardless of which counter ticked last (won-then-played or played-then-won).
+  # The conditions are mirrored so each trigger only fires when BOTH thresholds
+  # are met — and hd_mc_qualified==0 / hd_mc_played==0 prevent re-qualification.
+  player_pilot_missions_played{value>=3 and current_player.pilot_missions_won>=1 and current_player.hd_mc_qualified==0 and current_player.hd_mc_played==0}:
+    - hd_qualify_charlie
+  player_pilot_missions_won{value>=1 and current_player.pilot_missions_played>=3 and current_player.hd_mc_qualified==0 and current_player.hd_mc_played==0}:
     - hd_qualify_charlie
 
   # --- PLAYING WITH THE BOYS (mode 2) ---

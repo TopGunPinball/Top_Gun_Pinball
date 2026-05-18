@@ -823,7 +823,11 @@ slide_player:
       action: play
       priority: 900
 
-  # Ball released — remove intro, start HUD
+  # Ball released — remove intro, start HUD + first pending-step position slide.
+  # Position slides show which step is currently pending (jet position 1..8).
+  # Each transitions on the next bthd_show_step_N_video. Position 8 is the last
+  # pending-step indicator; it's removed when step 8 completes and the last shot
+  # phase begins (handled in bthd_show_step_8_video below).
   bthd_ball_released:
     below_the_hard_deck_intro:
       action: remove
@@ -836,6 +840,9 @@ slide_player:
     below_the_hard_deck_instructions:
       action: play
       priority: 800
+    below_the_hard_deck_jet_postion_1:
+      action: play
+      priority: 805
 
   # Step videos — each removes the previous step's slide
   bthd_show_step_1_video:
@@ -846,6 +853,11 @@ slide_player:
       action: play
       priority: 840
       expire: 2s
+    below_the_hard_deck_jet_postion_1:
+      action: remove
+    below_the_hard_deck_jet_postion_2:
+      action: play
+      priority: 805
 
   bthd_show_step_2_video:
     below_the_hard_deck_step_1:
@@ -857,6 +869,11 @@ slide_player:
       action: play
       priority: 840
       expire: 2s
+    below_the_hard_deck_jet_postion_2:
+      action: remove
+    below_the_hard_deck_jet_postion_3:
+      action: play
+      priority: 805
 
   bthd_show_step_3_video:
     below_the_hard_deck_step_2:
@@ -868,6 +885,11 @@ slide_player:
       action: play
       priority: 840
       expire: 2s
+    below_the_hard_deck_jet_postion_3:
+      action: remove
+    below_the_hard_deck_jet_postion_4:
+      action: play
+      priority: 805
 
   bthd_show_step_4_video:
     below_the_hard_deck_step_3:
@@ -879,6 +901,11 @@ slide_player:
       action: play
       priority: 840
       expire: 2s
+    below_the_hard_deck_jet_postion_4:
+      action: remove
+    below_the_hard_deck_jet_postion_5:
+      action: play
+      priority: 805
 
   bthd_show_step_5_video:
     below_the_hard_deck_step_4:
@@ -890,6 +917,11 @@ slide_player:
       action: play
       priority: 840
       expire: 2s
+    below_the_hard_deck_jet_postion_5:
+      action: remove
+    below_the_hard_deck_jet_postion_6:
+      action: play
+      priority: 805
 
   bthd_show_step_6_video:
     below_the_hard_deck_step_5:
@@ -901,6 +933,11 @@ slide_player:
       action: play
       priority: 840
       expire: 2s
+    below_the_hard_deck_jet_postion_6:
+      action: remove
+    below_the_hard_deck_jet_postion_7:
+      action: play
+      priority: 805
 
   bthd_show_step_7_video:
     below_the_hard_deck_step_6:
@@ -912,6 +949,11 @@ slide_player:
       action: play
       priority: 840
       expire: 2s
+    below_the_hard_deck_jet_postion_7:
+      action: remove
+    below_the_hard_deck_jet_postion_8:
+      action: play
+      priority: 805
 
   bthd_show_step_8_video:
     below_the_hard_deck_step_7:
@@ -923,6 +965,12 @@ slide_player:
       action: play
       priority: 840
       expire: 2s
+    # Last shot phase begins — swap position_8 for position_9
+    below_the_hard_deck_jet_postion_8:
+      action: remove
+    below_the_hard_deck_jet_postion_9:
+      action: play
+      priority: 805
 
   # Step 9 shot — remove step 8 slide, show points, remove HUD
   # (HUD removed here since no step_9 video — won video plays when ball enters scoop)
@@ -934,6 +982,8 @@ slide_player:
     below_the_hard_deck_shots_remaining:
       action: remove
     below_the_hard_deck_instructions:
+      action: remove
+    below_the_hard_deck_jet_postion_9:
       action: remove
     mode_points_scored:
       action: play

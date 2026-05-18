@@ -5,43 +5,68 @@
 # Priority: 600
 # Hard deck mode 1 (pink FF69B4). Wired into hard_deck_qualifiers.yaml.
 #
-# === 4-STAGE STRUCTURE (Stage 1 only built — stages 2/3/4 TODO) ===
-# Intro (90s, skippable) → Stage 1 → Decision (10s) → ...
+# === 4-STAGE STRUCTURE ===
+# Intro (90s skippable) → Stage 1 → [decision] → Stage 2 → [decision]
+#                       → Stage 3 → [decision] → Stage 4 → auto-win/release
 #
-# === STAGE 1 ===
-# 4 non-final shots in any order:
-#   LO  = left_orbit_shot_hit (composite from base.yaml, 2s window)
-#   LR  = s_ramp_left_exit
+# === STAGE 1 ===   GI: alternating Dark Blue / White
+# 4 non-final any-order: LO, LR, TWR, RR (right ramp DOWN)
+# Each insert turns off when hit. Scoring: 350K / 600K / 800K / 1M × multiplier.
+# After 4: barrier drops, l_shot_barrier lights pink (500ms flash).
+# Final: s_mode_start (5M × multiplier). Won 10s, lost 7s.
+# Decision: left/timeout = continue → stage 2; right = exit.
+#
+# === STAGE 2 ===   GI: yellow
+# Right ramp UP. 3 ordered shots, then RO as final:
+#   Spinner #1 → LO → Spinner #2 → RO
+# Only the currently-lit insert is hittable.
+# Scoring: 350K / 500K / 750K / 1M × multiplier.
+# RO hit: left_orbit_diverter opens 3s → ball captured at left lane post.
+# Right ramp lowers on capture.
+# Won 6s, lost 5s. Stage 2 win awards +5 bonus_multiplier.
+#
+# === STAGE 3 ===   GI: army green
+# Right ramp UP. 3 any-order non-final + RO as final:
+#   ICE group (any of I/C/E targets — preserves iceman_letter_* progress!)
+#   MAN group (any of M/A/N targets)
+#   Barrier Target (s_barrier_target, barrier stays UP)
+#   → After all 3, RO lights as final (same diverter capture as stage 2).
+# Scoring: 350K / 500K / 750K / 1M × multiplier.
+# Won 5s, lost 5s. Win qualifies ejection seat OR awards 5M if already qualified.
+#
+# === STAGE 4 ===   GI: alternating Yellow / Light Blue; pops solid Yellow
+# Top ramp UP, right ramp DOWN. 4 any-order non-final, then scoop final:
+#   TO  = s_orbit_lower (top ramp UP)
 #   TWR = s_ramp_tower_exit
-#   RR  = s_ramp_right_exit (right ramp must be DOWN)
-# Each insert lit at stage start, turns off when hit.
-# Progressive scoring × current_player.total_scoring_multiplier:
-#   1st: 350K  |  2nd: 600K  |  3rd: 800K  |  4th: 1M
-# After 4 hits → barrier drops, scoop (s_mode_start) becomes final shot.
-# Final/barrier: 5M × multiplier (stage perk). Ball held in scoop.
-# Won video 10s plays. Decision window during video:
-#   Left flipper or timeout = continue (TODO: stage 2 setup)
-#   Right flipper          = exit (stop mode)
+#   RR  = s_ramp_right_exit
+#   LR  = s_ramp_left_exit
+# Scoring same as stage 1.
+# After 4: barrier drops, l_shot_barrier lights. Top ramp STAYS UP.
+# Final: s_mode_start → ball captured in scoop, top ramp lowers.
+# Won 6s plays, ball auto-released (no decision). Win awards extra ball.
+# Lost 9s.
 #
 # === MODE TIMER ===
-# 150s total across all 4 stages. Variable: charlie_timer_ticks.
-# Starts on stage 1 ball_released. Pauses during decision. Doesn't restart.
+# 150s total. Var: charlie_timer_ticks. Pauses during each stage's decision.
+# Resumes on each stage's ball_released event.
 #
-# === GI LIGHTS ===
-# Intro: alternating Pink (FFB6C1) / Light Blue (ADD8E6)
-# Stage 1+: alternating Dark Blue (00008B) / White (FFFFFF), 500ms fade
+# === SERVO POSITIONS ===
+#   Stage 1: right DOWN, top DOWN
+#   Stage 2: right UP,   top DOWN
+#   Stage 3: right UP,   top DOWN
+#   Stage 4: right DOWN, top UP
 #
-# === INSERTS ===
-# Lit shots: Pink (FF69B4), sync_flash 1000ms (faster 500ms on barrier)
-#
-# === SOUNDS / MUSIC ===
-# Music asset 'hard_deck_charlie' — handled in base.yaml on charlie_ball_released.
-# Music plays through stages 1/2/3 won+lost; silences on stage 4 only (TODO).
+# === MUSIC ===
+# hard_deck_charlie music starts on charlie_ball_released, silences on
+# stage_4 won/lost only. Handled in base.yaml.
 #
 # === DRAIN HANDLING ===
 # queue_relay_player holds ball_ending until drain_cleanup_complete.
-# Per-stage failed_delay matches lost-video duration:
-#   stage_1: 7s   |  stage_2: 5s   |  stage_3: 5s   |  stage_4: 9s (TODO)
+# Per-stage failed_delay: 7 / 5 / 5 / 9 seconds matching lost video duration.
+#
+# === CLEANUP ===
+# hard_deck_charlie_cleanup lowers both ramps (staggered) + closes diverter.
+# Fires on any failed_stage_N path, on stage-4 win release, on exit paths.
 ####################################################################################
 
 mode:
@@ -61,9 +86,12 @@ mode_settings:
 # Scoop holds:
 #   1. After mode_started (intro phase, before barrier drops)
 #   2. After stage 1 barrier shot (final shot — decision phase)
+#   3. After stage 4 final scoop shot (won phase — no decision, auto-release)
 # Released by:
-#   - hard_deck_charlie_ball_released (after intro / skip)
-#   - hard_deck_charlie_decision_ball_release (after decision made)
+#   - hard_deck_charlie_ball_released         (after intro / skip → stage 1)
+#   - hard_deck_charlie_stage_2_ball_released (stage 1 continue → stage 2)
+#   - hard_deck_charlie_decision_ball_release (stage 1 exit, mode end)
+#   - hard_deck_charlie_stage_4_ball_release  (stage 4 won → auto release after video)
 #   - mode_will_stop (safety — release_all)
 ####################################################################################
 ball_holds:
@@ -73,9 +101,12 @@ ball_holds:
     enable_events:
       - mode_hard_deck_charlie_started
       - charlie_stage_1_final_shot_setup_hold
+      - charlie_stage_4_final_shot_setup_hold
     release_one_events:
       - hard_deck_charlie_ball_released
+      - hard_deck_charlie_stage_2_ball_released
       - hard_deck_charlie_decision_ball_release
+      - hard_deck_charlie_stage_4_ball_release
     release_all_events: mode_hard_deck_charlie_will_stop
 
 ####################################################################################
@@ -108,10 +139,10 @@ timers:
         action: stop
 
   ##############################################
-  ## MODE TIMER - 150s total
+  ## MODE TIMER - 150s total across ALL stages
   ## Pauses on stage_X_final_shot_hit (decision begins).
-  ## Resumes on stage_(X+1)_ball_released (TODO: wire in stage 2+).
-  ## Stops on fail or mode end.
+  ## Resumes on stage_(X+1)_ball_released (player has ball back).
+  ## Stops on fail, stage 4 final, or mode end.
   ##############################################
   hard_deck_charlie_timer:
     start_value: 150
@@ -122,20 +153,45 @@ timers:
     control_events:
       - event: hard_deck_charlie_ball_released
         action: start
+      # Pause on each stage's final shot (decision time)
       - event: charlie_stage_1_final_shot_hit
         action: pause
-      # TODO: When stage 2 built, add:
-      #   - event: hard_deck_charlie_stage_2_ball_released
-      #     action: resume
+      - event: charlie_stage_2_final_shot_hit
+        action: pause
+      - event: charlie_stage_3_final_shot_hit
+        action: pause
+      - event: charlie_stage_4_final_shot_hit
+        action: pause
+      # Resume on each subsequent stage's ball release.
+      # MPF resumes a paused timer with action: start (not "resume" — not a valid enum).
+      - event: hard_deck_charlie_stage_2_ball_released
+        action: start
+      - event: hard_deck_charlie_stage_3_ball_released
+        action: start
+      - event: hard_deck_charlie_stage_4_ball_released
+        action: start
+      # Reward time for continuing into the next stage.
+      # +30s entering stage 2, +25s entering stage 3, +20s entering stage 4.
+      # These fire alongside the resume (same event_player tick); order within
+      # the tick doesn't matter — timer ends up at (paused_value + bonus).
+      - event: charlie_enter_stage_2
+        action: add
+        value: 30
+      - event: charlie_enter_stage_3
+        action: add
+        value: 25
+      - event: charlie_enter_stage_4
+        action: add
+        value: 20
+      # Stop on fail or mode end
       - event: hard_deck_charlie_failed
         action: stop
       - event: hard_deck_charlie_mode_end_complete
         action: stop
 
   ##############################################
-  ## STAGE 1 DECISION TIMER - 10s (matches Stage 1 won video)
-  ## Active during won video. Flipper inputs trigger continue/exit.
-  ## Timeout = continue (default).
+  ## DECISION TIMERS - 10s each (left/timeout=continue, right=exit)
+  ## Stage 4 has NO decision (auto-release).
   ##############################################
   hard_deck_charlie_stage_1_decision_timer:
     start_value: 10
@@ -151,10 +207,50 @@ timers:
       - event: charlie_stage_1_exit
         action: stop
 
+  hard_deck_charlie_stage_2_decision_timer:
+    start_value: 10
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: charlie_stage_2_final_shot_hit
+        action: start
+      - event: charlie_stage_2_continue
+        action: stop
+      - event: charlie_stage_2_exit
+        action: stop
+
+  hard_deck_charlie_stage_3_decision_timer:
+    start_value: 10
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: charlie_stage_3_final_shot_hit
+        action: start
+      - event: charlie_stage_3_continue
+        action: stop
+      - event: charlie_stage_3_exit
+        action: stop
+
   ##############################################
-  ## STAGE 1 FAILED DELAY - 7s (matches Stage 1 lost video)
-  ## On drain or timer expire during stage 1, plays lost video for 7s
-  ## then completes the queue_relay to allow bonus to proceed.
+  ## STAGE 4 WON DELAY - 6s (hold ball during won video, then release)
+  ##############################################
+  hard_deck_charlie_stage_4_won_delay:
+    start_value: 0
+    end_value: 6
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: charlie_stage_4_final_shot_hit
+        action: start
+
+  ##############################################
+  ## FAILED DELAYS - Match lost video duration per stage
+  ##  Stage 1: 7s | Stage 2: 5s | Stage 3: 5s | Stage 4: 9s
   ##############################################
   hard_deck_charlie_stage_1_failed_delay:
     start_value: 0
@@ -166,31 +262,50 @@ timers:
       - event: timer_hard_deck_charlie_stage_1_failed_delay_start
         action: start
 
-  ##############################################
-  ## EJECT DEBOUNCE + BARRIER DELAY (NPFSP pattern)
-  ## After scoop ejects ball, wait 150ms (debounce) + 750ms before raising barrier.
-  ## Prevents the barrier from raising while ball is still in scoop area.
-  ##############################################
-  hard_deck_charlie_eject_debounce:
+  hard_deck_charlie_stage_2_failed_delay:
     start_value: 0
-    end_value: 150
+    end_value: 5
     direction: up
-    tick_interval: 1ms
+    tick_interval: 1s
     start_running: false
     control_events:
-      - event: s_mode_start_inactive
-        action: restart
-      - event: s_mode_start_active
-        action: stop
+      - event: timer_hard_deck_charlie_stage_2_failed_delay_start
+        action: start
 
-  hard_deck_charlie_barrier_delay:
+  hard_deck_charlie_stage_3_failed_delay:
     start_value: 0
-    end_value: 750
+    end_value: 5
     direction: up
-    tick_interval: 1ms
+    tick_interval: 1s
     start_running: false
     control_events:
-      - event: timer_hard_deck_charlie_eject_debounce_complete
+      - event: timer_hard_deck_charlie_stage_3_failed_delay_start
+        action: start
+
+  hard_deck_charlie_stage_4_failed_delay:
+    start_value: 0
+    end_value: 11
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: timer_hard_deck_charlie_stage_4_failed_delay_start
+        action: start
+
+  ##############################################
+  ## LEFT ORBIT DIVERTER TIMER - 3s safety close
+  ## Stage 2/3 RO opens diverter; this closes it after 3s if ball capture
+  ## doesn't fire the close earlier. (s_lane_left_active fires close too —
+  ## "first wins" pattern.)
+  ##############################################
+  hard_deck_charlie_diverter_assist:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: charlie_diverter_assist_trigger
         action: restart
 
 ####################################################################################
@@ -212,7 +327,7 @@ variable_player:
       int: 150
     charlie_shots_remaining:
       action: set
-      int: 5                  # 4 non-final + 1 barrier
+      int: 5                  # Stage 1: 4 non-final + 1 barrier
     # Stage 1 shot tracking
     charlie_stage_1_lo_hit:
       action: set
@@ -230,6 +345,60 @@ variable_player:
       action: set
       int: 0
     charlie_stage_1_final_shot_lit:
+      action: set
+      int: 0
+    # Stage 2 shot tracking (Spinner, TO, Spinner, RO — in order)
+    charlie_stage_2_spin_count:
+      action: set
+      int: 0                  # 0=before SP1, 1=after SP1, 2=after SP2
+    charlie_stage_2_to_hit:
+      action: set
+      int: 0
+    charlie_stage_2_ro_hit:
+      action: set
+      int: 0
+    charlie_stage_2_shots_made:
+      action: set
+      int: 0
+    charlie_stage_2_final_shot_lit:
+      action: set
+      int: 0                  # 1 = RO is the live shot
+    # Stage 3 shot tracking (ICE group, MAN group, Barrier target, RO — any order for 3)
+    charlie_stage_3_ice_hit:
+      action: set
+      int: 0
+    charlie_stage_3_man_hit:
+      action: set
+      int: 0
+    charlie_stage_3_barrier_hit:
+      action: set
+      int: 0
+    charlie_stage_3_ro_hit:
+      action: set
+      int: 0
+    charlie_stage_3_shots_made:
+      action: set
+      int: 0
+    charlie_stage_3_final_shot_lit:
+      action: set
+      int: 0                  # 1 = RO is the live shot (after 3 non-finals)
+    # Stage 4 shot tracking (TO, Tower, RR, LR any order; scoop final)
+    charlie_stage_4_to_hit:
+      action: set
+      int: 0
+    charlie_stage_4_twr_hit:
+      action: set
+      int: 0
+    charlie_stage_4_rr_hit:
+      action: set
+      int: 0
+    charlie_stage_4_lr_hit:
+      action: set
+      int: 0
+    charlie_stage_4_shots_made:
+      action: set
+      int: 0
+    charlie_stage_4_final_shot_lit:
       action: set
       int: 0
     # Reset mode_points_scored for popups
@@ -253,6 +422,7 @@ variable_player:
   ##############################################
   ## SHOT FLAG SETTERS (light_player turns off insert when these fire)
   ##############################################
+  # Stage 1
   charlie_stage_1_lo_hit:
     charlie_stage_1_lo_hit:
       action: set
@@ -270,10 +440,57 @@ variable_player:
       action: set
       int: 1
 
+  # Stage 2 — spinner count increments via spinner_shot_made (composite); TO has its own flag.
+  # Top ramp servo is raised when SP1 fires (so the player can shoot TO underneath it)
+  # and lowered when TO fires (so subsequent shots aren't affected). See event_player.
+  charlie_stage_2_sp1_hit:
+    charlie_stage_2_spin_count:
+      action: set
+      int: 1
+  charlie_stage_2_to_hit:
+    charlie_stage_2_to_hit:
+      action: set
+      int: 1
+  charlie_stage_2_sp2_hit:
+    charlie_stage_2_spin_count:
+      action: set
+      int: 2
+
+  # Stage 3 — group flags (any of I/C/E sets ice_hit, any of M/A/N sets man_hit)
+  charlie_stage_3_ice_hit:
+    charlie_stage_3_ice_hit:
+      action: set
+      int: 1
+  charlie_stage_3_man_hit:
+    charlie_stage_3_man_hit:
+      action: set
+      int: 1
+  charlie_stage_3_barrier_hit:
+    charlie_stage_3_barrier_hit:
+      action: set
+      int: 1
+
+  # Stage 4 — individual flags
+  charlie_stage_4_to_hit:
+    charlie_stage_4_to_hit:
+      action: set
+      int: 1
+  charlie_stage_4_twr_hit:
+    charlie_stage_4_twr_hit:
+      action: set
+      int: 1
+  charlie_stage_4_rr_hit:
+    charlie_stage_4_rr_hit:
+      action: set
+      int: 1
+  charlie_stage_4_lr_hit:
+    charlie_stage_4_lr_hit:
+      action: set
+      int: 1
+
   ##############################################
-  ## PROGRESSIVE SCORING BY SHOT ORDER
-  ## event_player routes charlie_stage_1_shot_hit → shot_1/2/3/4
-  ## based on charlie_stage_1_shots_made (pre-increment value).
+  ## PROGRESSIVE SCORING BY SHOT ORDER — Stage 1
+  ## 350K / 600K / 800K / 1M × multiplier
   ##############################################
   charlie_stage_1_shot_1:
     score:
@@ -332,16 +549,234 @@ variable_player:
       int: 1000000 * current_player.total_scoring_multiplier
 
   ##############################################
-  ## FINAL SHOT SETUP - barrier insert lights, scoop becomes target
+  ## PROGRESSIVE SCORING BY SHOT ORDER — Stage 2
+  ## 350K / 500K / 750K / 1M × multiplier
+  ##############################################
+  charlie_stage_2_shot_1:
+    score:
+      action: add
+      int: 350000 * current_player.total_scoring_multiplier
+    charlie_stage_2_shots_made:
+      action: add
+      int: 1
+    charlie_shots_remaining:
+      action: add
+      int: -1
+    mode_points_scored:
+      action: set
+      int: 350000 * current_player.total_scoring_multiplier
+
+  charlie_stage_2_shot_2:
+    score:
+      action: add
+      int: 500000 * current_player.total_scoring_multiplier
+    charlie_stage_2_shots_made:
+      action: add
+      int: 1
+    charlie_shots_remaining:
+      action: add
+      int: -1
+    mode_points_scored:
+      action: set
+      int: 500000 * current_player.total_scoring_multiplier
+
+  charlie_stage_2_shot_3:
+    score:
+      action: add
+      int: 750000 * current_player.total_scoring_multiplier
+    charlie_stage_2_shots_made:
+      action: add
+      int: 1
+    charlie_shots_remaining:
+      action: add
+      int: -1
+    mode_points_scored:
+      action: set
+      int: 750000 * current_player.total_scoring_multiplier
+
+  charlie_stage_2_shot_4:
+    score:
+      action: add
+      int: 1000000 * current_player.total_scoring_multiplier
+    charlie_stage_2_shots_made:
+      action: add
+      int: 1
+    charlie_shots_remaining:
+      action: add
+      int: -1
+    mode_points_scored:
+      action: set
+      int: 1000000 * current_player.total_scoring_multiplier
+
+  ##############################################
+  ## PROGRESSIVE SCORING BY SHOT ORDER — Stage 3
+  ## 350K / 500K / 750K / 1M × multiplier
+  ##############################################
+  charlie_stage_3_shot_1:
+    score:
+      action: add
+      int: 350000 * current_player.total_scoring_multiplier
+    charlie_stage_3_shots_made:
+      action: add
+      int: 1
+    charlie_shots_remaining:
+      action: add
+      int: -1
+    mode_points_scored:
+      action: set
+      int: 350000 * current_player.total_scoring_multiplier
+
+  charlie_stage_3_shot_2:
+    score:
+      action: add
+      int: 500000 * current_player.total_scoring_multiplier
+    charlie_stage_3_shots_made:
+      action: add
+      int: 1
+    charlie_shots_remaining:
+      action: add
+      int: -1
+    mode_points_scored:
+      action: set
+      int: 500000 * current_player.total_scoring_multiplier
+
+  charlie_stage_3_shot_3:
+    score:
+      action: add
+      int: 750000 * current_player.total_scoring_multiplier
+    charlie_stage_3_shots_made:
+      action: add
+      int: 1
+    charlie_shots_remaining:
+      action: add
+      int: -1
+    mode_points_scored:
+      action: set
+      int: 750000 * current_player.total_scoring_multiplier
+
+  charlie_stage_3_shot_4:
+    score:
+      action: add
+      int: 1000000 * current_player.total_scoring_multiplier
+    charlie_stage_3_shots_made:
+      action: add
+      int: 1
+    charlie_shots_remaining:
+      action: add
+      int: -1
+    mode_points_scored:
+      action: set
+      int: 1000000 * current_player.total_scoring_multiplier
+
+  ##############################################
+  ## PROGRESSIVE SCORING BY SHOT ORDER — Stage 4
+  ## 350K / 600K / 800K / 1M × multiplier (same as stage 1)
+  ##############################################
+  charlie_stage_4_shot_1:
+    score:
+      action: add
+      int: 350000 * current_player.total_scoring_multiplier
+    charlie_stage_4_shots_made:
+      action: add
+      int: 1
+    charlie_shots_remaining:
+      action: add
+      int: -1
+    mode_points_scored:
+      action: set
+      int: 350000 * current_player.total_scoring_multiplier
+
+  charlie_stage_4_shot_2:
+    score:
+      action: add
+      int: 600000 * current_player.total_scoring_multiplier
+    charlie_stage_4_shots_made:
+      action: add
+      int: 1
+    charlie_shots_remaining:
+      action: add
+      int: -1
+    mode_points_scored:
+      action: set
+      int: 600000 * current_player.total_scoring_multiplier
+
+  charlie_stage_4_shot_3:
+    score:
+      action: add
+      int: 800000 * current_player.total_scoring_multiplier
+    charlie_stage_4_shots_made:
+      action: add
+      int: 1
+    charlie_shots_remaining:
+      action: add
+      int: -1
+    mode_points_scored:
+      action: set
+      int: 800000 * current_player.total_scoring_multiplier
+
+  charlie_stage_4_shot_4:
+    score:
+      action: add
+      int: 1000000 * current_player.total_scoring_multiplier
+    charlie_stage_4_shots_made:
+      action: add
+      int: 1
+    charlie_shots_remaining:
+      action: add
+      int: -1
+    mode_points_scored:
+      action: set
+      int: 1000000 * current_player.total_scoring_multiplier
+
+  ##############################################
+  ## FINAL SHOT SETUP - Set per-stage "final shot lit" flag
   ##############################################
   charlie_stage_1_final_shot_setup:
     charlie_stage_1_final_shot_lit:
       action: set
       int: 1
+  charlie_stage_2_final_shot_setup:
+    charlie_stage_2_final_shot_lit:
+      action: set
+      int: 1
+  charlie_stage_3_final_shot_setup:
+    charlie_stage_3_final_shot_lit:
+      action: set
+      int: 1
+  charlie_stage_4_final_shot_setup:
+    charlie_stage_4_final_shot_lit:
+      action: set
+      int: 1
 
   ##############################################
-  ## FINAL SHOT (BARRIER) HIT - 5M stage perk
+  ## STAGE TRANSITIONS - Update charlie_stage + reset shots_remaining
   ##############################################
+  charlie_enter_stage_2:
+    charlie_stage:
+      action: set
+      int: 2
+    charlie_shots_remaining:
+      action: set
+      int: 4                  # Stage 2: 3 ordered non-final + 1 RO final
+  charlie_enter_stage_3:
+    charlie_stage:
+      action: set
+      int: 3
+    charlie_shots_remaining:
+      action: set
+      int: 4                  # Stage 3: 3 any-order + 1 RO final
+  charlie_enter_stage_4:
+    charlie_stage:
+      action: set
+      int: 4
+    charlie_shots_remaining:
+      action: set
+      int: 5                  # Stage 4: 4 any-order + 1 scoop final
+
+  ##############################################
+  ## FINAL SHOT HITS - Stage perks
+  ##############################################
+  # Stage 1 final (barrier scoop): 5M
   charlie_stage_1_final_shot_hit:
     score:
       action: add
@@ -355,8 +790,79 @@ variable_player:
     mode_points_scored:
       action: set
       int: 5000000 * current_player.total_scoring_multiplier
-    # NOTE: Don't set charlie_complete_flag=1 here — that's reserved for
-    # full mode completion (Stage 4 win). Stage 1 win is intermediate.
+
+  # Stage 2 final (RO captured) — final_shot_hit fires AFTER shot_4 (same event tick).
+  # shot_4 already adds 1M score, decrements shots_remaining, sets mode_points_scored.
+  # final_shot_hit handles ONLY the stage-specific perk (bonus_multiplier) + flag clear.
+  charlie_stage_2_final_shot_hit:
+    charlie_stage_2_final_shot_lit:
+      action: set
+      int: 0
+    bonus_multiplier:
+      action: set
+      int: current_player.bonus_multiplier + 5
+
+  # Stage 3 final (RO captured) — clears the lit flag only. The conditional
+  # perk (qualify ejection or +5M bonus) is routed via event_player to avoid
+  # a race condition where both conditional variable_player handlers fire
+  # in the same event tick (the ==0 handler changes the variable, then the
+  # ==1 handler evaluates against the new value and ALSO matches).
+  charlie_stage_3_final_shot_hit:
+    charlie_stage_3_final_shot_lit:
+      action: set
+      int: 0
+
+  # Stage 3 win → ejection seat NOT yet qualified → qualify it.
+  # We also reset goose_last_letter_collected to 0 so goose_letters'
+  # slide_player handler `eject_mode_qualified_event{goose_last_letter_collected!=1}`
+  # fires (plays the ejection_seat_active HUD slide). Without this reset,
+  # if G was the last GOOSE letter collected, goose_letters' OTHER handler
+  # (`==1` branch) runs which only removes progress slides — meaning the
+  # ACTIVE indicator never appears until the next ball.
+  charlie_stage_3_qualify_eject_seat:
+    eject_mode_qualified:
+      action: set
+      int: 1
+    goose_last_letter_collected:
+      action: set
+      int: 0
+
+  # Stage 3 win → ejection seat ALREADY qualified → award 5M bonus instead.
+  charlie_stage_3_award_eject_bonus:
+    score:
+      action: add
+      int: 5000000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 5000000 * current_player.total_scoring_multiplier
+
+  # Stage 4 final (scoop captured): 5M + extra ball (light_extra_ball)
+  # Stage 4 final (scoop captured): 5M + extra ball award.
+  # We set extra_ball_lit directly here instead of firing light_extra_ball
+  # in event_player, because that event triggers goose_letters to play the
+  # extra_ball_lit_video slide on top of the charlie stage 4 won video.
+  # Setting the variable directly skips the slide AND the voice callout.
+  # Orange l_extra_ball_lit light comes on at the next ball start via
+  # extra_ball.yaml's mode_extra_ball_started{extra_ball_lit==1} handler.
+  charlie_stage_4_final_shot_hit:
+    score:
+      action: add
+      int: 5000000 * current_player.total_scoring_multiplier
+    charlie_stage_4_final_shot_lit:
+      action: set
+      int: 0
+    charlie_shots_remaining:
+      action: add
+      int: -1
+    charlie_complete_flag:
+      action: set
+      int: 1                  # Stage 4 = mode fully complete
+    mode_points_scored:
+      action: set
+      int: 5000000 * current_player.total_scoring_multiplier
+    extra_ball_lit:
+      action: set
+      int: 1                  # Direct award — bypasses light_extra_ball event chain
 
   ##############################################
   ## TIMER TICK - Update display variable for Godot
@@ -386,25 +892,17 @@ event_player:
     - hard_deck_charlie_skip_intro
 
   ##############################################
-  ## INTRO COMPLETE (timeout OR skip) → drop barrier, release ball, set up Stage 1
+  ## INTRO COMPLETE (timeout OR skip) → release ball into play, set up Stage 1
+  ## NOTE: Barrier stays UP throughout stage 1 — only drops when final shot
+  ## is lit (after 4 non-final shots).
   ##############################################
   hard_deck_charlie_skip_intro:
-    - barrier_drop
-    - hard_deck_charlie_ball_released|400ms
-    - charlie_stage_1_setup|400ms
+    - hard_deck_charlie_ball_released
+    - charlie_stage_1_setup
 
   timer_hard_deck_charlie_intro_video_delay_complete:
-    - barrier_drop
-    - hard_deck_charlie_ball_released|400ms
-    - charlie_stage_1_setup|400ms
-
-  ##############################################
-  ## BARRIER POST-EJECT RAISE
-  ## After ball exits scoop (via debounce + 750ms delay), barrier auto-raises.
-  ## Used after intro ball release. Excluded once final shot is lit.
-  ##############################################
-  timer_hard_deck_charlie_barrier_delay_complete{current_player.charlie_stage_1_final_shot_lit==0}:
-    - barrier_raise
+    - hard_deck_charlie_ball_released
+    - charlie_stage_1_setup
 
   ##############################################
   ## STAGE 1 SETUP - Light all 4 non-final shots, set servos
@@ -449,17 +947,21 @@ event_player:
     - charlie_stage_1_shot_4
 
   ##############################################
-  ## SHOT FEEDBACK - Shake + callout
+  ## SHOT FEEDBACK - Shake + show points slide (handled in base.yaml)
   ## 4th shot also fires final_shot_setup (after 200ms so step_4 has a moment).
   ##############################################
   charlie_stage_1_shot_1:
     - shaker_soft
+    - charlie_show_points
   charlie_stage_1_shot_2:
     - shaker_soft
+    - charlie_show_points
   charlie_stage_1_shot_3:
     - shaker_soft
+    - charlie_show_points
   charlie_stage_1_shot_4:
     - shaker_soft
+    - charlie_show_points
     - charlie_stage_1_final_shot_setup|200ms
 
   ##############################################
@@ -480,14 +982,13 @@ event_player:
   charlie_stage_1_final_shot_hit:
     - shaker_soft
     - barrier_raise
+    - charlie_show_points
 
   ##############################################
   ## STAGE 1 DECISION
   ## During won video (10s):
-  ##   Left flipper or timeout = continue (TODO: stage 2)
-  ##   Right flipper          = exit (stop mode)
-  ## For testing both paths currently end the mode — stage 2 setup goes
-  ## where the TODO is.
+  ##   Left flipper or timeout = continue → Stage 2
+  ##   Right flipper          = exit (mode stops, points kept)
   ##############################################
   s_flipper_left_active{device.timers.hard_deck_charlie_stage_1_decision_timer.running and current_player.charlie_stage==1}:
     - charlie_stage_1_continue
@@ -496,26 +997,433 @@ event_player:
   timer_hard_deck_charlie_stage_1_decision_timer_complete{current_player.charlie_stage==1}:
     - charlie_stage_1_continue
 
-  # CONTINUE path - normally would set up Stage 2. For testing, ends the mode.
+  # CONTINUE → Stage 2.
+  # scoop_ball_release (qualifier handler) drops barrier and sets scoop_release_pending=1
+  # so the global timer raises barrier after ball exits scoop. 400ms after the barrier
+  # starts dropping, fire the ball_released event — which is in ball_holds release_one_events
+  # so the scoop actually ejects the ball.
+  # IMPORTANT: barrier_raise|1500ms — qualifier suppresses its own barrier_raise when
+  # qualified_mode_number>0 (pilot mission queued). Charlie must raise the barrier itself
+  # for the remaining stages; otherwise it stays down through stage 2/3/4.
   charlie_stage_1_continue:
-    - barrier_drop
-    - charlie_decision_release_ball|400ms
-    # TODO: Replace next line with charlie_stage_2_setup when stage 2 is built.
-    # For now, fire the mode-end-complete chain by routing to release_ball.
-
-  # EXIT path - end the mode immediately, keep accumulated points.
-  charlie_stage_1_exit:
-    - barrier_drop
-    - charlie_decision_release_ball|400ms
-
-  # Common ball release after decision
-  charlie_decision_release_ball:
     - scoop_ball_release
-    - hard_deck_charlie_decision_ball_release|400ms
-    - hard_deck_charlie_mode_end_complete|600ms
+    - hard_deck_charlie_stage_2_ball_released|400ms     # releases ball from hold + resumes mode timer
+    - charlie_enter_stage_2|400ms                       # set stage var, reset shots_remaining
+    - charlie_stage_2_setup|400ms                       # servos + insert lights
+    - barrier_raise|1500ms                              # ball has cleared scoop by now
+
+  # EXIT → mode end, keep accumulated points.
+  # No explicit barrier_raise here. mode_hard_deck_charlie_stopped (below)
+  # raises the barrier when qualified_mode_number==0. When a pilot mission
+  # IS queued, the pilot_mission_qualifier's coil_player drops the barrier
+  # on mode_stopped so the player can shoot into the scoop to start that
+  # pilot mission — raising it here would override that and lock the player out.
+  charlie_stage_1_exit:
+    - scoop_ball_release
+    - hard_deck_charlie_decision_ball_release|400ms     # release ball from hold
+    - hard_deck_charlie_cleanup|400ms                   # ramps down, diverter close
+    - hard_deck_charlie_mode_end_complete|800ms
 
   ##############################################
-  ## DRAIN / TIMER EXPIRE → FAILED PATH
+  ## STAGE 2 SETUP
+  ## Right ramp stays DOWN at setup — it goes UP only when RO arms
+  ## (charlie_stage_2_final_shot_setup, after SP2 is hit).
+  ## variable_player / show_player / light_player handle the rest of setup
+  ## (insert flashes, GI yellow, etc.) via charlie_stage_2_setup directly.
+  ## (charlie_stage_2_setup intentionally has no event_player actions.)
+  ##############################################
+
+  ##############################################
+  ## STAGE 2 SHOT DETECTION
+  ## Order: Spinner #1 → TO → Spinner #2 → RO (final, captures ball)
+  ## Only the currently-lit shot is hittable (guards check spin_count + to_hit).
+  ## TO uses s_orbit_lower with top ramp UP. The top ramp is raised when SP1
+  ## fires (so the ball can pass underneath into s_orbit_lower) and lowered
+  ## again when TO fires (so it doesn't interfere with SP2 / RO).
+  ## hard_deck_charlie_cleanup lowers the top ramp on any mode exit/fail.
+  ##############################################
+  # Spinner #1 — composite (3 spins). Active when spin_count==0
+  spinner_shot_made{current_player.charlie_stage==2 and current_player.charlie_stage_2_spin_count==0 and current_player.charlie_stage_2_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+    - charlie_stage_2_sp1_hit
+    - charlie_stage_2_shot_hit
+
+  # When SP1 fires, raise the top ramp so the player can shoot TO under it.
+  charlie_stage_2_sp1_hit:
+    - top_ramp_up
+
+  # TO — after SP1. Active when spin_count==1 and to not yet hit.
+  # s_orbit_lower is the under-top-ramp switch; top_ramp must be UP for ball to reach it.
+  s_orbit_lower_active{current_player.charlie_stage==2 and current_player.charlie_stage_2_spin_count==1 and current_player.charlie_stage_2_to_hit==0 and current_player.charlie_stage_2_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+    - charlie_stage_2_to_hit
+    - charlie_stage_2_shot_hit
+
+  # When TO fires, lower the top ramp again (no other stage 2 shots need it up).
+  charlie_stage_2_to_hit:
+    - top_ramp_down
+
+  # Spinner #2 — after TO. Active when spin_count==1 and to_hit==1
+  spinner_shot_made{current_player.charlie_stage==2 and current_player.charlie_stage_2_spin_count==1 and current_player.charlie_stage_2_to_hit==1 and current_player.charlie_stage_2_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+    - charlie_stage_2_sp2_hit
+    - charlie_stage_2_shot_hit
+
+  # RO (final/4th shot) — only hittable once spin_count==2 (all 3 non-finals done).
+  # Use raw s_orbit_right_active because diverter sends ball to left lane,
+  # so the right_orbit_shot_hit composite (which needs s_orbit_left after) won't fire.
+  s_orbit_right_active{current_player.charlie_stage==2 and current_player.charlie_stage_2_final_shot_lit==1 and current_player.charlie_stage_2_ro_hit==0 and current_player.charlie_complete_flag==0}:
+    - charlie_stage_2_ro_triggered
+
+  charlie_stage_2_ro_triggered:
+    - left_orbit_diverter_open
+    - charlie_diverter_assist_trigger                   # starts 3s safety close timer
+
+  ##############################################
+  ## STAGE 2 SHOT-NUMBER ROUTING
+  ##############################################
+  charlie_stage_2_shot_hit{current_player.charlie_stage_2_shots_made==0}:
+    - charlie_stage_2_shot_1
+  charlie_stage_2_shot_hit{current_player.charlie_stage_2_shots_made==1}:
+    - charlie_stage_2_shot_2
+  charlie_stage_2_shot_hit{current_player.charlie_stage_2_shots_made==2}:
+    - charlie_stage_2_shot_3
+
+  ##############################################
+  ## STAGE 2 SHOT FEEDBACK
+  ## After shot 3 (spinner #2), light final RO shot.
+  ##############################################
+  charlie_stage_2_shot_1:
+    - shaker_soft
+    - charlie_show_points
+  charlie_stage_2_shot_2:
+    - shaker_soft
+    - charlie_show_points
+  charlie_stage_2_shot_3:
+    - shaker_soft
+    - charlie_show_points
+    - charlie_stage_2_final_shot_setup|200ms
+
+  # Stage 2 final shot setup — fires after SP2 hit. Right ramp goes UP now so
+  # the player can shoot RO. (Other config players handle: variable_player sets
+  # final_shot_lit=1; show_player starts charlie_rr_flash on l_shot_right_orbit.)
+  charlie_stage_2_final_shot_setup:
+    - right_ramp_up
+
+  ##############################################
+  ## STAGE 2 RO BALL CAPTURE
+  ## Diverter sent ball to left lane → s_lane_left fires.
+  ## Capture ball at left lane post, fire shot_4 + final_shot_hit, close diverter.
+  ##############################################
+  s_lane_left_active{current_player.charlie_stage==2 and current_player.charlie_stage_2_final_shot_lit==1 and current_player.charlie_stage_2_ro_hit==0 and current_player.charlie_complete_flag==0}:
+    - charlie_stage_2_ro_captured
+
+  charlie_stage_2_ro_captured:
+    - charlie_stage_2_left_lane_post_enable
+    - left_orbit_diverter_closed                        # ball captured, close diverter
+    - right_ramp_down                                   # lower right ramp now that capture done
+    - charlie_stage_2_shot_4                            # 4th shot scored
+    - charlie_stage_2_final_shot_hit
+
+  # charlie_stage_2_left_lane_post_enable is consumed by coil_player (enables c_left_lane_up_post)
+
+  # Safety: diverter 3s timer expired without capture — close it anyway
+  timer_hard_deck_charlie_diverter_assist_complete:
+    - left_orbit_diverter_closed
+
+  charlie_stage_2_final_shot_hit:
+    - shaker_soft
+    - charlie_show_points
+
+  ##############################################
+  ## STAGE 2 DECISION
+  ##############################################
+  s_flipper_left_active{device.timers.hard_deck_charlie_stage_2_decision_timer.running and current_player.charlie_stage==2}:
+    - charlie_stage_2_continue
+  s_flipper_right_active{device.timers.hard_deck_charlie_stage_2_decision_timer.running and current_player.charlie_stage==2}:
+    - charlie_stage_2_exit
+  timer_hard_deck_charlie_stage_2_decision_timer_complete{current_player.charlie_stage==2}:
+    - charlie_stage_2_continue
+
+  # CONTINUE → Stage 3 — drop left lane post, transition
+  charlie_stage_2_continue:
+    - charlie_stage_2_continue_release
+
+  charlie_stage_2_continue_release:
+    - charlie_stage_2_left_lane_post_drop               # coil disable
+    - hard_deck_charlie_stage_3_ball_released|400ms     # resumes mode timer
+    - charlie_enter_stage_3|400ms
+    - charlie_stage_3_setup|400ms
+
+  # EXIT — drop post, end mode
+  charlie_stage_2_exit:
+    - charlie_stage_2_left_lane_post_drop
+    - hard_deck_charlie_decision_ball_release|400ms
+    - hard_deck_charlie_cleanup|400ms
+    - hard_deck_charlie_mode_end_complete|800ms
+
+  # charlie_stage_2_left_lane_post_drop is consumed by coil_player (disables c_left_lane_up_post)
+
+  ##############################################
+  ## STAGE 3 SETUP
+  ## Right ramp stays DOWN at setup — it goes UP only when RO arms
+  ## (charlie_stage_3_final_shot_setup, after 3rd non-final shot hit).
+  ## Barrier stays UP (s_barrier_target needs it).
+  ## Light all 6 iceman target inserts + barrier insert pink.
+  ## RO does NOT light yet — waits for the 3 non-finals.
+  ## (charlie_stage_3_setup intentionally has no event_player actions.)
+  ##############################################
+
+  ##############################################
+  ## STAGE 3 SHOT DETECTION
+  ## 3 any-order non-finals: ICE group, MAN group, Barrier target.
+  ## Each I/C/E hit → ice_hit; each M/A/N hit → man_hit. Light handler turns
+  ## off ALL 3 lights in the group when its flag flips.
+  ## CRITICAL: We do NOT touch iceman_letter_i/c/e/m/a/n — letter_collection_paused
+  ## prevents iceman_letters from firing, so progress is preserved.
+  ##############################################
+  # ICE group — any of I/C/E
+  s_i_iceman_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_ice_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+    - charlie_stage_3_ice_hit
+    - charlie_stage_3_shot_hit
+  s_c_iceman_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_ice_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+    - charlie_stage_3_ice_hit
+    - charlie_stage_3_shot_hit
+  s_e_iceman_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_ice_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+    - charlie_stage_3_ice_hit
+    - charlie_stage_3_shot_hit
+
+  # MAN group — any of M/A/N
+  s_m_iceman_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_man_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+    - charlie_stage_3_man_hit
+    - charlie_stage_3_shot_hit
+  s_a_iceman_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_man_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+    - charlie_stage_3_man_hit
+    - charlie_stage_3_shot_hit
+  s_n_iceman_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_man_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+    - charlie_stage_3_man_hit
+    - charlie_stage_3_shot_hit
+
+  # Barrier target (s_barrier_target, barrier UP)
+  s_barrier_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_barrier_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+    - charlie_stage_3_barrier_hit
+    - charlie_stage_3_shot_hit
+
+  ##############################################
+  ## STAGE 3 SHOT-NUMBER ROUTING
+  ##############################################
+  charlie_stage_3_shot_hit{current_player.charlie_stage_3_shots_made==0}:
+    - charlie_stage_3_shot_1
+  charlie_stage_3_shot_hit{current_player.charlie_stage_3_shots_made==1}:
+    - charlie_stage_3_shot_2
+  charlie_stage_3_shot_hit{current_player.charlie_stage_3_shots_made==2}:
+    - charlie_stage_3_shot_3
+
+  ##############################################
+  ## STAGE 3 SHOT FEEDBACK
+  ## After shot 3, light RO as final.
+  ##############################################
+  charlie_stage_3_shot_1:
+    - shaker_soft
+    - charlie_show_points
+  charlie_stage_3_shot_2:
+    - shaker_soft
+    - charlie_show_points
+  charlie_stage_3_shot_3:
+    - shaker_soft
+    - charlie_show_points
+    - charlie_stage_3_final_shot_setup|200ms
+
+  # charlie_stage_3_final_shot_setup — fires after 3rd non-final shot. Right ramp
+  # goes UP now so the player can shoot RO. variable_player + light/show handle
+  # the insert flash on the same event.
+  charlie_stage_3_final_shot_setup:
+    - right_ramp_up
+
+  ##############################################
+  ## STAGE 3 RO HIT + BALL CAPTURE (same pattern as stage 2)
+  ##############################################
+  s_orbit_right_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_final_shot_lit==1 and current_player.charlie_stage_3_ro_hit==0 and current_player.charlie_complete_flag==0}:
+    - charlie_stage_3_ro_triggered
+
+  charlie_stage_3_ro_triggered:
+    - left_orbit_diverter_open
+    - charlie_diverter_assist_trigger
+
+  s_lane_left_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_final_shot_lit==1 and current_player.charlie_stage_3_ro_hit==0 and current_player.charlie_complete_flag==0}:
+    - charlie_stage_3_ro_captured
+
+  charlie_stage_3_ro_captured:
+    - charlie_stage_3_left_lane_post_enable
+    - left_orbit_diverter_closed
+    - right_ramp_down
+    - charlie_stage_3_shot_4
+    - charlie_stage_3_final_shot_hit
+
+  # charlie_stage_3_left_lane_post_enable is consumed by coil_player (enables c_left_lane_up_post)
+
+  charlie_stage_3_final_shot_hit:
+    - shaker_soft
+    - charlie_show_points
+
+  # Stage 3 win perk — routed via event_player conditionals to two distinct
+  # events. This avoids the race where two conditional variable_player
+  # handlers (==0 and ==1) both fire in the same event tick because the
+  # ==0 handler changes the variable before the ==1 handler evaluates.
+  # Event_player conditional posting is evaluated once at fire time, so
+  # only one of these matches and only one downstream event is posted.
+  charlie_stage_3_final_shot_hit{current_player.eject_mode_qualified==0}:
+    - charlie_stage_3_qualify_eject_seat
+  charlie_stage_3_final_shot_hit{current_player.eject_mode_qualified==1}:
+    - charlie_stage_3_award_eject_bonus
+
+  # Qualify path — post eject_mode_qualified_event so goose_letters plays
+  # the ejection_seat_active HUD slide. goose_letters' qualified-video slide
+  # play has a `mode.hard_deck_charlie.active==False` guard, so the video
+  # is suppressed while charlie is running — only the active HUD plays.
+  # variable_player on this event resets goose_last_letter_collected to 0
+  # so goose_letters' !=1 branch fires (which actually plays the slides).
+  charlie_stage_3_qualify_eject_seat:
+    - eject_mode_qualified_event
+
+  # Award path — variable_player adds the 5M bonus.
+  # (No event_player actions needed here.)
+
+  ##############################################
+  ## STAGE 3 DECISION
+  ##############################################
+  s_flipper_left_active{device.timers.hard_deck_charlie_stage_3_decision_timer.running and current_player.charlie_stage==3}:
+    - charlie_stage_3_continue
+  s_flipper_right_active{device.timers.hard_deck_charlie_stage_3_decision_timer.running and current_player.charlie_stage==3}:
+    - charlie_stage_3_exit
+  timer_hard_deck_charlie_stage_3_decision_timer_complete{current_player.charlie_stage==3}:
+    - charlie_stage_3_continue
+
+  # CONTINUE → Stage 4
+  charlie_stage_3_continue:
+    - charlie_stage_3_continue_release
+
+  charlie_stage_3_continue_release:
+    - charlie_stage_3_left_lane_post_drop
+    - hard_deck_charlie_stage_4_ball_released|400ms
+    - charlie_enter_stage_4|400ms
+    - charlie_stage_4_setup|400ms
+
+  # EXIT — drop post, end mode
+  charlie_stage_3_exit:
+    - charlie_stage_3_left_lane_post_drop
+    - hard_deck_charlie_decision_ball_release|400ms
+    - hard_deck_charlie_cleanup|400ms
+    - hard_deck_charlie_mode_end_complete|800ms
+
+  # charlie_stage_3_left_lane_post_drop is consumed by coil_player (disables c_left_lane_up_post)
+
+  ##############################################
+  ## STAGE 4 SETUP
+  ## Right ramp DOWN (so s_ramp_right_exit fires for RR shot).
+  ## Top ramp UP (so s_orbit_lower fires for TO shot).
+  ## Stagger ramp moves to avoid servo power contention.
+  ## Barrier stays UP throughout non-final shots.
+  ##############################################
+  charlie_stage_4_setup:
+    - right_ramp_down
+    - charlie_stage_4_setup_servo_2|500ms
+
+  charlie_stage_4_setup_servo_2:
+    - top_ramp_up
+
+  ##############################################
+  ## STAGE 4 SHOT DETECTION
+  ## 4 any-order non-finals: TO, TWR, RR, LR.
+  ## Then scoop (s_mode_start) as final.
+  ##############################################
+  # TO — s_orbit_lower (top ramp UP)
+  s_orbit_lower_active{current_player.charlie_stage==4 and current_player.charlie_stage_4_to_hit==0 and current_player.charlie_stage_4_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+    - charlie_stage_4_to_hit
+    - charlie_stage_4_shot_hit
+
+  s_ramp_tower_exit_active{current_player.charlie_stage==4 and current_player.charlie_stage_4_twr_hit==0 and current_player.charlie_stage_4_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+    - charlie_stage_4_twr_hit
+    - charlie_stage_4_shot_hit
+
+  s_ramp_right_exit_active{current_player.charlie_stage==4 and current_player.charlie_stage_4_rr_hit==0 and current_player.charlie_stage_4_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+    - charlie_stage_4_rr_hit
+    - charlie_stage_4_shot_hit
+
+  s_ramp_left_exit_active{current_player.charlie_stage==4 and current_player.charlie_stage_4_lr_hit==0 and current_player.charlie_stage_4_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+    - charlie_stage_4_lr_hit
+    - charlie_stage_4_shot_hit
+
+  ##############################################
+  ## STAGE 4 SHOT-NUMBER ROUTING
+  ##############################################
+  charlie_stage_4_shot_hit{current_player.charlie_stage_4_shots_made==0}:
+    - charlie_stage_4_shot_1
+  charlie_stage_4_shot_hit{current_player.charlie_stage_4_shots_made==1}:
+    - charlie_stage_4_shot_2
+  charlie_stage_4_shot_hit{current_player.charlie_stage_4_shots_made==2}:
+    - charlie_stage_4_shot_3
+  charlie_stage_4_shot_hit{current_player.charlie_stage_4_shots_made==3}:
+    - charlie_stage_4_shot_4
+
+  ##############################################
+  ## STAGE 4 SHOT FEEDBACK
+  ## 4th shot fires final_shot_setup (drops barrier, lights scoop insert).
+  ##############################################
+  charlie_stage_4_shot_1:
+    - shaker_soft
+    - charlie_show_points
+  charlie_stage_4_shot_2:
+    - shaker_soft
+    - charlie_show_points
+  charlie_stage_4_shot_3:
+    - shaker_soft
+    - charlie_show_points
+  charlie_stage_4_shot_4:
+    - shaker_soft
+    - charlie_show_points
+    - charlie_stage_4_final_shot_setup|200ms
+
+  ##############################################
+  ## STAGE 4 FINAL SHOT SETUP - Drop barrier, light barrier insert.
+  ## Top ramp STAYS UP until ball is held in scoop.
+  ##############################################
+  charlie_stage_4_final_shot_setup:
+    - barrier_drop
+
+  ##############################################
+  ## STAGE 4 FINAL SHOT (SCOOP) HIT
+  ## Re-enable ball_holds capture, fire final_shot_hit.
+  ## Top ramp lowers AFTER ball captured.
+  ## No decision — won video plays for stage_4_won_delay (6s), then ball auto-releases.
+  ##############################################
+  s_mode_start_active{current_player.charlie_stage==4 and current_player.charlie_stage_4_final_shot_lit==1 and current_player.charlie_complete_flag==0}:
+    - charlie_stage_4_final_shot_setup_hold
+    - charlie_stage_4_final_shot_hit
+
+  charlie_stage_4_final_shot_hit:
+    - shaker_soft
+    - barrier_raise
+    - top_ramp_down                                     # ball held; safe to lower now
+    - charlie_show_points
+    # NOTE: light_extra_ball NOT posted here. Posting that event makes
+    # goose_letters play the extra_ball_lit_video slide on top of the
+    # charlie stage 4 won video. extra_ball_lit is set directly via
+    # variable_player on this event — the EB is still collectable at
+    # left lane and the orange light comes on at the next ball start.
+
+  # After 6s won delay → drop barrier, release ball, end mode.
+  # scoop_ball_release pattern: barrier coil needs 400ms to physically lower
+  # before the ball is ejected from the hold.
+  # No explicit barrier_raise here — mode_hard_deck_charlie_stopped raises
+  # the barrier when qualified_mode_number==0, and the qualifier's own
+  # coil_player drops it (re-enable c_mode_barrier) when a pilot mission
+  # is queued so the player can shoot the scoop to start that mission.
+  timer_hard_deck_charlie_stage_4_won_delay_complete:
+    - scoop_ball_release                                # drops barrier + sets scoop_release_pending
+    - hard_deck_charlie_stage_4_ball_release|400ms      # ball_holds releases the ball
+    - hard_deck_charlie_cleanup|400ms                   # right/top ramp down, diverter close
+    - hard_deck_charlie_mode_end_complete|800ms
+
+  ##############################################
+  ## DRAIN / TIMER EXPIRE → FAILED PATH (per stage)
   ##############################################
   hard_deck_charlie_ball_ending_hold:
     - hard_deck_charlie_failed
@@ -523,24 +1431,111 @@ event_player:
   timer_hard_deck_charlie_timer_complete{current_player.charlie_complete_flag==0}:
     - hard_deck_charlie_failed
 
-  # Failed routes to stage-specific handler
+  # Route to stage-specific failure handler
   hard_deck_charlie_failed{current_player.charlie_stage==1}:
     - hard_deck_charlie_failed_stage_1
+  hard_deck_charlie_failed{current_player.charlie_stage==2}:
+    - hard_deck_charlie_failed_stage_2
+  hard_deck_charlie_failed{current_player.charlie_stage==3}:
+    - hard_deck_charlie_failed_stage_3
+  hard_deck_charlie_failed{current_player.charlie_stage==4}:
+    - hard_deck_charlie_failed_stage_4
 
   hard_deck_charlie_failed_stage_1:
     - barrier_raise
     - timer_hard_deck_charlie_stage_1_failed_delay_start
     - hard_deck_charlie_cleanup
 
-  # Stage 1 lost video done (7s) → release queue_relay → mode stops
+  hard_deck_charlie_failed_stage_2:
+    - barrier_raise
+    - timer_hard_deck_charlie_stage_2_failed_delay_start
+    - hard_deck_charlie_cleanup
+
+  hard_deck_charlie_failed_stage_3:
+    - barrier_raise
+    - timer_hard_deck_charlie_stage_3_failed_delay_start
+    - hard_deck_charlie_cleanup
+
+  hard_deck_charlie_failed_stage_4:
+    - barrier_raise
+    - timer_hard_deck_charlie_stage_4_failed_delay_start
+    - hard_deck_charlie_cleanup
+
+  # Each stage's lost-video timer complete → release queue_relay → mode stops
   timer_hard_deck_charlie_stage_1_failed_delay_complete:
+    - hard_deck_charlie_drain_cleanup_complete
+  timer_hard_deck_charlie_stage_2_failed_delay_complete:
+    - hard_deck_charlie_drain_cleanup_complete
+  timer_hard_deck_charlie_stage_3_failed_delay_complete:
+    - hard_deck_charlie_drain_cleanup_complete
+  timer_hard_deck_charlie_stage_4_failed_delay_complete:
     - hard_deck_charlie_drain_cleanup_complete
 
   ##############################################
-  ## CLEANUP - Servos to safe positions, lights handled by light_player
+  ## CLEANUP - Servos + diverter to safe positions
+  ## Staggered ramp moves to prevent power contention.
+  ## c_left_lane_up_post disabled in coil_player on mode_will_stop.
   ##############################################
   hard_deck_charlie_cleanup:
     - right_ramp_down
+    - left_orbit_diverter_closed
+    - hard_deck_charlie_cleanup_servo_2|400ms
+
+  hard_deck_charlie_cleanup_servo_2:
+    - top_ramp_down
+
+  ##############################################
+  ## MODE STOP SAFETY - Raise barrier on exit (unless pilot mission queued).
+  ## If pilot is queued, pilot_mission_qualifier drops the barrier for them.
+  ## Conditions are mutually exclusive so no race with the qualifier.
+  ##############################################
+  mode_hard_deck_charlie_stopped{current_player.qualified_mode_number==0}:
+    - barrier_raise
+
+####################################################################################
+# COIL PLAYER - Left lane post management
+# Enabled during intro to catch ball at left lane.
+# Disabled when ball released to play stage 1.
+# Re-enabled for stage 2/3 RO captures (charlie_stage_X_left_lane_post_enable).
+# Disabled on stage 2/3 decision continue/exit (charlie_stage_X_left_lane_post_drop).
+# Safety-disabled on mode_will_stop.
+####################################################################################
+coil_player:
+  ##############################################
+  ## INTRO PHASE - hold ball at left lane
+  ##############################################
+  mode_hard_deck_charlie_started:
+    c_left_lane_up_post:
+      action: enable
+
+  hard_deck_charlie_ball_released:
+    c_left_lane_up_post:
+      action: disable
+
+  ##############################################
+  ## STAGE 2 / STAGE 3 - RO capture re-uses the post
+  ##############################################
+  charlie_stage_2_left_lane_post_enable:
+    c_left_lane_up_post:
+      action: enable
+  charlie_stage_3_left_lane_post_enable:
+    c_left_lane_up_post:
+      action: enable
+
+  # Decision continue OR exit drops the post
+  charlie_stage_2_left_lane_post_drop:
+    c_left_lane_up_post:
+      action: disable
+  charlie_stage_3_left_lane_post_drop:
+    c_left_lane_up_post:
+      action: disable
+
+  ##############################################
+  ## SAFETY - Release post if mode stops abnormally
+  ##############################################
+  mode_hard_deck_charlie_will_stop:
+    c_left_lane_up_post:
+      action: disable
 
 ####################################################################################
 # SLIDE PLAYER
@@ -581,29 +1576,39 @@ slide_player:
       priority: 1000
 
   ##############################################
-  ## STEP SLIDES - Each shot removes prior step, plays next.
-  ## Slides self-expire naturally; the explicit remove guards against
-  ## fast-hit overlaps.
+  ## BACKGROUND VIDEO LOOP (fallback path)
+  ## MPFVideoPlayer in GMC has no native loop option. Option A (Godot-side):
+  ## set End Behavior = Custom Method and End Method = play, which auto-restarts
+  ## the inner VideoStreamPlayer when the video ends. If that doesn't work,
+  ## use this fallback: in the MPFVideoPlayer's "Events When Stopped" field,
+  ## add `charlie_background_video_ended`. This handler then re-plays the slide
+  ## every time the video ends — creates a continuous loop for the whole mode.
+  ## (Harmless if Option A works — the event simply won't fire.)
+  ##############################################
+  charlie_background_video_ended:
+    hard_deck_charlie_background:
+      action: play
+      priority: 800
+
+  ##############################################
+  ## STAGE 1 STEP SLIDES
   ##############################################
   charlie_stage_1_shot_1:
     hard_deck_charlie_stage_1_step_1:
       action: play
       priority: 870
-
   charlie_stage_1_shot_2:
     hard_deck_charlie_stage_1_step_1:
       action: remove
     hard_deck_charlie_stage_1_step_2:
       action: play
       priority: 870
-
   charlie_stage_1_shot_3:
     hard_deck_charlie_stage_1_step_2:
       action: remove
     hard_deck_charlie_stage_1_step_3:
       action: play
       priority: 870
-
   charlie_stage_1_shot_4:
     hard_deck_charlie_stage_1_step_3:
       action: remove
@@ -612,8 +1617,7 @@ slide_player:
       priority: 870
 
   ##############################################
-  ## STAGE 1 WON - Barrier hit, play won video for 10s
-  ## Removes step_4 first. Timer + background stay underneath.
+  ## STAGE 1 WON - 10s
   ##############################################
   charlie_stage_1_final_shot_hit:
     hard_deck_charlie_stage_1_step_4:
@@ -623,9 +1627,16 @@ slide_player:
       priority: 900
       expire: 10s
 
+  # Continue/exit removes the won slide
+  charlie_stage_1_continue:
+    hard_deck_charlie_stage_1_won:
+      action: remove
+  charlie_stage_1_exit:
+    hard_deck_charlie_stage_1_won:
+      action: remove
+
   ##############################################
-  ## STAGE 1 LOST - Drain or timer expire
-  ## Remove all step slides + shots_remaining + timer overlay, play lost video.
+  ## STAGE 1 LOST - 7s
   ##############################################
   hard_deck_charlie_failed_stage_1:
     hard_deck_charlie_stage_1_step_1:
@@ -642,7 +1653,168 @@ slide_player:
       expire: 7s
 
   ##############################################
-  ## SAFETY CLEANUP on mode stop
+  ## STAGE 2 STEP SLIDES
+  ## Shot order: SP1 → step_1, LO → step_2, SP2 → step_3, RO captured → step_4
+  ##############################################
+  charlie_stage_2_shot_1:
+    hard_deck_charlie_stage_2_step_1:
+      action: play
+      priority: 870
+  charlie_stage_2_shot_2:
+    hard_deck_charlie_stage_2_step_1:
+      action: remove
+    hard_deck_charlie_stage_2_step_2:
+      action: play
+      priority: 870
+  charlie_stage_2_shot_3:
+    hard_deck_charlie_stage_2_step_2:
+      action: remove
+    hard_deck_charlie_stage_2_step_3:
+      action: play
+      priority: 870
+  charlie_stage_2_shot_4:
+    hard_deck_charlie_stage_2_step_3:
+      action: remove
+    hard_deck_charlie_stage_2_step_4:
+      action: play
+      priority: 870
+
+  ##############################################
+  ## STAGE 2 WON - 6s
+  ##############################################
+  charlie_stage_2_final_shot_hit:
+    hard_deck_charlie_stage_2_step_4:
+      action: remove
+    hard_deck_charlie_stage_2_won:
+      action: play
+      priority: 900
+      expire: 6s
+
+  charlie_stage_2_continue:
+    hard_deck_charlie_stage_2_won:
+      action: remove
+  charlie_stage_2_exit:
+    hard_deck_charlie_stage_2_won:
+      action: remove
+
+  ##############################################
+  ## STAGE 2 LOST - 5s
+  ##############################################
+  hard_deck_charlie_failed_stage_2:
+    hard_deck_charlie_stage_2_step_1:
+      action: remove
+    hard_deck_charlie_stage_2_step_2:
+      action: remove
+    hard_deck_charlie_stage_2_step_3:
+      action: remove
+    hard_deck_charlie_stage_2_step_4:
+      action: remove
+    hard_deck_charlie_stage_2_lost:
+      action: play
+      priority: 900
+      expire: 5s
+
+  ##############################################
+  ## STAGE 3 STEP SLIDES (only 3 — no step_4 since RO capture goes straight to won)
+  ##############################################
+  charlie_stage_3_shot_1:
+    hard_deck_charlie_stage_3_step_1:
+      action: play
+      priority: 870
+  charlie_stage_3_shot_2:
+    hard_deck_charlie_stage_3_step_1:
+      action: remove
+    hard_deck_charlie_stage_3_step_2:
+      action: play
+      priority: 870
+  charlie_stage_3_shot_3:
+    hard_deck_charlie_stage_3_step_2:
+      action: remove
+    hard_deck_charlie_stage_3_step_3:
+      action: play
+      priority: 870
+
+  ##############################################
+  ## STAGE 3 WON - 5s
+  ##############################################
+  charlie_stage_3_final_shot_hit:
+    hard_deck_charlie_stage_3_step_3:
+      action: remove
+    hard_deck_charlie_stage_3_won:
+      action: play
+      priority: 900
+      expire: 5s
+
+  charlie_stage_3_continue:
+    hard_deck_charlie_stage_3_won:
+      action: remove
+  charlie_stage_3_exit:
+    hard_deck_charlie_stage_3_won:
+      action: remove
+
+  ##############################################
+  ## STAGE 3 LOST - 5s
+  ##############################################
+  hard_deck_charlie_failed_stage_3:
+    hard_deck_charlie_stage_3_step_1:
+      action: remove
+    hard_deck_charlie_stage_3_step_2:
+      action: remove
+    hard_deck_charlie_stage_3_step_3:
+      action: remove
+    hard_deck_charlie_stage_3_lost:
+      action: play
+      priority: 900
+      expire: 5s
+
+  ##############################################
+  ## STAGE 4 STEP SLIDES (only 3 — shot 4 has no step slide, goes to scoop arm + won)
+  ##############################################
+  charlie_stage_4_shot_1:
+    hard_deck_charlie_stage_4_step_1:
+      action: play
+      priority: 870
+  charlie_stage_4_shot_2:
+    hard_deck_charlie_stage_4_step_1:
+      action: remove
+    hard_deck_charlie_stage_4_step_2:
+      action: play
+      priority: 870
+  charlie_stage_4_shot_3:
+    hard_deck_charlie_stage_4_step_2:
+      action: remove
+    hard_deck_charlie_stage_4_step_3:
+      action: play
+      priority: 870
+
+  ##############################################
+  ## STAGE 4 WON - 6s (then ball auto-releases — no decision)
+  ##############################################
+  charlie_stage_4_final_shot_hit:
+    hard_deck_charlie_stage_4_step_3:
+      action: remove
+    hard_deck_charlie_stage_4_won:
+      action: play
+      priority: 900
+      expire: 6s
+
+  ##############################################
+  ## STAGE 4 LOST - 9s
+  ##############################################
+  hard_deck_charlie_failed_stage_4:
+    hard_deck_charlie_stage_4_step_1:
+      action: remove
+    hard_deck_charlie_stage_4_step_2:
+      action: remove
+    hard_deck_charlie_stage_4_step_3:
+      action: remove
+    hard_deck_charlie_stage_4_lost:
+      action: play
+      priority: 900
+      expire: 11s
+
+  ##############################################
+  ## SAFETY CLEANUP on mode stop - Remove all charlie slides
   ##############################################
   mode_hard_deck_charlie_stopped:
     hard_deck_charlie_intro:
@@ -661,6 +1833,26 @@ slide_player:
       action: remove
     hard_deck_charlie_stage_1_step_4:
       action: remove
+    hard_deck_charlie_stage_2_step_1:
+      action: remove
+    hard_deck_charlie_stage_2_step_2:
+      action: remove
+    hard_deck_charlie_stage_2_step_3:
+      action: remove
+    hard_deck_charlie_stage_2_step_4:
+      action: remove
+    hard_deck_charlie_stage_3_step_1:
+      action: remove
+    hard_deck_charlie_stage_3_step_2:
+      action: remove
+    hard_deck_charlie_stage_3_step_3:
+      action: remove
+    hard_deck_charlie_stage_4_step_1:
+      action: remove
+    hard_deck_charlie_stage_4_step_2:
+      action: remove
+    hard_deck_charlie_stage_4_step_3:
+      action: remove
 
 ####################################################################################
 # LIGHT PLAYER
@@ -668,46 +1860,46 @@ slide_player:
 light_player:
   ##############################################
   ## GI - INTRO STATE
-  ## Alternating Pink (FFB6C1) / Light Blue (ADD8E6).
+  ## All GI / apron / pop bumpers solid Pink (FFB6C1).
   ##############################################
   mode_hard_deck_charlie_started:
     # Main GI (port 4): l_gi_light_1 .. l_gi_light_21
     l_gi_light_1: { color: FFB6C1, fade: 500ms }
-    l_gi_light_2: { color: ADD8E6, fade: 500ms }
+    l_gi_light_2: { color: FFB6C1, fade: 500ms }
     l_gi_light_3: { color: FFB6C1, fade: 500ms }
-    l_gi_light_4: { color: ADD8E6, fade: 500ms }
+    l_gi_light_4: { color: FFB6C1, fade: 500ms }
     l_gi_light_5: { color: FFB6C1, fade: 500ms }
-    l_gi_light_6: { color: ADD8E6, fade: 500ms }
+    l_gi_light_6: { color: FFB6C1, fade: 500ms }
     l_gi_light_7: { color: FFB6C1, fade: 500ms }
-    l_gi_light_8: { color: ADD8E6, fade: 500ms }
+    l_gi_light_8: { color: FFB6C1, fade: 500ms }
     l_gi_light_9: { color: FFB6C1, fade: 500ms }
-    l_gi_light_10: { color: ADD8E6, fade: 500ms }
+    l_gi_light_10: { color: FFB6C1, fade: 500ms }
     l_gi_light_11: { color: FFB6C1, fade: 500ms }
-    l_gi_light_12: { color: ADD8E6, fade: 500ms }
+    l_gi_light_12: { color: FFB6C1, fade: 500ms }
     l_gi_light_13: { color: FFB6C1, fade: 500ms }
-    l_gi_light_14: { color: ADD8E6, fade: 500ms }
+    l_gi_light_14: { color: FFB6C1, fade: 500ms }
     l_gi_light_15: { color: FFB6C1, fade: 500ms }
-    l_gi_light_16: { color: ADD8E6, fade: 500ms }
+    l_gi_light_16: { color: FFB6C1, fade: 500ms }
     l_gi_light_17: { color: FFB6C1, fade: 500ms }
-    l_gi_light_18: { color: ADD8E6, fade: 500ms }
+    l_gi_light_18: { color: FFB6C1, fade: 500ms }
     l_gi_light_19: { color: FFB6C1, fade: 500ms }
-    l_gi_light_20: { color: ADD8E6, fade: 500ms }
+    l_gi_light_20: { color: FFB6C1, fade: 500ms }
     l_gi_light_21: { color: FFB6C1, fade: 500ms }
     # Above playfield (port 3): l_gi_light_22 .. l_gi_light_27
-    l_gi_light_22: { color: ADD8E6, fade: 500ms }
+    l_gi_light_22: { color: FFB6C1, fade: 500ms }
     l_gi_light_23: { color: FFB6C1, fade: 500ms }
-    l_gi_light_24: { color: ADD8E6, fade: 500ms }
+    l_gi_light_24: { color: FFB6C1, fade: 500ms }
     l_gi_light_25: { color: FFB6C1, fade: 500ms }
-    l_gi_light_26: { color: ADD8E6, fade: 500ms }
+    l_gi_light_26: { color: FFB6C1, fade: 500ms }
     l_gi_light_27: { color: FFB6C1, fade: 500ms }
     # Apron
     l_apron_light_1: { color: FFB6C1, fade: 500ms }
-    l_apron_light_2: { color: ADD8E6, fade: 500ms }
+    l_apron_light_2: { color: FFB6C1, fade: 500ms }
     l_apron_light_3: { color: FFB6C1, fade: 500ms }
-    l_apron_light_4: { color: ADD8E6, fade: 500ms }
+    l_apron_light_4: { color: FFB6C1, fade: 500ms }
     # Pop bumpers
     l_gi_light_pop_left: { color: FFB6C1, fade: 500ms }
-    l_gi_light_pop_right: { color: ADD8E6, fade: 500ms }
+    l_gi_light_pop_right: { color: FFB6C1, fade: 500ms }
     l_gi_light_pop_bottom: { color: FFB6C1, fade: 500ms }
 
   ##############################################
@@ -766,15 +1958,204 @@ light_player:
     l_shot_barrier: { color: off, fade: 0ms }
 
   ##############################################
-  ## CLEANUP - Reset inserts to off, GI to white
+  ## GI - STAGE 2 STATE - Solid yellow everywhere
+  ##############################################
+  charlie_enter_stage_2:
+    l_gi_light_1:  { color: FFFF00, fade: 500ms }
+    l_gi_light_2:  { color: FFFF00, fade: 500ms }
+    l_gi_light_3:  { color: FFFF00, fade: 500ms }
+    l_gi_light_4:  { color: FFFF00, fade: 500ms }
+    l_gi_light_5:  { color: FFFF00, fade: 500ms }
+    l_gi_light_6:  { color: FFFF00, fade: 500ms }
+    l_gi_light_7:  { color: FFFF00, fade: 500ms }
+    l_gi_light_8:  { color: FFFF00, fade: 500ms }
+    l_gi_light_9:  { color: FFFF00, fade: 500ms }
+    l_gi_light_10: { color: FFFF00, fade: 500ms }
+    l_gi_light_11: { color: FFFF00, fade: 500ms }
+    l_gi_light_12: { color: FFFF00, fade: 500ms }
+    l_gi_light_13: { color: FFFF00, fade: 500ms }
+    l_gi_light_14: { color: FFFF00, fade: 500ms }
+    l_gi_light_15: { color: FFFF00, fade: 500ms }
+    l_gi_light_16: { color: FFFF00, fade: 500ms }
+    l_gi_light_17: { color: FFFF00, fade: 500ms }
+    l_gi_light_18: { color: FFFF00, fade: 500ms }
+    l_gi_light_19: { color: FFFF00, fade: 500ms }
+    l_gi_light_20: { color: FFFF00, fade: 500ms }
+    l_gi_light_21: { color: FFFF00, fade: 500ms }
+    l_gi_light_22: { color: FFFF00, fade: 500ms }
+    l_gi_light_23: { color: FFFF00, fade: 500ms }
+    l_gi_light_24: { color: FFFF00, fade: 500ms }
+    l_gi_light_25: { color: FFFF00, fade: 500ms }
+    l_gi_light_26: { color: FFFF00, fade: 500ms }
+    l_gi_light_27: { color: FFFF00, fade: 500ms }
+    l_apron_light_1: { color: FFFF00, fade: 500ms }
+    l_apron_light_2: { color: FFFF00, fade: 500ms }
+    l_apron_light_3: { color: FFFF00, fade: 500ms }
+    l_apron_light_4: { color: FFFF00, fade: 500ms }
+    l_gi_light_pop_left:   { color: FFFF00, fade: 500ms }
+    l_gi_light_pop_right:  { color: FFFF00, fade: 500ms }
+    l_gi_light_pop_bottom: { color: FFFF00, fade: 500ms }
+
+  ##############################################
+  ## STAGE 2 INSERTS - Progressive lighting (only current lit)
+  ## SP1 lit at setup → off on SP1 hit, LO lights →
+  ## off on LO hit, SP lights again → off on SP2, RO lights →
+  ## off on RO captured.
+  ##############################################
+  # Stage 2 inserts:
+  # SP1 hit turns spinner insert off (show_player starts TO flash)
+  # TO hit turns middle ramp insert off (show_player starts SP flash again)
+  # SP2 hit turns spinner insert off again (show_player starts RO flash)
+  # Final RO captured: RO insert off
+  charlie_stage_2_sp1_hit:
+    l_shot_spinner: { color: off, fade: 0ms }
+  charlie_stage_2_to_hit:
+    l_shot_middle_ramp: { color: off, fade: 0ms }
+  charlie_stage_2_sp2_hit:
+    l_shot_spinner: { color: off, fade: 0ms }
+  charlie_stage_2_final_shot_hit:
+    l_shot_right_orbit: { color: off, fade: 0ms }
+
+  ##############################################
+  ## GI - STAGE 3 STATE - Solid army green
+  ##############################################
+  charlie_enter_stage_3:
+    l_gi_light_1:  { color: 4A5D23, fade: 500ms }
+    l_gi_light_2:  { color: 4A5D23, fade: 500ms }
+    l_gi_light_3:  { color: 4A5D23, fade: 500ms }
+    l_gi_light_4:  { color: 4A5D23, fade: 500ms }
+    l_gi_light_5:  { color: 4A5D23, fade: 500ms }
+    l_gi_light_6:  { color: 4A5D23, fade: 500ms }
+    l_gi_light_7:  { color: 4A5D23, fade: 500ms }
+    l_gi_light_8:  { color: 4A5D23, fade: 500ms }
+    l_gi_light_9:  { color: 4A5D23, fade: 500ms }
+    l_gi_light_10: { color: 4A5D23, fade: 500ms }
+    l_gi_light_11: { color: 4A5D23, fade: 500ms }
+    l_gi_light_12: { color: 4A5D23, fade: 500ms }
+    l_gi_light_13: { color: 4A5D23, fade: 500ms }
+    l_gi_light_14: { color: 4A5D23, fade: 500ms }
+    l_gi_light_15: { color: 4A5D23, fade: 500ms }
+    l_gi_light_16: { color: 4A5D23, fade: 500ms }
+    l_gi_light_17: { color: 4A5D23, fade: 500ms }
+    l_gi_light_18: { color: 4A5D23, fade: 500ms }
+    l_gi_light_19: { color: 4A5D23, fade: 500ms }
+    l_gi_light_20: { color: 4A5D23, fade: 500ms }
+    l_gi_light_21: { color: 4A5D23, fade: 500ms }
+    l_gi_light_22: { color: 4A5D23, fade: 500ms }
+    l_gi_light_23: { color: 4A5D23, fade: 500ms }
+    l_gi_light_24: { color: 4A5D23, fade: 500ms }
+    l_gi_light_25: { color: 4A5D23, fade: 500ms }
+    l_gi_light_26: { color: 4A5D23, fade: 500ms }
+    l_gi_light_27: { color: 4A5D23, fade: 500ms }
+    l_apron_light_1: { color: 4A5D23, fade: 500ms }
+    l_apron_light_2: { color: 4A5D23, fade: 500ms }
+    l_apron_light_3: { color: 4A5D23, fade: 500ms }
+    l_apron_light_4: { color: 4A5D23, fade: 500ms }
+    l_gi_light_pop_left:   { color: 4A5D23, fade: 500ms }
+    l_gi_light_pop_right:  { color: 4A5D23, fade: 500ms }
+    l_gi_light_pop_bottom: { color: 4A5D23, fade: 500ms }
+
+  ##############################################
+  ## STAGE 3 INSERTS - Turn off groups when group flag flips
+  ## Iceman targets (lit pink by show_player); each group turns off all 3
+  ## of its lights when any of them is hit.
+  ## Final RO (right orbit) lights pink after 3 non-finals — show_player
+  ## handles the flash; we turn it off on final_shot_hit (RO captured).
+  ##############################################
+  charlie_stage_3_ice_hit:
+    l_iceman_i: { color: off, fade: 0ms }
+    l_iceman_c: { color: off, fade: 0ms }
+    l_iceman_e: { color: off, fade: 0ms }
+  charlie_stage_3_man_hit:
+    l_iceman_m: { color: off, fade: 0ms }
+    l_iceman_a: { color: off, fade: 0ms }
+    l_iceman_n: { color: off, fade: 0ms }
+  charlie_stage_3_barrier_hit:
+    l_shot_barrier: { color: off, fade: 0ms }
+  charlie_stage_3_final_shot_hit:
+    l_shot_right_orbit: { color: off, fade: 0ms }
+
+  ##############################################
+  ## GI - STAGE 4 STATE - Alternating Yellow / Light Blue, Pops solid Yellow
+  ##############################################
+  charlie_enter_stage_4:
+    # Main GI alternating yellow / light blue
+    l_gi_light_1:  { color: FFFF00, fade: 500ms }
+    l_gi_light_2:  { color: ADD8E6, fade: 500ms }
+    l_gi_light_3:  { color: FFFF00, fade: 500ms }
+    l_gi_light_4:  { color: ADD8E6, fade: 500ms }
+    l_gi_light_5:  { color: FFFF00, fade: 500ms }
+    l_gi_light_6:  { color: ADD8E6, fade: 500ms }
+    l_gi_light_7:  { color: FFFF00, fade: 500ms }
+    l_gi_light_8:  { color: ADD8E6, fade: 500ms }
+    l_gi_light_9:  { color: FFFF00, fade: 500ms }
+    l_gi_light_10: { color: ADD8E6, fade: 500ms }
+    l_gi_light_11: { color: FFFF00, fade: 500ms }
+    l_gi_light_12: { color: ADD8E6, fade: 500ms }
+    l_gi_light_13: { color: FFFF00, fade: 500ms }
+    l_gi_light_14: { color: ADD8E6, fade: 500ms }
+    l_gi_light_15: { color: FFFF00, fade: 500ms }
+    l_gi_light_16: { color: ADD8E6, fade: 500ms }
+    l_gi_light_17: { color: FFFF00, fade: 500ms }
+    l_gi_light_18: { color: ADD8E6, fade: 500ms }
+    l_gi_light_19: { color: FFFF00, fade: 500ms }
+    l_gi_light_20: { color: ADD8E6, fade: 500ms }
+    l_gi_light_21: { color: FFFF00, fade: 500ms }
+    l_gi_light_22: { color: ADD8E6, fade: 500ms }
+    l_gi_light_23: { color: FFFF00, fade: 500ms }
+    l_gi_light_24: { color: ADD8E6, fade: 500ms }
+    l_gi_light_25: { color: FFFF00, fade: 500ms }
+    l_gi_light_26: { color: ADD8E6, fade: 500ms }
+    l_gi_light_27: { color: FFFF00, fade: 500ms }
+    l_apron_light_1: { color: FFFF00, fade: 500ms }
+    l_apron_light_2: { color: ADD8E6, fade: 500ms }
+    l_apron_light_3: { color: FFFF00, fade: 500ms }
+    l_apron_light_4: { color: ADD8E6, fade: 500ms }
+    # Pop bumpers solid yellow
+    l_gi_light_pop_left:   { color: FFFF00, fade: 500ms }
+    l_gi_light_pop_right:  { color: FFFF00, fade: 500ms }
+    l_gi_light_pop_bottom: { color: FFFF00, fade: 500ms }
+
+  ##############################################
+  ## STAGE 4 INSERTS - Turn off when hit
+  ## TO uses l_shot_middle_ramp (top ramp UP); RR uses l_shot_right_orbit
+  ## (right ramp DOWN, shares with RO).
+  ##############################################
+  charlie_stage_4_to_hit:
+    l_shot_middle_ramp: { color: off, fade: 0ms }
+  charlie_stage_4_twr_hit:
+    l_shot_tower_ramp: { color: off, fade: 0ms }
+  charlie_stage_4_rr_hit:
+    l_shot_right_orbit: { color: off, fade: 0ms }
+  charlie_stage_4_lr_hit:
+    l_shot_left_ramp: { color: off, fade: 0ms }
+  charlie_stage_4_final_shot_hit:
+    l_shot_barrier: { color: off, fade: 0ms }
+
+  ##############################################
+  ## CLEANUP - All charlie-managed inserts off
   ##############################################
   hard_deck_charlie_cleanup:
     l_shot_left_orbit: { color: off }
     l_shot_left_ramp: { color: off }
     l_shot_tower_ramp: { color: off }
     l_shot_right_orbit: { color: off }
+    l_shot_middle_ramp: { color: off }
+    l_shot_spinner: { color: off }
     l_shot_barrier: { color: off }
+    l_iceman_i: { color: off }
+    l_iceman_c: { color: off }
+    l_iceman_e: { color: off }
+    l_iceman_m: { color: off }
+    l_iceman_a: { color: off }
+    l_iceman_n: { color: off }
 
+  ##############################################
+  ## MODE STOP - Restore GI to white, charlie inserts off,
+  ## and conditionally restore iceman letter lights from player vars.
+  ## (Charlie may have turned them off during stage 3; we preserve actual
+  ## ICEMAN progress here.)
+  ##############################################
   mode_hard_deck_charlie_stopped:
     # GI back to base white
     l_gi_light_1: { color: white, fade: 500ms }
@@ -811,51 +2192,81 @@ light_player:
     l_gi_light_pop_left: { color: white, fade: 500ms }
     l_gi_light_pop_right: { color: white, fade: 500ms }
     l_gi_light_pop_bottom: { color: white, fade: 500ms }
-    # Inserts off (safety)
+    # Charlie-managed inserts off (safety)
     l_shot_left_orbit: { color: off }
     l_shot_left_ramp: { color: off }
     l_shot_tower_ramp: { color: off }
     l_shot_right_orbit: { color: off }
+    l_shot_middle_ramp: { color: off }
+    l_shot_spinner: { color: off }
     l_shot_barrier: { color: off }
 
+  ##############################################
+  ## ICEMAN LIGHT RESTORE - Conditional on iceman_letter_X player var
+  ## Charlie turned them off during stage 3; restore based on letter state.
+  ##############################################
+  mode_hard_deck_charlie_stopped{current_player.iceman_letter_i==1}:
+    l_iceman_i: { color: cyan }
+  mode_hard_deck_charlie_stopped{current_player.iceman_letter_i==0}:
+    l_iceman_i: { color: off }
+  mode_hard_deck_charlie_stopped{current_player.iceman_letter_c==1}:
+    l_iceman_c: { color: cyan }
+  mode_hard_deck_charlie_stopped{current_player.iceman_letter_c==0}:
+    l_iceman_c: { color: off }
+  mode_hard_deck_charlie_stopped{current_player.iceman_letter_e==1}:
+    l_iceman_e: { color: cyan }
+  mode_hard_deck_charlie_stopped{current_player.iceman_letter_e==0}:
+    l_iceman_e: { color: off }
+  mode_hard_deck_charlie_stopped{current_player.iceman_letter_m==1}:
+    l_iceman_m: { color: cyan }
+  mode_hard_deck_charlie_stopped{current_player.iceman_letter_m==0}:
+    l_iceman_m: { color: off }
+  mode_hard_deck_charlie_stopped{current_player.iceman_letter_a==1}:
+    l_iceman_a: { color: cyan }
+  mode_hard_deck_charlie_stopped{current_player.iceman_letter_a==0}:
+    l_iceman_a: { color: off }
+  mode_hard_deck_charlie_stopped{current_player.iceman_letter_n==1}:
+    l_iceman_n: { color: cyan }
+  mode_hard_deck_charlie_stopped{current_player.iceman_letter_n==0}:
+    l_iceman_n: { color: off }
+
 ####################################################################################
-# SHOW PLAYER - Pink flash on each lit shot insert
-# (1000ms cycle for non-final, faster 500ms for barrier when it lights)
+# SHOW PLAYER - Pink flashes on lit shot inserts using sync_flash_mode.
+# Pattern matches stage 1 (existing): one show-name + LED-based key per LED.
+# Show names and keys are reused across stages because each LED can only have
+# one active flash at a time. Stop+start on the same key safely overwrites.
+#
+# Sync timing: 1000ms for non-final shots, 500ms for the live final shot.
 ####################################################################################
 show_player:
+  ##############################################
+  ## STAGE 1 - 4 non-final shots all lit at setup, barrier final on shot_setup
+  ##############################################
   charlie_stage_1_setup:
     charlie_lo_flash:
       show: sync_flash_mode
       key: charlie_l_shot_left_orbit
       sync_ms: 1000
       loops: -1
-      show_tokens:
-        led: l_shot_left_orbit
-        color: FF69B4
+      show_tokens: { led: l_shot_left_orbit, color: FF69B4 }
     charlie_lr_flash:
       show: sync_flash_mode
       key: charlie_l_shot_left_ramp
       sync_ms: 1000
       loops: -1
-      show_tokens:
-        led: l_shot_left_ramp
-        color: FF69B4
+      show_tokens: { led: l_shot_left_ramp, color: FF69B4 }
     charlie_twr_flash:
       show: sync_flash_mode
       key: charlie_l_shot_tower_ramp
       sync_ms: 1000
       loops: -1
-      show_tokens:
-        led: l_shot_tower_ramp
-        color: FF69B4
+      show_tokens: { led: l_shot_tower_ramp, color: FF69B4 }
     charlie_rr_flash:
       show: sync_flash_mode
       key: charlie_l_shot_right_orbit
       sync_ms: 1000
       loops: -1
-      show_tokens:
-        led: l_shot_right_orbit
-        color: FF69B4
+      show_tokens: { led: l_shot_right_orbit, color: FF69B4 }
 
   charlie_stage_1_lo_hit:
     charlie_lo_flash:
@@ -874,18 +2285,13 @@ show_player:
       action: stop
       key: charlie_l_shot_right_orbit
 
-  ##############################################
-  ## BARRIER FLASH - Faster cycle when lit
-  ##############################################
   charlie_stage_1_final_shot_setup:
     charlie_barrier_flash:
       show: sync_flash_mode
       key: charlie_l_shot_barrier
       sync_ms: 500
       loops: -1
-      show_tokens:
-        led: l_shot_barrier
-        color: FF69B4
+      show_tokens: { led: l_shot_barrier, color: FF69B4 }
 
   charlie_stage_1_final_shot_hit:
     charlie_barrier_flash:
@@ -893,7 +2299,216 @@ show_player:
       key: charlie_l_shot_barrier
 
   ##############################################
-  ## CLEANUP - Stop all flashes
+  ## STAGE 2 - Spinner #1, then LO, then Spinner #2, then RO (ordered)
+  ## Each only-lit-shot uses the per-LED show name and key.
+  ## Spinner is lit twice (SP1, SP2); same name+key — stop then start is safe.
+  ##############################################
+  charlie_stage_2_setup:
+    charlie_sp_flash:
+      show: sync_flash_mode
+      key: charlie_l_shot_spinner
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_spinner, color: FF69B4 }
+
+  charlie_stage_2_sp1_hit:
+    charlie_sp_flash:
+      action: stop
+      key: charlie_l_shot_spinner
+    charlie_to_flash:
+      show: sync_flash_mode
+      key: charlie_l_shot_middle_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_middle_ramp, color: FF69B4 }
+
+  charlie_stage_2_to_hit:
+    charlie_to_flash:
+      action: stop
+      key: charlie_l_shot_middle_ramp
+    charlie_sp_flash:
+      show: sync_flash_mode
+      key: charlie_l_shot_spinner
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_spinner, color: FF69B4 }
+
+  charlie_stage_2_sp2_hit:
+    charlie_sp_flash:
+      action: stop
+      key: charlie_l_shot_spinner
+
+  # Final RO armed — same LED as stage 1's RR; faster sync_ms signals "live final"
+  charlie_stage_2_final_shot_setup:
+    charlie_rr_flash:
+      show: sync_flash_mode
+      key: charlie_l_shot_right_orbit
+      sync_ms: 500
+      loops: -1
+      show_tokens: { led: l_shot_right_orbit, color: FF69B4 }
+
+  charlie_stage_2_final_shot_hit:
+    charlie_rr_flash:
+      action: stop
+      key: charlie_l_shot_right_orbit
+
+  ##############################################
+  ## STAGE 3 - 3 any-order non-finals lit at setup
+  ## (6 iceman targets in 2 groups + barrier target), then RO as final.
+  ##############################################
+  charlie_stage_3_setup:
+    # ICE group
+    charlie_ice_i_flash:
+      show: sync_flash_mode
+      key: charlie_l_iceman_i
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_iceman_i, color: FF69B4 }
+    charlie_ice_c_flash:
+      show: sync_flash_mode
+      key: charlie_l_iceman_c
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_iceman_c, color: FF69B4 }
+    charlie_ice_e_flash:
+      show: sync_flash_mode
+      key: charlie_l_iceman_e
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_iceman_e, color: FF69B4 }
+    # MAN group
+    charlie_man_m_flash:
+      show: sync_flash_mode
+      key: charlie_l_iceman_m
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_iceman_m, color: FF69B4 }
+    charlie_man_a_flash:
+      show: sync_flash_mode
+      key: charlie_l_iceman_a
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_iceman_a, color: FF69B4 }
+    charlie_man_n_flash:
+      show: sync_flash_mode
+      key: charlie_l_iceman_n
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_iceman_n, color: FF69B4 }
+    # Barrier target
+    charlie_barrier_flash:
+      show: sync_flash_mode
+      key: charlie_l_shot_barrier
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_barrier, color: FF69B4 }
+
+  # ICE group hit → stop all 3 ICE flashes
+  charlie_stage_3_ice_hit:
+    charlie_ice_i_flash:
+      action: stop
+      key: charlie_l_iceman_i
+    charlie_ice_c_flash:
+      action: stop
+      key: charlie_l_iceman_c
+    charlie_ice_e_flash:
+      action: stop
+      key: charlie_l_iceman_e
+
+  # MAN group hit → stop all 3 MAN flashes
+  charlie_stage_3_man_hit:
+    charlie_man_m_flash:
+      action: stop
+      key: charlie_l_iceman_m
+    charlie_man_a_flash:
+      action: stop
+      key: charlie_l_iceman_a
+    charlie_man_n_flash:
+      action: stop
+      key: charlie_l_iceman_n
+
+  charlie_stage_3_barrier_hit:
+    charlie_barrier_flash:
+      action: stop
+      key: charlie_l_shot_barrier
+
+  # RO armed (after 3 non-finals) — faster flash
+  charlie_stage_3_final_shot_setup:
+    charlie_rr_flash:
+      show: sync_flash_mode
+      key: charlie_l_shot_right_orbit
+      sync_ms: 500
+      loops: -1
+      show_tokens: { led: l_shot_right_orbit, color: FF69B4 }
+
+  charlie_stage_3_final_shot_hit:
+    charlie_rr_flash:
+      action: stop
+      key: charlie_l_shot_right_orbit
+
+  ##############################################
+  ## STAGE 4 - 4 any-order non-finals at setup, scoop final on shot_setup
+  ## TO uses l_shot_middle_ramp (top ramp UP); RR uses l_shot_right_orbit.
+  ##############################################
+  charlie_stage_4_setup:
+    charlie_to_flash:
+      show: sync_flash_mode
+      key: charlie_l_shot_middle_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_middle_ramp, color: FF69B4 }
+    charlie_twr_flash:
+      show: sync_flash_mode
+      key: charlie_l_shot_tower_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_tower_ramp, color: FF69B4 }
+    charlie_rr_flash:
+      show: sync_flash_mode
+      key: charlie_l_shot_right_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_right_orbit, color: FF69B4 }
+    charlie_lr_flash:
+      show: sync_flash_mode
+      key: charlie_l_shot_left_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_left_ramp, color: FF69B4 }
+
+  charlie_stage_4_to_hit:
+    charlie_to_flash:
+      action: stop
+      key: charlie_l_shot_middle_ramp
+  charlie_stage_4_twr_hit:
+    charlie_twr_flash:
+      action: stop
+      key: charlie_l_shot_tower_ramp
+  charlie_stage_4_rr_hit:
+    charlie_rr_flash:
+      action: stop
+      key: charlie_l_shot_right_orbit
+  charlie_stage_4_lr_hit:
+    charlie_lr_flash:
+      action: stop
+      key: charlie_l_shot_left_ramp
+
+  # Final scoop armed (after 4 non-finals) — faster flash on barrier insert
+  charlie_stage_4_final_shot_setup:
+    charlie_barrier_flash:
+      show: sync_flash_mode
+      key: charlie_l_shot_barrier
+      sync_ms: 500
+      loops: -1
+      show_tokens: { led: l_shot_barrier, color: FF69B4 }
+
+  charlie_stage_4_final_shot_hit:
+    charlie_barrier_flash:
+      action: stop
+      key: charlie_l_shot_barrier
+
+  ##############################################
+  ## CLEANUP - Stop all per-LED flashes (idempotent — stops are no-ops if not running)
   ##############################################
   hard_deck_charlie_cleanup:
     charlie_lo_flash:
@@ -908,10 +2523,37 @@ show_player:
     charlie_rr_flash:
       action: stop
       key: charlie_l_shot_right_orbit
+    charlie_sp_flash:
+      action: stop
+      key: charlie_l_shot_spinner
+    charlie_to_flash:
+      action: stop
+      key: charlie_l_shot_middle_ramp
+    charlie_ice_i_flash:
+      action: stop
+      key: charlie_l_iceman_i
+    charlie_ice_c_flash:
+      action: stop
+      key: charlie_l_iceman_c
+    charlie_ice_e_flash:
+      action: stop
+      key: charlie_l_iceman_e
+    charlie_man_m_flash:
+      action: stop
+      key: charlie_l_iceman_m
+    charlie_man_a_flash:
+      action: stop
+      key: charlie_l_iceman_a
+    charlie_man_n_flash:
+      action: stop
+      key: charlie_l_iceman_n
     charlie_barrier_flash:
       action: stop
       key: charlie_l_shot_barrier
 
+  ##############################################
+  ## MODE STOP - Safety stop (idempotent with cleanup)
+  ##############################################
   mode_hard_deck_charlie_stopped:
     charlie_lo_flash:
       action: stop
@@ -925,6 +2567,30 @@ show_player:
     charlie_rr_flash:
       action: stop
       key: charlie_l_shot_right_orbit
+    charlie_sp_flash:
+      action: stop
+      key: charlie_l_shot_spinner
+    charlie_to_flash:
+      action: stop
+      key: charlie_l_shot_middle_ramp
+    charlie_ice_i_flash:
+      action: stop
+      key: charlie_l_iceman_i
+    charlie_ice_c_flash:
+      action: stop
+      key: charlie_l_iceman_c
+    charlie_ice_e_flash:
+      action: stop
+      key: charlie_l_iceman_e
+    charlie_man_m_flash:
+      action: stop
+      key: charlie_l_iceman_m
+    charlie_man_a_flash:
+      action: stop
+      key: charlie_l_iceman_a
+    charlie_man_n_flash:
+      action: stop
+      key: charlie_l_iceman_n
     charlie_barrier_flash:
       action: stop
       key: charlie_l_shot_barrier

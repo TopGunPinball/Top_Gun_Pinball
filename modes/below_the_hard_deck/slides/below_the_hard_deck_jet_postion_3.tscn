@@ -1,0 +1,53 @@
+[gd_scene load_steps=6 format=3 uid="uid://b7ltiqq5hbnxt"]
+
+[ext_resource type="Script" uid="uid://dru3usokwlhd3" path="res://addons/mpf-gmc/classes/mpf_slide.gd" id="1_oo2no"]
+[ext_resource type="Texture2D" uid="uid://sbb57wfeaxs7" path="res://addons/artwork/images/below the hard deck/below the hard deck background.jpg" id="2_7ye1l"]
+[ext_resource type="Texture2D" uid="uid://dto4yu05xwi8i" path="res://addons/artwork/images/below the hard deck/Jet Halo.png" id="3_hrecj"]
+
+[sub_resource type="Animation" id="Animation_planes_pulse"]
+resource_name = "planes_pulse"
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("planes:modulate")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5, 1),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [Color(1, 1, 1, 1), Color(1, 1, 1, 0), Color(1, 1, 1, 1)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_planes_pulse"]
+_data = {
+&"planes_pulse": SubResource("Animation_planes_pulse")
+}
+
+[node name="no_margin_for_error_instructions" type="Control"]
+process_priority = 200
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_oo2no")
+
+[node name="background_video_opening2" type="Sprite2D" parent="."]
+visible = false
+z_index = 48
+position = Vector2(33, 113)
+scale = Vector2(0.3321221, 0.37565106)
+texture = ExtResource("2_7ye1l")
+centered = false
+
+[node name="planes" type="Sprite2D" parent="."]
+z_index = 47
+position = Vector2(782, 208)
+rotation = 4.679228
+scale = Vector2(0.1, 0.097)
+texture = ExtResource("3_hrecj")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_planes_pulse")
+}
+autoplay = "planes_pulse"
