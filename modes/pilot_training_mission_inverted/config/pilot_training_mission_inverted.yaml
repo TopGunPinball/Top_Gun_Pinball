@@ -82,7 +82,9 @@ ball_saves:
     active_time: 15s
     hurry_up_time: 2s
     grace_period: 500ms
-    auto_launch: true
+    auto_launch: false    # CHANGED: was true. MPF's auto_launch fires c_plunger at 50%; we
+                          # handle plunger ourselves via inverted_auto_plunger_delay timer
+                          # below so we can use 100% pulse_power for stronger plunge.
     balls_to_save: -1
     enable_events: 
       - pilot_training_mission_inverted_start_multiball
@@ -141,14 +143,16 @@ timers:
       - event: pilot_training_mission_inverted_super_jackpot_collected
         action: start
 
-  # Auto-plunger delay - 1 second after ball settles on shooter lane switch
+  # Auto-plunger delay - 500ms after ball settles on shooter lane switch
   # Handles multiball start, add-a-balls, and any balls returning to shooter lane
   # Cancels if ball leaves on its own (s_shooter_lane_inactive)
+  # CHANGED: was 1s (tick_interval: 1s, end_value: 1). Now 500ms via 1ms ticks
+  # x 500 to keep balls moving faster during multiball saves.
   inverted_auto_plunger_delay:
     start_value: 0
-    end_value: 1
+    end_value: 500
     direction: up
-    tick_interval: 1s
+    tick_interval: 1ms
     control_events:
       - event: s_shooter_lane_active
         action: restart
@@ -4495,11 +4499,17 @@ coil_player:
     c_left_orbit_diverter:
       action: disable
 
-  # Auto-plunger - fires 1 second after ball settles on shooter lane
+  # Auto-plunger - fires 500ms after ball settles on shooter lane
   # Handles multiball start, add-a-balls, and saved balls returning
+  # CHANGED: pulse_power 0.625 with shorter pulse_ms 22 (vs coil default 26ms)
+  # to target middle-of-playfield energy — strong enough to clear the launch
+  # lane reliably, weak enough to die out in the pops instead of completing
+  # the full orbit. 0.625 is the next FAST-quantized step above the 0.5 default.
   timer_inverted_auto_plunger_delay_complete:
     c_plunger:
       action: pulse
+      pulse_power: 0.625
+      pulse_ms: 22
 
   # Mode cleanup - disable all coils
   pilot_training_mission_inverted_cleanup:

@@ -107,7 +107,10 @@ ball_saves:
     active_time: 15s
     hurry_up_time: 2s
     grace_period: 500ms
-    auto_launch: true
+    auto_launch: false    # CHANGED: was true. MPF auto_launch fires c_plunger at 50%;
+                          # we handle plunger ourselves via wingman_auto_plunger_delay
+                          # timer below so we can use tuned 0.625 power / 22ms pulse
+                          # for pop-bumper-target plunge.
     balls_to_save: -1
     enable_events: 
       - wingman_start_multiball
@@ -188,14 +191,16 @@ timers:
       - event: mode_pilot_training_mission_wingman_will_stop
         action: stop
 
-  # Auto-plunger delay - 1 second after ball settles on shooter lane switch
+  # Auto-plunger delay - 500ms after ball settles on shooter lane switch
   # Handles multiball start, add-a-balls, and saved balls returning
   # GUARD: Only restarts when mode_active==1 (disabled during win/loss drain phase)
+  # CHANGED: was 1s (tick_interval: 1s, end_value: 1). Now 500ms via 1ms ticks
+  # x 500 to keep balls moving quickly during multiball saves.
   wingman_auto_plunger_delay:
     start_value: 0
-    end_value: 1
+    end_value: 500
     direction: up
-    tick_interval: 1s
+    tick_interval: 1ms
     control_events:
       - event: s_shooter_lane_active{current_player.wingman_mode_active==1}
         action: restart
@@ -1947,10 +1952,16 @@ coil_player:
     c_left_lane_up_post:
       action: disable
 
-  # Auto-plunger - fires 1 second after ball settles on shooter lane
+  # Auto-plunger - fires 500ms after ball settles on shooter lane
+  # CHANGED: added pulse_power: 0.625 + pulse_ms: 22 (matches inverted/Top Gun MB).
+  # 0.625 is the next FAST-quantized step above the 0.5 c_plunger default; 22ms
+  # is a touch under the default 26ms to target pop-bumper energy. Without these,
+  # the pulse used the coil's 50% default, which barely cleared the launch lane.
   timer_wingman_auto_plunger_delay_complete:
     c_plunger:
       action: pulse
+      pulse_power: 0.625
+      pulse_ms: 22
 
   # Post-mode plunge - fires plunger to launch saved ball after video ends
   wingman_post_mode_plunge:

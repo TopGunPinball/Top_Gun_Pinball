@@ -156,6 +156,20 @@ event_player:
   s_flipper_right_active:
     - ball_search_reset
 
+  ##############################################
+  ## PLUNGER EJECT CONFIRMATION
+  ## bd_plunger waits for "plunger_eject_confirmed" to confirm a plunge
+  ## reached the playfield. Either s_lane_right (normal path, top of launch
+  ## lane) or s_orbit_right (failsafe, ball took the long way) confirms.
+  ## If neither hits within the 2s eject_timeout, MPF falls back to the
+  ## playfield-target confirm path.
+  ## Spurious posts when no eject is pending are harmless (no listener).
+  ##############################################
+  s_lane_right_active:
+    - plunger_eject_confirmed
+  s_orbit_right_active:
+    - plunger_eject_confirmed
+
 variable_player:
   ##############################################
   ## Total Scoring Multiplier - FIXED VERSION

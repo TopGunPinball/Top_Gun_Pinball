@@ -69,7 +69,10 @@ ball_saves:
     active_time: 5s
     hurry_up_time: 2s
     grace_period: 500ms
-    auto_launch: true
+    auto_launch: false    # CHANGED: was true. MPF auto_launch fires c_plunger at the
+                          # coil's 50% default, racing the stronger 0.75/28ms pulse from
+                          # the gbof_auto_plunger_delay timer (see coil_player). Setting
+                          # false ensures only the tuned strong pulse fires.
     balls_to_save: 1
     enable_events:
       - gbof_ball_released
@@ -81,7 +84,7 @@ ball_saves:
     active_time: 20s
     hurry_up_time: 2s
     grace_period: 500ms
-    auto_launch: true
+    auto_launch: false    # CHANGED: was true. Same reason as gbof_launch_ball_save above.
     balls_to_save: -1
     enable_events:
       - gbof_mb_intro_release
@@ -100,7 +103,7 @@ ball_saves:
     active_time: 130s                # covers the full 120s Phase 1 timer + buffer
     hurry_up_time: 2s
     grace_period: 500ms
-    auto_launch: true
+    auto_launch: false    # CHANGED: was true. Same reason as gbof_launch_ball_save above.
     balls_to_save: 1
     enable_events:
       - gbof_ball_forged
@@ -1446,12 +1449,18 @@ event_player:
     - gbof_drain_cleanup_complete
     - pilot_mode_cleanup_complete
 
-  # ── VICTORY FLOW (Phase 2 placeholder) ──────────────────────────────────────────
-  # gbof_complete fires when Phase 2 multiball ends with a win condition.
+  # ── END-OF-MODE VIDEO CLEANUP RELAY ─────────────────────────────────────────────
+  # Both lost (gbof_failed) and won (gbof_complete) end-of-mode videos need the
+  # same insert cleanup: stop all mode shot shows and force LEDs off. Posting a
+  # single relay event lets show_player + light_player hang off one key instead
+  # of duplicating handlers. (MPF doesn't accept comma-separated event keys.)
+  gbof_failed:
+    - gbof_end_video_started
   gbof_complete:
     - barrier_raise
     - timer_gbof_complete_delay_start
     - missiles_perk_unload
+    - gbof_end_video_started
 
   timer_gbof_complete_delay_complete:
     - gbof_cleanup
@@ -1875,6 +1884,120 @@ show_player:
       show: sync_flash_mode
       action: stop
       key: gbof_rr_flash
+
+  # ── END-OF-MODE VIDEO STARTED (lost or won): stop ALL mode shot insert shows
+  # immediately so the end-of-mode video (42s lost or 30s won) plays against
+  # a clean playfield. Fires off gbof_end_video_started, a relay event posted
+  # by event_player on both gbof_failed and gbof_complete (MPF doesn't accept
+  # comma-separated event keys). GI mood lighting stays running on its own
+  # keys/event. Stopping these shows does NOT kill the end-video slides, which
+  # live in slide_player at priority 700 — they are independent player systems.
+  # gbof_cleanup at the delay timer completion will fire these same stops
+  # later — no-op since already stopped. Phase 1 AND Phase 2 shows are stopped
+  # to cover every code path. Companion light_player block hard-writes the
+  # LEDs to off so the LED doesn't linger on the last frame the show was on.
+  gbof_end_video_started:
+    # Phase 1 flash shows
+    failed_stop_lo_flash:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_lo_flash
+    failed_stop_lr_flash:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_lr_flash
+    failed_stop_twr_flash:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_twr_flash
+    failed_stop_rr_flash:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_rr_flash
+    # Phase 1 fire shows
+    failed_stop_lo_fire:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_lo_fire_key
+    failed_stop_lr_fire:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_lr_fire_key
+    failed_stop_twr_fire:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_twr_fire_key
+    failed_stop_rr_fire:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_rr_fire_key
+    # Phase 2 flash shows
+    failed_stop_p2_lo_flash:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_lo_flash
+    failed_stop_p2_lr_flash:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_lr_flash
+    failed_stop_p2_sp_flash:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_sp_flash
+    failed_stop_p2_twr_flash:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_twr_flash
+    failed_stop_p2_tl_flash:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_tl_flash
+    failed_stop_p2_tr_flash:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_tr_flash
+    failed_stop_p2_rr_flash:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_p2_rr_flash
+    # Phase 2 fire shows
+    failed_stop_p2_lo_fire:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_lo_fire_key
+    failed_stop_p2_lr_fire:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_lr_fire_key
+    failed_stop_p2_sp_fire:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_sp_fire_key
+    failed_stop_p2_twr_fire:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_twr_fire_key
+    failed_stop_p2_tl_fire:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_tl_fire_key
+    failed_stop_p2_tr_fire:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_tr_fire_key
+    failed_stop_p2_rr_fire:
+      show: gbof_insert_fire
+      action: stop
+      key: gbof_p2_rr_fire_key
+    # Phase 2 barrier flash shows
+    failed_stop_intro_barrier:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_intro_barrier_flash
+    failed_stop_super_barrier:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_super_barrier_flash
 
   # ── SCOOP HIT FOR MB: stop intro barrier flash the instant ball is captured ───────
   gbof_scoop_hit_for_mb:
@@ -2579,6 +2702,26 @@ shows:
         (led): {color: FF1100, fade: 0ms}
 
 ####################################################################################
+# LIGHT PLAYER
+####################################################################################
+
+light_player:
+  # Force ALL mode shot inserts off the instant an end-of-mode video starts.
+  # Fires off gbof_end_video_started, a relay event posted by event_player on
+  # both gbof_failed (42s lost video) and gbof_complete (30s won video). The
+  # show_player block stops the shows; this hard-writes the LEDs to black so
+  # whatever frame the show was on doesn't linger on the playfield.
+  gbof_end_video_started:
+    l_shot_left_orbit: 'off'    # LO (P1 + P2)
+    l_shot_left_ramp: 'off'     # LR (P1 + P2)
+    l_shot_spinner: 'off'       # SP (P2)
+    l_shot_tower_ramp: 'off'    # TWR (P1 + P2)
+    l_shot_upper_orbit: 'off'   # TL (P2)
+    l_shot_middle_ramp: 'off'   # TR (P2)
+    l_shot_right_orbit: 'off'   # RR (P1 + P2)
+    l_shot_barrier: 'off'       # Phase 2 intro/super barrier flash
+
+####################################################################################
 # COIL PLAYER
 # During Phase 2 MB, fire the plunger at full power so balls reach the top of the
 # game. This overrides the normal do_auto_plunge handler (which uses default power)
@@ -2588,8 +2731,8 @@ shows:
 coil_player:
   timer_gbof_auto_plunger_delay_complete:
     c_plunger:
-      pulse_ms: 28
-      pulse_power: 0.75
+      pulse_ms: 22
+      pulse_power: 0.625
 
 ####################################################################################
 # SOUND PLAYER

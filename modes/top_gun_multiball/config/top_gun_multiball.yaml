@@ -70,7 +70,10 @@ ball_saves:
     active_time: 15s
     hurry_up_time: 2s
     grace_period: 500ms
-    auto_launch: true
+    auto_launch: false    # CHANGED: was true. MPF auto_launch fires c_plunger at 50%;
+                          # we handle plunger ourselves via mb_auto_plunger_delay timer
+                          # below so we can use tuned 0.625 power / 22ms pulse for
+                          # pop-bumper-target plunge.
     balls_to_save: -1
     enable_events: mb_add_a_ball_activate
     disable_events: mode_top_gun_multiball_will_stop
@@ -80,7 +83,7 @@ ball_saves:
   mb_extender_callout_save:
     active_time: 5s
     grace_period: 500ms
-    auto_launch: true
+    auto_launch: false    # CHANGED: was true. Same reason as mb_add_a_ball_save above.
     balls_to_save: 1
     enable_events: mb_extender_activate
     disable_events:
@@ -1562,14 +1565,16 @@ timers:
         action: stop
 
   ##############################################################################
-  # AUTO-PLUNGER DELAY - 1 second after ball settles on shooter lane
+  # AUTO-PLUNGER DELAY - 500ms after ball settles on shooter lane
   # Handles add-a-ball and ball save balls returning to shooter lane
+  # CHANGED: was 1s (tick_interval: 1s, end_value: 1). Now 500ms via 1ms ticks
+  # x 500 to keep balls moving quickly during multiball saves.
   ##############################################################################
   mb_auto_plunger_delay:
     start_value: 0
-    end_value: 1
+    end_value: 500
     direction: up
-    tick_interval: 1s
+    tick_interval: 1ms
     start_running: false
     control_events:
       - event: s_shooter_lane_active
@@ -2455,8 +2460,14 @@ slide_player:
 # COIL PLAYER - Auto-plunger for add-a-ball and ball saves
 ##############################################################################
 coil_player:
-  # Auto-plunger: fires 1 second after ball settles on shooter lane
+  # Auto-plunger: fires 500ms after ball settles on shooter lane
   # Handles add-a-ball launches and saved balls returning to shooter lane
+  # CHANGED: added pulse_power: 0.625 + pulse_ms: 22 (matches inverted multiball).
+  # 0.625 is the next FAST-quantized step above the 0.5 c_plunger default; 22ms
+  # is a touch under the default 26ms to target pop-bumper energy. Without these,
+  # the pulse used the coil's 50% default, which barely cleared the launch lane.
   timer_mb_auto_plunger_delay_complete:
     c_plunger:
       action: pulse
+      pulse_power: 0.625
+      pulse_ms: 22

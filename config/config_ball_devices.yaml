@@ -6,8 +6,14 @@ ball_devices:
     entrance_count_delay: 300ms
     mechanical_eject: true
     confirm_eject_type: event
-    confirm_eject_event: s_shooter_lane_inactive
-    eject_timeouts: 3s
+    # CHANGED: was s_shooter_lane_inactive (didn't fire correctly per log analysis,
+    # always fell back to 3s timeout). Now uses a custom event posted from base.yaml
+    # event_player when ball passes s_lane_right OR s_orbit_right after a plunge.
+    confirm_eject_event: plunger_eject_confirmed
+    # CHANGED: was 3s. Lowered to 2s as the failsafe when neither s_lane_right nor
+    # s_orbit_right is hit (ball stalled or weak plunge). Shooter lane is short so
+    # 2s is plenty of cushion.
+    eject_timeouts: 2s
     
   bd_trough:
     ball_switches: s_trough_1, s_trough_2, s_trough_3, s_trough_4, s_trough_5, s_trough_6, s_jam
