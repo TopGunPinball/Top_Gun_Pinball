@@ -536,6 +536,14 @@ event_player:
   s_flipper_right_inactive{mode.status_mode.active==True and device.switches.s_flipper_left.state==0}:
     - status_mode_exit
 
+  # Exit — any non-flipper playfield switch fires (ball is moving on the
+  # playfield, status mode shouldn't be displayed). `sw_playfield_active`
+  # fires for any switch tagged `playfield_active` (bumpers, slings, lanes,
+  # ramps, targets, spinner). Trough/lock/shooter-lane switches are exempt
+  # since they represent balls at rest in holds.
+  sw_playfield_active{mode.status_mode.active==True}:
+    - status_mode_exit
+
   ##############################################
   ## PAGE 1: Goose award/eject/mystery conditional computations
   ##############################################

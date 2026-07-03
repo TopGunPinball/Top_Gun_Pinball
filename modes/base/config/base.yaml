@@ -139,6 +139,14 @@ event_player:
     - status_mode_entry_cancel
   s_flipper_right_inactive{device.timers.status_mode_entry.running==True}:
     - status_mode_entry_cancel
+  # Any non-flipper playfield switch firing during the entry hold means the
+  # ball is moving — player isn't deliberately entering status mode. Cancel.
+  # `sw_playfield_active` fires when any switch tagged `playfield_active`
+  # goes active (bumpers, slings, lanes, ramps, targets, spinner, etc.).
+  # Trough, lock, shooter-lane, and flipper switches are deliberately NOT
+  # tagged `playfield_active`, so ball-at-rest scenarios are exempt.
+  sw_playfield_active{device.timers.status_mode_entry.running==True}:
+    - status_mode_entry_cancel
   timer_status_mode_entry_complete:
     - status_mode_enter
 

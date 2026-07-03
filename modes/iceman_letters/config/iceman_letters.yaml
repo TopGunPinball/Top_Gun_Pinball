@@ -18,6 +18,14 @@ mode:
 ##############################################
 
 variable_player:
+  # Clear training-mission perks on tilt. Perks persist the whole game;
+  # a tilt is the only thing that removes them. Must live in a game mode
+  # (variable_player is invalid in the non-game tilt mode).
+  tilt:
+    missiles_perk_active: { action: set, int: 0 }
+    inverted_perk_active: { action: set, int: 0 }
+    afterburner_perk_active: { action: set, int: 0 }
+    wingman_perk_active: { action: set, int: 0 }
   player_added:
     # Individual ICEMAN letter states (0=off, 1=lit)
     iceman_letter_i:
@@ -397,20 +405,21 @@ event_player:
   ## INVERTED PERK: Double ICEMAN Letters
   ## When inverted_perk_active==1, each ICEMAN target hit also awards
   ## the next uncollected letter in I→C→E→M→A→N order
+  ## Skipped on Tier 0 (training_missions_played==0) — Tier 0 is easy enough.
   ##############################################
   
   # Each target hit triggers the bonus chain (same conditions as normal collection)
-  s_i_iceman_target_active{current_player.iceman_letter_i==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.inverted_perk_active==1}:
+  s_i_iceman_target_active{current_player.iceman_letter_i==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.inverted_perk_active==1 and current_player.training_missions_played>=1}:
     - inverted_bonus_iceman_letter
-  s_c_iceman_target_active{current_player.iceman_letter_c==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.inverted_perk_active==1}:
+  s_c_iceman_target_active{current_player.iceman_letter_c==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.inverted_perk_active==1 and current_player.training_missions_played>=1}:
     - inverted_bonus_iceman_letter
-  s_e_iceman_target_active{current_player.iceman_letter_e==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.inverted_perk_active==1}:
+  s_e_iceman_target_active{current_player.iceman_letter_e==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.inverted_perk_active==1 and current_player.training_missions_played>=1}:
     - inverted_bonus_iceman_letter
-  s_m_iceman_target_active{current_player.iceman_letter_m==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.inverted_perk_active==1}:
+  s_m_iceman_target_active{current_player.iceman_letter_m==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.inverted_perk_active==1 and current_player.training_missions_played>=1}:
     - inverted_bonus_iceman_letter
-  s_a_iceman_target_active{current_player.iceman_letter_a==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.inverted_perk_active==1}:
+  s_a_iceman_target_active{current_player.iceman_letter_a==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.inverted_perk_active==1 and current_player.training_missions_played>=1}:
     - inverted_bonus_iceman_letter
-  s_n_iceman_target_active{current_player.iceman_letter_n==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.inverted_perk_active==1}:
+  s_n_iceman_target_active{current_player.iceman_letter_n==0 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.inverted_perk_active==1 and current_player.training_missions_played>=1}:
     - inverted_bonus_iceman_letter
 
   # Chain logic: award first uncollected letter in I→C→E→M→A→N order
@@ -436,24 +445,67 @@ event_player:
   inverted_award_iceman_n: check_ice_man_complete
 
   ##############################################
-  ## TIER 1: training_missions_played==0
+  ## TIER 0: training_missions_played==0
+  ## EASIEST tier — group awards.
+  ## Hit any of I, C, or E -> light all three (I+C+E group).
+  ## Hit any of M, A, or N -> light all three (M+A+N group).
+  ## If the group is already fully lit, nothing extra is awarded
+  ## (the vanilla unlit-letter handler still sets the hit letter,
+  ## but here all three are already lit so it's a no-op).
+  ## Inverted perk does NOT apply on Tier 0.
+  ##############################################
+
+  # Triggers: any I/C/E target hit (lit or unlit) -> award ICE group
+  # Guard: at least one letter in the group must still be unlit (otherwise silent)
+  s_i_iceman_target_active{current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==0 and (current_player.iceman_letter_i==0 or current_player.iceman_letter_c==0 or current_player.iceman_letter_e==0)}:
+    - tier0_award_ice_group
+  s_c_iceman_target_active{current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==0 and (current_player.iceman_letter_i==0 or current_player.iceman_letter_c==0 or current_player.iceman_letter_e==0)}:
+    - tier0_award_ice_group
+  s_e_iceman_target_active{current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==0 and (current_player.iceman_letter_i==0 or current_player.iceman_letter_c==0 or current_player.iceman_letter_e==0)}:
+    - tier0_award_ice_group
+
+  # Triggers: any M/A/N target hit (lit or unlit) -> award MAN group
+  s_m_iceman_target_active{current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==0 and (current_player.iceman_letter_m==0 or current_player.iceman_letter_a==0 or current_player.iceman_letter_n==0)}:
+    - tier0_award_man_group
+  s_a_iceman_target_active{current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==0 and (current_player.iceman_letter_m==0 or current_player.iceman_letter_a==0 or current_player.iceman_letter_n==0)}:
+    - tier0_award_man_group
+  s_n_iceman_target_active{current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==0 and (current_player.iceman_letter_m==0 or current_player.iceman_letter_a==0 or current_player.iceman_letter_n==0)}:
+    - tier0_award_man_group
+
+  # Group award dispatchers — fire the existing atomic awards.
+  # inverted_award_iceman_X already handles light updates and triggers
+  # check_ice_man_complete via the existing event_player handlers (lines ~431-436).
+  # Note: the vanilla unlit-letter handler (lines 71-104) will also fire on the
+  # SAME target hit, which means the hit letter gets set twice (harmless — same value).
+  tier0_award_ice_group:
+    - inverted_award_iceman_i
+    - inverted_award_iceman_c
+    - inverted_award_iceman_e
+
+  tier0_award_man_group:
+    - inverted_award_iceman_m
+    - inverted_award_iceman_a
+    - inverted_award_iceman_n
+
+  ##############################################
+  ## TIER 1: training_missions_played==1
   ## Any target hit scores its letter normally (existing logic).
   ## If the hit target is ALREADY LIT, award the next unlit letter
   ## in I->C->E->M->A->N order instead.
   ##############################################
 
-  # Triggers: hit a lit letter with 0 missions played
-  s_i_iceman_target_active{current_player.iceman_letter_i==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==0}:
+  # Triggers: hit a lit letter with 1 mission played
+  s_i_iceman_target_active{current_player.iceman_letter_i==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==1}:
     - tier1_bonus_iceman_letter
-  s_c_iceman_target_active{current_player.iceman_letter_c==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==0}:
+  s_c_iceman_target_active{current_player.iceman_letter_c==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==1}:
     - tier1_bonus_iceman_letter
-  s_e_iceman_target_active{current_player.iceman_letter_e==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==0}:
+  s_e_iceman_target_active{current_player.iceman_letter_e==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==1}:
     - tier1_bonus_iceman_letter
-  s_m_iceman_target_active{current_player.iceman_letter_m==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==0}:
+  s_m_iceman_target_active{current_player.iceman_letter_m==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==1}:
     - tier1_bonus_iceman_letter
-  s_a_iceman_target_active{current_player.iceman_letter_a==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==0}:
+  s_a_iceman_target_active{current_player.iceman_letter_a==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==1}:
     - tier1_bonus_iceman_letter
-  s_n_iceman_target_active{current_player.iceman_letter_n==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==0}:
+  s_n_iceman_target_active{current_player.iceman_letter_n==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==1}:
     - tier1_bonus_iceman_letter
 
   # Dispatch: award first unlit letter in I->C->E->M->A->N order
@@ -475,7 +527,7 @@ event_player:
     - inverted_bonus_iceman_letter
 
   ##############################################
-  ## TIER 2: training_missions_played==1
+  ## TIER 2: training_missions_played==2
   ## Hit unlit letter -> that letter (existing logic).
   ## Hit LIT letter -> award the neighbor with priority:
   ##   I -> C
@@ -487,18 +539,18 @@ event_player:
   ## If neighbors already lit, nothing awarded (silent).
   ##############################################
 
-  # Triggers: hit a lit letter with 1 mission played
-  s_i_iceman_target_active{current_player.iceman_letter_i==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==1}:
+  # Triggers: hit a lit letter with 2 missions played
+  s_i_iceman_target_active{current_player.iceman_letter_i==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==2}:
     - tier2_bonus_iceman_i
-  s_c_iceman_target_active{current_player.iceman_letter_c==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==1}:
+  s_c_iceman_target_active{current_player.iceman_letter_c==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==2}:
     - tier2_bonus_iceman_c
-  s_e_iceman_target_active{current_player.iceman_letter_e==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==1}:
+  s_e_iceman_target_active{current_player.iceman_letter_e==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==2}:
     - tier2_bonus_iceman_e
-  s_m_iceman_target_active{current_player.iceman_letter_m==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==1}:
+  s_m_iceman_target_active{current_player.iceman_letter_m==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==2}:
     - tier2_bonus_iceman_m
-  s_a_iceman_target_active{current_player.iceman_letter_a==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==1}:
+  s_a_iceman_target_active{current_player.iceman_letter_a==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==2}:
     - tier2_bonus_iceman_a
-  s_n_iceman_target_active{current_player.iceman_letter_n==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==1}:
+  s_n_iceman_target_active{current_player.iceman_letter_n==1 and current_player.iceman_completing==0 and current_player.letter_collection_paused==0 and current_player.training_missions_played==2}:
     - tier2_bonus_iceman_n
 
   # I lit: give C if unlit

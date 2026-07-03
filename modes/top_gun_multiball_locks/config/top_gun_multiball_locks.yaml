@@ -873,6 +873,17 @@ event_player:
   # Virtual mav lock: voice callout only (no slide — ball is in play)
   # lock_mav_virtual_locked sound_player entry still fires the callout
 
+  # 5-SECOND BALL SAVE on virtual lock award
+  # Reuses the scoop_eject_save device + flash pattern from ball_save.yaml.
+  # The ball_save device itself is enabled via enable_events in
+  # config_ball_saves.yaml; posting the timer_start event here kicks off the
+  # countdown timer and the l_shoot_again flash so the player knows the ball
+  # is coming back to them (unexpected — they thought it was locked).
+  lock_goose_virtual_locked:
+    - ball_save_scoop_eject_save_timer_start
+  lock_mav_virtual_locked:
+    - ball_save_scoop_eject_save_timer_start
+
   # Virtual goose: qualify MB if mav already locked (1st attempt)
   lock_goose_virtual_locked{current_player.multiball_times_played==0 and current_player.lock_mav_locked==1}:
     - multiball_now_qualified
