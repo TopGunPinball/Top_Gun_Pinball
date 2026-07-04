@@ -451,6 +451,57 @@ slide_player:
       action: play
       priority: 850
 
+  # Dogfight can award these perks; re-show the indicator once dogfight stops
+  # (during dogfight victory the slide is hidden under the 900-priority award slides)
+  mode_pilot_training_mission_dogfight_stopped{current_player.afterburner_perk_active==1}:
+    afterburner_perk_active:
+      action: play
+      priority: 850
+  mode_pilot_training_mission_dogfight_stopped{current_player.wingman_perk_active==1}:
+    wingman_perk_active:
+      action: play
+      priority: 850
+
+  ##############################################
+  ## INVERTED PERK INDICATOR
+  ## (dogfight can award it; also earned by winning inverted training)
+  ##############################################
+  player_inverted_perk_active{value==1}:
+    inverted_perk_active:
+      action: play
+      priority: 850
+  player_inverted_perk_active{value==0}:
+    inverted_perk_active:
+      action: remove
+  ball_started{current_player.inverted_perk_active==1}:
+    inverted_perk_active:
+      action: play
+      priority: 850
+  mode_pilot_training_mission_dogfight_stopped{current_player.inverted_perk_active==1}:
+    inverted_perk_active:
+      action: play
+      priority: 850
+
+  ##############################################
+  ## MISSILES PERK INDICATOR
+  ## (dogfight can award it; also earned by winning missiles training)
+  ##############################################
+  player_missiles_perk_active{value==1}:
+    missiles_perk_active:
+      action: play
+      priority: 850
+  player_missiles_perk_active{value==0}:
+    missiles_perk_active:
+      action: remove
+  ball_started{current_player.missiles_perk_active==1}:
+    missiles_perk_active:
+      action: play
+      priority: 850
+  mode_pilot_training_mission_dogfight_stopped{current_player.missiles_perk_active==1}:
+    missiles_perk_active:
+      action: play
+      priority: 850
+
 ##############################################
 ## Player Variables - Track Progress
 ##############################################
@@ -940,6 +991,19 @@ variable_player:
       int: 0
     # Clear multiball active flag
     multiball_active:
+      action: set
+      int: 0
+    # Clear training mission active flag
+    training_mission_active:
+      action: set
+      int: 0
+
+  # Clear pause flags when training mission dogfight stops (single ball - no multiball flag)
+  mode_pilot_training_mission_dogfight_stopped:
+    letter_collection_paused:
+      action: set
+      int: 0
+    pilot_qualifier_paused:
       action: set
       int: 0
     # Clear training mission active flag
@@ -1983,6 +2047,9 @@ coil_player:
   mode_pilot_training_mission_wingman_started:
     c_mode_barrier:
       action: disable
+  mode_pilot_training_mission_dogfight_started:
+    c_mode_barrier:
+      action: disable
 
   # DROP barrier when multiball ends - ONLY if qualified and not in a mode
   multiball_ended{current_player.qualified_mode_number>0}:
@@ -2389,6 +2456,11 @@ event_player:
 
   # Wingman Training Mission
   mode_pilot_training_mission_wingman_stopped{current_player.pilot_mode_drain_pending==1}:
+    - pilot_mission_bonus_ready
+    - pilot_mission_drain_complete
+
+  # Dogfight Training Mission (phoenix-style: hold bonus on drain until lost video)
+  mode_pilot_training_mission_dogfight_stopped{current_player.pilot_mode_drain_pending==1}:
     - pilot_mission_bonus_ready
     - pilot_mission_drain_complete
 
@@ -3332,6 +3404,9 @@ event_player:
     - ball_search_reset
     - ball_search_block
   mode_pilot_training_mission_wingman_started:
+    - ball_search_reset
+    - ball_search_block
+  mode_pilot_training_mission_dogfight_started:
     - ball_search_reset
     - ball_search_block
 

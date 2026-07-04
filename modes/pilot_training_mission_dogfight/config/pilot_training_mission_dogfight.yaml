@@ -1,72 +1,49 @@
 #config_version=6
 
 ####################################################################################
-# PILOT TRAINING MISSION: WINGMAN
-# 
-# A multiball training mission with tug-of-war zone-based shot mechanic.
-# 
-# THEME: Stay on ICEMAN's wing - make shots in the active "good zone"
-# BALLS: 2 balls at start, 1 add-a-ball from ICEMAN completion (max 3)
-# GI: Blue (odd lights) and Cyan (even lights)
-#   - Good shots: strobe GI at current blue/cyan for 2 seconds
-#   - Bad shots: strobe blue→red, cyan→orange for 2 seconds
-# INSERT COLOR: (l_mode_wingman)
-# POP BUMPERS: Cyan
-# PERK: Earned when position reaches +6, stays active for rest of ball
+# PILOT TRAINING MISSION: DOGFIGHT
 #
-# ZONE MECHANIC (Tug-of-War):
-#   Position ranges from -6 (LOSE) to +6 (WIN)
-#   Three shot zones rotate every 20 seconds:
-#     LEFT:   LL, LO, LR
-#     MIDDLE: SP, TWR, TL
-#     RIGHT:  TL, TO, RR
-#   TL is in BOTH Middle and Right - good if EITHER is the active zone
-#   Good zone shots: green lights, +1 position, add to points bank
-#   Bad zone shots:  red lights, -1 position, subtract from points bank
+# Single-ball timed training mission (final training mission, slot 5).
+# Started from the LEFT LANE (ball held by c_left_lane_up_post during intro),
+# mirroring pilot_training_mission_afterburner. Drain / victory handling mirrors
+# rise_of_phoenix (hold bonus on drain until lost video finishes).
 #
-# SCORING (Live - points awarded immediately):
-#   Position 0-1: 250,000 per good shot
-#   Position 2-3: 500,000 per good shot
-#   Position 4-5: 1,000,000 per good shot
-#   Perfect run (0 bad shots): 3,500,000 scored + 5,000,000 bonus = 8,500,000
-#   Bad shot penalty: -250,000 from score
-#   WIN: perfect run bonus if applicable (points already scored live)
-#   LOSE by bad shots (-6): 500,000 consolation
-#   LOSE by drain: 500,000 consolation (points already scored live)
+# BALLS: 1 | TIMER: 180s | INTRO: 20s (both-flipper skip)
+# GI: alternating light-blue / white across GI + apron; pop bumpers light blue.
+# GOOD shots: pulse YELLOW via sync_flash_mode. BAD shots: solid RED.
+# BAD-shot penalty: 10s no-hold flippers (restarts on repeat).
+# Made good shot: GI strobe flash, then restore alternating GI.
 #
-# ADD-A-BALL: ICEMAN letters (cleared at mode start)
-#   1st completion: Add a ball, ICEMAN lights go orange permanently
-#   Max 1 add-a-ball for this mode
+# SCORING (base, before total_scoring_multiplier) -> 15,000,000 total:
+#   S1 350k  S2 550k  S3 750k  S4 1.0M  S5 1.25M S6 1.5M
+#   S7 1.6M  S8 1.75M S9 1.2M  S10 1.4M S11 1.6M S12 2.05M
 #
-# BALL SAVE: 15 seconds for initial launch and add-a-ball
+# STEP PROGRESSION (see per-step comments in event_player):
+#   1  LR | RR                         (hit either)
+#   2  LO | LR | TWR | RR              (hit any; remember which -> dogfight_s2_hit)
+#   3  the OTHER 3 good; step-2 shot is BAD
+#   4  MOVING target 4s/step, 1s grace: SP,TWR,TL,TR,RR,TR,TL,TWR,SP,LR,LO,LR (loop)
+#   5  LO | SP | RO   (raise right ramp; remember which -> dogfight_s5_hit)
+#   6  the OTHER 2 good; step-5 shot is BAD; lower right ramp on made -> step 7
+#   7  TWR
+#   8  CNT (barrier UP)
+#   9-11 LO | LR | RO | TWR (4 lit); each hit -> next video + that shot BAD;
+#        hit any 3 of 4 -> step 12
+#   12 VICTORY: LL lit; SP + TL pulse (sync_pulse_mode). SP/TL -> open left diverter
+#      3s to feed left lane. LL -> hold ball, won video (13s), perk select (20s).
 #
-# WIN CELEBRATION:
-#   Position +6 → disable flippers/pops/slings → balls drain
-#   Beaten animation (5s) + voice_wingman_won simultaneously
-#   Then pilot_training_mission_wingman_won video (18s)
-#   Mode stops → base game → auto-plunge + left MiG post
-#
-# LOSS BY BAD SHOTS:
-#   Position -6 → pilot_training_mission_wingman_lost_2 slide (9.1s)
-#   Mode stops → base game
-#
-# LOSS BY DRAIN:
-#   Multiball ends → pilot_training_mission_wingman_lost_1 slide (9.1s)
-#   Mode stops → base game
-#
-# Adjustable Timing Values:
-#   - Intro video delay: 13 seconds (line ~134)
-#   - Ball save duration: 15 seconds (line ~96)
-#   - Zone shift interval: 20 seconds (line ~142)
-#   - Win beaten animation: 5 seconds (line ~172)
-#   - Win video: 18 seconds (line ~182)
-#   - Lost slide duration: 10 seconds (lines ~192, ~202)
+# SHOT MAP:  LL=s_lane_left/l_shot_left_lane  LO=left_orbit_shot_hit/l_shot_left_orbit
+#   LR=s_ramp_left_exit/l_shot_left_ramp  SP=spinner_shot_made/l_shot_spinner
+#   CNT=s_barrier_target/l_shot_barrier   TWR=s_ramp_tower_exit/l_shot_tower_ramp
+#   TL=s_orbit_upper/l_shot_upper_orbit   TR=s_ramp_inner_exit/l_shot_middle_ramp
+#   RR=s_ramp_right_exit/l_shot_right_orbit  RO=right_orbit_shot_hit/l_shot_right_orbit
 ####################################################################################
 
 mode:
-  start_events: start_mode_training_wingman
-  stop_events: 
-    - wingman_drain_cleanup_complete
+  start_events: start_mode_pilot_training_mission_dogfight
+  stop_events:
+    - dogfight_video_complete                 # Victory (after award select) or loss
+    - dogfight_drain_cleanup_complete          # Ball drained
   priority: 600
   game_mode: true
   use_wait_queue: true
@@ -75,1979 +52,1274 @@ mode_settings:
   can_stack_with_multiball: false
 
 ####################################################################################
-# BALL HOLD NOTE
+# QUEUE RELAY PLAYER - hold ball_ending until drain cleanup (bonus hold on drain)
 ####################################################################################
-# Ball hold during intro is handled via coil_player (c_left_lane_up_post)
-# The post is enabled on mode start and disabled on ball_released event
-
-####################################################################################
-# MULTIBALL DEVICE - 2 balls, add-a-ball from ICEMAN
-####################################################################################
-
-multiballs:
-  wingman_multiball:
-    ball_count: 2
-    ball_count_type: total
-    shoot_again: 15s
-    start_events: wingman_start_multiball
-    stop_events: 
-      - wingman_won_trigger
-      - wingman_lost_bad_shots
-      - mode_pilot_training_mission_wingman_will_stop
-    add_a_ball_events: wingman_add_a_ball
-    ball_locks: 
-    source_playfield: playfield
-
-####################################################################################
-# BALL SAVES - 15 second multiball ball save
-####################################################################################
-
-ball_saves:
-  wingman_multiball_ball_save:
-    active_time: 15s
-    hurry_up_time: 2s
-    grace_period: 500ms
-    auto_launch: false    # CHANGED: was true. MPF auto_launch fires c_plunger at 50%;
-                          # we handle plunger ourselves via wingman_auto_plunger_delay
-                          # timer below so we can use tuned 0.625 power / 22ms pulse
-                          # for pop-bumper-target plunge.
-    balls_to_save: -1
-    enable_events: 
-      - wingman_start_multiball
-      - wingman_add_a_ball
-    disable_events: 
-      - wingman_won_trigger
-      - wingman_lost_bad_shots
-      - wingman_lost_drain
-      - ball_will_end
-    debug: true
-
-  # DRAIN BALL SAVE: Catches the last ball when flippers are disabled
-  # after a WIN or LOSS by bad shots.  This prevents ball_ending from
-  # firing so the player does NOT lose their ball.
-  # auto_launch: false → ball sits in shooter lane during video
-  # We fire the plunger manually after the video completes.
-  wingman_drain_ball_save:
-    active_time: 30s
-    grace_period: 2s
-    auto_launch: false
-    balls_to_save: 1
-    enable_events:
-      - wingman_won_trigger
-      - wingman_lost_bad_shots
-    disable_events:
-      - wingman_post_mode_plunge
-      - mode_pilot_training_mission_wingman_will_stop
-
-####################################################################################
-# QUEUE RELAY PLAYER - Hold ball_ending until mode cleanup completes
-####################################################################################
-# This is CRITICAL for proper drain handling:
-# - When ball drains, we need time to play the failure/victory video BEFORE bonus starts
-# - queue_relay_player intercepts ball_ending and holds it
-# - We release it when wingman_drain_cleanup_complete fires
-# - Priority 1000 ensures this runs BEFORE bonus mode (priority 500) can start
 
 queue_relay_player:
-  ball_ending{mode.pilot_training_mission_wingman.active==True}:
-    post: wingman_ball_ending_hold
-    wait_for: wingman_drain_cleanup_complete
+  ball_ending{mode.pilot_training_mission_dogfight.active==True}:
+    post: dogfight_ball_ending_hold
+    wait_for: dogfight_drain_cleanup_complete
     priority: 1000
 
 ####################################################################################
-# TIMERS
+# TIMERS  (all control_events; tick 1s)
 ####################################################################################
 
 timers:
-  # Intro video delay - 13 seconds for instruction video
-  wingman_intro_delay:
-    start_value: 0
-    end_value: 19
-    direction: up
+  # Main mode timer - starts on ball release (NOT on scoop/lane bounce)
+  # Device name is dogfight_mode_timer; the display player var is dogfight_timer.
+  dogfight_mode_timer:
+    start_value: 180
+    end_value: 0
+    direction: down
     tick_interval: 1s
+    start_running: false
     control_events:
-      - event: mode_pilot_training_mission_wingman_started
+      - event: dogfight_ball_released
         action: start
-      - event: wingman_skip_intro
+      - event: dogfight_complete
+        action: stop
+      - event: dogfight_failed
         action: stop
 
-  # Zone shift timer - 20 seconds per zone
-  wingman_zone_shift_timer:
+  # Intro video window (20s) - both-flipper skip stops it
+  dogfight_intro_video_delay:
     start_value: 0
-    end_value: 20
+    end_value: 25
     direction: up
     tick_interval: 1s
     control_events:
-      - event: wingman_ball_released
+      - event: mode_pilot_training_mission_dogfight_started
         action: start
-      - event: wingman_zone_shifted
-        action: restart
-      - event: wingman_won_trigger
-        action: stop
-      - event: wingman_lost_bad_shots
-        action: stop
-      - event: wingman_lost_drain
-        action: stop
-      - event: mode_pilot_training_mission_wingman_will_stop
+      - event: dogfight_skip_intro
         action: stop
 
-  # Auto-plunger delay - 500ms after ball settles on shooter lane switch
-  # Handles multiball start, add-a-balls, and saved balls returning
-  # GUARD: Only restarts when mode_active==1 (disabled during win/loss drain phase)
-  # CHANGED: was 1s (tick_interval: 1s, end_value: 1). Now 500ms via 1ms ticks
-  # x 500 to keep balls moving quickly during multiball saves.
-  wingman_auto_plunger_delay:
+  # Victory: won video (14s) before award selection; skippable via both flippers
+  dogfight_won_video_delay:
     start_value: 0
-    end_value: 500
-    direction: up
-    tick_interval: 1ms
-    control_events:
-      - event: s_shooter_lane_active{current_player.wingman_mode_active==1}
-        action: restart
-      - event: s_shooter_lane_inactive
-        action: stop
-      - event: wingman_won_trigger
-        action: stop
-      - event: wingman_lost_bad_shots
-        action: stop
-      - event: mode_pilot_training_mission_wingman_will_stop
-        action: stop
-
-  # ICEMAN completion celebration - 1 second delay before resetting lights
-  wingman_iceman_celebration_timer:
-    start_value: 0
-    end_value: 1
-    direction: up
-    tick_interval: 1s
-    control_events:
-      - event: wingman_iceman_complete
-        action: restart
-
-  # Win beaten animation delay - 5 seconds
-  wingman_beaten_animation_delay:
-    start_value: 0
-    end_value: 5
+    end_value: 14
     direction: up
     tick_interval: 1s
     start_running: false
     control_events:
-      - event: wingman_won_trigger
+      - event: dogfight_complete
         action: start
-
-  # Win video delay - 18 seconds
-  wingman_won_video_delay:
-    start_value: 0
-    end_value: 18
-    direction: up
-    tick_interval: 1s
-    start_running: false
-    control_events:
-      - event: timer_wingman_beaten_animation_delay_complete
-        action: start
-
-  # Lost by bad shots - drain delay (5s for balls to drain with flippers disabled)
-  wingman_lost_bad_shots_drain_delay:
-    start_value: 0
-    end_value: 5
-    direction: up
-    tick_interval: 1s
-    start_running: false
-    control_events:
-      - event: wingman_lost_bad_shots
-        action: start
-      - event: mode_pilot_training_mission_wingman_will_stop
+      - event: dogfight_show_perk_select
         action: stop
 
-  # Lost by bad shots - callout delay (3s for voice callout to play before video)
-  wingman_lost_callout_delay:
+  # Award selection window (20s down). Restarts on every flipper nav press.
+  # Expiry auto-selects the currently displayed award.
+  dogfight_award_select_timer:
+    start_value: 20
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: dogfight_show_perk_select
+        action: start
+      - event: dogfight_award_nav
+        action: restart
+      - event: dogfight_award_confirm
+        action: stop
+
+  # 3s arm delay: blocks both-flipper SELECT right after reaching the award slide,
+  # so the same double-flip that skips the won video can't instantly pick an award.
+  dogfight_award_arm_timer:
     start_value: 0
     end_value: 3
     direction: up
     tick_interval: 1s
     start_running: false
     control_events:
-      - event: wingman_lost_bad_shots
-        action: start
-      - event: wingman_emergency_resume
-        action: stop
-      - event: mode_pilot_training_mission_wingman_will_stop
-        action: stop
-
-  # Lost by bad shots video delay - 10 seconds (9.1s video + margin)
-  # Starts when video actually plays (after callout finishes)
-  wingman_lost_bad_shots_delay:
-    start_value: 0
-    end_value: 10
-    direction: up
-    tick_interval: 1s
-    start_running: false
-    control_events:
-      - event: wingman_play_lost_bad_shots_video
-        action: start
-
-  # Lost by drain delay - 10 seconds (9.1s video + margin)
-  wingman_lost_drain_delay:
-    start_value: 0
-    end_value: 10
-    direction: up
-    tick_interval: 1s
-    start_running: false
-    control_events:
-      - event: wingman_lost_drain
-        action: start
-
-  # Plunge orbit lockout - 2 seconds after ball passes shooter lane
-  # Prevents orbit shots from counting when ball auto-plunges
-  wingman_plunge_lockout:
-    start_value: 0
-    end_value: 2
-    direction: up
-    tick_interval: 1s
-    control_events:
-      - event: wingman_start_plunge_lockout
+      - event: dogfight_show_perk_select
         action: restart
-      - event: mode_pilot_training_mission_wingman_will_stop
+      - event: dogfight_award_confirm
         action: stop
 
-  # Pre-plunge delay - 3 seconds between "ball returning" callout and actual plunge
-  # Gives the player warning before the ball comes back into play
-  wingman_pre_plunge_delay:
+  # Lost video (35s down), for BOTH timer-loss and drain; skippable via both flippers
+  dogfight_lost_delay:
+    start_value: 35
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: dogfight_failed
+        action: start
+      - event: dogfight_lost_done
+        action: stop
+
+  # 10s no-hold-flipper penalty (restarts on each additional bad shot)
+  dogfight_no_hold_timer:
+    start_value: 10
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: dogfight_penalty_activate
+        action: restart
+      - event: dogfight_no_hold_end
+        action: stop
+      - event: dogfight_cleanup
+        action: stop
+
+  # Step 4 moving target - advance every 4s
+  dogfight_step4_cycle:
+    start_value: 0
+    end_value: 4
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: dogfight_setup_step_4
+        action: restart
+      - event: dogfight_step4_advance
+        action: restart
+      - event: dogfight_step_4_complete
+        action: stop
+      - event: dogfight_cleanup
+        action: stop
+
+  # Step 4 grace - previous position stays scoreable 1s after light moves
+  dogfight_step4_grace:
+    start_value: 1
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: dogfight_step4_advance
+        action: restart
+      - event: dogfight_step_4_complete
+        action: stop
+      - event: dogfight_cleanup
+        action: stop
+
+  # Step 12 left-orbit diverter hold (3s)
+  dogfight_diverter_hold:
     start_value: 0
     end_value: 3
     direction: up
     tick_interval: 1s
     start_running: false
     control_events:
-      - event: wingman_ball_returning
-        action: start
-
-  # Manual plunge detection - 500ms debounce
-  # If shooter lane goes inactive during drain phase and stays inactive for 500ms,
-  # the player manually plunged. Emergency resume: kill video, re-enable game.
-  # Switch going active again (flicker/shake) stops the timer.
-  wingman_manual_plunge_detect:
-    start_value: 0
-    end_value: 1
-    direction: up
-    tick_interval: 500ms
-    start_running: false
-    control_events:
-      - event: s_shooter_lane_inactive{current_player.wingman_balls_draining==1}
+      - event: dogfight_open_diverter
         action: restart
-      - event: s_shooter_lane_active{current_player.wingman_balls_draining==1}
-        action: stop
-      - event: wingman_emergency_resume
-        action: stop
-      - event: mode_pilot_training_mission_wingman_will_stop
+      - event: dogfight_cleanup
         action: stop
 
 ####################################################################################
-# VARIABLE PLAYER - Initialize and track mode variables
+# VARIABLE PLAYER
 ####################################################################################
 
 variable_player:
-  ##############################################
-  ## MODE INITIALIZATION
-  ##############################################
-  mode_pilot_training_mission_wingman_started:
-    # Training mission tracking
-    training_mission_active:
-      action: set
-      int: 1
-    multiball_active:
-      action: set
-      int: 1
-    letter_collection_paused:
-      action: set
-      int: 1
-    
-    # Tug-of-war position (-6 to +6)
-    wingman_position:
-      action: set
-      int: 0
-    
-    # Display state flags
-    wingman_balls_draining:
-      action: set
-      int: 0
-    wingman_lost_bad_shots_flag:
-      action: set
-      int: 0
-    
-    # Zone tracking (1=LEFT, 2=MIDDLE, 3=RIGHT) - starts MIDDLE
-    wingman_good_zone:
-      action: set
-      int: 2
-    
-    # Zone direction for ping-pong: 1=going right, 0=going left
-    wingman_zone_direction:
-      action: set
-      int: 1
-    
-    # Mode active flag (0=intro, 1=playing)
-    wingman_mode_active:
-      action: set
-      int: 0
-    
-    # Points bank (accumulated during mode, awarded at end)
-    wingman_points_bank:
-      action: set
-      int: 0
-    
-    # Mode won/perk tracking
-    wingman_won:
-      action: set
-      int: 0
-    
-    # Ball tracking
-    wingman_balls_in_play:
-      action: set
-      int: 2
-    
-    # ICEMAN add-a-ball tracking (separate from main ICEMAN progress)
-    wingman_iceman_i:
-      action: set
-      int: 0
-    wingman_iceman_c:
-      action: set
-      int: 0
-    wingman_iceman_e:
-      action: set
-      int: 0
-    wingman_iceman_m:
-      action: set
-      int: 0
-    wingman_iceman_a:
-      action: set
-      int: 0
-    wingman_iceman_n:
-      action: set
-      int: 0
-    wingman_iceman_completions:
-      action: set
-      int: 0
-    
-    # Mode points display variable
-    mode_points_scored:
-      action: set
-      int: 0
-    
-    # Bad shot counter for perfect run bonus
-    wingman_bad_shots_count:
-      action: set
-      int: 0
-    
-    # Good shot counter for HUD display
-    wingman_good_shots_count:
-      action: set
-      int: 0
-    
-    # Drain handling guard - prevents double-triggering lost video
-    wingman_drain_handled:
-      action: set
-      int: 0
-    
-    # Orbit lockout after plunge (prevents false orbit shots)
-    wingman_orbit_locked_out:
-      action: set
-      int: 0
-    
-    # Post-win plunge flag (for base.yaml)
-    wingman_post_win_plunge:
-      action: set
-      int: 0
-    
-    # Training mission played count
-    training_missions_played:
-      action: add
-      int: 1
-    training_wingman_complete:
-      action: set
-      int: 1
+  mode_pilot_training_mission_dogfight_started:
+    training_mission_active: { action: set, int: 1 }
+    letter_collection_paused: { action: set, int: 1 }
+    dogfight_step: { action: set, int: 0 }
+    dogfight_complete_flag: { action: set, int: 0 }
+    dogfight_shots_remaining: { action: set, int: 12 }
+    mode_points_scored: { action: set, int: 0 }
+    dogfight_s2_hit: { action: set, int: 0 }
+    dogfight_s5_hit: { action: set, int: 0 }
+    dogfight_s9_count: { action: set, int: 0 }
+    dogfight_s9_lo: { action: set, int: 0 }
+    dogfight_s9_lr: { action: set, int: 0 }
+    dogfight_s9_ro: { action: set, int: 0 }
+    dogfight_s9_twr: { action: set, int: 0 }
+    dogfight_step4_position: { action: set, int: 0 }
+    dogfight_step4_grace_pos: { action: set, int: 99 }
+    dogfight_penalty_active: { action: set, int: 0 }
+    dogfight_timer: { action: set, int: 180 }
+    dogfight_penalty_timer: { action: set, string: "" }
+    dogfight_won_video_active: { action: set, int: 0 }
+    dogfight_lost_video_active: { action: set, int: 0 }
+    dogfight_award_selecting: { action: set, int: 0 }
+    dogfight_award_select_armed: { action: set, int: 0 }
+    dogfight_award_index: { action: set, int: 0 }
+    dogfight_award_timer_ticks: { action: set, int: 20 }
+    training_missions_played: { action: add, int: 1 }
+    mode_pilot_training_mission_dogfight_played: { action: set, int: 1 }
+    training_dogfight_complete: { action: set, int: 1 }
 
-  ##############################################
-  ## MODE ACTIVE FLAG
-  ##############################################
-  wingman_ball_released:
-    wingman_mode_active:
-      action: set
-      int: 1
+  # Ball drain during mode -> route bonus after cleanup (phoenix-style)
+  ball_will_end{mode.pilot_training_mission_dogfight.active==True}:
+    pilot_mode_drain_pending: { action: set, int: 1 }
 
-  ##############################################
-  ## BALL DRAIN - Mark drain pending for qualifier
-  ##############################################
-  ball_will_end{mode.pilot_training_mission_wingman.active==True}:
-    pilot_mode_drain_pending:
-      action: set
-      int: 1
+  # Penalty active flag (first-activation gating)
+  dogfight_penalty_activate:
+    dogfight_penalty_active: { action: set, int: 1 }
+    dogfight_penalty_timer: { action: set, int: 10 }
+  dogfight_no_hold_end:
+    dogfight_penalty_active: { action: set, int: 0 }
+    dogfight_penalty_timer: { action: set, string: "" }
+  # Safety: clear penalty flag if main timer expires mid-penalty
+  timer_dogfight_mode_timer_complete:
+    dogfight_penalty_active: { action: set, int: 0 }
+  dogfight_cleanup:
+    dogfight_penalty_active: { action: set, int: 0 }
+    dogfight_penalty_timer: { action: set, string: "" }
 
-  ##############################################
-  ## ORBIT LOCKOUT - Prevent false shots after plunge
-  ##############################################
-  wingman_start_plunge_lockout:
-    wingman_orbit_locked_out:
-      action: set
-      int: 1
+  # Tick-bridge display variables for Godot slides (updated every tick)
+  timer_dogfight_no_hold_timer_tick:
+    dogfight_penalty_timer: { action: set, int: device.timers.dogfight_no_hold_timer.ticks }
+  timer_dogfight_mode_timer_tick:
+    dogfight_timer: { action: set, int: device.timers.dogfight_mode_timer.ticks }
 
-  timer_wingman_plunge_lockout_complete:
-    wingman_orbit_locked_out:
-      action: set
-      int: 0
+  # --- VICTORY / AWARD-SELECTION STATE ---
+  # Won video phase flag
+  dogfight_complete:
+    dogfight_won_video_active: { action: set, int: 1 }
+    dogfight_lost_video_active: { action: set, int: 0 }
+  # Enter award selection: default to index 0 (Extra Ball); select is disarmed for 3s
+  dogfight_show_perk_select:
+    dogfight_won_video_active: { action: set, int: 0 }
+    dogfight_award_selecting: { action: set, int: 1 }
+    dogfight_award_select_armed: { action: set, int: 0 }
+    dogfight_award_index: { action: set, int: 0 }
+    dogfight_award_name: { action: set, string: "Extra Ball" }
+  # After 3s the both-flipper select becomes available
+  dogfight_award_arm:
+    dogfight_award_select_armed: { action: set, int: 1 }
+  # Award timer countdown display (updated each tick)
+  timer_dogfight_award_select_timer_tick:
+    dogfight_award_timer_ticks: { action: set, int: device.timers.dogfight_award_select_timer.ticks }
+  # Index nav (0..5 wrap)
+  dogfight_award_inc:   { dogfight_award_index: { action: add, int: 1 } }
+  dogfight_award_dec:   { dogfight_award_index: { action: add, int: -1 } }
+  dogfight_award_wrap0: { dogfight_award_index: { action: set, int: 0 } }
+  dogfight_award_wrap5: { dogfight_award_index: { action: set, int: 5 } }
+  # Displayed award name per index
+  dogfight_award_refresh{current_player.dogfight_award_index==0}: { dogfight_award_name: { action: set, string: "Extra Ball" } }
+  dogfight_award_refresh{current_player.dogfight_award_index==1}: { dogfight_award_name: { action: set, string: "Inverted Perk" } }
+  dogfight_award_refresh{current_player.dogfight_award_index==2}: { dogfight_award_name: { action: set, string: "Missiles Perk" } }
+  dogfight_award_refresh{current_player.dogfight_award_index==3}: { dogfight_award_name: { action: set, string: "Afterburner Perk" } }
+  dogfight_award_refresh{current_player.dogfight_award_index==4}: { dogfight_award_name: { action: set, string: "Wingman Perk" } }
+  dogfight_award_refresh{current_player.dogfight_award_index==5}: { dogfight_award_name: { action: set, string: "Light 2X Playfield" } }
+  # Confirm clears selecting flag
+  dogfight_award_confirm:
+    dogfight_award_selecting: { action: set, int: 0 }
+  # Perk grants — also mark that training mode PLAYED (removes from rotation,
+  # blocks replay via the left-lane complete==0 guard, insert goes solid white).
+  dogfight_grant_inverted:
+    inverted_perk_active: { action: set, int: 1 }
+    training_inverted_complete: { action: set, int: 1 }
+  dogfight_grant_missiles:
+    missiles_perk_active: { action: set, int: 1 }
+    missiles_perk_saved:  { action: set, int: 1 }
+    training_missles_complete: { action: set, int: 1 }
+  dogfight_grant_afterburner:
+    afterburner_perk_active: { action: set, int: 1 }
+    training_afterburner_complete: { action: set, int: 1 }
+  dogfight_grant_wingman:
+    wingman_perk_active: { action: set, int: 1 }
+    training_wingman_complete: { action: set, int: 1 }
+  # Lost video phase flags
+  dogfight_failed:
+    dogfight_lost_video_active: { action: set, int: 1 }
+  dogfight_lost_done:
+    dogfight_lost_video_active: { action: set, int: 0 }
 
-  ##############################################
-  ## DRAIN HANDLING GUARD - Set in existing entries below
-  ##############################################
+  # --- STEP SCORING (score + mode_points_scored + shots_remaining--) ---
+  dogfight_step_1_complete:
+    dogfight_step: { action: set, int: 1 }
+    score: 350000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 350000 * current_player.total_scoring_multiplier }
+    dogfight_shots_remaining: { action: add, int: -1 }
 
-  ##############################################
-  ## GOOD SHOT SCORING (by current position)
-  ## Position checked BEFORE increment
-  ##############################################
-  
-  # Position 0-1: 250,000 per good shot (not final shot)
-  wingman_score_good{current_player.wingman_position>=0 and current_player.wingman_position<=1 and current_player.wingman_position<5}:
-    wingman_points_bank:
-      action: add
-      int: 250000 * current_player.total_scoring_multiplier
-    score:
-      action: add
-      int: 250000 * current_player.total_scoring_multiplier
-    mode_points_scored:
-      action: set
-      int: 250000 * current_player.total_scoring_multiplier
-  
-  # Position 2-3: 500,000 per good shot (not final shot)
-  wingman_score_good{current_player.wingman_position>=2 and current_player.wingman_position<=3 and current_player.wingman_position<5}:
-    wingman_points_bank:
-      action: add
-      int: 500000 * current_player.total_scoring_multiplier
-    score:
-      action: add
-      int: 500000 * current_player.total_scoring_multiplier
-    mode_points_scored:
-      action: set
-      int: 500000 * current_player.total_scoring_multiplier
-  
-  # Position 4: 1,000,000 per good shot (not final shot — position 5 is final)
-  wingman_score_good{current_player.wingman_position==4}:
-    wingman_points_bank:
-      action: add
-      int: 1000000 * current_player.total_scoring_multiplier
-    score:
-      action: add
-      int: 1000000 * current_player.total_scoring_multiplier
-    mode_points_scored:
-      action: set
-      int: 1000000 * current_player.total_scoring_multiplier
+  # Remember which shot was hit in step 2 (1=LO 2=LR 3=TWR 4=RR)
+  dogfight_step_2_complete:
+    dogfight_step: { action: set, int: 2 }
+    score: 550000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 550000 * current_player.total_scoring_multiplier }
+    dogfight_shots_remaining: { action: add, int: -1 }
+  dogfight_s2_hit_lo:  { dogfight_s2_hit: { action: set, int: 1 } }
+  dogfight_s2_hit_lr:  { dogfight_s2_hit: { action: set, int: 2 } }
+  dogfight_s2_hit_twr: { dogfight_s2_hit: { action: set, int: 3 } }
+  dogfight_s2_hit_rr:  { dogfight_s2_hit: { action: set, int: 4 } }
 
-  # Position is negative (recovering from bad shots): 250,000 per good shot
-  wingman_score_good{current_player.wingman_position<0}:
-    wingman_points_bank:
-      action: add
-      int: 250000 * current_player.total_scoring_multiplier
-    score:
-      action: add
-      int: 250000 * current_player.total_scoring_multiplier
-    mode_points_scored:
-      action: set
-      int: 250000 * current_player.total_scoring_multiplier
+  dogfight_step_3_complete:
+    dogfight_step: { action: set, int: 3 }
+    score: 750000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 750000 * current_player.total_scoring_multiplier }
+    dogfight_shots_remaining: { action: add, int: -1 }
 
-  ##############################################
-  ## POSITION CHANGES
-  ##############################################
-  
-  # Good shot: position +1 (capped at 6) and count
-  wingman_position_up{current_player.wingman_position<6}:
-    wingman_position:
-      action: add
-      int: 1
-    wingman_good_shots_count:
-      action: add
-      int: 1
+  dogfight_step_4_complete:
+    dogfight_step: { action: set, int: 4 }
+    score: 1000000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 1000000 * current_player.total_scoring_multiplier }
+    dogfight_shots_remaining: { action: add, int: -1 }
 
-  # Bad shot: position -1 (capped at -6)
-  wingman_position_down{current_player.wingman_position>-6}:
-    wingman_position:
-      action: add
-      int: -1
+  # Remember which shot was hit in step 5 (1=LO 2=SP 3=RO)
+  dogfight_step_5_complete:
+    dogfight_step: { action: set, int: 5 }
+    score: 1250000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 1250000 * current_player.total_scoring_multiplier }
+    dogfight_shots_remaining: { action: add, int: -1 }
+  dogfight_s5_hit_lo: { dogfight_s5_hit: { action: set, int: 1 } }
+  dogfight_s5_hit_sp: { dogfight_s5_hit: { action: set, int: 2 } }
+  dogfight_s5_hit_ro: { dogfight_s5_hit: { action: set, int: 3 } }
 
-  ##############################################
-  ## BAD SHOT SCORING
-  ##############################################
-  
-  wingman_score_bad:
-    wingman_points_bank:
-      action: add
-      int: -250000
-    wingman_bad_shots_count:
-      action: add
-      int: 1
-    mode_points_scored:
-      action: set
-      int: -250000
-  
-  # Floor bank at 0
-  wingman_check_bank_floor{current_player.wingman_points_bank<0}:
-    wingman_points_bank:
-      action: set
-      int: 0
+  dogfight_step_6_complete:
+    dogfight_step: { action: set, int: 6 }
+    score: 1500000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 1500000 * current_player.total_scoring_multiplier }
+    dogfight_shots_remaining: { action: add, int: -1 }
 
-  ##############################################
-  ## ZONE SHIFT
-  ##############################################
-  
-  wingman_shift_to_zone_1:
-    wingman_good_zone:
-      action: set
-      int: 1
-  
-  wingman_shift_to_zone_2:
-    wingman_good_zone:
-      action: set
-      int: 2
-  
-  wingman_shift_to_zone_3:
-    wingman_good_zone:
-      action: set
-      int: 3
+  dogfight_step_7_complete:
+    dogfight_step: { action: set, int: 7 }
+    score: 1600000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 1600000 * current_player.total_scoring_multiplier }
+    dogfight_shots_remaining: { action: add, int: -1 }
 
-  # Direction reversals for ping-pong
-  wingman_reverse_to_left:
-    wingman_zone_direction:
-      action: set
-      int: 0
-  
-  wingman_reverse_to_right:
-    wingman_zone_direction:
-      action: set
-      int: 1
+  dogfight_step_8_complete:
+    dogfight_step: { action: set, int: 8 }
+    score: 1750000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 1750000 * current_player.total_scoring_multiplier }
+    dogfight_shots_remaining: { action: add, int: -1 }
 
-  ##############################################
-  ## WIN SCORING - Points already scored live
-  ##############################################
-  
-  wingman_won_trigger:
-    wingman_won:
-      action: set
-      int: 1
-    wingman_mode_active:
-      action: set
-      int: 0
-    wingman_drain_handled:
-      action: set
-      int: 1
-    wingman_balls_draining:
-      action: set
-      int: 1
-    wingman_perk_active:
-      action: set
-      int: 1
-    training_wingman_won:
-      action: set
-      int: 1
-    training_missions_won:
-      action: add
-      int: 1
-    # Pay out the full bank on the winning shot
-    score:
-      action: add
-      int: current_player.wingman_points_bank * current_player.total_scoring_multiplier
-    mode_points_scored:
-      action: set
-      int: current_player.wingman_points_bank * current_player.total_scoring_multiplier
+  # Steps 9-11: hit any 3 of {LO,LR,RO,TWR}. Each good hit advances + scores.
+  dogfight_step_9_complete:
+    dogfight_step: { action: set, int: 9 }
+    dogfight_s9_count: { action: add, int: 1 }
+    score: 1200000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 1200000 * current_player.total_scoring_multiplier }
+    dogfight_shots_remaining: { action: add, int: -1 }
+  dogfight_step_10_complete:
+    dogfight_step: { action: set, int: 10 }
+    dogfight_s9_count: { action: add, int: 1 }
+    score: 1400000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 1400000 * current_player.total_scoring_multiplier }
+    dogfight_shots_remaining: { action: add, int: -1 }
+  dogfight_step_11_complete:
+    dogfight_step: { action: set, int: 11 }
+    dogfight_s9_count: { action: add, int: 1 }
+    score: 1600000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 1600000 * current_player.total_scoring_multiplier }
+    dogfight_shots_remaining: { action: add, int: -1 }
+  # Mark which of the 4 became bad after each hit
+  dogfight_s9_mark_lo:  { dogfight_s9_lo:  { action: set, int: 1 } }
+  dogfight_s9_mark_lr:  { dogfight_s9_lr:  { action: set, int: 1 } }
+  dogfight_s9_mark_ro:  { dogfight_s9_ro:  { action: set, int: 1 } }
+  dogfight_s9_mark_twr: { dogfight_s9_twr: { action: set, int: 1 } }
 
-  # Perfect run bonus: 5,000,000 if no bad shots were hit
-  wingman_perfect_run_bonus:
-    score:
-      action: add
-      int: 5000000 * current_player.total_scoring_multiplier
-    wingman_points_bank:
-      action: add
-      int: 5000000
+  # Step 12 victory (LL)
+  dogfight_step_12_complete:
+    dogfight_step: { action: set, int: 12 }
+    dogfight_complete_flag: { action: set, int: 1 }
+    score: 2050000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 2050000 * current_player.total_scoring_multiplier }
+    dogfight_shots_remaining: { action: add, int: -1 }
+    dogfight_won: { action: set, int: 1 }
+    training_dogfight_won: { action: set, int: 1 }
+    training_missions_won: { action: add, int: 1 }
+    # PLACEHOLDER: perk award happens after player selection (see event_player)
 
-  ##############################################
-  ## POST-VIDEO PLUNGE FLAG
-  ## Set ONLY after pre-plunge delay ends so base mode
-  ## doesn't auto-plunge the saved ball during video
-  ##############################################
-  timer_wingman_pre_plunge_delay_complete:
-    wingman_post_win_plunge:
-      action: set
-      int: 1
-
-  ##############################################
-  ## EMERGENCY RESUME - Player manually plunged
-  ## Ball is already in play, set plunge flag so
-  ## base mode doesn't interfere
-  ##############################################
-  wingman_emergency_resume:
-    wingman_post_win_plunge:
-      action: set
-      int: 1
-    wingman_balls_draining:
-      action: set
-      int: 0
-
-  ##############################################
-  ## LOSE BY BAD SHOTS - 500K consolation
-  ##############################################
-  
-  wingman_lost_bad_shots:
-    wingman_mode_active:
-      action: set
-      int: 0
-    wingman_drain_handled:
-      action: set
-      int: 1
-    wingman_balls_draining:
-      action: set
-      int: 1
-    wingman_lost_bad_shots_flag:
-      action: set
-      int: 1
-    # training_wingman_complete now set on mode_started (played = started)
-    score:
-      action: add
-      int: 500000
-
-  ##############################################
-  ## LOSE BY DRAIN - 500K consolation (points already scored live)
-  ##############################################
-  
-  wingman_lost_drain:
-    wingman_mode_active:
-      action: set
-      int: 0
-    wingman_drain_handled:
-      action: set
-      int: 1
-    # training_wingman_complete now set on mode_started (played = started)
-    score:
-      action: add
-      int: 500000
-
-  ##############################################
-  ## ADD-A-BALL TRACKING
-  ##############################################
-  
-  wingman_add_a_ball_qualified:
-    wingman_add_a_ball_ready:
-      action: set
-      int: 1
-
-  wingman_add_a_ball:
-    wingman_balls_in_play:
-      action: add
-      int: 1
-    wingman_add_a_ball_ready:
-      action: set
-      int: 0
-
-  ##############################################
-  ## CLEANUP - Clear perk slide (perk is ball-only)
-  ##############################################
-  
-  # wingman_perk_active is NOT cleared here - it persists for rest of ball
-  # Cleared by qualifier on ball_ending instead
-
-  ##############################################
-  ## ICEMAN LETTER COLLECTION
-  ##############################################
-  
-  s_i_iceman_target_active{current_player.wingman_iceman_i==0 and current_player.wingman_mode_active==1}:
-    wingman_iceman_i:
-      action: set
-      int: 1
-
-  s_c_iceman_target_active{current_player.wingman_iceman_c==0 and current_player.wingman_mode_active==1}:
-    wingman_iceman_c:
-      action: set
-      int: 1
-
-  s_e_iceman_target_active{current_player.wingman_iceman_e==0 and current_player.wingman_mode_active==1}:
-    wingman_iceman_e:
-      action: set
-      int: 1
-
-  s_m_iceman_target_active{current_player.wingman_iceman_m==0 and current_player.wingman_mode_active==1}:
-    wingman_iceman_m:
-      action: set
-      int: 1
-
-  s_a_iceman_target_active{current_player.wingman_iceman_a==0 and current_player.wingman_mode_active==1}:
-    wingman_iceman_a:
-      action: set
-      int: 1
-
-  s_n_iceman_target_active{current_player.wingman_iceman_n==0 and current_player.wingman_mode_active==1}:
-    wingman_iceman_n:
-      action: set
-      int: 1
-
-  # ICEMAN completion - reset letters for display purposes
-  wingman_iceman_complete:
-    wingman_iceman_completions:
-      action: add
-      int: 1
-    wingman_iceman_i:
-      action: set
-      int: 0
-    wingman_iceman_c:
-      action: set
-      int: 0
-    wingman_iceman_e:
-      action: set
-      int: 0
-    wingman_iceman_m:
-      action: set
-      int: 0
-    wingman_iceman_a:
-      action: set
-      int: 0
-    wingman_iceman_n:
-      action: set
-      int: 0
+  # Step 4 moving target: capture old position for 1s grace, then advance
+  dogfight_step4_advance:
+    dogfight_step4_grace_pos: { action: set, int: current_player.dogfight_step4_position }
+  timer_dogfight_step4_grace_complete:
+    dogfight_step4_grace_pos: { action: set, int: 99 }
+  # Position setters (0-11)
+  dogfight_step4_set_0:  { dogfight_step4_position: { action: set, int: 0 } }
+  dogfight_step4_set_1:  { dogfight_step4_position: { action: set, int: 1 } }
+  dogfight_step4_set_2:  { dogfight_step4_position: { action: set, int: 2 } }
+  dogfight_step4_set_3:  { dogfight_step4_position: { action: set, int: 3 } }
+  dogfight_step4_set_4:  { dogfight_step4_position: { action: set, int: 4 } }
+  dogfight_step4_set_5:  { dogfight_step4_position: { action: set, int: 5 } }
+  dogfight_step4_set_6:  { dogfight_step4_position: { action: set, int: 6 } }
+  dogfight_step4_set_7:  { dogfight_step4_position: { action: set, int: 7 } }
+  dogfight_step4_set_8:  { dogfight_step4_position: { action: set, int: 8 } }
+  dogfight_step4_set_9:  { dogfight_step4_position: { action: set, int: 9 } }
+  dogfight_step4_set_10: { dogfight_step4_position: { action: set, int: 10 } }
+  dogfight_step4_set_11: { dogfight_step4_position: { action: set, int: 11 } }
 
 ####################################################################################
-# EVENT PLAYER - Mode flow and shot detection
+# EVENT PLAYER
 ####################################################################################
 
 event_player:
   ##############################################
-  ## MODE START SEQUENCE
+  ## MODE START
   ##############################################
-  
-  # Delayed GI reset and play instructions voice during ball hold
-  mode_pilot_training_mission_wingman_started:
-    - wingman_set_gi|200ms
-    - wingman_play_instructions_voice
-    - ball_search_block
-  
-  # Skip intro with both flippers
-  s_flipper_left_active{current_player.wingman_mode_active==0 and device.timers.wingman_intro_delay.running}:
-    - wingman_check_skip_intro
-  s_flipper_right_active{current_player.wingman_mode_active==0 and device.timers.wingman_intro_delay.running}:
-    - wingman_check_skip_intro
-    
-  wingman_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
-    - wingman_skip_intro
-
-  wingman_skip_intro:
-    - wingman_ball_released
-    - wingman_setup_zone_2
-
-  # Intro timer complete - release ball and start gameplay
-  timer_wingman_intro_delay_complete:
-    - wingman_ball_released
-    - wingman_setup_zone_2
-
-  # Ball released - start multiball, raise top ramp for TO shot
-  wingman_ball_released:
-    - wingman_start_multiball
-    - top_ramp_up
-    - ball_search_unblock
+  mode_pilot_training_mission_dogfight_started:
+    - dogfight_set_gi|200ms
+    - dogfight_play_instructions_voice
 
   ##############################################
-  ## ORBIT LOCKOUT ON PLUNGE
-  ## Prevents false shots when ball auto-launches through orbit
+  ## SKIP INTRO - both flippers during intro window (phoenix-style)
   ##############################################
-  s_shooter_lane_active{current_player.wingman_mode_active==1}:
-    - wingman_start_plunge_lockout
+  s_flipper_left_active{current_player.dogfight_step==0 and device.timers.dogfight_intro_video_delay.running}:
+    - dogfight_check_skip_intro
+  s_flipper_right_active{current_player.dogfight_step==0 and device.timers.dogfight_intro_video_delay.running}:
+    - dogfight_check_skip_intro
+  dogfight_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - dogfight_skip_intro
 
-  ##############################################
-  ## ZONE SHIFT LOGIC (Ping-pong: M→R→M→L→M→R...)
-  ##############################################
-  
-  # From MIDDLE going right → go to RIGHT
-  timer_wingman_zone_shift_timer_complete{current_player.wingman_good_zone==2 and current_player.wingman_zone_direction==1}:
-    - wingman_setup_zone_3
-    - wingman_zone_shifted
-  
-  # From RIGHT → back to MIDDLE, reverse direction to left
-  timer_wingman_zone_shift_timer_complete{current_player.wingman_good_zone==3}:
-    - wingman_setup_zone_2
-    - wingman_reverse_to_left
-    - wingman_zone_shifted
-  
-  # From MIDDLE going left → go to LEFT
-  timer_wingman_zone_shift_timer_complete{current_player.wingman_good_zone==2 and current_player.wingman_zone_direction==0}:
-    - wingman_setup_zone_1
-    - wingman_zone_shifted
-  
-  # From LEFT → back to MIDDLE, reverse direction to right
-  timer_wingman_zone_shift_timer_complete{current_player.wingman_good_zone==1}:
-    - wingman_setup_zone_2
-    - wingman_reverse_to_right
-    - wingman_zone_shifted
-  
-  # Zone setup events set the variable AND update lights
-  wingman_setup_zone_1:
-    - wingman_shift_to_zone_1
-    - wingman_light_zone_1
-  
-  wingman_setup_zone_2:
-    - wingman_shift_to_zone_2
-    - wingman_light_zone_2
-  
-  wingman_setup_zone_3:
-    - wingman_shift_to_zone_3
-    - wingman_light_zone_3
+  # Skip path (no scoop/barrier -> no 400ms delay needed, left-lane post release)
+  dogfight_skip_intro:
+    - dogfight_ball_released
+    - dogfight_setup_step_1
+  # Normal path: intro timer completes
+  timer_dogfight_intro_video_delay_complete:
+    - dogfight_ball_released
+    - dogfight_setup_step_1
+
+  # On release: establish servo baseline (right ramp DOWN for RR, top ramp DOWN for TR)
+  dogfight_ball_released:
+    - right_ramp_down
+    - top_ramp_down|500ms
 
   ##############################################
-  ## ZONE WARNING - Green → Orange at 4 seconds remaining
+  ## GI STROBE ON GOOD HITS (steps 1-11), then restore alternating GI
   ##############################################
-  
-  timer_wingman_zone_shift_timer_tick{ticks==16 and current_player.wingman_good_zone==1}:
-    - wingman_warn_zone_1
-  timer_wingman_zone_shift_timer_tick{ticks==16 and current_player.wingman_good_zone==2}:
-    - wingman_warn_zone_2
-  timer_wingman_zone_shift_timer_tick{ticks==16 and current_player.wingman_good_zone==3}:
-    - wingman_warn_zone_3
-
-  ##############################################
-  ## SHOT DETECTION - Per-shot resolution
-  ## GREEN=good, RED=bad, NEUTRAL=ignored (no event)
-  ##############################################
-  
-  # LL (s_lane_left): LEFT=GOOD, MIDDLE=BAD, RIGHT=BAD
-  s_lane_left_active{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==1}:
-    - wingman_good_shot
-  s_lane_left_active{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==2}:
-    - wingman_bad_shot
-  s_lane_left_active{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==3}:
-    - wingman_bad_shot
-
-  # LO (left_orbit_shot_hit): LEFT=GOOD, MIDDLE=BAD, RIGHT=BAD
-  left_orbit_shot_hit{current_player.wingman_mode_active==1 and current_player.wingman_orbit_locked_out==0 and current_player.wingman_good_zone==1}:
-    - wingman_good_shot
-  left_orbit_shot_hit{current_player.wingman_mode_active==1 and current_player.wingman_orbit_locked_out==0 and current_player.wingman_good_zone==2}:
-    - wingman_bad_shot
-  left_orbit_shot_hit{current_player.wingman_mode_active==1 and current_player.wingman_orbit_locked_out==0 and current_player.wingman_good_zone==3}:
-    - wingman_bad_shot
-
-  # LR (s_ramp_left_exit): LEFT=GOOD, MIDDLE=NEUTRAL, RIGHT=BAD
-  s_ramp_left_exit_active{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==1}:
-    - wingman_good_shot
-  s_ramp_left_exit_active{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==3}:
-    - wingman_bad_shot
-
-  # SP (spinner_shot_made): LEFT=NEUTRAL, MIDDLE=GOOD, RIGHT=NEUTRAL
-  spinner_shot_made{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==2 and current_player.spinner_shot_locked==0}:
-    - wingman_good_shot
-
-  # TWR (s_ramp_tower_exit): LEFT=NEUTRAL, MIDDLE=GOOD, RIGHT=NEUTRAL
-  s_ramp_tower_exit_active{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==2}:
-    - wingman_good_shot
-
-  # TL (s_orbit_upper): LEFT=NEUTRAL, MIDDLE=GOOD, RIGHT=GOOD
-  s_orbit_upper_active{current_player.wingman_mode_active==1 and current_player.wingman_orbit_locked_out==0 and current_player.wingman_good_zone==2}:
-    - wingman_good_shot
-  s_orbit_upper_active{current_player.wingman_mode_active==1 and current_player.wingman_orbit_locked_out==0 and current_player.wingman_good_zone==3}:
-    - wingman_good_shot
-
-  # TO (s_orbit_lower): LEFT=BAD, MIDDLE=NEUTRAL, RIGHT=GOOD
-  s_orbit_lower_active{current_player.wingman_mode_active==1 and current_player.wingman_orbit_locked_out==0 and current_player.wingman_good_zone==3}:
-    - wingman_good_shot
-  s_orbit_lower_active{current_player.wingman_mode_active==1 and current_player.wingman_orbit_locked_out==0 and current_player.wingman_good_zone==1}:
-    - wingman_bad_shot
-
-  # RR (s_ramp_right_exit): LEFT=BAD, MIDDLE=BAD, RIGHT=GOOD
-  s_ramp_right_exit_active{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==3}:
-    - wingman_good_shot
-  s_ramp_right_exit_active{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==1}:
-    - wingman_bad_shot
-  s_ramp_right_exit_active{current_player.wingman_mode_active==1 and current_player.wingman_good_zone==2}:
-    - wingman_bad_shot
+  dogfight_step_1_shot_hit:  [dogfight_good_hit]
+  dogfight_step_2_shot_hit:  [dogfight_good_hit]
+  dogfight_step_3_shot_hit:  [dogfight_good_hit]
+  dogfight_step_4_shot_hit:  [dogfight_good_hit]
+  dogfight_step_5_shot_hit:  [dogfight_good_hit]
+  dogfight_step_6_shot_hit:  [dogfight_good_hit]
+  dogfight_step_7_shot_hit:  [dogfight_good_hit]
+  dogfight_step_8_shot_hit:  [dogfight_good_hit]
+  dogfight_step_9_shot_hit:  [dogfight_good_hit]
+  dogfight_step_10_shot_hit: [dogfight_good_hit]
+  dogfight_step_11_shot_hit: [dogfight_good_hit]
+  dogfight_good_hit:
+    - dogfight_set_gi|400ms      # restore alternating GI after the strobe show
+    - dogfight_show_points       # base.yaml displays mode_points_scored
 
   ##############################################
-  ## GOOD/BAD SHOT PROCESSING
+  ## BAD-SHOT PENALTY - 10s no-hold flippers (restarts on repeat).
+  ## First activation (penalty_active==0): swap flippers, show slide, GI strobe.
+  ## Repeat bad shots just restart the 10s timer (timer control_event).
+  ## Timer expiry -> dogfight_no_hold_end restores everything.
   ##############################################
-  
-  # Good shot: score first, then increment position
-  wingman_good_shot:
-    - wingman_score_good
-    - wingman_position_up
-    - wingman_good_shot_gi_flash
-    - wingman_check_good_callout
-
-  # Bad shot: score first, then decrement position, then floor check
-  wingman_bad_shot:
-    - wingman_score_bad
-    - wingman_position_down
-    - wingman_check_bank_floor
-    - wingman_bad_shot_gi_flash
-    - wingman_check_bad_callout
-
-  # Only play random callouts if position didn't reach a milestone or endpoint
-  # wingman_check_good_callout{current_player.wingman_position!=4 and current_player.wingman_position!=6}:
-  #   - play_shot_made_callout
-  # wingman_check_bad_callout{current_player.wingman_position!=-4 and current_player.wingman_position!=-6}:
-  #   - play_shot_missed_callout
-
-  ##############################################
-  ## POSITION MILESTONE CHECKS
-  ##############################################
-  
-  # Position +4 milestone slide
-  player_wingman_position{value==4}:
-    - wingman_position_4_reached
-  
-  # Position -4 milestone slide
-  player_wingman_position{value==-4}:
-    - wingman_position_neg_4_reached
-
-  ##############################################
-  ## WIN CHECK (position +6)
-  ##############################################
-  
-  player_wingman_position{value>=6}:
-    - wingman_won_trigger
-
-  # Perfect run bonus - only if zero bad shots
-  wingman_won_trigger{current_player.wingman_bad_shots_count==0}:
-    - wingman_perfect_run_bonus
-
-  wingman_won_trigger:
+  dogfight_bad_shot_hit:
+    - dogfight_penalty_activate
+  dogfight_penalty_activate{current_player.dogfight_penalty_active==0}:
     - disable_normal_flippers
-    - disable_autofires
-    - wingman_cleanup_lights
-
-  # Beaten animation finishes → play won video
-  timer_wingman_beaten_animation_delay_complete:
-    - wingman_play_won_video
-
-  # Won video finishes → fire "ball returning" callout, start 2s pre-plunge delay
-  timer_wingman_won_video_delay_complete:
-    - wingman_ball_returning
-
-  # Pre-plunge delay complete → clean up mode FIRST, then plunge saved ball
-  # Cleanup must happen before plunge so display is clear when ball launches
-  timer_wingman_pre_plunge_delay_complete:
-    - wingman_cleanup
-    - pilot_mode_cleanup_complete
-    - wingman_drain_cleanup_complete
+    - enable_no_hold_flippers
+    - dogfight_penalty_gi_start
+  timer_dogfight_no_hold_timer_complete:
+    - dogfight_no_hold_end
+  dogfight_no_hold_end:
+    - disable_no_hold_flippers
     - enable_normal_flippers
-    - enable_autofires
-    - wingman_post_mode_plunge
+    - dogfight_penalty_gi_stop
+    - dogfight_set_gi                # restore GI 1-4/18-21 to alternating
 
   ##############################################
-  ## LOSE BY BAD SHOTS (position -6)
-  ## Same drain sequence as won: disable flippers → balls drain →
-  ## ball_save catches last ball → video plays → plunge ball → continue
+  ## STEP 1: LR | RR  (hit either)
   ##############################################
-  
-  player_wingman_position{value<=-6}:
-    - wingman_lost_bad_shots
-
-  # Disable flippers and play callout immediately (video comes after callout delay)
-  wingman_lost_bad_shots:
-    - disable_normal_flippers
-    - disable_autofires
-    - wingman_cleanup_lights
-
-  # Callout finishes → now play the lost video
-  timer_wingman_lost_callout_delay_complete:
-    - wingman_play_lost_bad_shots_video
-
-  # Lost video finishes → pre-plunge timer handles the rest
-  timer_wingman_lost_bad_shots_delay_complete:
-    - wingman_ball_returning
+  s_ramp_left_exit_active{current_player.dogfight_step==0}:
+    - dogfight_step_1_complete
+    - dogfight_step_1_shot_hit
+    - dogfight_setup_step_2
+  s_ramp_right_exit_active{current_player.dogfight_step==0}:
+    - dogfight_step_1_complete
+    - dogfight_step_1_shot_hit
+    - dogfight_setup_step_2
 
   ##############################################
-  ## LOSE BY DRAIN (multiball ended)
+  ## STEP 2: LO | LR | TWR | RR  (hit any; remember which)
   ##############################################
-  
-  # Check for multiball ending (only if not already won/lost)
-  multiball_wingman_multiball_ended{current_player.wingman_won==0 and current_player.wingman_mode_active==1}:
-    - wingman_lost_drain
+  left_orbit_shot_hit{current_player.dogfight_step==1}:
+    - dogfight_step_2_complete
+    - dogfight_s2_hit_lo
+    - dogfight_step_2_shot_hit
+    - dogfight_setup_step_3
+  s_ramp_left_exit_active{current_player.dogfight_step==1}:
+    - dogfight_step_2_complete
+    - dogfight_s2_hit_lr
+    - dogfight_step_2_shot_hit
+    - dogfight_setup_step_3
+  s_ramp_tower_exit_active{current_player.dogfight_step==1}:
+    - dogfight_step_2_complete
+    - dogfight_s2_hit_twr
+    - dogfight_step_2_shot_hit
+    - dogfight_setup_step_3
+  s_ramp_right_exit_active{current_player.dogfight_step==1}:
+    - dogfight_step_2_complete
+    - dogfight_s2_hit_rr
+    - dogfight_step_2_shot_hit
+    - dogfight_setup_step_3
 
-  wingman_lost_drain:
-    - wingman_cleanup
+  ##############################################
+  ## STEP 3: other 3 good; step-2 shot is BAD (bad -> penalty, no advance)
+  ##############################################
+  left_orbit_shot_hit{current_player.dogfight_step==2 and current_player.dogfight_s2_hit!=1}:
+    - dogfight_step_3_complete
+    - dogfight_step_3_shot_hit
+    - dogfight_setup_step_4
+  left_orbit_shot_hit{current_player.dogfight_step==2 and current_player.dogfight_s2_hit==1}:
+    - dogfight_bad_shot_hit
+  s_ramp_left_exit_active{current_player.dogfight_step==2 and current_player.dogfight_s2_hit!=2}:
+    - dogfight_step_3_complete
+    - dogfight_step_3_shot_hit
+    - dogfight_setup_step_4
+  s_ramp_left_exit_active{current_player.dogfight_step==2 and current_player.dogfight_s2_hit==2}:
+    - dogfight_bad_shot_hit
+  s_ramp_tower_exit_active{current_player.dogfight_step==2 and current_player.dogfight_s2_hit!=3}:
+    - dogfight_step_3_complete
+    - dogfight_step_3_shot_hit
+    - dogfight_setup_step_4
+  s_ramp_tower_exit_active{current_player.dogfight_step==2 and current_player.dogfight_s2_hit==3}:
+    - dogfight_bad_shot_hit
+  s_ramp_right_exit_active{current_player.dogfight_step==2 and current_player.dogfight_s2_hit!=4}:
+    - dogfight_step_3_complete
+    - dogfight_step_3_shot_hit
+    - dogfight_setup_step_4
+  s_ramp_right_exit_active{current_player.dogfight_step==2 and current_player.dogfight_s2_hit==4}:
+    - dogfight_bad_shot_hit
 
-  timer_wingman_lost_drain_delay_complete:
-    - wingman_cleanup
+  ##############################################
+  ## STEP 4: MOVING TARGET (4s/step, 1s grace)
+  ## Positions: 0 SP,1 TWR,2 TL,3 TR,4 RR,5 TR,6 TL,7 TWR,8 SP,9 LR,10 LO,11 LR
+  ##############################################
+  dogfight_setup_step_4:
+    - dogfight_step4_set_0
+    - dogfight_step4_alloff
+    - dogfight_step4_lit_0
+  timer_dogfight_step4_cycle_complete:
+    - dogfight_step4_advance
+  dogfight_step4_advance{current_player.dogfight_step4_position==0}:  [dogfight_step4_set_1,  dogfight_step4_alloff, dogfight_step4_lit_1]
+  dogfight_step4_advance{current_player.dogfight_step4_position==1}:  [dogfight_step4_set_2,  dogfight_step4_alloff, dogfight_step4_lit_2]
+  dogfight_step4_advance{current_player.dogfight_step4_position==2}:  [dogfight_step4_set_3,  dogfight_step4_alloff, dogfight_step4_lit_3]
+  dogfight_step4_advance{current_player.dogfight_step4_position==3}:  [dogfight_step4_set_4,  dogfight_step4_alloff, dogfight_step4_lit_4]
+  dogfight_step4_advance{current_player.dogfight_step4_position==4}:  [dogfight_step4_set_5,  dogfight_step4_alloff, dogfight_step4_lit_5]
+  dogfight_step4_advance{current_player.dogfight_step4_position==5}:  [dogfight_step4_set_6,  dogfight_step4_alloff, dogfight_step4_lit_6]
+  dogfight_step4_advance{current_player.dogfight_step4_position==6}:  [dogfight_step4_set_7,  dogfight_step4_alloff, dogfight_step4_lit_7]
+  dogfight_step4_advance{current_player.dogfight_step4_position==7}:  [dogfight_step4_set_8,  dogfight_step4_alloff, dogfight_step4_lit_8]
+  dogfight_step4_advance{current_player.dogfight_step4_position==8}:  [dogfight_step4_set_9,  dogfight_step4_alloff, dogfight_step4_lit_9]
+  dogfight_step4_advance{current_player.dogfight_step4_position==9}:  [dogfight_step4_set_10, dogfight_step4_alloff, dogfight_step4_lit_10]
+  dogfight_step4_advance{current_player.dogfight_step4_position==10}: [dogfight_step4_set_11, dogfight_step4_alloff, dogfight_step4_lit_11]
+  dogfight_step4_advance{current_player.dogfight_step4_position==11}: [dogfight_step4_set_0,  dogfight_step4_alloff, dogfight_step4_lit_0]
+
+  # Step 4 shot detection (current position OR 1s grace position)
+  spinner_shot_made{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==0 or current_player.dogfight_step4_position==8 or current_player.dogfight_step4_grace_pos==0 or current_player.dogfight_step4_grace_pos==8)}:
+    - dogfight_step_4_complete
+    - dogfight_step_4_shot_hit
+    - dogfight_setup_step_5
+  s_ramp_tower_exit_active{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==1 or current_player.dogfight_step4_position==7 or current_player.dogfight_step4_grace_pos==1 or current_player.dogfight_step4_grace_pos==7)}:
+    - dogfight_step_4_complete
+    - dogfight_step_4_shot_hit
+    - dogfight_setup_step_5
+  s_orbit_upper_active{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==2 or current_player.dogfight_step4_position==6 or current_player.dogfight_step4_grace_pos==2 or current_player.dogfight_step4_grace_pos==6)}:
+    - dogfight_step_4_complete
+    - dogfight_step_4_shot_hit
+    - dogfight_setup_step_5
+  s_ramp_inner_exit_active{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==3 or current_player.dogfight_step4_position==5 or current_player.dogfight_step4_grace_pos==3 or current_player.dogfight_step4_grace_pos==5)}:
+    - dogfight_step_4_complete
+    - dogfight_step_4_shot_hit
+    - dogfight_setup_step_5
+  s_ramp_right_exit_active{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==4 or current_player.dogfight_step4_grace_pos==4)}:
+    - dogfight_step_4_complete
+    - dogfight_step_4_shot_hit
+    - dogfight_setup_step_5
+  s_ramp_left_exit_active{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==9 or current_player.dogfight_step4_position==11 or current_player.dogfight_step4_grace_pos==9 or current_player.dogfight_step4_grace_pos==11)}:
+    - dogfight_step_4_complete
+    - dogfight_step_4_shot_hit
+    - dogfight_setup_step_5
+  left_orbit_shot_hit{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==10 or current_player.dogfight_step4_grace_pos==10)}:
+    - dogfight_step_4_complete
+    - dogfight_step_4_shot_hit
+    - dogfight_setup_step_5
+
+  ##############################################
+  ## STEP 5: raise right ramp; LO | SP | RO  (remember which)
+  ##############################################
+  dogfight_setup_step_5:
+    - right_ramp_up
+  left_orbit_shot_hit{current_player.dogfight_step==4}:
+    - dogfight_step_5_complete
+    - dogfight_s5_hit_lo
+    - dogfight_step_5_shot_hit
+    - dogfight_setup_step_6
+  spinner_shot_made{current_player.dogfight_step==4}:
+    - dogfight_step_5_complete
+    - dogfight_s5_hit_sp
+    - dogfight_step_5_shot_hit
+    - dogfight_setup_step_6
+  right_orbit_shot_hit{current_player.dogfight_step==4}:
+    - dogfight_step_5_complete
+    - dogfight_s5_hit_ro
+    - dogfight_step_5_shot_hit
+    - dogfight_setup_step_6
+
+  ##############################################
+  ## STEP 6: other 2 good; step-5 shot BAD. Made -> lower right ramp, step 7
+  ##############################################
+  left_orbit_shot_hit{current_player.dogfight_step==5 and current_player.dogfight_s5_hit!=1}:
+    - dogfight_step_6_complete
+    - dogfight_step_6_shot_hit
+    - dogfight_setup_step_7
+  left_orbit_shot_hit{current_player.dogfight_step==5 and current_player.dogfight_s5_hit==1}:
+    - dogfight_bad_shot_hit
+  spinner_shot_made{current_player.dogfight_step==5 and current_player.dogfight_s5_hit!=2}:
+    - dogfight_step_6_complete
+    - dogfight_step_6_shot_hit
+    - dogfight_setup_step_7
+  spinner_shot_made{current_player.dogfight_step==5 and current_player.dogfight_s5_hit==2}:
+    - dogfight_bad_shot_hit
+  right_orbit_shot_hit{current_player.dogfight_step==5 and current_player.dogfight_s5_hit!=3}:
+    - dogfight_step_6_complete
+    - dogfight_step_6_shot_hit
+    - dogfight_setup_step_7
+  right_orbit_shot_hit{current_player.dogfight_step==5 and current_player.dogfight_s5_hit==3}:
+    - dogfight_bad_shot_hit
+
+  ##############################################
+  ## STEP 7: TWR (lower right ramp on entry)
+  ##############################################
+  dogfight_setup_step_7:
+    - right_ramp_down
+  s_ramp_tower_exit_active{current_player.dogfight_step==6}:
+    - dogfight_step_7_complete
+    - dogfight_step_7_shot_hit
+    - dogfight_setup_step_8
+
+  ##############################################
+  ## STEP 8: CNT - barrier is already UP (held by qualifier the whole mode)
+  ##############################################
+  s_barrier_target_active{current_player.dogfight_step==7}:
+    - dogfight_step_8_complete
+    - dogfight_step_8_shot_hit
+    - dogfight_setup_step_9
+
+  ##############################################
+  ## STEP 9-11: LO | LR | RO | TWR (4 lit). Any 3 of 4 -> step 12.
+  ## Each good hit: mark that shot bad, advance, play next video.
+  ## setup_step_9: raise right ramp for RO.
+  ##############################################
+  dogfight_setup_step_9:
+    - right_ramp_up
+
+  # Good hits, NON-completing (count<2): mark bad + solid red + advance
+  left_orbit_shot_hit{current_player.dogfight_step>=8 and current_player.dogfight_step<=10 and current_player.dogfight_s9_lo==0 and current_player.dogfight_s9_count<2}:
+    - dogfight_s9_mark_lo
+    - dogfight_s9_progress
+    - dogfight_s9_light_lo_bad
+  s_ramp_left_exit_active{current_player.dogfight_step>=8 and current_player.dogfight_step<=10 and current_player.dogfight_s9_lr==0 and current_player.dogfight_s9_count<2}:
+    - dogfight_s9_mark_lr
+    - dogfight_s9_progress
+    - dogfight_s9_light_lr_bad
+  right_orbit_shot_hit{current_player.dogfight_step>=8 and current_player.dogfight_step<=10 and current_player.dogfight_s9_ro==0 and current_player.dogfight_s9_count<2}:
+    - dogfight_s9_mark_ro
+    - dogfight_s9_progress
+    - dogfight_s9_light_ro_bad
+  s_ramp_tower_exit_active{current_player.dogfight_step>=8 and current_player.dogfight_step<=10 and current_player.dogfight_s9_twr==0 and current_player.dogfight_s9_count<2}:
+    - dogfight_s9_mark_twr
+    - dogfight_s9_progress
+    - dogfight_s9_light_twr_bad
+
+  # COMPLETING hit (count==2): advance to step 12 only - NO red (we leave the phase)
+  left_orbit_shot_hit{current_player.dogfight_step>=8 and current_player.dogfight_step<=10 and current_player.dogfight_s9_lo==0 and current_player.dogfight_s9_count==2}:
+    - dogfight_s9_mark_lo
+    - dogfight_s9_progress
+  s_ramp_left_exit_active{current_player.dogfight_step>=8 and current_player.dogfight_step<=10 and current_player.dogfight_s9_lr==0 and current_player.dogfight_s9_count==2}:
+    - dogfight_s9_mark_lr
+    - dogfight_s9_progress
+  right_orbit_shot_hit{current_player.dogfight_step>=8 and current_player.dogfight_step<=10 and current_player.dogfight_s9_ro==0 and current_player.dogfight_s9_count==2}:
+    - dogfight_s9_mark_ro
+    - dogfight_s9_progress
+  s_ramp_tower_exit_active{current_player.dogfight_step>=8 and current_player.dogfight_step<=10 and current_player.dogfight_s9_twr==0 and current_player.dogfight_s9_count==2}:
+    - dogfight_s9_mark_twr
+    - dogfight_s9_progress
+
+  # Bad hits (already marked) -> penalty
+  left_orbit_shot_hit{current_player.dogfight_step>=8 and current_player.dogfight_step<=10 and current_player.dogfight_s9_lo==1}:
+    - dogfight_bad_shot_hit
+  s_ramp_left_exit_active{current_player.dogfight_step>=8 and current_player.dogfight_step<=10 and current_player.dogfight_s9_lr==1}:
+    - dogfight_bad_shot_hit
+  right_orbit_shot_hit{current_player.dogfight_step>=8 and current_player.dogfight_step<=10 and current_player.dogfight_s9_ro==1}:
+    - dogfight_bad_shot_hit
+  s_ramp_tower_exit_active{current_player.dogfight_step>=8 and current_player.dogfight_step<=10 and current_player.dogfight_s9_twr==1}:
+    - dogfight_bad_shot_hit
+
+  # Progress by count (1st/2nd/3rd good hit)
+  dogfight_s9_progress{current_player.dogfight_s9_count==0}:
+    - dogfight_step_9_complete
+    - dogfight_step_9_shot_hit
+  dogfight_s9_progress{current_player.dogfight_s9_count==1}:
+    - dogfight_step_10_complete
+    - dogfight_step_10_shot_hit
+  dogfight_s9_progress{current_player.dogfight_s9_count==2}:
+    - dogfight_step_11_complete
+    - dogfight_step_11_shot_hit
+    - dogfight_setup_step_12
+
+  ##############################################
+  ## STEP 12: VICTORY - LL lit; SP + TL pulse -> open left diverter 3s.
+  ## LL -> victory (hold ball, won video, perk select)
+  ## Lower right ramp on entry (it was raised for steps 9-11).
+  ##############################################
+  dogfight_setup_step_12:
+    - right_ramp_down
+  spinner_shot_made{current_player.dogfight_step==11}:
+    - dogfight_open_diverter
+  s_orbit_upper_active{current_player.dogfight_step==11}:
+    - dogfight_open_diverter
+  dogfight_open_diverter:
+    - left_orbit_diverter_open
+  timer_dogfight_diverter_hold_complete:
+    - left_orbit_diverter_closed
+  s_lane_left_active{current_player.dogfight_step==11}:
+    - dogfight_step_12_complete
+    - dogfight_complete
+
+  ##############################################
+  ## VICTORY FLOW (cleanup deliberately delayed - pitfall #3)
+  ##############################################
+  dogfight_complete:
+    - left_orbit_diverter_closed
+    - dogfight_show_points
+
+  # WON VIDEO SKIP - both flippers during won video -> jump to award selection
+  s_flipper_left_active{current_player.dogfight_won_video_active==1}:
+    - dogfight_check_skip_won
+  s_flipper_right_active{current_player.dogfight_won_video_active==1}:
+    - dogfight_check_skip_won
+  dogfight_check_skip_won{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - dogfight_show_perk_select
+
+  # Won video ends (14s timer OR skip) -> award selection
+  timer_dogfight_won_video_delay_complete:
+    - dogfight_show_perk_select
+
+  ##############################################
+  ## AWARD SELECTION - 20s auto-select
+  ## Navigate: HOLD one flipper ~200ms (RIGHT = down, LEFT = up)
+  ## Select:   BOTH flippers (after 3s arm)
+  ## The hold buffer means a quick double-flip selects without stepping first.
+  ##############################################
+  # BOTH flippers held -> select the current award (only after the 3s arm delay)
+  s_flipper_right_active{current_player.dogfight_award_selecting==1 and current_player.dogfight_award_select_armed==1 and device.switches.s_flipper_left.state==1}:
+    - dogfight_award_confirm
+  s_flipper_left_active{current_player.dogfight_award_selecting==1 and current_player.dogfight_award_select_armed==1 and device.switches.s_flipper_right.state==1}:
+    - dogfight_award_confirm
+  # Arm the both-flipper select 3s after reaching the award slide
+  timer_dogfight_award_arm_timer_complete:
+    - dogfight_award_arm
+
+  # HOLD-to-navigate: on flipper press, schedule a check 200ms later.
+  # Navigate only if that flipper is STILL held AND the other is NOT held
+  # (so a double-flip, where the other joins within 200ms, never steps).
+  s_flipper_right_active{current_player.dogfight_award_selecting==1}:
+    - dogfight_award_right_hold_check|200ms
+  dogfight_award_right_hold_check{current_player.dogfight_award_selecting==1 and device.switches.s_flipper_right.state==1 and device.switches.s_flipper_left.state==0}:
+    - dogfight_award_down
+    - dogfight_award_nav
+  s_flipper_left_active{current_player.dogfight_award_selecting==1}:
+    - dogfight_award_left_hold_check|200ms
+  dogfight_award_left_hold_check{current_player.dogfight_award_selecting==1 and device.switches.s_flipper_left.state==1 and device.switches.s_flipper_right.state==0}:
+    - dogfight_award_up
+    - dogfight_award_nav
+  # Index move with wrap (0..5)
+  dogfight_award_down{current_player.dogfight_award_index<5}:
+    - dogfight_award_inc
+  dogfight_award_down{current_player.dogfight_award_index==5}:
+    - dogfight_award_wrap0
+  dogfight_award_up{current_player.dogfight_award_index>0}:
+    - dogfight_award_dec
+  dogfight_award_up{current_player.dogfight_award_index==0}:
+    - dogfight_award_wrap5
+  # After any index change, refresh the displayed name
+  dogfight_award_inc:   [dogfight_award_refresh]
+  dogfight_award_dec:   [dogfight_award_refresh]
+  dogfight_award_wrap0: [dogfight_award_refresh]
+  dogfight_award_wrap5: [dogfight_award_refresh]
+
+  # Timer expiry -> auto-select the currently displayed award
+  timer_dogfight_award_select_timer_complete:
+    - dogfight_award_confirm
+
+  # Confirm -> grant the selected award, then end (500ms so grant lands before mode stops)
+  dogfight_award_confirm{current_player.dogfight_award_index==0}:
+    - light_extra_ball
+  dogfight_award_confirm{current_player.dogfight_award_index==1}:
+    - dogfight_grant_inverted
+  dogfight_award_confirm{current_player.dogfight_award_index==2}:
+    - dogfight_grant_missiles
+  dogfight_award_confirm{current_player.dogfight_award_index==3}:
+    - dogfight_grant_afterburner
+  dogfight_award_confirm{current_player.dogfight_award_index==4}:
+    - dogfight_grant_wingman
+  dogfight_award_confirm{current_player.dogfight_award_index==5}:
+    - x2_playfield_qualified
+  dogfight_award_confirm:
+    - dogfight_victory_end|500ms
+
+  dogfight_victory_end:
+    - dogfight_cleanup
+    - dogfight_release_victory_ball
+    - dogfight_video_complete
     - pilot_mode_cleanup_complete
-    - wingman_drain_cleanup_complete
 
   ##############################################
-  ## BALL ENDING HOLD - Safety catch
-  ## If ball_ending fires and no loss has been triggered yet,
-  ## start the drain loss flow
+  ## LOSS (timer expiry or drain) - lost video 35s, skippable via both flippers
   ##############################################
-  wingman_ball_ending_hold{current_player.wingman_won==0 and current_player.wingman_drain_handled==0}:
-    - wingman_lost_drain
-
-  ##############################################
-  ## EMERGENCY RESUME - Player manually plunged during video
-  ## Shooter lane went inactive for 500ms = ball is in play
-  ## Skip remaining video/timers, re-enable everything immediately
-  ## Do NOT fire wingman_post_mode_plunge (ball already launched)
-  ##############################################
-  timer_wingman_manual_plunge_detect_complete:
-    - wingman_emergency_resume
-
-  wingman_emergency_resume:
-    - wingman_cleanup
+  timer_dogfight_mode_timer_complete:
+    - dogfight_failed
+  dogfight_failed:
+    - dogfight_cleanup
+  # LOST VIDEO SKIP - both flippers during lost video
+  s_flipper_left_active{current_player.dogfight_lost_video_active==1}:
+    - dogfight_check_skip_lost
+  s_flipper_right_active{current_player.dogfight_lost_video_active==1}:
+    - dogfight_check_skip_lost
+  dogfight_check_skip_lost{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - dogfight_lost_done
+  # Lost video ends (35s timer OR skip)
+  timer_dogfight_lost_delay_complete:
+    - dogfight_lost_done
+  dogfight_lost_done:
+    - dogfight_drain_cleanup_complete   # releases drain queue if draining (harmless otherwise)
+    - dogfight_video_complete
     - pilot_mode_cleanup_complete
-    - wingman_drain_cleanup_complete
+
+  ##############################################
+  ## DRAIN - route through the same lost flow (holds bonus until lost video done)
+  ##############################################
+  dogfight_ball_ending_hold:
+    - dogfight_failed
+
+  ##############################################
+  ## CLEANUP - servos safe, flippers restored, diverter/barrier reset
+  ##############################################
+  dogfight_cleanup:
+    - disable_no_hold_flippers
     - enable_normal_flippers
-    - enable_autofires
-
-  ##############################################
-  ## ICEMAN ADD-A-BALL CHECK
-  ##############################################
-  
-  # Check for ICEMAN completion after any letter hit
-  s_i_iceman_target_active{current_player.wingman_iceman_i==0 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==1 and current_player.wingman_mode_active==1}:
-    - wingman_iceman_complete
-  s_c_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==0 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==1 and current_player.wingman_mode_active==1}:
-    - wingman_iceman_complete
-  s_e_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==0 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==1 and current_player.wingman_mode_active==1}:
-    - wingman_iceman_complete
-  s_m_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==0 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==1 and current_player.wingman_mode_active==1}:
-    - wingman_iceman_complete
-  s_a_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==0 and current_player.wingman_iceman_n==1 and current_player.wingman_mode_active==1}:
-    - wingman_iceman_complete
-  s_n_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==0 and current_player.wingman_mode_active==1}:
-    - wingman_iceman_complete
-
-  # Add-a-ball QUALIFIED on 1st ICEMAN completion only (max 3 balls)
-  # Lights pilot gear target flashing orange - player must hit it to collect
-  player_wingman_iceman_completions{value==1 and current_player.wingman_balls_in_play<3}:
-    - wingman_add_a_ball_qualified
-
-  # Pilot gear target hit while add-a-ball is ready → collect add-a-ball
-  s_flight_gear_target_active{current_player.wingman_add_a_ball_ready==1 and current_player.wingman_mode_active==1}:
-    - wingman_add_a_ball
-
-  ##############################################
-  ## GI FLASH ANIMATIONS
-  ##############################################
-  
-  # Pop bumper hits - cyan flash
-  s_bumper_left_active{current_player.wingman_mode_active==1}:
-    - wingman_pop_bumper_flash
-  s_bumper_center_active{current_player.wingman_mode_active==1}:
-    - wingman_pop_bumper_flash
-  s_bumper_right_active{current_player.wingman_mode_active==1}:
-    - wingman_pop_bumper_flash
-
-  ##############################################
-  ## MODE CLEANUP
-  ##############################################
-  
-  wingman_cleanup:
-    - wingman_cleanup_lights
-    - barrier_raise
-    - top_ramp_down
-    - ball_search_unblock
-
-  ##############################################
-  ## AUTO-PLUNGER
-  ##############################################
-  
-  # Auto-plunger fires 1 second after ball settles on shooter lane
-  # (same pattern as inverted mode)
+    - right_ramp_down
+    - top_ramp_down|500ms
+    - left_orbit_diverter_closed
 
 ####################################################################################
-# SOUND PLAYER - Mode Voice Callouts
-####################################################################################
-# Music is handled in base.yaml (NOT here)
-# Sound files in: modes/pilot_training_mission_wingman/sounds/voice/
+# SOUND PLAYER - voice callouts only (music lives in base.yaml)
+# NOTE: confirm these voice asset names exist, or rename to your actual assets.
 ####################################################################################
 
 sound_player:
-  # Instructions voice - plays during intro ball hold
-  wingman_play_instructions_voice:
-    voice_wingman_instructions:
-      bus: voice
-      loops: 0
-
-  # Won voice callout - plays simultaneously with beaten animation
-  wingman_won_trigger:
-    voice_wingman_won:
-      bus: voice
-      loops: 0
-
-  # Lost by bad shots voice - plays immediately on loss (video follows after callout delay)
-  wingman_lost_bad_shots:
-    voice_wingman_lost:
-      bus: voice
-      loops: 0
+  dogfight_play_instructions_voice:
+    voice_dogfight_training_mission_instructions: { bus: voice, loops: 0 }
 
 ####################################################################################
-# SLIDE PLAYER
+# SLIDE PLAYER  (mode_points_scored is displayed from base.yaml via dogfight_show_points)
 ####################################################################################
 
 slide_player:
-  # Main gameplay HUD - plays during entire mode at lower priority
-  # Covered by instructions (800) during intro, becomes visible when instructions removed
-  # Covered by win/loss videos (900) at end
-  mode_pilot_training_mission_wingman_started:
-    wingman_beaten_animation:
-      action: play
-      priority: 700
-    pilot_training_mission_wingman_instructions:
-      action: play
-      priority: 800
+  mode_pilot_training_mission_dogfight_started:
+    dogfight_timer: { action: play, priority: 1000 }
+    dogfight_intro_video: { action: play, priority: 900 }
+    dogfight_instructions: { action: play, priority: 810 }   # persists entire mode
+    dogfight_shots_remaining: { action: play, priority: 800 }
 
-  # Skip intro removes instructions (HUD becomes visible)
-  wingman_skip_intro:
-    pilot_training_mission_wingman_instructions:
-      action: remove
+  # Remove intro video once ball is released (covers skip + normal paths)
+  dogfight_ball_released:
+    dogfight_intro_video: { action: remove }
 
-  # Timer complete removes instructions (normal path, HUD becomes visible)
-  timer_wingman_intro_delay_complete:
-    pilot_training_mission_wingman_instructions:
-      action: remove
+  # Step videos (remove previous, play current)
+  dogfight_step_1_shot_hit:
+    dogfight_step_1: { action: play, priority: 820 }
+  dogfight_step_2_shot_hit:
+    dogfight_step_1: { action: remove }
+    dogfight_step_2: { action: play, priority: 820 }
+  dogfight_step_3_shot_hit:
+    dogfight_step_2: { action: remove }
+    dogfight_step_3: { action: play, priority: 820 }
+  dogfight_step_4_shot_hit:
+    dogfight_step_3: { action: remove }
+    dogfight_step_4: { action: play, priority: 820 }
+  dogfight_step_5_shot_hit:
+    dogfight_step_4: { action: remove }
+    dogfight_step_5: { action: play, priority: 820 }
+  dogfight_step_6_shot_hit:
+    dogfight_step_5: { action: remove }
+    dogfight_step_6: { action: play, priority: 820 }
+  dogfight_step_7_shot_hit:
+    dogfight_step_6: { action: remove }
+    dogfight_step_7: { action: play, priority: 820 }
+  dogfight_step_8_shot_hit:
+    dogfight_step_7: { action: remove }
+    dogfight_step_8: { action: play, priority: 820 }
+  dogfight_step_9_shot_hit:
+    dogfight_step_8: { action: remove }
+    dogfight_step_9: { action: play, priority: 820 }
+  dogfight_step_10_shot_hit:
+    dogfight_step_9: { action: remove }
+    dogfight_step_10: { action: play, priority: 820 }
+  dogfight_step_11_shot_hit:
+    dogfight_step_10: { action: remove }
+    dogfight_step_11: { action: play, priority: 820 }
 
-  # Position +4 milestone
-  wingman_position_4_reached:
-    wingman_positive_4:
-      action: play
-      priority: 850
-      expire: 9.1s
+  # Victory: won video (14s), then award decision slide
+  dogfight_complete:
+    dogfight_step_11: { action: remove }
+    dogfight_timer: { action: remove }
+    dogfight_shots_remaining: { action: remove }
+    dogfight_instructions: { action: remove }
+    dogfight_won: { action: play, priority: 900 }
+  dogfight_show_perk_select:
+    dogfight_won: { action: remove }
+    dogfight_award_decision: { action: play, priority: 900 }
+  # Award chosen -> remove the decision slide
+  dogfight_award_confirm:
+    dogfight_award_decision: { action: remove }
 
-  # Position -4 milestone
-  wingman_position_neg_4_reached:
-    wingman_negative_4:
-      action: play
-      priority: 850
-      expire: 9.1s
+  # Loss (timer or drain) - lost video 35s
+  dogfight_failed:
+    dogfight_timer: { action: remove }
+    dogfight_shots_remaining: { action: remove }
+    dogfight_instructions: { action: remove }
+    dogfight_lost: { action: play, priority: 900 }
+  dogfight_lost_done:
+    dogfight_lost: { action: remove }
 
-  # Good shot points display
-  wingman_good_shot:
-    mode_points_scored:
-      action: play
-      priority: 840
-      expire: 2s
-
-  # Bad shot points display
-  wingman_bad_shot:
-    mode_points_scored:
-      action: play
-      priority: 840
-      expire: 2s
-
-  # Add-a-ball notification (shared slide)
-  wingman_add_a_ball:
-    multiball_add_a_ball:
-      action: play
-      priority: 850
-      expire: 3s
-
-  # WIN: Won video (18 seconds) - starts after beaten animation timer
-  # beaten_animation is already playing as HUD; won video covers it at higher priority
-  wingman_play_won_video:
-    pilot_training_mission_wingman_won:
-      action: play
-      priority: 900
-      expire: 18s
-
-  # LOSE by bad shots: lost_2 slide (9.1 seconds) - starts AFTER drain delay
-  wingman_play_lost_bad_shots_video:
-    pilot_training_mission_wingman_lost_2:
-      action: play
-      priority: 900
-      expire: 9.1s
-
-  # LOSE by drain: lost_1 slide (9.1 seconds)
-  wingman_lost_drain:
-    pilot_training_mission_wingman_lost_1:
-      action: play
-      priority: 900
-      expire: 9.1s
-
-  # Cleanup - remove all slides on mode end
-  # NOTE: wingman_perk_active is NOT removed here - qualifier owns that slide's
-  # lifecycle via player_wingman_perk_active{value==0/1} and clears on ball_ending
-  wingman_cleanup:
-    pilot_training_mission_wingman_instructions:
-      action: remove
-    wingman_beaten_animation:
-      action: remove
-    mode_points_scored:
-      action: remove
+  # Safety cleanup on stop
+  mode_pilot_training_mission_dogfight_stopped:
+    dogfight_timer: { action: remove }
+    dogfight_shots_remaining: { action: remove }
+    dogfight_instructions: { action: remove }
+    dogfight_intro_video: { action: remove }
+    dogfight_award_decision: { action: remove }
+    dogfight_won: { action: remove }
+    dogfight_lost: { action: remove }
 
 ####################################################################################
-# LIGHT PLAYER - GI, Shot Lights, ICEMAN, Pop Bumpers
-####################################################################################
-
-light_player:
-  ##############################################
-  ## GI PATTERN: Odd=Blue, Even=Cyan
-  ##############################################
-  
-  mode_pilot_training_mission_wingman_started:
-    # Set all GI to blue first, then override evens to cyan
-    gi_lights:
-      color: blue
-      fade: 0ms
-    l_gi_light_1:
-      color: blue
-      fade: 0ms
-    l_gi_light_2:
-      color: cyan
-      fade: 0ms
-    l_gi_light_3:
-      color: blue
-      fade: 0ms
-    l_gi_light_4:
-      color: cyan
-      fade: 0ms
-    l_gi_light_5:
-      color: blue
-      fade: 0ms
-    l_gi_light_6:
-      color: cyan
-      fade: 0ms
-    l_gi_light_7:
-      color: blue
-      fade: 0ms
-    l_gi_light_8:
-      color: cyan
-      fade: 0ms
-    l_gi_light_9:
-      color: blue
-      fade: 0ms
-    l_gi_light_10:
-      color: cyan
-      fade: 0ms
-    l_gi_light_11:
-      color: blue
-      fade: 0ms
-    l_gi_light_12:
-      color: cyan
-      fade: 0ms
-    l_gi_light_13:
-      color: blue
-      fade: 0ms
-    l_gi_light_14:
-      color: cyan
-      fade: 0ms
-    l_gi_light_15:
-      color: blue
-      fade: 0ms
-    l_gi_light_16:
-      color: cyan
-      fade: 0ms
-    l_gi_light_17:
-      color: blue
-      fade: 0ms
-    l_gi_light_18:
-      color: cyan
-      fade: 0ms
-    l_gi_light_19:
-      color: blue
-      fade: 0ms
-    l_gi_light_20:
-      color: cyan
-      fade: 0ms
-    l_gi_light_21:
-      color: blue
-      fade: 0ms
-    l_gi_light_22:
-      color: cyan
-      fade: 0ms
-    l_gi_light_23:
-      color: blue
-      fade: 0ms
-    l_gi_light_24:
-      color: cyan
-      fade: 0ms
-    l_gi_light_25:
-      color: blue
-      fade: 0ms
-    l_gi_light_26:
-      color: cyan
-      fade: 0ms
-    l_gi_light_27:
-      color: blue
-      fade: 0ms
-    # Apron lights
-    l_apron_light_1:
-      color: blue
-      fade: 0ms
-    l_apron_light_2:
-      color: cyan
-      fade: 0ms
-    l_apron_light_3:
-      color: blue
-      fade: 0ms
-    l_apron_light_4:
-      color: cyan
-      fade: 0ms
-    # Pop bumper lights - cyan
-    l_gi_light_pop_left:
-      color: cyan
-      fade: 0ms
-    l_gi_light_pop_right:
-      color: cyan
-      fade: 0ms
-    l_gi_light_pop_bottom:
-      color: cyan
-      fade: 0ms
-    # Clear ICEMAN lights at mode start
-    l_iceman_i:
-      color: off
-      fade: 0ms
-    l_iceman_c:
-      color: off
-      fade: 0ms
-    l_iceman_e:
-      color: off
-      fade: 0ms
-    l_iceman_m:
-      color: off
-      fade: 0ms
-    l_iceman_a:
-      color: off
-      fade: 0ms
-    l_iceman_n:
-      color: off
-      fade: 0ms
-    # Extra ball light - explicitly OFF (gi_lights tag catches it)
-    l_extra_ball_lit:
-      color: off
-      fade: 0ms
-
-  # Delayed GI reset - fires 200ms after mode start
-  wingman_set_gi:
-    l_gi_light_1:
-      color: blue
-      fade: 0ms
-    l_gi_light_2:
-      color: cyan
-      fade: 0ms
-    l_gi_light_3:
-      color: blue
-      fade: 0ms
-    l_gi_light_4:
-      color: cyan
-      fade: 0ms
-    l_gi_light_5:
-      color: blue
-      fade: 0ms
-    l_gi_light_6:
-      color: cyan
-      fade: 0ms
-    l_gi_light_7:
-      color: blue
-      fade: 0ms
-    l_gi_light_8:
-      color: cyan
-      fade: 0ms
-    l_gi_light_9:
-      color: blue
-      fade: 0ms
-    l_gi_light_10:
-      color: cyan
-      fade: 0ms
-    l_gi_light_11:
-      color: blue
-      fade: 0ms
-    l_gi_light_12:
-      color: cyan
-      fade: 0ms
-    l_gi_light_13:
-      color: blue
-      fade: 0ms
-    l_gi_light_14:
-      color: cyan
-      fade: 0ms
-    l_gi_light_15:
-      color: blue
-      fade: 0ms
-    l_gi_light_16:
-      color: cyan
-      fade: 0ms
-    l_gi_light_17:
-      color: blue
-      fade: 0ms
-    l_gi_light_18:
-      color: cyan
-      fade: 0ms
-    l_gi_light_19:
-      color: blue
-      fade: 0ms
-    l_gi_light_20:
-      color: cyan
-      fade: 0ms
-    l_gi_light_21:
-      color: blue
-      fade: 0ms
-    l_gi_light_22:
-      color: cyan
-      fade: 0ms
-    l_gi_light_23:
-      color: blue
-      fade: 0ms
-    l_gi_light_24:
-      color: cyan
-      fade: 0ms
-    l_gi_light_25:
-      color: blue
-      fade: 0ms
-    l_gi_light_26:
-      color: cyan
-      fade: 0ms
-    l_gi_light_27:
-      color: blue
-      fade: 0ms
-    l_apron_light_1:
-      color: blue
-      fade: 0ms
-    l_apron_light_2:
-      color: cyan
-      fade: 0ms
-    l_apron_light_3:
-      color: blue
-      fade: 0ms
-    l_apron_light_4:
-      color: cyan
-      fade: 0ms
-    # Ensure extra ball light stays OFF (gi_lights tag may catch it)
-    l_extra_ball_lit:
-      color: off
-      fade: 0ms
-
-  ##############################################
-  ## SHOT LIGHTS - Zone 1 (LEFT is good)
-  ##############################################
-  
-  wingman_light_zone_1:
-    # Good (green): LL, LO, LR
-    l_shot_left_lane:
-      color: green
-      fade: 0ms
-    l_shot_left_orbit:
-      color: green
-      fade: 0ms
-    l_shot_left_ramp:
-      color: green
-      fade: 0ms
-    # Neutral (off): SP, TWR, TL
-    l_shot_spinner:
-      color: off
-      fade: 0ms
-    l_shot_tower_ramp:
-      color: off
-      fade: 0ms
-    l_shot_upper_orbit:
-      color: off
-      fade: 0ms
-    # Bad (red): TO, RR
-    l_shot_middle_ramp:
-      color: red
-      fade: 0ms
-    l_shot_right_orbit:
-      color: red
-      fade: 0ms
-
-  ##############################################
-  ## SHOT LIGHTS - Zone 2 (MIDDLE is good)
-  ##############################################
-  
-  wingman_light_zone_2:
-    # Bad (red): LL, LO
-    l_shot_left_lane:
-      color: red
-      fade: 0ms
-    l_shot_left_orbit:
-      color: red
-      fade: 0ms
-    # Neutral (off): LR
-    l_shot_left_ramp:
-      color: off
-      fade: 0ms
-    # Good (green): SP, TWR, TL
-    l_shot_spinner:
-      color: green
-      fade: 0ms
-    l_shot_tower_ramp:
-      color: green
-      fade: 0ms
-    l_shot_upper_orbit:
-      color: green
-      fade: 0ms
-    # Neutral (off): TO
-    l_shot_middle_ramp:
-      color: off
-      fade: 0ms
-    # Bad (red): RR
-    l_shot_right_orbit:
-      color: red
-      fade: 0ms
-
-  ##############################################
-  ## SHOT LIGHTS - Zone 3 (RIGHT is good)
-  ## TL shares l_shot_tower_ramp → green (TL is good when zone 3)
-  ##############################################
-  
-  wingman_light_zone_3:
-    # Bad (red): LL, LO, LR
-    l_shot_left_lane:
-      color: red
-      fade: 0ms
-    l_shot_left_orbit:
-      color: red
-      fade: 0ms
-    l_shot_left_ramp:
-      color: red
-      fade: 0ms
-    # Neutral (off): SP, TWR
-    l_shot_spinner:
-      color: off
-      fade: 0ms
-    l_shot_tower_ramp:
-      color: off
-      fade: 0ms
-    # Good (green): TL, TO, RR
-    l_shot_upper_orbit:
-      color: green
-      fade: 0ms
-    l_shot_middle_ramp:
-      color: green
-      fade: 0ms
-    l_shot_right_orbit:
-      color: green
-      fade: 0ms
-
-  ##############################################
-  ## ZONE WARNING - Orange at 4 seconds remaining
-  ##############################################
-  
-  wingman_warn_zone_1:
-    l_shot_left_lane:
-      color: orange
-      fade: 0ms
-    l_shot_left_orbit:
-      color: orange
-      fade: 0ms
-    l_shot_left_ramp:
-      color: orange
-      fade: 0ms
-
-  wingman_warn_zone_2:
-    l_shot_spinner:
-      color: orange
-      fade: 0ms
-    l_shot_tower_ramp:
-      color: orange
-      fade: 0ms
-    l_shot_upper_orbit:
-      color: orange
-      fade: 0ms
-
-  wingman_warn_zone_3:
-    l_shot_upper_orbit:
-      color: orange
-      fade: 0ms
-    l_shot_middle_ramp:
-      color: orange
-      fade: 0ms
-    l_shot_right_orbit:
-      color: orange
-      fade: 0ms
-
-  ##############################################
-  ## CLEANUP - Restore GI and clear lights
-  ##############################################
-  
-  wingman_cleanup_lights:
-    gi_lights:
-      color: white
-      fade: 0ms
-    l_shoot_again:
-      color: off
-      fade: 0ms
-    l_shot_left_lane:
-      color: off
-      fade: 0ms
-    l_shot_left_orbit:
-      color: off
-      fade: 0ms
-    l_shot_left_ramp:
-      color: off
-      fade: 0ms
-    l_shot_spinner:
-      color: off
-      fade: 0ms
-    l_shot_tower_ramp:
-      color: off
-      fade: 0ms
-    l_shot_upper_orbit:
-      color: off
-      fade: 0ms
-    l_shot_middle_ramp:
-      color: off
-      fade: 0ms
-    l_shot_right_orbit:
-      color: off
-      fade: 0ms
-    l_iceman_i:
-      color: off
-      fade: 0ms
-    l_iceman_c:
-      color: off
-      fade: 0ms
-    l_iceman_e:
-      color: off
-      fade: 0ms
-    l_iceman_m:
-      color: off
-      fade: 0ms
-    l_iceman_a:
-      color: off
-      fade: 0ms
-    l_iceman_n:
-      color: off
-      fade: 0ms
-    l_gi_light_pop_left:
-      color: white
-      fade: 0ms
-    l_gi_light_pop_right:
-      color: white
-      fade: 0ms
-    l_gi_light_pop_bottom:
-      color: white
-      fade: 0ms
-    l_extra_ball_lit:
-      color: off
-      fade: 0ms
-
-  ##############################################
-  ## ICEMAN LIGHTS - Green while collecting
-  ##############################################
-  
-  player_wingman_iceman_i{value==1 and current_player.wingman_iceman_completions<1}:
-    l_iceman_i:
-      color: green
-      fade: 0ms
-  player_wingman_iceman_c{value==1 and current_player.wingman_iceman_completions<1}:
-    l_iceman_c:
-      color: green
-      fade: 0ms
-  player_wingman_iceman_e{value==1 and current_player.wingman_iceman_completions<1}:
-    l_iceman_e:
-      color: green
-      fade: 0ms
-  player_wingman_iceman_m{value==1 and current_player.wingman_iceman_completions<1}:
-    l_iceman_m:
-      color: green
-      fade: 0ms
-  player_wingman_iceman_a{value==1 and current_player.wingman_iceman_completions<1}:
-    l_iceman_a:
-      color: green
-      fade: 0ms
-  player_wingman_iceman_n{value==1 and current_player.wingman_iceman_completions<1}:
-    l_iceman_n:
-      color: green
-      fade: 0ms
-
-  # After 1st completion (add-a-ball collected), all ICEMAN lights stay orange
-  player_wingman_iceman_completions{value>=1}:
-    l_iceman_i:
-      color: orange
-      fade: 0ms
-    l_iceman_c:
-      color: orange
-      fade: 0ms
-    l_iceman_e:
-      color: orange
-      fade: 0ms
-    l_iceman_m:
-      color: orange
-      fade: 0ms
-    l_iceman_a:
-      color: orange
-      fade: 0ms
-    l_iceman_n:
-      color: orange
-      fade: 0ms
-
-  # Reset ICEMAN lights after celebration timer (only if completions < 1)
-  timer_wingman_iceman_celebration_timer_complete{current_player.wingman_iceman_completions<1}:
-    l_iceman_i:
-      color: off
-      fade: 0ms
-    l_iceman_c:
-      color: off
-      fade: 0ms
-    l_iceman_e:
-      color: off
-      fade: 0ms
-    l_iceman_m:
-      color: off
-      fade: 0ms
-    l_iceman_a:
-      color: off
-      fade: 0ms
-    l_iceman_n:
-      color: off
-      fade: 0ms
-
-  ##############################################
-  ## SHOOT AGAIN LIGHT (Ball Save)
-  ##############################################
-  
-  ball_save_wingman_multiball_ball_save_enabled:
-    l_shoot_again:
-      color: white
-      fade: 0ms
-  
-  ball_save_wingman_multiball_ball_save_disabled:
-    l_shoot_again:
-      color: off
-      fade: 0ms
-
-####################################################################################
-# SHOW PLAYER - GI Animations and Mode Insert
+# SHOW PLAYER - flashing GOOD shots (sync_flash_mode) + GI strobe on hits
+# Shared light l_shot_right_orbit (RR/RO) uses one key: mode_ro
 ####################################################################################
 
 show_player:
-  ##############################################
-  ## SHOOT AGAIN FLASH
-  ##############################################
-  
-  ball_save_wingman_multiball_ball_save_enabled:
-    wingman_shoot_again_flash:
-      show: sync_flash_mode
-      key: wingman_shoot_again
-      sync_ms: 500
-      loops: -1
-      show_tokens:
-        led: l_shoot_again
-        color: white
-  
-  ball_save_wingman_multiball_ball_save_disabled:
-    stop_wingman_shoot_again:
-      show: sync_flash_mode
-      action: stop
-      key: wingman_shoot_again
+  # STEP 1: LR + RR
+  dogfight_setup_step_1:
+    s_lr: { show: sync_flash_mode, key: mode_lr, sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_left_ramp, color: FFFF00 } }
+    s_rr: { show: sync_flash_mode, key: mode_ro, sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_right_orbit, color: FFFF00 } }
 
-  ##############################################
-  ## STATIC GI PATTERN
-  ##############################################
-  
-  mode_pilot_training_mission_wingman_started:
-    wingman_static_gi_show:
-      show: wingman_static_gi
-      key: wingman_static_gi
-      loops: -1
-      priority: 1000
-    # Pulse the mode insert light during gameplay
-    wingman_insert_pulse:
-      show: sync_flash_mode
-      key: wingman_insert_pulse
-      sync_ms: 1000
-      loops: -1
-      show_tokens:
-        led: l_mode_wingman
-        color: white
-      priority: 900
+  # STEP 2: LO + LR + TWR + RR
+  dogfight_setup_step_2:
+    stop_lr: { show: sync_flash_mode, action: stop, key: mode_lr }
+    stop_ro: { show: sync_flash_mode, action: stop, key: mode_ro }
+    s_lo:  { show: sync_flash_mode, key: mode_lo,  sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_left_orbit,  color: FFFF00 } }
+    s_lr:  { show: sync_flash_mode, key: mode_lr,  sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_left_ramp,   color: FFFF00 } }
+    s_twr: { show: sync_flash_mode, key: mode_twr, sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_tower_ramp,  color: FFFF00 } }
+    s_rr:  { show: sync_flash_mode, key: mode_ro,  sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_right_orbit, color: FFFF00 } }
 
-  ##############################################
-  ## GOOD SHOT GI STROBE (blue/cyan, 2 seconds)
-  ##############################################
-  
-  wingman_good_shot_gi_flash:
-    wingman_good_gi_animation:
-      show: wingman_good_shot_gi_strobe
-      key: wingman_gi_animation
-      loops: 11
-      priority: 1100
+  # STEP 3: re-flash all 4; conditional stops the BAD one (step-2 hit)
+  dogfight_setup_step_3:
+    stop_lo:  { show: sync_flash_mode, action: stop, key: mode_lo }
+    stop_lr:  { show: sync_flash_mode, action: stop, key: mode_lr }
+    stop_twr: { show: sync_flash_mode, action: stop, key: mode_twr }
+    stop_ro:  { show: sync_flash_mode, action: stop, key: mode_ro }
+    f_lo:  { show: sync_flash_mode, key: mode_lo,  sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_left_orbit,  color: FFFF00 } }
+    f_lr:  { show: sync_flash_mode, key: mode_lr,  sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_left_ramp,   color: FFFF00 } }
+    f_twr: { show: sync_flash_mode, key: mode_twr, sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_tower_ramp,  color: FFFF00 } }
+    f_rr:  { show: sync_flash_mode, key: mode_ro,  sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_right_orbit, color: FFFF00 } }
+  dogfight_setup_step_3{current_player.dogfight_s2_hit==1}:
+    bad_lo: { show: sync_flash_mode, action: stop, key: mode_lo }
+  dogfight_setup_step_3{current_player.dogfight_s2_hit==2}:
+    bad_lr: { show: sync_flash_mode, action: stop, key: mode_lr }
+  dogfight_setup_step_3{current_player.dogfight_s2_hit==3}:
+    bad_twr: { show: sync_flash_mode, action: stop, key: mode_twr }
+  dogfight_setup_step_3{current_player.dogfight_s2_hit==4}:
+    bad_rr: { show: sync_flash_mode, action: stop, key: mode_ro }
 
-  ##############################################
-  ## BAD SHOT GI STROBE (red/orange, 2 seconds)
-  ##############################################
-  
-  wingman_bad_shot_gi_flash:
-    wingman_bad_gi_animation:
-      show: wingman_bad_shot_gi_strobe
-      key: wingman_gi_animation
-      loops: 11
-      priority: 1100
+  # STEP 4: moving target lights handled in light_player (solid). Stop step-3 flashes.
+  dogfight_setup_step_4:
+    stop_lo:  { show: sync_flash_mode, action: stop, key: mode_lo }
+    stop_lr:  { show: sync_flash_mode, action: stop, key: mode_lr }
+    stop_twr: { show: sync_flash_mode, action: stop, key: mode_twr }
+    stop_ro:  { show: sync_flash_mode, action: stop, key: mode_ro }
 
-  ##############################################
-  ## POP BUMPER FLASH
-  ##############################################
-  
-  wingman_pop_bumper_flash:
-    wingman_pop_flash:
-      show: wingman_pop_bumper_gi_flash
-      key: wingman_pop_flash
-      loops: 0
-      priority: 1100
+  # STEP 5: LO + SP + RO
+  dogfight_setup_step_5:
+    s_lo: { show: sync_flash_mode, key: mode_lo, sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_left_orbit,  color: FFFF00 } }
+    s_sp: { show: sync_flash_mode, key: mode_sp, sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_spinner,     color: FFFF00 } }
+    s_ro: { show: sync_flash_mode, key: mode_ro, sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_right_orbit, color: FFFF00 } }
 
-  ##############################################
-  ## ICEMAN COMPLETION CELEBRATION
-  ##############################################
-  
-  wingman_iceman_complete:
-    wingman_iceman_celebration:
-      show: wingman_iceman_complete_flash
-      key: wingman_iceman_celebration
-      loops: 0
-  
-  timer_wingman_iceman_celebration_timer_complete:
-    stop_wingman_iceman_celebration:
-      show: wingman_iceman_complete_flash
-      action: stop
-      key: wingman_iceman_celebration
+  # STEP 6: re-flash LO/SP/RO; conditional stops the BAD one (step-5 hit)
+  dogfight_setup_step_6:
+    stop_lo: { show: sync_flash_mode, action: stop, key: mode_lo }
+    stop_sp: { show: sync_flash_mode, action: stop, key: mode_sp }
+    stop_ro: { show: sync_flash_mode, action: stop, key: mode_ro }
+    f_lo: { show: sync_flash_mode, key: mode_lo, sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_left_orbit,  color: FFFF00 } }
+    f_sp: { show: sync_flash_mode, key: mode_sp, sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_spinner,     color: FFFF00 } }
+    f_ro: { show: sync_flash_mode, key: mode_ro, sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_right_orbit, color: FFFF00 } }
+  dogfight_setup_step_6{current_player.dogfight_s5_hit==1}:
+    bad_lo: { show: sync_flash_mode, action: stop, key: mode_lo }
+  dogfight_setup_step_6{current_player.dogfight_s5_hit==2}:
+    bad_sp: { show: sync_flash_mode, action: stop, key: mode_sp }
+  dogfight_setup_step_6{current_player.dogfight_s5_hit==3}:
+    bad_ro: { show: sync_flash_mode, action: stop, key: mode_ro }
 
-  ##############################################
-  ## ADD-A-BALL PILOT GEAR TARGET (flashing orange)
-  ##############################################
+  # STEP 7: TWR
+  dogfight_setup_step_7:
+    stop_lo: { show: sync_flash_mode, action: stop, key: mode_lo }
+    stop_sp: { show: sync_flash_mode, action: stop, key: mode_sp }
+    stop_ro: { show: sync_flash_mode, action: stop, key: mode_ro }
+    s_twr: { show: sync_flash_mode, key: mode_twr, sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_tower_ramp, color: FFFF00 } }
 
-  wingman_add_a_ball_qualified:
-    wingman_pilot_gear_flash:
-      show: sync_flash_mode
-      key: wingman_pilot_gear_flash
-      sync_ms: 500
-      loops: -1
-      show_tokens:
-        led: l_shot_pilot_gear
-        color: FFA500
+  # STEP 8: CNT
+  dogfight_setup_step_8:
+    stop_twr: { show: sync_flash_mode, action: stop, key: mode_twr }
+    s_cnt: { show: sync_flash_mode, key: mode_cnt, sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_barrier, color: FFFF00 } }
 
-  wingman_add_a_ball:
-    stop_wingman_pilot_gear_flash:
-      show: sync_flash_mode
-      action: stop
-      key: wingman_pilot_gear_flash
+  # STEP 9-11: LO + LR + RO + TWR
+  dogfight_setup_step_9:
+    stop_cnt: { show: sync_flash_mode, action: stop, key: mode_cnt }
+    s_lo:  { show: sync_flash_mode, key: mode_lo,  sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_left_orbit,  color: FFFF00 } }
+    s_lr:  { show: sync_flash_mode, key: mode_lr,  sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_left_ramp,   color: FFFF00 } }
+    s_ro:  { show: sync_flash_mode, key: mode_ro,  sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_right_orbit, color: FFFF00 } }
+    s_twr: { show: sync_flash_mode, key: mode_twr, sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_tower_ramp,  color: FFFF00 } }
+  # Convert each hit shot to bad (stop its flash; solid red in light_player)
+  dogfight_s9_light_lo_bad:
+    stop_lo: { show: sync_flash_mode, action: stop, key: mode_lo }
+  dogfight_s9_light_lr_bad:
+    stop_lr: { show: sync_flash_mode, action: stop, key: mode_lr }
+  dogfight_s9_light_ro_bad:
+    stop_ro: { show: sync_flash_mode, action: stop, key: mode_ro }
+  dogfight_s9_light_twr_bad:
+    stop_twr: { show: sync_flash_mode, action: stop, key: mode_twr }
 
-  ##############################################
-  ## CLEANUP
-  ##############################################
-  
-  wingman_cleanup:
-    stop_wingman_static_gi:
-      show: wingman_static_gi
-      action: stop
-      key: wingman_static_gi
-    stop_wingman_shoot_again_cleanup:
-      show: sync_flash_mode
-      action: stop
-      key: wingman_shoot_again
-    stop_wingman_insert:
-      show: sync_flash_mode
-      action: stop
-      key: wingman_insert_pulse
-    stop_wingman_pilot_gear_cleanup:
-      show: sync_flash_mode
-      action: stop
-      key: wingman_pilot_gear_flash
+  # STEP 12: LL flash (victory target); SP + TL pulse (sync_pulse_mode)
+  dogfight_setup_step_12:
+    stop_lo:  { show: sync_flash_mode, action: stop, key: mode_lo }
+    stop_lr:  { show: sync_flash_mode, action: stop, key: mode_lr }
+    stop_ro:  { show: sync_flash_mode, action: stop, key: mode_ro }
+    stop_twr: { show: sync_flash_mode, action: stop, key: mode_twr }
+    s_ll:  { show: sync_flash_mode, key: mode_ll, sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_left_lane, color: FFFF00 } }
+    p_sp:  { show: sync_pulse_mode, key: mode_sp_pulse, loops: -1, show_tokens: { led: l_shot_spinner,     color: FFFF00 } }
+    p_tl:  { show: sync_pulse_mode, key: mode_tl_pulse, loops: -1, show_tokens: { led: l_shot_upper_orbit, color: FFFF00 } }
+
+  # GI strobe on each good hit
+  dogfight_good_hit:
+    gi_flash: { show: dogfight_gi_flash, key: gi_effect, loops: 0 }
+
+  # No-hold penalty: red strobe on slingshot/inlane GI (lights 1-4, 18-21)
+  dogfight_penalty_gi_start:
+    penalty_gi: { show: dogfight_gi_penalty_strobe, key: dogfight_penalty_gi_effect, loops: -1 }
+  dogfight_penalty_gi_stop:
+    stop_penalty_gi: { show: dogfight_gi_penalty_strobe, action: stop, key: dogfight_penalty_gi_effect }
+
+  # CLEANUP - stop everything
+  dogfight_cleanup:
+    c1: { show: sync_flash_mode, action: stop, key: mode_lo }
+    c2: { show: sync_flash_mode, action: stop, key: mode_lr }
+    c3: { show: sync_flash_mode, action: stop, key: mode_twr }
+    c4: { show: sync_flash_mode, action: stop, key: mode_ro }
+    c5: { show: sync_flash_mode, action: stop, key: mode_sp }
+    c6: { show: sync_flash_mode, action: stop, key: mode_cnt }
+    c7: { show: sync_flash_mode, action: stop, key: mode_ll }
+    c8: { show: sync_pulse_mode, action: stop, key: mode_sp_pulse }
+    c9: { show: sync_pulse_mode, action: stop, key: mode_tl_pulse }
+    c10: { show: dogfight_gi_flash, action: stop, key: gi_effect }
+    c11: { show: dogfight_gi_penalty_strobe, action: stop, key: dogfight_penalty_gi_effect }
 
 ####################################################################################
-# COIL PLAYER - Left lane post and auto-plunger
+# LIGHT PLAYER - GI (alternating light-blue/white), bad reds, moving target
+####################################################################################
+
+light_player:
+  # Alternating light-blue (odd) / white (even); pop bumpers light blue
+  dogfight_set_gi:
+    l_gi_light_1: { color: ADD8E6, fade: 200ms }
+    l_gi_light_2: { color: white, fade: 200ms }
+    l_gi_light_3: { color: ADD8E6, fade: 200ms }
+    l_gi_light_4: { color: white, fade: 200ms }
+    l_gi_light_5: { color: ADD8E6, fade: 200ms }
+    l_gi_light_6: { color: white, fade: 200ms }
+    l_gi_light_7: { color: ADD8E6, fade: 200ms }
+    l_gi_light_8: { color: white, fade: 200ms }
+    l_gi_light_9: { color: ADD8E6, fade: 200ms }
+    l_gi_light_10: { color: white, fade: 200ms }
+    l_gi_light_11: { color: ADD8E6, fade: 200ms }
+    l_gi_light_12: { color: white, fade: 200ms }
+    l_gi_light_13: { color: ADD8E6, fade: 200ms }
+    l_gi_light_14: { color: white, fade: 200ms }
+    l_gi_light_15: { color: ADD8E6, fade: 200ms }
+    l_gi_light_16: { color: white, fade: 200ms }
+    l_gi_light_17: { color: ADD8E6, fade: 200ms }
+    l_gi_light_18: { color: white, fade: 200ms }
+    l_gi_light_19: { color: ADD8E6, fade: 200ms }
+    l_gi_light_20: { color: white, fade: 200ms }
+    l_gi_light_21: { color: ADD8E6, fade: 200ms }
+    l_gi_light_22: { color: white, fade: 200ms }
+    l_gi_light_23: { color: ADD8E6, fade: 200ms }
+    l_gi_light_24: { color: white, fade: 200ms }
+    l_gi_light_25: { color: ADD8E6, fade: 200ms }
+    l_gi_light_26: { color: white, fade: 200ms }
+    l_gi_light_27: { color: ADD8E6, fade: 200ms }
+    l_apron_light_1: { color: ADD8E6, fade: 200ms }
+    l_apron_light_2: { color: white, fade: 200ms }
+    l_apron_light_3: { color: ADD8E6, fade: 200ms }
+    l_apron_light_4: { color: white, fade: 200ms }
+    l_gi_light_pop_left: { color: ADD8E6, fade: 200ms }
+    l_gi_light_pop_right: { color: ADD8E6, fade: 200ms }
+    l_gi_light_pop_bottom: { color: ADD8E6, fade: 200ms }
+
+  # Step 4 moving target - all candidate lights off
+  dogfight_step4_alloff:
+    l_shot_spinner: { color: off }
+    l_shot_tower_ramp: { color: off }
+    l_shot_upper_orbit: { color: off }
+    l_shot_middle_ramp: { color: off }
+    l_shot_right_orbit: { color: off }
+    l_shot_left_ramp: { color: off }
+    l_shot_left_orbit: { color: off }
+
+  # Step 4 position solids (yellow)
+  dogfight_step4_lit_0:
+    l_shot_spinner: { color: FFFF00, fade: 0ms }
+  dogfight_step4_lit_1:
+    l_shot_tower_ramp: { color: FFFF00, fade: 0ms }
+  dogfight_step4_lit_2:
+    l_shot_upper_orbit: { color: FFFF00, fade: 0ms }
+  dogfight_step4_lit_3:
+    l_shot_middle_ramp: { color: FFFF00, fade: 0ms }
+  dogfight_step4_lit_4:
+    l_shot_right_orbit: { color: FFFF00, fade: 0ms }
+  dogfight_step4_lit_5:
+    l_shot_middle_ramp: { color: FFFF00, fade: 0ms }
+  dogfight_step4_lit_6:
+    l_shot_upper_orbit: { color: FFFF00, fade: 0ms }
+  dogfight_step4_lit_7:
+    l_shot_tower_ramp: { color: FFFF00, fade: 0ms }
+  dogfight_step4_lit_8:
+    l_shot_spinner: { color: FFFF00, fade: 0ms }
+  dogfight_step4_lit_9:
+    l_shot_left_ramp: { color: FFFF00, fade: 0ms }
+  dogfight_step4_lit_10:
+    l_shot_left_orbit: { color: FFFF00, fade: 0ms }
+  dogfight_step4_lit_11:
+    l_shot_left_ramp: { color: FFFF00, fade: 0ms }
+
+  # Step 4 done - clear moving light
+  dogfight_step_4_complete:
+    l_shot_spinner: { color: off }
+    l_shot_tower_ramp: { color: off }
+    l_shot_upper_orbit: { color: off }
+    l_shot_middle_ramp: { color: off }
+    l_shot_right_orbit: { color: off }
+    l_shot_left_ramp: { color: off }
+    l_shot_left_orbit: { color: off }
+
+  # STEP 3 bad shot solid red (step-2 hit)
+  dogfight_setup_step_3{current_player.dogfight_s2_hit==1}:
+    l_shot_left_orbit: { color: FF0000, fade: 0ms }
+  dogfight_setup_step_3{current_player.dogfight_s2_hit==2}:
+    l_shot_left_ramp: { color: FF0000, fade: 0ms }
+  dogfight_setup_step_3{current_player.dogfight_s2_hit==3}:
+    l_shot_tower_ramp: { color: FF0000, fade: 0ms }
+  dogfight_setup_step_3{current_player.dogfight_s2_hit==4}:
+    l_shot_right_orbit: { color: FF0000, fade: 0ms }
+
+  # STEP 6 bad shot solid red (step-5 hit)
+  dogfight_setup_step_6{current_player.dogfight_s5_hit==1}:
+    l_shot_left_orbit: { color: FF0000, fade: 0ms }
+  dogfight_setup_step_6{current_player.dogfight_s5_hit==2}:
+    l_shot_spinner: { color: FF0000, fade: 0ms }
+  dogfight_setup_step_6{current_player.dogfight_s5_hit==3}:
+    l_shot_right_orbit: { color: FF0000, fade: 0ms }
+
+  # STEP 7 - clear step-6 shot lights (incl. bad red)
+  dogfight_setup_step_7:
+    l_shot_left_orbit: { color: off }
+    l_shot_spinner: { color: off }
+    l_shot_right_orbit: { color: off }
+
+  # STEP 9-11 converted-bad solid reds
+  dogfight_s9_light_lo_bad:
+    l_shot_left_orbit: { color: FF0000, fade: 0ms }
+  dogfight_s9_light_lr_bad:
+    l_shot_left_ramp: { color: FF0000, fade: 0ms }
+  dogfight_s9_light_ro_bad:
+    l_shot_right_orbit: { color: FF0000, fade: 0ms }
+  dogfight_s9_light_twr_bad:
+    l_shot_tower_ramp: { color: FF0000, fade: 0ms }
+
+  # STEP 12 - clear ALL shot inserts (any lingering bad reds from any prior step)
+  # LL / SP / TL are re-lit by show_player (flash + pulse).
+  dogfight_setup_step_12:
+    l_shot_left_orbit: { color: off }
+    l_shot_left_ramp: { color: off }
+    l_shot_right_orbit: { color: off }
+    l_shot_tower_ramp: { color: off }
+    l_shot_upper_orbit: { color: off }
+    l_shot_middle_ramp: { color: off }
+    l_shot_spinner: { color: off }
+    l_shot_barrier: { color: off }
+    l_shot_pilot_gear: { color: off }
+    l_shot_left_lane: { color: off }
+
+  # CLEANUP - all shot lights off
+  dogfight_cleanup:
+    l_shot_left_lane: { color: off }
+    l_shot_left_orbit: { color: off }
+    l_shot_left_ramp: { color: off }
+    l_shot_spinner: { color: off }
+    l_shot_barrier: { color: off }
+    l_shot_tower_ramp: { color: off }
+    l_shot_upper_orbit: { color: off }
+    l_shot_middle_ramp: { color: off }
+    l_shot_right_orbit: { color: off }
+    l_shot_pilot_gear: { color: off }
+
+####################################################################################
+# COIL PLAYER - left-lane up post (hold during intro + victory)
 ####################################################################################
 
 coil_player:
-  # Left lane post - hold ball during intro video
-  mode_pilot_training_mission_wingman_started:
-    c_left_lane_up_post:
-      action: enable
-
-  # Release ball after intro (or skip)
-  wingman_ball_released:
-    c_left_lane_up_post:
-      action: disable
-
-  # Auto-plunger - fires 500ms after ball settles on shooter lane
-  # CHANGED: added pulse_power: 0.625 + pulse_ms: 22 (matches inverted/Top Gun MB).
-  # 0.625 is the next FAST-quantized step above the 0.5 c_plunger default; 22ms
-  # is a touch under the default 26ms to target pop-bumper energy. Without these,
-  # the pulse used the coil's 50% default, which barely cleared the launch lane.
-  timer_wingman_auto_plunger_delay_complete:
-    c_plunger:
-      action: pulse
-      pulse_power: 0.625
-      pulse_ms: 22
-
-  # Post-mode plunge - fires plunger to launch saved ball after video ends
-  wingman_post_mode_plunge:
-    c_plunger:
-      action: pulse
-
-  # Mode cleanup - disable all coils
-  wingman_cleanup:
-    c_left_lane_up_post:
-      action: disable
-
-  # Safety - disable post on mode stop
-  mode_pilot_training_mission_wingman_will_stop:
-    c_left_lane_up_post:
-      action: disable
+  mode_pilot_training_mission_dogfight_started:
+    c_left_lane_up_post: { action: enable }
+  dogfight_ball_released:
+    c_left_lane_up_post: { action: disable }
+  dogfight_complete:
+    c_left_lane_up_post: { action: enable }
+  dogfight_release_victory_ball:
+    c_left_lane_up_post: { action: disable }
+  dogfight_cleanup:
+    c_left_lane_up_post: { action: disable }
+  mode_pilot_training_mission_dogfight_will_stop:
+    c_left_lane_up_post: { action: disable }
 
 ####################################################################################
-# SHOWS - GI Animation Definitions
+# SHOWS - GI strobe flash on made good shots
 ####################################################################################
 
 shows:
-  # Static GI pattern - blue/cyan alternating, loops forever
-  wingman_static_gi:
-    - duration: 1s
+  dogfight_gi_flash:
+    # white -> off -> white quick strobe over GI
+    - duration: 100ms
       lights:
-        l_gi_light_1: blue
-        l_gi_light_2: cyan
-        l_gi_light_3: blue
-        l_gi_light_4: cyan
-        l_gi_light_5: blue
-        l_gi_light_6: cyan
-        l_gi_light_7: blue
-        l_gi_light_8: cyan
-        l_gi_light_9: blue
-        l_gi_light_10: cyan
-        l_gi_light_11: blue
-        l_gi_light_12: cyan
-        l_gi_light_13: blue
-        l_gi_light_14: cyan
-        l_gi_light_15: blue
-        l_gi_light_16: cyan
-        l_gi_light_17: blue
-        l_gi_light_18: cyan
-        l_gi_light_19: blue
-        l_gi_light_20: cyan
-        l_gi_light_21: blue
-        l_gi_light_22: cyan
-        l_gi_light_23: blue
-        l_gi_light_24: cyan
-        l_gi_light_25: blue
-        l_gi_light_26: cyan
-        l_gi_light_27: blue
-
-  # Good shot GI strobe - flash blue/cyan on/off
-  # 12 loops × 166ms = ~2 seconds
-  wingman_good_shot_gi_strobe:
-    - duration: 83ms
-      lights:
-        l_gi_light_1: blue
-        l_gi_light_2: cyan
-        l_gi_light_3: blue
-        l_gi_light_4: cyan
-        l_gi_light_5: blue
-        l_gi_light_6: cyan
-        l_gi_light_7: blue
-        l_gi_light_8: cyan
-        l_gi_light_9: blue
-        l_gi_light_10: cyan
-        l_gi_light_11: blue
-        l_gi_light_12: cyan
-        l_gi_light_13: blue
-        l_gi_light_14: cyan
-        l_gi_light_15: blue
-        l_gi_light_16: cyan
-        l_gi_light_17: blue
-        l_gi_light_18: cyan
-        l_gi_light_19: blue
-        l_gi_light_20: cyan
-        l_gi_light_21: blue
-        l_gi_light_22: cyan
-        l_gi_light_23: blue
-        l_gi_light_24: cyan
-        l_gi_light_25: blue
-        l_gi_light_26: cyan
-        l_gi_light_27: blue
-    - duration: 83ms
+        l_gi_light_1: white
+        l_gi_light_2: white
+        l_gi_light_3: white
+        l_gi_light_4: white
+        l_gi_light_5: white
+        l_gi_light_6: white
+        l_gi_light_7: white
+        l_gi_light_8: white
+        l_gi_light_9: white
+        l_gi_light_10: white
+        l_gi_light_11: white
+        l_gi_light_12: white
+        l_gi_light_13: white
+        l_gi_light_14: white
+        l_gi_light_15: white
+        l_gi_light_16: white
+        l_gi_light_17: white
+        l_gi_light_18: white
+        l_gi_light_19: white
+        l_gi_light_20: white
+        l_gi_light_21: white
+        l_gi_light_22: white
+        l_gi_light_23: white
+        l_gi_light_24: white
+        l_gi_light_25: white
+        l_gi_light_26: white
+        l_gi_light_27: white
+    - duration: 50ms
       lights:
         l_gi_light_1: off
         l_gi_light_2: off
@@ -2076,105 +1348,87 @@ shows:
         l_gi_light_25: off
         l_gi_light_26: off
         l_gi_light_27: off
+    - duration: 100ms
+      lights:
+        l_gi_light_1: white
+        l_gi_light_2: white
+        l_gi_light_3: white
+        l_gi_light_4: white
+        l_gi_light_5: white
+        l_gi_light_6: white
+        l_gi_light_7: white
+        l_gi_light_8: white
+        l_gi_light_9: white
+        l_gi_light_10: white
+        l_gi_light_11: white
+        l_gi_light_12: white
+        l_gi_light_13: white
+        l_gi_light_14: white
+        l_gi_light_15: white
+        l_gi_light_16: white
+        l_gi_light_17: white
+        l_gi_light_18: white
+        l_gi_light_19: white
+        l_gi_light_20: white
+        l_gi_light_21: white
+        l_gi_light_22: white
+        l_gi_light_23: white
+        l_gi_light_24: white
+        l_gi_light_25: white
+        l_gi_light_26: white
+        l_gi_light_27: white
 
-  # Bad shot GI strobe - blue lights flash RED, cyan lights flash ORANGE
-  # 12 loops × 166ms = ~2 seconds
-  wingman_bad_shot_gi_strobe:
-    - duration: 83ms
+  # No-hold penalty red strobe on slingshot/inlane GI (matches no_margin_for_error)
+  dogfight_gi_penalty_strobe:
+    - duration: 200ms
       lights:
-        l_gi_light_1: red
-        l_gi_light_2: orange
-        l_gi_light_3: red
-        l_gi_light_4: orange
-        l_gi_light_5: red
-        l_gi_light_6: orange
-        l_gi_light_7: red
-        l_gi_light_8: orange
-        l_gi_light_9: red
-        l_gi_light_10: orange
-        l_gi_light_11: red
-        l_gi_light_12: orange
-        l_gi_light_13: red
-        l_gi_light_14: orange
-        l_gi_light_15: red
-        l_gi_light_16: orange
-        l_gi_light_17: red
-        l_gi_light_18: orange
-        l_gi_light_19: red
-        l_gi_light_20: orange
-        l_gi_light_21: red
-        l_gi_light_22: orange
-        l_gi_light_23: red
-        l_gi_light_24: orange
-        l_gi_light_25: red
-        l_gi_light_26: orange
-        l_gi_light_27: red
-    - duration: 83ms
+        l_gi_light_1:
+          color: FF0000
+          fade: 200ms
+        l_gi_light_2:
+          color: FF0000
+          fade: 200ms
+        l_gi_light_3:
+          color: FF0000
+          fade: 200ms
+        l_gi_light_4:
+          color: FF0000
+          fade: 200ms
+        l_gi_light_18:
+          color: FF0000
+          fade: 200ms
+        l_gi_light_19:
+          color: FF0000
+          fade: 200ms
+        l_gi_light_20:
+          color: FF0000
+          fade: 200ms
+        l_gi_light_21:
+          color: FF0000
+          fade: 200ms
+    - duration: 200ms
       lights:
-        l_gi_light_1: off
-        l_gi_light_2: off
-        l_gi_light_3: off
-        l_gi_light_4: off
-        l_gi_light_5: off
-        l_gi_light_6: off
-        l_gi_light_7: off
-        l_gi_light_8: off
-        l_gi_light_9: off
-        l_gi_light_10: off
-        l_gi_light_11: off
-        l_gi_light_12: off
-        l_gi_light_13: off
-        l_gi_light_14: off
-        l_gi_light_15: off
-        l_gi_light_16: off
-        l_gi_light_17: off
-        l_gi_light_18: off
-        l_gi_light_19: off
-        l_gi_light_20: off
-        l_gi_light_21: off
-        l_gi_light_22: off
-        l_gi_light_23: off
-        l_gi_light_24: off
-        l_gi_light_25: off
-        l_gi_light_26: off
-        l_gi_light_27: off
-
-  # Pop bumper flash - quick cyan flash
-  wingman_pop_bumper_gi_flash:
-    - duration: 75ms
-      lights:
-        l_gi_light_pop_left: off
-        l_gi_light_pop_right: off
-        l_gi_light_pop_bottom: off
-    - duration: 75ms
-      lights:
-        l_gi_light_pop_left: cyan
-        l_gi_light_pop_right: cyan
-        l_gi_light_pop_bottom: cyan
-    - duration: 75ms
-      lights:
-        l_gi_light_pop_left: off
-        l_gi_light_pop_right: off
-        l_gi_light_pop_bottom: off
-    - duration: 75ms
-      lights:
-        l_gi_light_pop_left: cyan
-        l_gi_light_pop_right: cyan
-        l_gi_light_pop_bottom: cyan
-
-  # ICEMAN completion celebration - all letters solid green
-  wingman_iceman_complete_flash:
-    - duration: 1s
-      lights:
-        l_iceman_i:
-          color: green
-        l_iceman_c:
-          color: green
-        l_iceman_e:
-          color: green
-        l_iceman_m:
-          color: green
-        l_iceman_a:
-          color: green
-        l_iceman_n:
-          color: green
+        l_gi_light_1:
+          color: 330000
+          fade: 200ms
+        l_gi_light_2:
+          color: 330000
+          fade: 200ms
+        l_gi_light_3:
+          color: 330000
+          fade: 200ms
+        l_gi_light_4:
+          color: 330000
+          fade: 200ms
+        l_gi_light_18:
+          color: 330000
+          fade: 200ms
+        l_gi_light_19:
+          color: 330000
+          fade: 200ms
+        l_gi_light_20:
+          color: 330000
+          fade: 200ms
+        l_gi_light_21:
+          color: 330000
+          fade: 200ms

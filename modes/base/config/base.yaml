@@ -1250,6 +1250,13 @@ slide_player:
       priority: 880
       expire: 3s
 
+  # Dogfight training mission: points popup, played from base so it survives mode stop
+  dogfight_show_points:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
   ##############################################################################
   # Great Balls of Fire — Forge slides (persistent background layers)
   # These stack on top of great_balls_of_fire_background at priority 605.
@@ -1837,6 +1844,40 @@ sound_player:
   mode_pilot_training_mission_afterburner_stopped{current_player.afterburner_complete_flag==1}:
     voice_afterburner_completed:
       bus: voice
+      loops: 0
+
+####################################################################################
+  # Dogfight Training Mission Music Handler
+####################################################################################
+
+  # Silence danger-zone (base) music when the mode starts - quiet during intro hold
+  mode_pilot_training_mission_dogfight_started:
+    silence:
+      bus: music
+      loops: 0
+
+  # Start mode music AFTER the ball is released (music off during intro video)
+  dogfight_ball_released:
+    pilot_training_mission_dogfight_music:
+      bus: music
+      loops: -1
+
+  # Restart base music when mode stops (NOT if drain pending - bonus handles it)
+  mode_pilot_training_mission_dogfight_stopped{current_player.pilot_mode_drain_pending==0}:
+    music_danger_zone:
+      bus: music
+      loops: -1
+
+  # Silence music when mode completes (won video plays)
+  dogfight_complete:
+    silence:
+      bus: music
+      loops: 0
+
+  # Silence music when mode fails (lost video plays)
+  dogfight_failed:
+    silence:
+      bus: music
       loops: 0
 
   # Play completed voice when missiles mode stops after winning

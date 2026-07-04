@@ -27,6 +27,16 @@ variable_player:
     afterburner_perk_active: { action: set, int: 0 }
     wingman_perk_active: { action: set, int: 0 }
   player_added:
+    # Dogfight availability flags (kept as simple ints to avoid nested boolean
+    # conditions, which MPF's parser evaluates incorrectly).
+    #  dogfight_ready       = 1 once 1 training + 1 pilot played and dogfight not played
+    #  dogfight_others_done = 1 once all 4 NON-dogfight training missions are complete
+    dogfight_ready:
+      action: set
+      int: 0
+    dogfight_others_done:
+      action: set
+      int: 0
     # Individual ICEMAN letter states (0=off, 1=lit)
     iceman_letter_i:
       action: set
@@ -214,7 +224,7 @@ variable_player:
       action: set
       int: 0
 
-  mode_training_dogfight_started:
+  mode_pilot_training_mission_dogfight_started:
     training_mission_qualified:
       action: set
       int: 0
@@ -223,23 +233,24 @@ variable_player:
   ## Rotate Qualified Mission on Pop Bumper Hits
   ##############################################
 
-  # Rotate mission forward: 1->2->3->4->5 via bumpers
-  # When value reaches 5, wrap_mission_to_one handlers (below) wrap back to 1
-  # Using <5 instead of <4 so value==4 (wingman) persists until next bumper hit
-  s_bumper_left_active{current_player.training_mission_qualified>0 and current_player.training_mission_qualified<5 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
+  # Rotate mission via bumpers using a SINGLE modulo handler per bumper:
+  #   1->2->3->4->5->1  (one operation, so nothing re-fires on the same hit).
+  # The auto-skip chain skips completed slots; the wrap guard sends 5->1 when
+  # dogfight isn't available. When dogfight IS available it rests at 5 and flashes.
+  s_bumper_left_active{current_player.training_mission_qualified>0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
     training_mission_qualified:
-      action: add
-      int: 1
+      action: set
+      int: (current_player.training_mission_qualified % 5) + 1
 
-  s_bumper_center_active{current_player.training_mission_qualified>0 and current_player.training_mission_qualified<5 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
+  s_bumper_center_active{current_player.training_mission_qualified>0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
     training_mission_qualified:
-      action: add
-      int: 1
+      action: set
+      int: (current_player.training_mission_qualified % 5) + 1
 
-  s_bumper_right_active{current_player.training_mission_qualified>0 and current_player.training_mission_qualified<5 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
+  s_bumper_right_active{current_player.training_mission_qualified>0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
     training_mission_qualified:
-      action: add
-      int: 1
+      action: set
+      int: (current_player.training_mission_qualified % 5) + 1
 
   # Wrap mission value back to 1 if missions 1-4 aren't complete
   wrap_mission_to_one:
@@ -295,6 +306,44 @@ variable_player:
   ##############################################
   all_training_missions_complete_set:
     all_training_missions_complete:
+      action: set
+      int: 1
+
+  ##############################################
+  ## DOGFIGHT AVAILABILITY FLAGS (all pure-AND conditions)
+  ## dogfight_ready = 1 once ONE training + ONE pilot mission have been played
+  ## (and dogfight itself isn't played). Set from whichever counter completes the
+  ## pair; cleared once dogfight is played.
+  ##############################################
+  player_training_missions_played{value>=1 and current_player.pilot_missions_played>=1 and current_player.training_dogfight_complete==0}:
+    dogfight_ready:
+      action: set
+      int: 1
+  player_pilot_missions_played{value>=1 and current_player.training_missions_played>=1 and current_player.training_dogfight_complete==0}:
+    dogfight_ready:
+      action: set
+      int: 1
+  player_training_dogfight_complete{value==1}:
+    dogfight_ready:
+      action: set
+      int: 0
+
+  ## dogfight_others_done = 1 once all 4 NON-dogfight training missions are complete
+  ## (fires from whichever of the four completes last).
+  player_training_inverted_complete{value==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1}:
+    dogfight_others_done:
+      action: set
+      int: 1
+  player_training_missles_complete{value==1 and current_player.training_inverted_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1}:
+    dogfight_others_done:
+      action: set
+      int: 1
+  player_training_afterburner_complete{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_wingman_complete==1}:
+    dogfight_others_done:
+      action: set
+      int: 1
+  player_training_wingman_complete{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1}:
+    dogfight_others_done:
       action: set
       int: 1
 
@@ -400,6 +449,9 @@ event_player:
 
   mode_pilot_training_mission_wingman_stopped:
     - training_wingman_mode_over|500ms
+
+  mode_pilot_training_mission_dogfight_stopped:
+    - training_dogfight_mode_over|500ms
 
   ##############################################
   ## INVERTED PERK: Double ICEMAN Letters
@@ -623,9 +675,10 @@ event_player:
   s_lane_left_active{current_player.training_mission_qualified==4 and current_player.training_wingman_complete==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_qualified_mode==0 and current_player.extra_ball_lit==0}:
     - start_mode_training_wingman
   
-  # Start Dogfight training mission when left lane hit with mission 5 qualified
-  s_lane_left_active{current_player.training_mission_qualified==5 and current_player.pilot_mode_active==0 and current_player.hard_deck_qualified_mode==0 and current_player.extra_ball_lit==0}:
-    - start_mode_training_dogfight
+  # Start Dogfight training mission when left lane hit with mission 5 qualified.
+  # Only startable once dogfight is AVAILABLE (1 training + 1 pilot played, not yet played).
+  s_lane_left_active{current_player.training_mission_qualified==5 and current_player.dogfight_ready==1 and current_player.pilot_mode_active==0 and current_player.hard_deck_qualified_mode==0 and current_player.extra_ball_lit==0}:
+    - start_mode_pilot_training_mission_dogfight
 
   ##############################################
   ## ALL TRAINING MISSIONS COMPLETE TRACKING
@@ -697,14 +750,14 @@ event_player:
   mode_iceman_letters_started:
     - restore_training_mission_light
 
-  # Wrap mission back to 1 if it somehow reaches 5 during rotation
-  player_training_mission_qualified{value==5 and current_player.training_inverted_complete==0}:
-    wrap_mission_to_one
-  player_training_mission_qualified{value==5 and current_player.training_missles_complete==0}:
-    wrap_mission_to_one
-  player_training_mission_qualified{value==5 and current_player.training_afterburner_complete==0}:
-    wrap_mission_to_one
-  player_training_mission_qualified{value==5 and current_player.training_wingman_complete==0}:
+  # Dogfight (slot 5) is now available once ONE training + ONE pilot mission have
+  # been played (and dogfight itself isn't played yet). When value reaches 5:
+  #  - if dogfight is available -> it STAYS at 5 (it's a rotation option / the last one)
+  #  - if NOT available AND a training mission is still open -> wrap to 1 to find it
+  #  - if NOT available AND all training complete -> STAY at 5 (dormant, non-startable)
+  #    until a pilot mission is played. The "training still open" clause is what
+  #    prevents an infinite qualify-loop through completed slots.
+  player_training_mission_qualified{value==5 and current_player.dogfight_ready==0 and current_player.dogfight_others_done==0}:
     wrap_mission_to_one
 
   # Auto-skip completed missions during pop bumper rotation
@@ -769,7 +822,7 @@ event_player:
     stop_all_training_pulse_shows
   mode_pilot_training_mission_wingman_started:
     stop_all_training_pulse_shows
-  mode_training_dogfight_started:
+  mode_pilot_training_mission_dogfight_started:
     stop_all_training_pulse_shows
 
   # Stop pulse shows when any pilot mission starts
@@ -892,7 +945,7 @@ coil_player:
   mode_pilot_training_mission_wingman_started:
     c_mode_barrier:
       action: off
-  mode_training_dogfight_started:
+  mode_pilot_training_mission_dogfight_started:
     c_mode_barrier:
       action: off
 
@@ -1056,7 +1109,7 @@ show_player:
       key: iceman_pop_bumpers_fade
 
   # Dogfight - only show if ALL 4 standard missions are complete
-  player_training_mission_qualified{value==5 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and current_player.training_mission_active==0}:
+  player_training_mission_qualified{value==5 and current_player.dogfight_ready==1 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and current_player.training_mission_active==0}:
     iceman_inverted_pulse:
       action: stop
     iceman_missles_pulse:
@@ -1130,7 +1183,7 @@ show_player:
       speed: 1
       key: iceman_pop_bumpers_fade
 
-  restore_training_mission_light{current_player.training_mission_qualified==5 and current_player.training_dogfight_complete==0}:
+  restore_training_mission_light{current_player.training_mission_qualified==5 and current_player.dogfight_ready==1}:
     iceman_dogfight_pulse:
       loops: -1
       speed: 1
@@ -1171,7 +1224,12 @@ show_player:
     iceman_wingman_pulse:
       action: stop
       key: iceman_wingman_pulse
-  mode_training_dogfight_started:
+  # Stop pulse show when dogfight mode ends (before setting solid white)
+  training_dogfight_mode_over:
+    iceman_dogfight_pulse:
+      action: stop
+      key: iceman_dogfight_pulse
+  mode_pilot_training_mission_dogfight_started:
     iceman_pop_bumpers_fade:
       action: stop
 
@@ -1537,6 +1595,30 @@ light_player:
       color: white
       fade: 0ms
 
+  # Delayed light setting for dogfight - solid white after mode played
+  training_dogfight_mode_over:
+    l_mode_dogfight:
+      color: white
+      fade: 0ms
+
+  # Dogfight-awarded perk marks that training mode PLAYED -> insert solid white now
+  dogfight_grant_inverted:
+    l_mode_inverted:
+      color: white
+      fade: 0ms
+  dogfight_grant_missiles:
+    l_mode_missles:
+      color: white
+      fade: 0ms
+  dogfight_grant_afterburner:
+    l_mode_afterburner:
+      color: white
+      fade: 0ms
+  dogfight_grant_wingman:
+    l_mode_wingman:
+      color: white
+      fade: 0ms
+
   mode_pilot_training_mission_missiles_started:
     l_pilot_training_lit:
       color: off
@@ -1582,7 +1664,7 @@ light_player:
       color: off
       fade: 0ms
 
-  mode_training_dogfight_started:
+  mode_pilot_training_mission_dogfight_started:
     l_pilot_training_lit:
       color: off
     l_mode_dogfight:
@@ -1654,7 +1736,12 @@ light_player:
   restore_training_mission_light{current_player.training_mission_qualified==4 and current_player.training_wingman_complete==0}:
     l_mode_wingman:
       color: cyan
-  restore_training_mission_light{current_player.training_mission_qualified==5}:
+  # If dogfight mode has been played, show solid white on ball start
+  restore_training_mission_light{current_player.training_dogfight_complete==1}:
+    l_mode_dogfight:
+      color: white
+      fade: 0ms
+  restore_training_mission_light{current_player.training_mission_qualified==5 and current_player.dogfight_ready==1}:
     l_mode_dogfight:
       color: cyan
 
@@ -1682,6 +1769,12 @@ light_player:
       color: white
       fade: 0ms
 
+  # Reset dogfight insert to white on tilt
+  tilt{current_player.training_dogfight_complete==1}:
+    l_mode_dogfight:
+      color: white
+      fade: 0ms
+
   # Initial light when qualified (will be overridden by pulsing show)
   # Use player variable change event
   # Turn off all mission lights first, then turn on the qualified one
@@ -1695,8 +1788,6 @@ light_player:
   player_training_mission_qualified{value==1 and current_player.training_wingman_complete==0}:
     l_mode_wingman:
       color: off
-    l_mode_dogfight:
-      color: off
   player_training_mission_qualified{value==1 and current_player.training_afterburner_complete==0}:
     l_mode_afterburner:
       color: off
@@ -1709,8 +1800,6 @@ light_player:
       color: cyan
   player_training_mission_qualified{value==2 and current_player.training_wingman_complete==0}:
     l_mode_wingman:
-      color: off
-    l_mode_dogfight:
       color: off
   player_training_mission_qualified{value==2 and current_player.training_afterburner_complete==0}:
     l_mode_afterburner:
@@ -1728,7 +1817,7 @@ light_player:
   player_training_mission_qualified{value==3 and current_player.training_wingman_complete==0}:
     l_mode_wingman:
       color: off
-  player_training_mission_qualified{value==3}:
+  player_training_mission_qualified{value==3 and current_player.training_dogfight_complete==0}:
     l_mode_dogfight:
       color: off
   
@@ -1741,23 +1830,37 @@ light_player:
   player_training_mission_qualified{value==4 and current_player.training_wingman_complete==0}:
     l_mode_wingman:
       color: cyan
-    l_mode_dogfight:
-      color: off
   player_training_mission_qualified{value==4 and current_player.training_afterburner_complete==0}:
     l_mode_afterburner:
       color: off
-  
+
+  # Dogfight insert OFF whenever a training slot (1/2/4) is the selection and
+  # dogfight is unplayed. (value==3 handled above; if dogfight is played it stays
+  # white via restore, so these are gated on training_dogfight_complete==0.)
+  player_training_mission_qualified{value==1 and current_player.training_dogfight_complete==0}:
+    l_mode_dogfight:
+      color: off
+  player_training_mission_qualified{value==2 and current_player.training_dogfight_complete==0}:
+    l_mode_dogfight:
+      color: off
+  player_training_mission_qualified{value==4 and current_player.training_dogfight_complete==0}:
+    l_mode_dogfight:
+      color: off
+
   player_training_mission_qualified{value==5 and current_player.training_inverted_complete==0}:
     l_mode_inverted:
       color: off
-  # Dogfight light - only show if ALL 4 standard missions are complete
-  player_training_mission_qualified{value==5 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1}:
+  player_training_mission_qualified{value==5 and current_player.training_missles_complete==0}:
     l_mode_missles:
       color: off
+  player_training_mission_qualified{value==5 and current_player.training_afterburner_complete==0}:
     l_mode_afterburner:
       color: off
+  player_training_mission_qualified{value==5 and current_player.training_wingman_complete==0}:
     l_mode_wingman:
       color: off
+  # Dogfight light - show only when dogfight is AVAILABLE (1 training + 1 pilot played)
+  player_training_mission_qualified{value==5 and current_player.dogfight_ready==1}:
     l_mode_dogfight:
       color: cyan
 
