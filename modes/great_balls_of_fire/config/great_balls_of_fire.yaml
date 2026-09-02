@@ -95,10 +95,23 @@ ball_saves:
       - ball_will_end
 
   # Phase 1 forge save: activates the moment the first ball is forged and stays
-  # active for the rest of Phase 1. If the ball drains while at least one ball
-  # has been forged, this save returns the ball + the saving_ball event triggers
-  # the drain-to-Phase 2 chain. Disabled by gbof_collection_complete (any Phase 1
-  # end path: drain-recovery, timer expiry with balls, or all-4 forged).
+  # active through the rest of Phase 1 AND the step-2 "shoot the scoop to start
+  # the MB intro" window. If the ball drains while at least one ball has been
+  # forged, this save returns the ball + the saving_ball event triggers the
+  # drain-to-Phase 2 chain.
+  #
+  # BUGFIX (was: disable_events: [gbof_collection_complete, ball_will_end]):
+  # gbof_collection_complete fires at the START of step 2 (barrier drops,
+  # player still has to shoot the scoop). Disabling here left a real gap —
+  # confirmed via log 2026-08-04_20_34_33: player_gbof_step->2 at 20:47:08.416,
+  # save disabled same tick, ball drained at 20:47:09.387 with ZERO active
+  # save, went straight to ball_ending -> mode_bonus. MB never started despite
+  # 2 balls forged.
+  # FIX: disable on gbof_scoop_hit_for_mb instead — that's the moment the ball
+  # is physically captured by gbof_mb_intro_hold (enabled since
+  # gbof_collection_complete), so the save can safely hand off there. This
+  # covers the entire "ball still loose on the playfield after barrier drop"
+  # window that was previously unprotected.
   gbof_phase1_forge_save:
     active_time: 130s                # covers the full 120s Phase 1 timer + buffer
     hurry_up_time: 2s
@@ -108,7 +121,7 @@ ball_saves:
     enable_events:
       - gbof_ball_forged
     disable_events:
-      - gbof_collection_complete
+      - gbof_scoop_hit_for_mb
       - ball_will_end
 
 ####################################################################################
@@ -387,6 +400,19 @@ timers:
 ####################################################################################
 
 variable_player:
+
+  ##############################################
+  ## LEFT ORBIT SAFE RETURN — arm/clear (Phase 1 collection only)
+  ##############################################
+  orbit_left_safe_return_arm:
+    orbit_left_shot_armed:
+      action: set
+      int: 1
+
+  orbit_left_safe_return_clear:
+    orbit_left_shot_armed:
+      action: set
+      int: 0
 
   # ── INIT ───────────────────────────────────────────────────────────────────────
   mode_great_balls_of_fire_started:
@@ -920,6 +946,27 @@ event_player:
   # ── INIT ────────────────────────────────────────────────────────────────────────
   mode_great_balls_of_fire_started:
     - barrier_raise           # Raise barrier to protect scoop during intro video
+
+  ##############################################
+  ## LEFT ORBIT SAFE RETURN
+  ## Phase 1 collection only. Deliberately NOT armed during Phase 2 (MB
+  ## running, gbof_step==3) — balls should flow freely during multiball.
+  ## LO takes 3 hits to forge (gbof_lo_hits 0->2, gbof_lo_complete flips to
+  ## 1 only on the 3rd) — clearing after every individual hit would leave
+  ## hits 2 and 3 unprotected, so this clears on the derived
+  ## player_gbof_lo_complete event (true completion) instead of the raw
+  ## per-hit event.
+  ##############################################
+  gbof_setup_collection_phase:
+    - orbit_left_safe_return_arm
+
+  player_gbof_lo_complete{value==1}:
+    - orbit_left_safe_return_clear|700ms
+
+  # Phase 1 window closes (collection complete via any path, or mode fails
+  # outright before ever reaching Phase 2)
+  gbof_collection_complete:
+    - orbit_left_safe_return_clear
 
   # Block skillshot from starting while this mode is active (Phase 2 MB balls
   # hit the shooter lane and would otherwise trigger the skillshot mode).
@@ -1456,6 +1503,7 @@ event_player:
   # of duplicating handlers. (MPF doesn't accept comma-separated event keys.)
   gbof_failed:
     - gbof_end_video_started
+    - orbit_left_safe_return_clear
   gbof_complete:
     - barrier_raise
     - timer_gbof_complete_delay_start

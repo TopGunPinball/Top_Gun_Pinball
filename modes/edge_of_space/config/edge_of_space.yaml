@@ -305,6 +305,19 @@ timers:
 
 variable_player:
 
+  ##############################################
+  ## LEFT ORBIT SAFE RETURN — arm/clear (Step 1 only, the mode's only LO shot)
+  ##############################################
+  orbit_left_safe_return_arm:
+    orbit_left_shot_armed:
+      action: set
+      int: 1
+
+  orbit_left_safe_return_clear:
+    orbit_left_shot_armed:
+      action: set
+      int: 0
+
   mode_edge_of_space_started:
     pilot_mode_active:
       action: set
@@ -837,12 +850,15 @@ event_player:
   ##############################################
   ## STEP 1 — LO (left_orbit_shot_hit composite event from base)
   ##############################################
+  edge_of_space_setup_step_1:
+    - orbit_left_safe_return_arm
 
   left_orbit_shot_hit{current_player.edge_of_space_step==1}:
     - edge_of_space_step_1_complete
     - edge_of_space_step_1_shot_hit
     - edge_of_space_setup_step_2
     - edge_of_space_show_points
+    - orbit_left_safe_return_clear|700ms
 
   ##############################################
   ## STEP 2 — RO (right ramp UP, right_orbit_shot_hit)
@@ -1157,6 +1173,7 @@ event_player:
     - missiles_perk_unload
     - right_ramp_down
     - left_orbit_diverter_closed
+    - orbit_left_safe_return_clear
 
   edge_of_space_cleanup:
     - edge_of_space_deactivate_left_lane_post

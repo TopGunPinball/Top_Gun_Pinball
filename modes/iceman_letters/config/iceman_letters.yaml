@@ -236,18 +236,28 @@ variable_player:
   # Rotate mission via bumpers using a SINGLE modulo handler per bumper:
   #   1->2->3->4->5->1  (one operation, so nothing re-fires on the same hit).
   # The auto-skip chain skips completed slots; the wrap guard sends 5->1 when
-  # dogfight isn't available. When dogfight IS available it rests at 5 and flashes.
-  s_bumper_left_active{current_player.training_mission_qualified>0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
+  # dogfight isn't available. When dogfight IS available it rests at 5 and flashes,
+  # same as any other slot rests until the next bumper hit rotates it onward.
+  #
+  # NOTE on the dogfight_settle_lockout clause: landing on 5 can happen from two
+  # (or three) pop bumpers firing within a couple ms of each other during multiball,
+  # which was rotating 5 straight back to 1 before the player ever had a real chance
+  # to see/shoot it. dogfight_settle_lockout is a short (100ms) timer that starts the
+  # instant the value becomes 5 with dogfight ready (see event_player + timers below)
+  # and only suppresses rotation while it's running. After it expires, slot 5 rotates
+  # away on the next bumper hit exactly like every other slot — it does NOT stay
+  # parked forever, it's just protected from being erased in the same instant it's set.
+  s_bumper_left_active{current_player.training_mission_qualified>0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and (current_player.training_mission_qualified!=5 or current_player.dogfight_ready==0 or device.timers.dogfight_settle_lockout.running==False)}:
     training_mission_qualified:
       action: set
       int: (current_player.training_mission_qualified % 5) + 1
 
-  s_bumper_center_active{current_player.training_mission_qualified>0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
+  s_bumper_center_active{current_player.training_mission_qualified>0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and (current_player.training_mission_qualified!=5 or current_player.dogfight_ready==0 or device.timers.dogfight_settle_lockout.running==False)}:
     training_mission_qualified:
       action: set
       int: (current_player.training_mission_qualified % 5) + 1
 
-  s_bumper_right_active{current_player.training_mission_qualified>0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
+  s_bumper_right_active{current_player.training_mission_qualified>0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and (current_player.training_mission_qualified!=5 or current_player.dogfight_ready==0 or device.timers.dogfight_settle_lockout.running==False)}:
     training_mission_qualified:
       action: set
       int: (current_player.training_mission_qualified % 5) + 1
@@ -328,6 +338,22 @@ variable_player:
       action: set
       int: 0
 
+  ##############################################
+  ## RE-EVALUATE ROTATION WHEN DOGFIGHT BECOMES READY
+  ## dogfight_ready flipping to 1 doesn't itself change
+  ## training_mission_qualified, so the skip-completed cascade above (which
+  ## only fires on a genuine VALUE change) never runs — if the pointer was
+  ## resting dormant at 5 (per the "stay at 5, dormant" comment below) from
+  ## before dogfight was ready, nothing re-triggers the light-update chain
+  ## until the next bumper hit. This re-posts the SAME value, which MPF
+  ## still fires as a derived event even with no actual change, correctly
+  ## re-running the cascade/light logic immediately instead of waiting.
+  ##############################################
+  player_dogfight_ready{value==1}:
+    training_mission_qualified:
+      action: set
+      int: current_player.training_mission_qualified
+
   ## dogfight_others_done = 1 once all 4 NON-dogfight training missions are complete
   ## (fires from whichever of the four completes last).
   player_training_inverted_complete{value==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1}:
@@ -404,18 +430,6 @@ timers:
       - event: restart_left_mig_post_timer
         action: restart
   
-  # Right MIG post - holds for 2 seconds after left orbit hit
-  # Same fix applied: control_events + correct end_value/tick_interval
-  right_mig_post_timer:
-    start_value: 0
-    end_value: 2
-    direction: up
-    tick_interval: 1s
-    start_running: false
-    control_events:
-      - event: restart_right_mig_post_timer
-        action: restart
-  
   # Lockout timer - prevents right post activation if ball came from right side
   right_orbit_lockout_timer:
     start_value: 0
@@ -425,6 +439,20 @@ timers:
     start_running: false
     control_events:
       - event: restart_right_orbit_lockout_timer
+        action: restart
+
+  # Brief debounce window on landing on slot 5 (dogfight) while ready. Prevents
+  # near-simultaneous pop bumper hits (common during multiball) from rotating the
+  # value straight back to 1 in the same instant it was set. Does NOT keep dogfight
+  # parked permanently - once this expires, normal bumper rotation resumes.
+  dogfight_settle_lockout:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 100ms
+    start_running: false
+    control_events:
+      - event: dogfight_slot_settled
         action: restart
 
 ##############################################
@@ -760,6 +788,13 @@ event_player:
   player_training_mission_qualified{value==5 and current_player.dogfight_ready==0 and current_player.dogfight_others_done==0}:
     wrap_mission_to_one
 
+  # Start the brief settle-debounce window (see dogfight_settle_lockout timer)
+  # every time the value lands on 5 while dogfight is ready. This is what stops
+  # near-simultaneous pop bumper hits from erasing it instantly, without making
+  # it permanently sticky - the timer expires quickly and normal rotation resumes.
+  player_training_mission_qualified{value==5 and current_player.dogfight_ready==1}:
+    - dogfight_slot_settled
+
   # Auto-skip completed missions during pop bumper rotation
   # Sets directly to the next UNCOMPLETED mission value so the variable
   # always stays in sync with what's actually lit on the playfield.
@@ -905,9 +940,11 @@ event_player:
   s_spinner_active{current_player.training_mission_qualified>0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
     - restart_left_mig_post_timer
 
-  # Start right post timer when left orbit hit (if training qualified, NOT locked out, and no training mission/pilot mission/hard deck/multiball running)
-  s_orbit_left_active{current_player.training_mission_qualified>0 and current_player.right_post_locked_out==0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
-    - restart_right_mig_post_timer
+  # Relay to the global MIG post capture mechanism in base.yaml so a ball
+  # caught between the posts (s_mig_capture) forces both posts up, sending
+  # it into the pops to let the player change modes.
+  timer_left_mig_post_timer_started:
+    - mig_post_fired
 
   # Start lockout timer when right-side switches hit
   s_orbit_right_active:
@@ -920,9 +957,9 @@ event_player:
     - restart_right_orbit_lockout_timer
 
   # Timer restarts are handled directly by control_events on each timer above.
-  # restart_left_mig_post_timer, restart_right_mig_post_timer, and
-  # restart_right_orbit_lockout_timer are consumed by the timers' control_events
-  # (action: restart) and no additional event posting is needed.
+  # restart_left_mig_post_timer and restart_right_orbit_lockout_timer are
+  # consumed by the timers' control_events (action: restart) and no
+  # additional event posting is needed.
 
 ##############################################
 ## Coil Player - Control Barrier Target & MIG Posts
@@ -968,23 +1005,6 @@ coil_player:
   # Release left post when timer completes
   timer_left_mig_post_timer_complete:
     c_left_mig_up_post:
-      action: disable
-
-  # RIGHT MIG POST - Activate when left orbit hit, NOT locked out, training qualified, and not during active training/pilot mission/hard deck/multiball
-  s_orbit_left_active{current_player.training_mission_qualified>0 and current_player.right_post_locked_out==0 and current_player.training_mission_active==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
-    c_right_mig_up_post:
-      action: pulse
-      hold_power: 0.125
-
-  # Hold right post while timer is running
-  timer_right_mig_post_timer_started:
-    c_right_mig_up_post:
-      action: enable
-      hold_power: 0.125
-
-  # Release right post when timer completes
-  timer_right_mig_post_timer_complete:
-    c_right_mig_up_post:
       action: disable
 
 ##############################################

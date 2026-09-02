@@ -321,6 +321,19 @@ timers:
 
 variable_player:
 
+  ##############################################
+  ## LEFT ORBIT SAFE RETURN — arm/clear (Steps 1 and 7 only)
+  ##############################################
+  orbit_left_safe_return_arm:
+    orbit_left_shot_armed:
+      action: set
+      int: 1
+
+  orbit_left_safe_return_clear:
+    orbit_left_shot_armed:
+      action: set
+      int: 0
+
   # ─── MODE INIT ───────────────────────────────────────────────────────────────
   mode_cool_under_pressure_started:
     pilot_mode_active:
@@ -749,6 +762,7 @@ event_player:
   # Steps 1-3: no servo changes needed
   cup_setup_step_1:
     - cup_start_shot_timer_30
+    - orbit_left_safe_return_arm
 
   cup_setup_step_2:
     - cup_start_shot_timer_30
@@ -777,6 +791,7 @@ event_player:
   cup_setup_step_7:
     - cup_start_shot_timer_30
     - top_ramp_down
+    - orbit_left_safe_return_arm
 
   # Step 8: drop barrier to expose scoop
   cup_setup_step_8:
@@ -856,12 +871,15 @@ event_player:
   s_ramp_left_exit_active{current_player.cup_step==1 and device.timers.cup_step_complete_lockout.running==False}:
     - cup_left_shot_hit
     - cup_step_1_complete
+    - orbit_left_safe_return_clear
   left_orbit_shot_hit{current_player.cup_step==1 and device.timers.cup_step_complete_lockout.running==False}:
     - cup_left_shot_hit
     - cup_step_1_complete
+    - orbit_left_safe_return_clear|700ms
   spinner_shot_made{current_player.cup_step==1 and device.timers.cup_spinner_lockout.running==False and device.timers.cup_step_complete_lockout.running==False}:
     - cup_center_shot_hit
     - cup_step_1_complete
+    - orbit_left_safe_return_clear
 
   # Step 2: TWR, RR, TR
   s_ramp_tower_exit_active{current_player.cup_step==2 and device.timers.cup_step_complete_lockout.running==False}:
@@ -904,6 +922,7 @@ event_player:
   left_orbit_shot_hit{current_player.cup_step==7 and device.timers.cup_step_complete_lockout.running==False}:
     - cup_left_shot_hit
     - cup_step_7_complete
+    - orbit_left_safe_return_clear|700ms
 
   # Step 8: Scoop (barrier is DOWN)
   s_mode_start_active{current_player.cup_step==8 and device.timers.cup_step_complete_lockout.running==False}:
@@ -917,6 +936,7 @@ event_player:
   missiles_perk_complete_shot{current_player.cup_step==1 and current_player.cup_complete_flag==0}:
     - cup_left_shot_hit
     - cup_step_1_complete
+    - orbit_left_safe_return_clear
   missiles_perk_complete_shot{current_player.cup_step==2 and current_player.cup_complete_flag==0}:
     - cup_right_shot_hit
     - cup_step_2_complete
@@ -935,6 +955,7 @@ event_player:
   missiles_perk_complete_shot{current_player.cup_step==7 and current_player.cup_complete_flag==0}:
     - cup_left_shot_hit
     - cup_step_7_complete
+    - orbit_left_safe_return_clear
 
   # ─── BAD SHOT DETECTION ──────────────────────────────────────────────────────
   # Only registers if the shot is LIT (conditions match crystal count).

@@ -81,6 +81,78 @@ timers:
       - event: s_spinner_active
         action: restart
 
+  ##############################################
+  ## MIG POST CAPTURE — global trap mechanism
+  ## Any mode that raises c_left_mig_up_post or c_right_mig_up_post also posts
+  ## the shared mig_post_fired event alongside its own coil_player call (see
+  ## e.g. skillshot_activate_left_mig_post, timer_wingman_post_win_mig_delay_complete
+  ## below). If s_mig_capture (the switch between the two posts) trips within
+  ## 3s of that, both posts fire together for 2s to trap the ball, then a 5s
+  ## lockout prevents a bouncing ball from re-triggering the trap repeatedly.
+  ##############################################
+
+  # 3s window during which s_mig_capture is treated as a genuine capture
+  mig_post_watch_window:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: mig_post_fired
+        action: restart
+
+  # 1.5s hold once both posts fire together
+  mig_post_capture_hold:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 500ms
+    control_events:
+      - event: mig_post_capture_triggered
+        action: restart
+
+  # 5s lockout after a capture fires, so a rattling ball can't re-trigger it
+  mig_post_capture_lockout:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: mig_post_capture_triggered
+        action: restart
+
+  ##############################################
+  ## LEFT ORBIT SAFE RETURN
+  ## A mode sets current_player.orbit_left_shot_armed=1 while it wants the
+  ## left orbit lit as a good shot, and clears it (after a 700ms delay so a
+  ## ball already in flight still counts) once that shot's no longer live.
+  ## If s_orbit_left fires while armed, the window below opens; s_lane_right
+  ## firing within it fires the safe-return coil. Stops itself the instant it
+  ## fires so a bouncing ball at s_lane_right can't re-trigger it.
+  ##############################################
+
+  # Window during which s_lane_right counts as the safe return
+  right_lane_safe_return_window:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: right_lane_safe_return_armed
+        action: restart
+      - event: right_lane_post_triggered
+        action: stop
+
+  # 1.5s hold on the post itself
+  right_lane_post_hold:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 500ms
+    control_events:
+      - event: right_lane_post_triggered
+        action: restart
+
 event_player:
   mode_base_started:
     - start_mode_bumpers
@@ -96,6 +168,44 @@ event_player:
 
   # spinner_shot_made is fired by pilot_mission_qualifier which owns spinner
   # composite detection with proper lockout guards. Do NOT duplicate here.
+
+  ##############################################
+  ## MIG POST CAPTURE
+  ## Every site that raises c_left_mig_up_post or c_right_mig_up_post also
+  ## posts mig_post_fired here (see timer_wingman_post_win_mig_delay_complete
+  ## below; skillshot.yaml posts it from skillshot_activate_left_mig_post).
+  ## When s_mig_capture trips while mig_post_watch_window is still running
+  ## (within 3s of a post being raised) and we're not in the 5s post-capture
+  ## lockout, fire the trap.
+  ##############################################
+  timer_wingman_post_win_mig_delay_complete:
+    - mig_post_fired
+
+  s_mig_capture_active{device.timers.mig_post_watch_window.running and device.timers.mig_post_capture_lockout.running==False}:
+    - mig_post_capture_triggered
+
+  s_orbit_left_active{current_player.orbit_left_shot_armed==1}:
+    - right_lane_safe_return_armed
+
+  s_lane_right_active{device.timers.right_lane_safe_return_window.running}:
+    - right_lane_post_triggered
+
+  ##############################################
+  ## LEFT ORBIT SAFE RETURN — outlane save arm/resolve
+  ##############################################
+  # Post dropped — start watching for the first switch
+  timer_right_lane_post_hold_complete:
+    - right_lane_ball_save_watch_armed
+
+  # First qualifying switch is the right outlane — save it
+  s_outlane_right_active{current_player.right_lane_ball_save_pending==1}:
+    - right_lane_ball_save_hit
+
+  # Any OTHER switch fires first — cancel. Excludes the case where THIS
+  # sw_playfield_active is itself from s_outlane_right (state==1 then),
+  # so the two paths stay mutually exclusive regardless of dispatch order.
+  sw_playfield_active{current_player.right_lane_ball_save_pending==1 and device.switches.s_outlane_right.state==0}:
+    - right_lane_ball_save_cancel
 
   # Release lock servo at ball start ONLY if no balls are physically in locks
   # Uses switch state (not player variables) because balls persist across players
@@ -179,6 +289,25 @@ event_player:
     - plunger_eject_confirmed
 
 variable_player:
+
+  ##############################################
+  ## LEFT ORBIT SAFE RETURN — outlane save arm/resolve
+  ##############################################
+  right_lane_ball_save_watch_armed:
+    right_lane_ball_save_pending:
+      action: set
+      int: 1
+
+  right_lane_ball_save_hit:
+    right_lane_ball_save_pending:
+      action: set
+      int: 0
+
+  right_lane_ball_save_cancel:
+    right_lane_ball_save_pending:
+      action: set
+      int: 0
+
   ##############################################
   ## Total Scoring Multiplier - FIXED VERSION
   ## Initialize on BOTH player_added AND mode start
@@ -227,6 +356,14 @@ variable_player:
   # ALSO initialize when base mode starts (this is the key fix!)
   # Reset per-ball bonus counters AND bonus multiplier
   mode_base_started:
+    # Defensive reset — a mode should always clear this itself, but don't
+    # let it carry over between balls if one forgets
+    orbit_left_shot_armed:
+      action: set
+      int: 0
+    right_lane_ball_save_pending:
+      action: set
+      int: 0
     total_scoring_multiplier:
       action: set
       float: current_player.mach_level * (1 + current_player.x2_multiplier)
@@ -819,6 +956,36 @@ coil_player:
   # Disable left MiG post after 2 second hold
   timer_wingman_post_win_mig_hold_complete:
     c_left_mig_up_post:
+      action: disable
+
+  ##############################################
+  ## MIG POST CAPTURE — fire both posts together for 2s, then release both.
+  ## Unconditional release: doesn't know or care whether a mode's own hold
+  ## timer for one of these posts is still supposed to be running past this
+  ## point — the trap always wins. In practice the ball is trapped/settled
+  ## well before 2s is up, so this hasn't been an issue in testing so far.
+  ##############################################
+  mig_post_capture_triggered:
+    c_left_mig_up_post:
+      action: enable
+    c_right_mig_up_post:
+      action: enable
+
+  timer_mig_post_capture_hold_complete:
+    c_left_mig_up_post:
+      action: disable
+    c_right_mig_up_post:
+      action: disable
+
+  ##############################################
+  ## LEFT ORBIT SAFE RETURN — fire right lane post for 1.5s, then release
+  ##############################################
+  right_lane_post_triggered:
+    c_right_lane_post:
+      action: enable
+
+  timer_right_lane_post_hold_complete:
+    c_right_lane_post:
       action: disable
 
 ##############################################

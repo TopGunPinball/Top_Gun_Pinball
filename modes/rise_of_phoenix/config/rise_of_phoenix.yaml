@@ -85,6 +85,19 @@ queue_relay_player:
 ####################################################################################
 
 variable_player:
+  ##############################################
+  ## LEFT ORBIT SAFE RETURN — arm/clear (Step 1, the mode's only LO shot)
+  ##############################################
+  orbit_left_safe_return_arm:
+    orbit_left_shot_armed:
+      action: set
+      int: 1
+
+  orbit_left_safe_return_clear:
+    orbit_left_shot_armed:
+      action: set
+      int: 0
+
   mode_rise_of_phoenix_started:
     # Universal pilot mode tracking - set when any pilot mode starts
     missiles_perk_blocked:
@@ -557,11 +570,15 @@ event_player:
     - rise_of_phoenix_skip_intro
 
   # Step 1: Left Orbit
+  rise_of_phoenix_setup_step_1:
+    - orbit_left_safe_return_arm
+
   left_orbit_shot_hit{current_player.rise_of_phoenix_step==0 and device.timers.shot_lockout.running==False}:
     - rise_of_phoenix_step_1_complete
     - rise_of_phoenix_step_1_shot_hit
     - timer_shot_lockout_start
     - rise_of_phoenix_setup_step_2
+    - orbit_left_safe_return_clear|700ms
 
   # Step 2: Spinner (1 shot required - spinner_shot_made is already debounced to require 3 spins)
   spinner_shot_made{current_player.rise_of_phoenix_step==1}:
@@ -729,10 +746,12 @@ event_player:
 
   # Mode cleanup (turn off all coils at end)
   rise_of_phoenix_failed:
+    - barrier_raise               # Barrier may be mid-drop-cycle for the next shot when the mode times out
     - rise_of_phoenix_cleanup
     - right_ramp_down             # SERVO: Lower right ramp on mode fail
     - missiles_perk_unload
     - top_ramp_down               # SERVO: Lower top ramp on mode fail
+    - orbit_left_safe_return_clear
 
 ##############################################
 ## Slide Player - Videos & Instructions

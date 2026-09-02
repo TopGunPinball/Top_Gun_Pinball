@@ -144,6 +144,14 @@ timers:
 variable_player:
 
   ##############################################
+  ## LEFT ORBIT SAFE RETURN — clear (arm is set inline at the I-target hit)
+  ##############################################
+  orbit_left_safe_return_clear:
+    orbit_left_shot_armed:
+      action: set
+      int: 0
+
+  ##############################################
   ## MODE INITIALIZATION (on mode_started)
   ## NOTE: hard_deck_active, letter_collection_paused, hd_hi_played
   ##       are set by hard_deck_qualifiers.yaml — do NOT duplicate here.
@@ -194,6 +202,7 @@ variable_player:
     mode_points_scored: { action: set, int: 350000 * current_player.total_scoring_multiplier }
     hoi_iceman_i_hit: { action: set, int: 1 }
     hoi_lo_active: { action: set, int: 1 }
+    orbit_left_shot_armed: { action: set, int: 1 }
     hoi_shots_remaining: { action: add, int: -1 }
 
   s_c_iceman_target_active{current_player.hoi_iceman_c_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
@@ -413,6 +422,9 @@ event_player:
   left_orbit_shot_hit{current_player.hoi_lo_active==1 and current_player.hoi_complete_flag==0}:
     - hoi_lo_shot_made
     - hoi_main_shot_scored
+
+  hoi_lo_shot_made:
+    - orbit_left_safe_return_clear|700ms
 
   # LR — Left Ramp (s_ramp_left_exit)
   s_ramp_left_exit_active{current_player.hoi_lr_active==1 and current_player.hoi_complete_flag==0}:

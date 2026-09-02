@@ -313,6 +313,19 @@ timers:
 ####################################################################################
 variable_player:
   ##############################################
+  ## LEFT ORBIT SAFE RETURN — arm/clear (Stage 1 only, before final shot lights)
+  ##############################################
+  orbit_left_safe_return_arm:
+    orbit_left_shot_armed:
+      action: set
+      int: 1
+
+  orbit_left_safe_return_clear:
+    orbit_left_shot_armed:
+      action: set
+      int: 0
+
+  ##############################################
   ## MODE START - Initialize all state
   ##############################################
   mode_hard_deck_charlie_started:
@@ -909,6 +922,7 @@ event_player:
   ##############################################
   charlie_stage_1_setup:
     - right_ramp_down                       # Servo: RR shot requires down
+    - orbit_left_safe_return_arm
 
   ##############################################
   ## STAGE 1 SHOT DETECTION
@@ -919,6 +933,7 @@ event_player:
   left_orbit_shot_hit{current_player.charlie_stage==1 and current_player.charlie_stage_1_lo_hit==0 and current_player.charlie_stage_1_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
     - charlie_stage_1_lo_hit
     - charlie_stage_1_shot_hit
+    - orbit_left_safe_return_clear|700ms
 
   s_ramp_left_exit_active{current_player.charlie_stage==1 and current_player.charlie_stage_1_lr_hit==0 and current_player.charlie_stage_1_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
     - charlie_stage_1_lr_hit
@@ -969,6 +984,7 @@ event_player:
   ##############################################
   charlie_stage_1_final_shot_setup:
     - barrier_drop
+    - orbit_left_safe_return_clear
 
   ##############################################
   ## FINAL SHOT (BARRIER/SCOOP) HIT
@@ -1445,6 +1461,7 @@ event_player:
     - barrier_raise
     - timer_hard_deck_charlie_stage_1_failed_delay_start
     - hard_deck_charlie_cleanup
+    - orbit_left_safe_return_clear
 
   hard_deck_charlie_failed_stage_2:
     - barrier_raise

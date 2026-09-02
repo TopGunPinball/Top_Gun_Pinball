@@ -215,6 +215,23 @@ timers:
 ####################################################################################
 
 variable_player:
+  ##############################################
+  ## LEFT ORBIT SAFE RETURN — arm/clear
+  ## LO is good in: Step 2 (always), Step 3 (unless it was step 2's shot),
+  ## Step 4 moving-target position 10 (direct-armed, bypasses the flag),
+  ## Step 5 (always), Step 6 (unless it was step 5's shot), Steps 9-11
+  ## (unless already marked bad this mini-phase).
+  ##############################################
+  orbit_left_safe_return_arm:
+    orbit_left_shot_armed:
+      action: set
+      int: 1
+
+  orbit_left_safe_return_clear:
+    orbit_left_shot_armed:
+      action: set
+      int: 0
+
   mode_pilot_training_mission_dogfight_started:
     training_mission_active: { action: set, int: 1 }
     letter_collection_paused: { action: set, int: 1 }
@@ -447,6 +464,7 @@ event_player:
   mode_pilot_training_mission_dogfight_started:
     - dogfight_set_gi|200ms
     - dogfight_play_instructions_voice
+    - ball_search_block
 
   ##############################################
   ## SKIP INTRO - both flippers during intro window (phoenix-style)
@@ -471,6 +489,7 @@ event_player:
   dogfight_ball_released:
     - right_ramp_down
     - top_ramp_down|500ms
+    - ball_search_unblock
 
   ##############################################
   ## GI STROBE ON GOOD HITS (steps 1-11), then restore alternating GI
@@ -525,11 +544,14 @@ event_player:
   ##############################################
   ## STEP 2: LO | LR | TWR | RR  (hit any; remember which)
   ##############################################
+  dogfight_setup_step_2:
+    - orbit_left_safe_return_arm
   left_orbit_shot_hit{current_player.dogfight_step==1}:
     - dogfight_step_2_complete
     - dogfight_s2_hit_lo
     - dogfight_step_2_shot_hit
     - dogfight_setup_step_3
+    - orbit_left_safe_return_clear|700ms
   s_ramp_left_exit_active{current_player.dogfight_step==1}:
     - dogfight_step_2_complete
     - dogfight_s2_hit_lr
@@ -548,11 +570,17 @@ event_player:
 
   ##############################################
   ## STEP 3: other 3 good; step-2 shot is BAD (bad -> penalty, no advance)
+  ## LO armed here only if it wasn't step 2's shot (dogfight_s2_hit!=1)
   ##############################################
+  dogfight_setup_step_3{current_player.dogfight_s2_hit!=1}:
+    - orbit_left_safe_return_arm
+  dogfight_setup_step_3{current_player.dogfight_s2_hit==1}:
+    - orbit_left_safe_return_clear
   left_orbit_shot_hit{current_player.dogfight_step==2 and current_player.dogfight_s2_hit!=1}:
     - dogfight_step_3_complete
     - dogfight_step_3_shot_hit
     - dogfight_setup_step_4
+    - orbit_left_safe_return_clear|700ms
   left_orbit_shot_hit{current_player.dogfight_step==2 and current_player.dogfight_s2_hit==1}:
     - dogfight_bad_shot_hit
   s_ramp_left_exit_active{current_player.dogfight_step==2 and current_player.dogfight_s2_hit!=2}:
@@ -622,6 +650,11 @@ event_player:
     - dogfight_step_4_complete
     - dogfight_step_4_shot_hit
     - dogfight_setup_step_5
+  # Direct-arm (bypassing the flag) since this is a rapidly-changing moving
+  # target position — same technique used for pilot_mission_qualifier's LO,
+  # avoids racing base.yaml's own check on this same raw switch event.
+  s_orbit_left_active{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==10 or current_player.dogfight_step4_grace_pos==10)}:
+    - right_lane_safe_return_armed
   left_orbit_shot_hit{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==10 or current_player.dogfight_step4_grace_pos==10)}:
     - dogfight_step_4_complete
     - dogfight_step_4_shot_hit
@@ -632,11 +665,13 @@ event_player:
   ##############################################
   dogfight_setup_step_5:
     - right_ramp_up
+    - orbit_left_safe_return_arm
   left_orbit_shot_hit{current_player.dogfight_step==4}:
     - dogfight_step_5_complete
     - dogfight_s5_hit_lo
     - dogfight_step_5_shot_hit
     - dogfight_setup_step_6
+    - orbit_left_safe_return_clear|700ms
   spinner_shot_made{current_player.dogfight_step==4}:
     - dogfight_step_5_complete
     - dogfight_s5_hit_sp
@@ -650,11 +685,17 @@ event_player:
 
   ##############################################
   ## STEP 6: other 2 good; step-5 shot BAD. Made -> lower right ramp, step 7
+  ## LO armed here only if it wasn't step 5's shot (dogfight_s5_hit!=1)
   ##############################################
+  dogfight_setup_step_6{current_player.dogfight_s5_hit!=1}:
+    - orbit_left_safe_return_arm
+  dogfight_setup_step_6{current_player.dogfight_s5_hit==1}:
+    - orbit_left_safe_return_clear
   left_orbit_shot_hit{current_player.dogfight_step==5 and current_player.dogfight_s5_hit!=1}:
     - dogfight_step_6_complete
     - dogfight_step_6_shot_hit
     - dogfight_setup_step_7
+    - orbit_left_safe_return_clear|700ms
   left_orbit_shot_hit{current_player.dogfight_step==5 and current_player.dogfight_s5_hit==1}:
     - dogfight_bad_shot_hit
   spinner_shot_made{current_player.dogfight_step==5 and current_player.dogfight_s5_hit!=2}:
@@ -695,12 +736,14 @@ event_player:
   ##############################################
   dogfight_setup_step_9:
     - right_ramp_up
+    - orbit_left_safe_return_arm
 
   # Good hits, NON-completing (count<2): mark bad + solid red + advance
   left_orbit_shot_hit{current_player.dogfight_step>=8 and current_player.dogfight_step<=10 and current_player.dogfight_s9_lo==0 and current_player.dogfight_s9_count<2}:
     - dogfight_s9_mark_lo
     - dogfight_s9_progress
     - dogfight_s9_light_lo_bad
+    - orbit_left_safe_return_clear|700ms
   s_ramp_left_exit_active{current_player.dogfight_step>=8 and current_player.dogfight_step<=10 and current_player.dogfight_s9_lr==0 and current_player.dogfight_s9_count<2}:
     - dogfight_s9_mark_lr
     - dogfight_s9_progress
@@ -718,6 +761,7 @@ event_player:
   left_orbit_shot_hit{current_player.dogfight_step>=8 and current_player.dogfight_step<=10 and current_player.dogfight_s9_lo==0 and current_player.dogfight_s9_count==2}:
     - dogfight_s9_mark_lo
     - dogfight_s9_progress
+    - orbit_left_safe_return_clear|700ms
   s_ramp_left_exit_active{current_player.dogfight_step>=8 and current_player.dogfight_step<=10 and current_player.dogfight_s9_lr==0 and current_player.dogfight_s9_count==2}:
     - dogfight_s9_mark_lr
     - dogfight_s9_progress
@@ -757,6 +801,7 @@ event_player:
   ##############################################
   dogfight_setup_step_12:
     - right_ramp_down
+    - orbit_left_safe_return_clear
   spinner_shot_made{current_player.dogfight_step==11}:
     - dogfight_open_diverter
   s_orbit_upper_active{current_player.dogfight_step==11}:
@@ -864,6 +909,7 @@ event_player:
     - dogfight_failed
   dogfight_failed:
     - dogfight_cleanup
+    - orbit_left_safe_return_clear
   # LOST VIDEO SKIP - both flippers during lost video
   s_flipper_left_active{current_player.dogfight_lost_video_active==1}:
     - dogfight_check_skip_lost
@@ -893,6 +939,7 @@ event_player:
     - enable_normal_flippers
     - right_ramp_down
     - top_ramp_down|500ms
+    - ball_search_unblock
     - left_orbit_diverter_closed
 
 ####################################################################################
@@ -1091,6 +1138,17 @@ show_player:
     s_ll:  { show: sync_flash_mode, key: mode_ll, sync_ms: 1000, loops: -1, show_tokens: { led: l_shot_left_lane, color: FFFF00 } }
     p_sp:  { show: sync_pulse_mode, key: mode_sp_pulse, loops: -1, show_tokens: { led: l_shot_spinner,     color: FFFF00 } }
     p_tl:  { show: sync_pulse_mode, key: mode_tl_pulse, loops: -1, show_tokens: { led: l_shot_upper_orbit, color: FFFF00 } }
+
+  # Victory shot lands — stop everything still flashing/pulsing from step 12
+  # (and defensively, steps 9-11's keys in case any edge case left them running)
+  dogfight_complete:
+    stop_ll:      { show: sync_flash_mode, action: stop, key: mode_ll }
+    stop_sp_pulse: { show: sync_pulse_mode, action: stop, key: mode_sp_pulse }
+    stop_tl_pulse: { show: sync_pulse_mode, action: stop, key: mode_tl_pulse }
+    stop_lo2:  { show: sync_flash_mode, action: stop, key: mode_lo }
+    stop_lr2:  { show: sync_flash_mode, action: stop, key: mode_lr }
+    stop_ro2:  { show: sync_flash_mode, action: stop, key: mode_ro }
+    stop_twr2: { show: sync_flash_mode, action: stop, key: mode_twr }
 
   # GI strobe on each good hit
   dogfight_good_hit:

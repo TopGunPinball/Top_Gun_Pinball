@@ -73,3 +73,24 @@ ball_saves:
     # unexpectedly returns to player since lock position was already occupied).
     enable_events: balldevice_bd_mode_scoop_ejecting_ball, lock_goose_virtual_locked, lock_mav_virtual_locked
     debug: true
+
+  ##############################################################################
+  # LEFT ORBIT SAFE RETURN - OUTLANE SAVE
+  # - Global routine, lives in base.yaml (not a mode-scoped file)
+  # - Armed the instant the right lane post drops after a lit left-orbit
+  #   safe-return shot (timer_right_lane_post_hold_complete in base.yaml)
+  # - If s_outlane_right is the FIRST switch to fire after that: SAVE
+  #   (base.yaml posts right_lane_ball_save_hit)
+  # - If any OTHER switch fires first: CANCEL, no save
+  #   (base.yaml posts right_lane_ball_save_cancel)
+  # - No visual warning — silent save, hurry_up/grace kept minimal on purpose
+  ##############################################################################
+  orbit_left_safe_return_save:
+    active_time: 5s
+    hurry_up_time: 0s
+    grace_period: 0s
+    auto_launch: true
+    balls_to_save: 1
+    enable_events: right_lane_ball_save_hit
+    disable_events: right_lane_ball_save_cancel
+    debug: true

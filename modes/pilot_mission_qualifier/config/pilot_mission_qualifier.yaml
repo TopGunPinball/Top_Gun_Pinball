@@ -2092,6 +2092,17 @@ coil_player:
 
 event_player:
   ##############################################
+  ## LEFT ORBIT SAFE RETURN — TOPGUN letter collection
+  ## Same eligibility condition as LO letter scoring below (Missions 1-5,
+  ## not paused, not qualified for a mode). Arms on the raw entry switch
+  ## (not the left_orbit_shot_hit composite) since the safe return should
+  ## apply to the ball's physical path regardless of whether the composite
+  ## later confirms for letter credit.
+  ##############################################
+  s_orbit_left_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played<=4}:
+    - right_lane_safe_return_armed
+
+  ##############################################
   ## GLOBAL SCOOP BALL RELEASE HANDLER
   ## Modes post 'scoop_ball_release' to trigger this. Do NOT use
   ## barrier_drop directly for scoop releases — use scoop_ball_release.
@@ -2571,6 +2582,7 @@ event_player:
   # Stop when multiball starts
   player_multiball_active{value==1}:
     - stop_all_mode_pulse_shows
+    - update_training_qual_lights
 
   # Restore when training mission ends (if a pilot mission is still qualified)
   player_training_mission_active{value==0 and current_player.qualified_mode_number>0}:

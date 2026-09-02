@@ -55,6 +55,19 @@ queue_relay_player:
 ####################################################################################
 
 variable_player:
+  ##############################################
+  ## LEFT ORBIT SAFE RETURN — arm/clear (Step 6 and Step 8 position 3)
+  ##############################################
+  orbit_left_safe_return_arm:
+    orbit_left_shot_armed:
+      action: set
+      int: 1
+
+  orbit_left_safe_return_clear:
+    orbit_left_shot_armed:
+      action: set
+      int: 0
+
   mode_canyon_run_started:
     pilot_mode_active:
       action: set
@@ -752,6 +765,7 @@ event_player:
   canyon_run_setup_step_6:
     - right_ramp_down
     - top_ramp_down|500ms
+    - orbit_left_safe_return_arm
 
   # Step 9: drop barrier so player can hit scoop
   canyon_run_setup_step_9:
@@ -773,6 +787,7 @@ event_player:
     - top_ramp_down|500ms
     - timer_canyon_run_failed_delay_start
     - missiles_perk_unload
+    - orbit_left_safe_return_clear
 
   timer_canyon_run_complete_delay_complete:
     - canyon_run_cleanup       # Cleanup fires here, AFTER won video plays
@@ -795,8 +810,10 @@ event_player:
     - canyon_run_step8_goto_2
   canyon_run_step8_target_advance{current_player.canyon_run_step8_position==2}:
     - canyon_run_step8_goto_3
+    - orbit_left_safe_return_arm
   canyon_run_step8_target_advance{current_player.canyon_run_step8_position==3}:
     - canyon_run_step8_goto_4
+    - orbit_left_safe_return_clear
   canyon_run_step8_target_advance{current_player.canyon_run_step8_position==4}:
     - canyon_run_step8_goto_5
   canyon_run_step8_target_advance{current_player.canyon_run_step8_position==5}:
@@ -843,6 +860,7 @@ event_player:
   left_orbit_shot_hit{current_player.canyon_run_step==5}:
     - canyon_run_step_6_complete
     - canyon_run_step_6_shot_hit
+    - orbit_left_safe_return_clear|700ms
 
   # Step 7: TWR (no callout - intentional, step 8 voice fires on setup instead)
   s_ramp_tower_exit_active{current_player.canyon_run_step==6}:
@@ -868,6 +886,7 @@ event_player:
   left_orbit_shot_hit{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==3}:
     - canyon_run_step_8_complete
     - canyon_run_step_8_shot_hit
+    - orbit_left_safe_return_clear|700ms
 
   # Step 8: position 4 = Spinner
   spinner_shot_made{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==4}:

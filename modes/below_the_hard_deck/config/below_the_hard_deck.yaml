@@ -107,6 +107,9 @@ timers:
         action: pause
       - event: lock_sequence_timer_resume
         action: start
+      - event: bthd_bad_shot_hit
+        action: add
+        value: -3
 
   # Intro video — 17 seconds, skippable via both flippers
   bthd_intro_video_delay:
@@ -225,6 +228,19 @@ queue_relay_player:
 variable_player:
 
   ##############################################
+  ## LEFT ORBIT SAFE RETURN — arm/clear (Position 0 only — LO is bad at 4/8/10)
+  ##############################################
+  orbit_left_safe_return_arm:
+    orbit_left_shot_armed:
+      action: set
+      int: 1
+
+  orbit_left_safe_return_clear:
+    orbit_left_shot_armed:
+      action: set
+      int: 0
+
+  ##############################################
   ## MODE INIT
   ##############################################
   mode_below_the_hard_deck_started:
@@ -270,6 +286,11 @@ variable_player:
     mode_points_scored:
       action: set
       int: 0
+    # Escalating shot value: starts at base, grows x1.35 per good shot made,
+    # resets to base the moment a red/bad shot is hit.
+    bthd_shot_value:
+      action: set
+      int: 350000
 
   # Main timer display variable — updated every tick
   timer_bthd_timer_tick:
@@ -313,6 +334,27 @@ variable_player:
   ##############################################
 
   ##############################################
+  ## ESCALATING SHOT VALUE
+  ## bthd_shot_value starts at 350000 and grows x1.35 for every good shot made.
+  ## A bad shot resets it straight back to 350000 (next shot).
+  ## Growth fires off bthd_shot_value_grow, which event_player posts as a NEW
+  ## (queued) event from bthd_good_shot_hit_increment — this guarantees the
+  ## growth happens AFTER the current shot's score has already been awarded
+  ## using the pre-growth value, since player_bthd_shots_completed{value==N}
+  ## (which does the scoring) fires synchronously off the SAME increment event,
+  ## while the queued bthd_shot_value_grow runs strictly afterward.
+  ##############################################
+  bthd_bad_shot_hit:
+    bthd_shot_value:
+      action: set
+      int: 350000
+
+  bthd_shot_value_grow:
+    bthd_shot_value:
+      action: set
+      int: current_player.bthd_shot_value * 1.35
+
+  ##############################################
   ## SCORING — Direct to score, 9 shots
   ## PATTERN: bthd_good_shot_hit increments shots_completed ONCE (no conditions).
   ## player_bthd_shots_completed{value==N} then fires exactly once per increment —
@@ -329,69 +371,73 @@ variable_player:
       int: -1
 
   # Scoring fires when shots_completed changes to each value — safe, no cascade
+  # NOTE: all 8 blocks below score off current_player.bthd_shot_value (the
+  # escalating value shown to the player BEFORE they made this shot), not a
+  # fixed per-shot number. Growth to the NEXT shot's value happens afterward
+  # via the queued bthd_shot_value_grow event (see above).
   player_bthd_shots_completed{value==1}:
     score:
       action: add
-      int: 600000 * current_player.total_scoring_multiplier
+      int: current_player.bthd_shot_value * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 600000 * current_player.total_scoring_multiplier
+      int: current_player.bthd_shot_value * current_player.total_scoring_multiplier
 
   player_bthd_shots_completed{value==2}:
     score:
       action: add
-      int: 700000 * current_player.total_scoring_multiplier
+      int: current_player.bthd_shot_value * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 700000 * current_player.total_scoring_multiplier
+      int: current_player.bthd_shot_value * current_player.total_scoring_multiplier
 
   player_bthd_shots_completed{value==3}:
     score:
       action: add
-      int: 800000 * current_player.total_scoring_multiplier
+      int: current_player.bthd_shot_value * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 800000 * current_player.total_scoring_multiplier
+      int: current_player.bthd_shot_value * current_player.total_scoring_multiplier
 
   player_bthd_shots_completed{value==4}:
     score:
       action: add
-      int: 900000 * current_player.total_scoring_multiplier
+      int: current_player.bthd_shot_value * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 900000 * current_player.total_scoring_multiplier
+      int: current_player.bthd_shot_value * current_player.total_scoring_multiplier
 
   player_bthd_shots_completed{value==5}:
     score:
       action: add
-      int: 1000000 * current_player.total_scoring_multiplier
+      int: current_player.bthd_shot_value * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 1000000 * current_player.total_scoring_multiplier
+      int: current_player.bthd_shot_value * current_player.total_scoring_multiplier
 
   player_bthd_shots_completed{value==6}:
     score:
       action: add
-      int: 1100000 * current_player.total_scoring_multiplier
+      int: current_player.bthd_shot_value * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 1100000 * current_player.total_scoring_multiplier
+      int: current_player.bthd_shot_value * current_player.total_scoring_multiplier
 
   player_bthd_shots_completed{value==7}:
     score:
       action: add
-      int: 1200000 * current_player.total_scoring_multiplier
+      int: current_player.bthd_shot_value * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 1200000 * current_player.total_scoring_multiplier
+      int: current_player.bthd_shot_value * current_player.total_scoring_multiplier
 
   player_bthd_shots_completed{value==8}:
     score:
       action: add
-      int: 1300000 * current_player.total_scoring_multiplier
+      int: current_player.bthd_shot_value * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 1300000 * current_player.total_scoring_multiplier
+      int: current_player.bthd_shot_value * current_player.total_scoring_multiplier
     bthd_last_shot_active:
       action: set
       int: 1
@@ -403,10 +449,10 @@ variable_player:
   player_bthd_shots_completed{value==9}:
     score:
       action: add
-      int: 1900000 * current_player.total_scoring_multiplier
+      int: current_player.bthd_shot_value * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 1900000 * current_player.total_scoring_multiplier
+      int: current_player.bthd_shot_value * current_player.total_scoring_multiplier
     bthd_complete_flag:
       action: set
       int: 1
@@ -460,12 +506,14 @@ event_player:
     - scoop_ball_release|400ms
     - bthd_ball_released|400ms
     - bthd_setup_pos_0|400ms
+    - orbit_left_safe_return_arm|400ms
 
   timer_bthd_intro_video_delay_complete:
     - barrier_drop
     - scoop_ball_release|400ms
     - bthd_ball_released|400ms
     - bthd_setup_pos_0|400ms
+    - orbit_left_safe_return_arm|400ms
 
   ##############################################
   ## AFTERBURNER PERK
@@ -516,30 +564,46 @@ event_player:
     - bthd_advance_position
 
   # Position changes trigger position setup (only when move timer running = after ball released)
+  # LEFT ORBIT SAFE RETURN: LO is only a GOOD shot at position 0 — it's a BAD
+  # shot at positions 4, 8, and 10. Armed only entering position 0, cleared
+  # defensively entering every other position (covers both a good shot
+  # advancing away and the move-timer timing out unmade).
   player_bthd_position{value==0 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
     - bthd_setup_pos_0
+    - orbit_left_safe_return_arm
   player_bthd_position{value==1 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
     - bthd_setup_pos_1
+    - orbit_left_safe_return_clear
   player_bthd_position{value==2 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
     - bthd_setup_pos_2
+    - orbit_left_safe_return_clear
   player_bthd_position{value==3 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
     - bthd_setup_pos_3
+    - orbit_left_safe_return_clear
   player_bthd_position{value==4 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
     - bthd_setup_pos_4
+    - orbit_left_safe_return_clear
   player_bthd_position{value==5 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
     - bthd_setup_pos_5
+    - orbit_left_safe_return_clear
   player_bthd_position{value==6 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
     - bthd_setup_pos_6
+    - orbit_left_safe_return_clear
   player_bthd_position{value==7 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
     - bthd_setup_pos_7
+    - orbit_left_safe_return_clear
   player_bthd_position{value==8 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
     - bthd_setup_pos_8
+    - orbit_left_safe_return_clear
   player_bthd_position{value==9 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
     - bthd_setup_pos_9
+    - orbit_left_safe_return_clear
   player_bthd_position{value==10 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
     - bthd_setup_pos_10
+    - orbit_left_safe_return_clear
   player_bthd_position{value==11 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
     - bthd_setup_pos_11
+    - orbit_left_safe_return_clear
 
   ##############################################
   ## SERVO — Right ramp up at pos 6, down at pos 7 and cleanup
@@ -596,15 +660,44 @@ event_player:
     - bthd_show_step_8_video
     - bthd_setup_last_shot
 
-  # Lock shot to RO (pos 6) for final shot — stop move timer, set lights
+  # Lock shot to RO (pos 6) for final shot — stop move timer, set lights.
+  # Order matters: bthd_setup_pos_6 runs first (turns LL off, like every other
+  # position), then bthd_last_shot_setup runs second and turns LL back on —
+  # so the left-lane "you can also finish here" light only applies to the
+  # final locked shot, not a normal earlier pass through position 6.
   bthd_setup_last_shot:
-    - bthd_last_shot_setup
     - bthd_setup_pos_6
+    - bthd_last_shot_setup
+
+  # Grows bthd_shot_value for the NEXT shot. Hooked off player_mode_points_scored
+  # (a derived event) rather than the shot-increment event — this event only
+  # exists BECAUSE mode_points_scored was just set using the pre-growth value,
+  # so growth is guaranteed to happen strictly after scoring regardless of
+  # event_player/variable_player dispatch order for the original trigger.
+  # (Previous version hooked this off bthd_good_shot_hit_increment directly,
+  # but that ran BEFORE the scoring cascade — confirmed via log
+  # 2026-08-04_22_24_25: bthd_shot_value_grow fired before
+  # player_bthd_shots_completed, so shot 1 scored the already-grown 472500
+  # instead of 350000.)
+  player_mode_points_scored{mode.below_the_hard_deck.active==True and current_player.bthd_shots_completed>0}:
+    - bthd_shot_value_grow
   ##############################################
   ## BAD SHOT HANDLING
+  ## GI flash: 4 off/bright-red cycles over ~1.15s (30% faster than the
+  ## original 1.5s), same bthd_gi_key as the steady GI show so each toggle
+  ## replaces the previous, ending back on the mode's normal (ambient orange)
+  ## GI coloring via bthd_set_gi_red.
   ##############################################
   bthd_bad_shot_hit:
     - bthd_show_miss
+    - bthd_gi_flash_off
+    - bthd_gi_flash_red_on|145ms
+    - bthd_gi_flash_off|288ms
+    - bthd_gi_flash_red_on|433ms
+    - bthd_gi_flash_off|577ms
+    - bthd_gi_flash_red_on|722ms
+    - bthd_gi_flash_off|865ms
+    - bthd_set_gi_red|1154ms
 
   ##############################################
   ## MODE COMPLETE — 9th shot made
@@ -617,10 +710,6 @@ event_player:
 
   bthd_complete:
     - missiles_perk_unload
-
-  # Ball enters left lane after 9th shot — start won video
-  s_lane_left_active{current_player.bthd_complete_flag==1 and current_player.bthd_last_shot_active==1}:
-    - bthd_won
 
   # Won video flow — cleanup fires AFTER won video (not before — would kill the show)
   bthd_won:
@@ -659,6 +748,7 @@ event_player:
   bthd_failed:
     - bthd_cleanup
     - timer_bthd_failed_delay_start
+    - orbit_left_safe_return_clear
 
   timer_bthd_failed_delay_complete:
     - pilot_mode_cleanup_complete
@@ -676,6 +766,7 @@ event_player:
   ##############################################
   left_orbit_shot_hit{current_player.bthd_position==0 and current_player.bthd_complete_flag==0}:
     - bthd_good_shot_hit
+    - orbit_left_safe_return_clear|700ms
 
   # Bad shots at position 0: LL, LR
   s_lane_left_active{current_player.bthd_position==0 and current_player.bthd_complete_flag==0}:
@@ -745,9 +836,28 @@ event_player:
 
   ##############################################
   ## POSITION 6 (RO — right ramp UP)
+  ## Normal rotation pass (last_shot_active==0): still requires the genuine
+  ## right_orbit_shot_hit composite (s_orbit_right -> s_orbit_left).
+  ## Final locked shot (last_shot_active==1, set by bthd_setup_last_shot):
+  ## completes directly off s_lane_left_active instead. This bypasses the
+  ## composite entirely — root cause confirmed via log 2026-08-04_22_36_00:
+  ## the composite's shared orbit_shot_lockout_timer (500ms) is frequently
+  ## re-armed by a spurious left_orbit_shot_hit (from s_orbit_right coinciding
+  ## with a still-running left_orbit_shot_timeout from unrelated recent ball
+  ## movement), and the ball's real transit time through this orbit (~420-520ms)
+  ## sits right on top of that window — so right_orbit_shot_hit was silently
+  ## getting blocked on ~3 out of 4 genuine attempts even though the diverter
+  ## opened and the ball reliably landed in the left lane every time regardless.
+  ## bthd_won is chained directly here (not via a second s_lane_left_active
+  ## handler keyed on complete_flag==1) since both would otherwise be racing
+  ## on the same base event.
   ##############################################
-  right_orbit_shot_hit{current_player.bthd_position==6 and current_player.bthd_complete_flag==0}:
+  right_orbit_shot_hit{current_player.bthd_position==6 and current_player.bthd_complete_flag==0 and current_player.bthd_last_shot_active==0}:
     - bthd_good_shot_hit
+
+  s_lane_left_active{current_player.bthd_position==6 and current_player.bthd_complete_flag==0 and current_player.bthd_last_shot_active==1}:
+    - bthd_good_shot_hit
+    - bthd_won
 
   # Bad shots at position 6: TWR, CNT
   s_ramp_tower_exit_active{current_player.bthd_position==6 and current_player.bthd_complete_flag==0}:
@@ -843,6 +953,9 @@ slide_player:
     below_the_hard_deck_jet_postion_1:
       action: play
       priority: 805
+    below_the_hard_deck_next_shot_value:
+      action: play
+      priority: 800
 
   # Step videos — each removes the previous step's slide
   bthd_show_step_1_video:
@@ -995,6 +1108,8 @@ slide_player:
     below_the_hard_deck_won:
       action: play
       priority: 900
+    below_the_hard_deck_next_shot_value:
+      action: remove
 
   # Failed — timer expired or drain
   bthd_failed:
@@ -1003,6 +1118,8 @@ slide_player:
     below_the_hard_deck_shots_remaining:
       action: remove
     below_the_hard_deck_instructions:
+      action: remove
+    below_the_hard_deck_next_shot_value:
       action: remove
     below_the_hard_deck_lost:
       action: play
@@ -1017,6 +1134,8 @@ slide_player:
     below_the_hard_deck_instructions:
       action: remove
     below_the_hard_deck_intro:
+      action: remove
+    below_the_hard_deck_next_shot_value:
       action: remove
 
 ####################################################################################
@@ -1072,6 +1191,21 @@ show_player:
       show: bthd_gi_red
       key: bthd_gi_key
       loops: -1
+
+  # Bad shot GI flash — toggled with bthd_set_gi_red (same key) to strobe
+  bthd_gi_flash_off:
+    bthd_gi_mode:
+      show: bthd_gi_off
+      key: bthd_gi_key
+      loops: 0
+
+  # Bad shot GI flash "on" pulse — true bright red, distinct from the mode's
+  # ambient GI color (bthd_gi_red is actually FFAA00/orange despite the name)
+  bthd_gi_flash_red_on:
+    bthd_gi_mode:
+      show: bthd_gi_flash_red
+      key: bthd_gi_key
+      loops: 0
 
   ##############################################
   ## SHOT FEEDBACK
@@ -1474,6 +1608,21 @@ show_player:
       show_tokens: { led: l_shot_barrier }
 
   ##############################################
+  ## FINAL SHOT LOCK — also light LL (left lane) so the player knows they can
+  ## shoot under the flipper into the left lane to finish, not just RO.
+  ## Fires after bthd_setup_pos_6 in the bthd_setup_last_shot chain, so this
+  ## overrides that block's own "off_ll" for this final-lock case only —
+  ## a normal earlier pass through position 6 never touches this key.
+  ##############################################
+  bthd_last_shot_setup:
+    bthd_good_ll:
+      show: sync_flash_mode
+      key: bthd_good_shot_key_ll
+      sync_ms: 1000
+      loops: -1
+      show_tokens: { led: l_shot_left_lane, color: FFFF00 }
+
+  ##############################################
   ## POSITION 7 — TWR yellow, CNT+SP red (same as pos 1)
   ##############################################
   bthd_setup_pos_7:
@@ -1848,6 +1997,10 @@ show_player:
       show: sync_flash_mode
       action: stop
       key: bthd_good_shot_key
+    stop_good_ll_on_capture:
+      show: sync_flash_mode
+      action: stop
+      key: bthd_good_shot_key_ll
     stop_bad1_on_capture:
       show: bthd_solid_red
       action: stop
@@ -1865,6 +2018,10 @@ show_player:
       show: sync_flash_mode
       action: stop
       key: bthd_good_shot_key
+    stop_good_ll_final:
+      show: sync_flash_mode
+      action: stop
+      key: bthd_good_shot_key_ll
     stop_bad1_final:
       show: bthd_solid_red
       action: stop
@@ -1959,3 +2116,125 @@ shows:
           color: white
         l_apron_light_4:
           color: white
+
+  # GI off — bad shot flash (same light list as bthd_gi_red, all off)
+  bthd_gi_off:
+    - duration: 1s
+      lights:
+        l_gi_light_1:
+          color: off
+        l_gi_light_2:
+          color: off
+        l_gi_light_3:
+          color: off
+        l_gi_light_4:
+          color: off
+        l_gi_light_5:
+          color: off
+        l_gi_light_6:
+          color: off
+        l_gi_light_7:
+          color: off
+        l_gi_light_8:
+          color: off
+        l_gi_light_9:
+          color: off
+        l_gi_light_10:
+          color: off
+        l_gi_light_11:
+          color: off
+        l_gi_light_12:
+          color: off
+        l_gi_light_13:
+          color: off
+        l_gi_light_14:
+          color: off
+        l_gi_light_15:
+          color: off
+        l_gi_light_16:
+          color: off
+        l_gi_light_17:
+          color: off
+        l_gi_light_18:
+          color: off
+        l_gi_light_19:
+          color: off
+        l_gi_light_20:
+          color: off
+        l_gi_light_21:
+          color: off
+        l_gi_light_pop_left:
+          color: off
+        l_gi_light_pop_right:
+          color: off
+        l_gi_light_pop_bottom:
+          color: off
+        l_apron_light_1:
+          color: off
+        l_apron_light_2:
+          color: off
+        l_apron_light_3:
+          color: off
+        l_apron_light_4:
+          color: off
+
+  # GI bright red — bad shot flash "on" pulse (same light list, true FF0000)
+  bthd_gi_flash_red:
+    - duration: 1s
+      lights:
+        l_gi_light_1:
+          color: FF0000
+        l_gi_light_2:
+          color: FF0000
+        l_gi_light_3:
+          color: FF0000
+        l_gi_light_4:
+          color: FF0000
+        l_gi_light_5:
+          color: FF0000
+        l_gi_light_6:
+          color: FF0000
+        l_gi_light_7:
+          color: FF0000
+        l_gi_light_8:
+          color: FF0000
+        l_gi_light_9:
+          color: FF0000
+        l_gi_light_10:
+          color: FF0000
+        l_gi_light_11:
+          color: FF0000
+        l_gi_light_12:
+          color: FF0000
+        l_gi_light_13:
+          color: FF0000
+        l_gi_light_14:
+          color: FF0000
+        l_gi_light_15:
+          color: FF0000
+        l_gi_light_16:
+          color: FF0000
+        l_gi_light_17:
+          color: FF0000
+        l_gi_light_18:
+          color: FF0000
+        l_gi_light_19:
+          color: FF0000
+        l_gi_light_20:
+          color: FF0000
+        l_gi_light_21:
+          color: FF0000
+        l_gi_light_pop_left:
+          color: FF0000
+        l_gi_light_pop_right:
+          color: FF0000
+        l_gi_light_pop_bottom:
+          color: FF0000
+        l_apron_light_1:
+          color: FF0000
+        l_apron_light_2:
+          color: FF0000
+        l_apron_light_3:
+          color: FF0000
+        l_apron_light_4:
+          color: FF0000

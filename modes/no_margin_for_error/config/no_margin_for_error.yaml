@@ -220,6 +220,21 @@ queue_relay_player:
 
 variable_player:
 
+  ##############################################
+  ## LEFT ORBIT SAFE RETURN — arm/clear
+  ## Good: Phase 1 (while unburned), Step 7, Step 10.
+  ## Bad only: Phase 1 (once burned), Step 8, Step 9, Step 11 — not armed.
+  ##############################################
+  orbit_left_safe_return_arm:
+    orbit_left_shot_armed:
+      action: set
+      int: 1
+
+  orbit_left_safe_return_clear:
+    orbit_left_shot_armed:
+      action: set
+      int: 0
+
   mode_no_margin_for_error_started:
     pilot_mode_active:
       action: set
@@ -574,6 +589,7 @@ event_player:
     - scoop_ball_release|400ms
     - nmfe_ball_released|400ms
     - nmfe_setup_step_1|400ms
+    - orbit_left_safe_return_arm|400ms
 
   # NORMAL PATH — drop barrier first, kick ball 400ms later
   timer_nmfe_intro_video_delay_complete:
@@ -581,6 +597,7 @@ event_player:
     - scoop_ball_release|400ms
     - nmfe_ball_released|400ms
     - nmfe_setup_step_1|400ms
+    - orbit_left_safe_return_arm|400ms
 
   ##############################################
   ## BALL RELEASED — Ensure normal flippers active
@@ -655,6 +672,7 @@ event_player:
   nmfe_failed:
     - nmfe_cleanup
     - timer_nmfe_failed_delay_start
+    - orbit_left_safe_return_clear
 
   timer_nmfe_failed_delay_complete:
     - pilot_mode_cleanup_complete
@@ -714,14 +732,22 @@ event_player:
   ##############################################
   ## SERVO EVENTS — Individual step ramp changes
   ##############################################
+  nmfe_setup_step_7:
+    - orbit_left_safe_return_arm
+
   nmfe_setup_step_8:
     - top_ramp_up
+    - orbit_left_safe_return_clear
 
   nmfe_setup_step_9:
     - top_ramp_down
 
+  nmfe_setup_step_10:
+    - orbit_left_safe_return_arm
+
   nmfe_setup_step_11:
     - right_ramp_up
+    - orbit_left_safe_return_clear
 
   ##############################################
   ## MISSILES PERK — Spots current step's primary good shot
@@ -874,6 +900,7 @@ event_player:
   left_orbit_shot_hit{current_player.nmfe_step<6 and current_player.nmfe_lo_burned==0}:
     - nmfe_advance_step
     - nmfe_burn_lo
+    - orbit_left_safe_return_clear|700ms
   left_orbit_shot_hit{current_player.nmfe_step<6 and current_player.nmfe_lo_burned==1}:
     - nmfe_bad_shot
 
@@ -961,6 +988,7 @@ event_player:
     - nmfe_good_shot_hit
     - nmfe_step_7_shot_hit
     - nmfe_setup_step_8
+    - orbit_left_safe_return_clear|700ms
   # BAD
   s_lane_left_active{current_player.nmfe_step==6}:
     - nmfe_bad_shot
@@ -1062,6 +1090,7 @@ event_player:
     - nmfe_good_shot_hit
     - nmfe_step_10_shot_hit
     - nmfe_setup_step_11
+    - orbit_left_safe_return_clear|700ms
   s_ramp_left_exit_active{current_player.nmfe_step==9}:
     - nmfe_step_10_complete
     - nmfe_good_shot_hit

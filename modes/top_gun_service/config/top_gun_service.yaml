@@ -244,8 +244,9 @@ event_player:
   service_update_switch_text{machine.service_switch_index==60}: set_switch_60
   service_update_switch_text{machine.service_switch_index==61}: set_switch_61
   service_update_switch_text{machine.service_switch_index==62}: set_switch_62
+  service_update_switch_text{machine.service_switch_index==63}: set_switch_63
 
-  # REAL-TIME SWITCH STATE MONITORING (63 switches x 2 events = 126 handlers)
+  # REAL-TIME SWITCH STATE MONITORING (64 switches x 2 events = 128 handlers)
   s_start_active{machine.service_menu_level==1 and machine.service_switch_index==0}: set_state_closed
   s_start_inactive{machine.service_menu_level==1 and machine.service_switch_index==0}: set_state_open
   s_tilt_active{machine.service_menu_level==1 and machine.service_switch_index==1}: set_state_closed
@@ -372,6 +373,8 @@ event_player:
   s_lock_goose_inactive{machine.service_menu_level==1 and machine.service_switch_index==61}: set_state_open
   s_mode_start_active{machine.service_menu_level==1 and machine.service_switch_index==62}: set_state_closed
   s_mode_start_inactive{machine.service_menu_level==1 and machine.service_switch_index==62}: set_state_open
+  s_mig_capture_active{machine.service_menu_level==1 and machine.service_switch_index==63}: set_state_closed
+  s_mig_capture_inactive{machine.service_menu_level==1 and machine.service_switch_index==63}: set_state_open
 
   # COIL TEXT MAPPING (22 coils)
   service_update_coil_text{machine.service_coil_index==0}: set_coil_0
@@ -396,8 +399,9 @@ event_player:
   service_update_coil_text{machine.service_coil_index==19}: set_coil_19
   service_update_coil_text{machine.service_coil_index==20}: set_coil_20
   service_update_coil_text{machine.service_coil_index==21}: set_coil_21
+  service_update_coil_text{machine.service_coil_index==22}: set_coil_22
 
-  # COIL FIRE MAPPING (22 coils)
+  # COIL FIRE MAPPING (23 coils)
   service_coil_fire{machine.service_coil_index==0}: fire_coil_0
   service_coil_fire{machine.service_coil_index==1}: fire_coil_1
   service_coil_fire{machine.service_coil_index==2}: fire_coil_2
@@ -422,6 +426,7 @@ event_player:
   service_coil_fire{machine.service_coil_index==19}: fire_coil_19
   service_coil_fire{machine.service_coil_index==20}: fire_coil_20
   service_coil_fire{machine.service_coil_index==21}: fire_coil_21
+  service_coil_fire{machine.service_coil_index==22}: fire_coil_22
 
   # LIGHT TEXT MAPPING (91 lights)
   service_update_light_text{machine.service_light_index==0}: set_light_0
@@ -682,25 +687,25 @@ variable_player:
       action: set_machine
       int: (machine.service_main_index - 1) % 8
 
-  # SWITCH INDEX NAVIGATION (63 switches: 0-62)
+  # SWITCH INDEX NAVIGATION (64 switches: 0-63)
   service_switch_next:
     service_switch_index:
       action: set_machine
-      int: (machine.service_switch_index + 1) % 63
+      int: (machine.service_switch_index + 1) % 64
   service_switch_prev:
     service_switch_index:
       action: set_machine
-      int: (machine.service_switch_index - 1) % 63
+      int: (machine.service_switch_index - 1) % 64
 
-  # COIL INDEX NAVIGATION (22 coils: 0-21)
+  # COIL INDEX NAVIGATION (23 coils: 0-22)
   service_coil_next:
     service_coil_index:
       action: set_machine
-      int: (machine.service_coil_index + 1) % 22
+      int: (machine.service_coil_index + 1) % 23
   service_coil_prev:
     service_coil_index:
       action: set_machine
-      int: (machine.service_coil_index - 1) % 22
+      int: (machine.service_coil_index - 1) % 23
 
   # LIGHT INDEX NAVIGATION (91 lights: 0-90)
   service_light_next:
@@ -824,7 +829,7 @@ variable_player:
       string: "Start Button"
     service_switch_num:
       action: set_machine
-      string: "Switch 1/63"
+      string: "Switch 1/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -834,7 +839,7 @@ variable_player:
       string: "Start Button"
     service_switch_num:
       action: set_machine
-      string: "Switch 1/63"
+      string: "Switch 1/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -844,7 +849,7 @@ variable_player:
       string: "Tilt"
     service_switch_num:
       action: set_machine
-      string: "Switch 2/63"
+      string: "Switch 2/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -854,7 +859,7 @@ variable_player:
       string: "Tilt"
     service_switch_num:
       action: set_machine
-      string: "Switch 2/63"
+      string: "Switch 2/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -864,7 +869,7 @@ variable_player:
       string: "48V Disable Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 3/63"
+      string: "Switch 3/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -874,7 +879,7 @@ variable_player:
       string: "48V Disable Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 3/63"
+      string: "Switch 3/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -884,7 +889,7 @@ variable_player:
       string: "Coin Door Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 4/63"
+      string: "Switch 4/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -894,7 +899,7 @@ variable_player:
       string: "Coin Door Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 4/63"
+      string: "Switch 4/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -904,7 +909,7 @@ variable_player:
       string: "Service Escape Button"
     service_switch_num:
       action: set_machine
-      string: "Switch 5/63"
+      string: "Switch 5/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -914,7 +919,7 @@ variable_player:
       string: "Service Escape Button"
     service_switch_num:
       action: set_machine
-      string: "Switch 5/63"
+      string: "Switch 5/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -924,7 +929,7 @@ variable_player:
       string: "Service Down Button"
     service_switch_num:
       action: set_machine
-      string: "Switch 6/63"
+      string: "Switch 6/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -934,7 +939,7 @@ variable_player:
       string: "Service Down Button"
     service_switch_num:
       action: set_machine
-      string: "Switch 6/63"
+      string: "Switch 6/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -944,7 +949,7 @@ variable_player:
       string: "Service Up Button"
     service_switch_num:
       action: set_machine
-      string: "Switch 7/63"
+      string: "Switch 7/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -954,7 +959,7 @@ variable_player:
       string: "Service Up Button"
     service_switch_num:
       action: set_machine
-      string: "Switch 7/63"
+      string: "Switch 7/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -964,7 +969,7 @@ variable_player:
       string: "Service Enter Button"
     service_switch_num:
       action: set_machine
-      string: "Switch 8/63"
+      string: "Switch 8/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -974,7 +979,7 @@ variable_player:
       string: "Service Enter Button"
     service_switch_num:
       action: set_machine
-      string: "Switch 8/63"
+      string: "Switch 8/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -984,7 +989,7 @@ variable_player:
       string: "Coin Door Credit Right"
     service_switch_num:
       action: set_machine
-      string: "Switch 9/63"
+      string: "Switch 9/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -994,7 +999,7 @@ variable_player:
       string: "Coin Door Credit Right"
     service_switch_num:
       action: set_machine
-      string: "Switch 9/63"
+      string: "Switch 9/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1004,7 +1009,7 @@ variable_player:
       string: "Coin Door Credit Left"
     service_switch_num:
       action: set_machine
-      string: "Switch 10/63"
+      string: "Switch 10/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1014,7 +1019,7 @@ variable_player:
       string: "Coin Door Credit Left"
     service_switch_num:
       action: set_machine
-      string: "Switch 10/63"
+      string: "Switch 10/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1024,7 +1029,7 @@ variable_player:
       string: "Left Flipper Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 11/63"
+      string: "Switch 11/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1034,7 +1039,7 @@ variable_player:
       string: "Left Flipper Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 11/63"
+      string: "Switch 11/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1044,7 +1049,7 @@ variable_player:
       string: "Left Flipper EOS"
     service_switch_num:
       action: set_machine
-      string: "Switch 12/63"
+      string: "Switch 12/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1054,7 +1059,7 @@ variable_player:
       string: "Left Flipper EOS"
     service_switch_num:
       action: set_machine
-      string: "Switch 12/63"
+      string: "Switch 12/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1064,7 +1069,7 @@ variable_player:
       string: "Upper Left Flipper Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 13/63"
+      string: "Switch 13/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1074,7 +1079,7 @@ variable_player:
       string: "Upper Left Flipper Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 13/63"
+      string: "Switch 13/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1084,7 +1089,7 @@ variable_player:
       string: "Upper Left Flipper EOS"
     service_switch_num:
       action: set_machine
-      string: "Switch 14/63"
+      string: "Switch 14/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1094,7 +1099,7 @@ variable_player:
       string: "Upper Left Flipper EOS"
     service_switch_num:
       action: set_machine
-      string: "Switch 14/63"
+      string: "Switch 14/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1104,7 +1109,7 @@ variable_player:
       string: "Right Flipper Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 15/63"
+      string: "Switch 15/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1114,7 +1119,7 @@ variable_player:
       string: "Right Flipper Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 15/63"
+      string: "Switch 15/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1124,7 +1129,7 @@ variable_player:
       string: "Right Flipper EOS"
     service_switch_num:
       action: set_machine
-      string: "Switch 16/63"
+      string: "Switch 16/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1134,7 +1139,7 @@ variable_player:
       string: "Right Flipper EOS"
     service_switch_num:
       action: set_machine
-      string: "Switch 16/63"
+      string: "Switch 16/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1144,7 +1149,7 @@ variable_player:
       string: "Trough 1 Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 17/63"
+      string: "Switch 17/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1154,7 +1159,7 @@ variable_player:
       string: "Trough 1 Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 17/63"
+      string: "Switch 17/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1164,7 +1169,7 @@ variable_player:
       string: "Trough 2 Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 18/63"
+      string: "Switch 18/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1174,7 +1179,7 @@ variable_player:
       string: "Trough 2 Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 18/63"
+      string: "Switch 18/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1184,7 +1189,7 @@ variable_player:
       string: "Trough 3 Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 19/63"
+      string: "Switch 19/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1194,7 +1199,7 @@ variable_player:
       string: "Trough 3 Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 19/63"
+      string: "Switch 19/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1204,7 +1209,7 @@ variable_player:
       string: "Trough 4 Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 20/63"
+      string: "Switch 20/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1214,7 +1219,7 @@ variable_player:
       string: "Trough 4 Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 20/63"
+      string: "Switch 20/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1224,7 +1229,7 @@ variable_player:
       string: "Trough 5 Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 21/63"
+      string: "Switch 21/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1234,7 +1239,7 @@ variable_player:
       string: "Trough 5 Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 21/63"
+      string: "Switch 21/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1244,7 +1249,7 @@ variable_player:
       string: "Trough 6 Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 22/63"
+      string: "Switch 22/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1254,7 +1259,7 @@ variable_player:
       string: "Trough 6 Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 22/63"
+      string: "Switch 22/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1264,7 +1269,7 @@ variable_player:
       string: "Jam Trough Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 23/63"
+      string: "Switch 23/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1274,7 +1279,7 @@ variable_player:
       string: "Jam Trough Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 23/63"
+      string: "Switch 23/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1284,7 +1289,7 @@ variable_player:
       string: "Shooter Lane Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 24/63"
+      string: "Switch 24/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1294,7 +1299,7 @@ variable_player:
       string: "Shooter Lane Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 24/63"
+      string: "Switch 24/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1304,7 +1309,7 @@ variable_player:
       string: "Left Pop Spoon"
     service_switch_num:
       action: set_machine
-      string: "Switch 25/63"
+      string: "Switch 25/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1314,7 +1319,7 @@ variable_player:
       string: "Left Pop Spoon"
     service_switch_num:
       action: set_machine
-      string: "Switch 25/63"
+      string: "Switch 25/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1324,7 +1329,7 @@ variable_player:
       string: "Center Pop Spoon"
     service_switch_num:
       action: set_machine
-      string: "Switch 26/63"
+      string: "Switch 26/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1334,7 +1339,7 @@ variable_player:
       string: "Center Pop Spoon"
     service_switch_num:
       action: set_machine
-      string: "Switch 26/63"
+      string: "Switch 26/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1344,7 +1349,7 @@ variable_player:
       string: "Right Pop Spoon"
     service_switch_num:
       action: set_machine
-      string: "Switch 27/63"
+      string: "Switch 27/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1354,7 +1359,7 @@ variable_player:
       string: "Right Pop Spoon"
     service_switch_num:
       action: set_machine
-      string: "Switch 27/63"
+      string: "Switch 27/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1364,7 +1369,7 @@ variable_player:
       string: "Left Sling Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 28/63"
+      string: "Switch 28/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1374,7 +1379,7 @@ variable_player:
       string: "Left Sling Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 28/63"
+      string: "Switch 28/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1384,7 +1389,7 @@ variable_player:
       string: "Right Sling Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 29/63"
+      string: "Switch 29/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1394,7 +1399,7 @@ variable_player:
       string: "Right Sling Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 29/63"
+      string: "Switch 29/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1404,7 +1409,7 @@ variable_player:
       string: "Left Outlane Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 30/63"
+      string: "Switch 30/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1414,7 +1419,7 @@ variable_player:
       string: "Left Outlane Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 30/63"
+      string: "Switch 30/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1424,7 +1429,7 @@ variable_player:
       string: "Left Inlane Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 31/63"
+      string: "Switch 31/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1434,7 +1439,7 @@ variable_player:
       string: "Left Inlane Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 31/63"
+      string: "Switch 31/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1444,7 +1449,7 @@ variable_player:
       string: "Right Inner Inlane"
     service_switch_num:
       action: set_machine
-      string: "Switch 32/63"
+      string: "Switch 32/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1454,7 +1459,7 @@ variable_player:
       string: "Right Inner Inlane"
     service_switch_num:
       action: set_machine
-      string: "Switch 32/63"
+      string: "Switch 32/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1464,7 +1469,7 @@ variable_player:
       string: "Right Outer Inlane"
     service_switch_num:
       action: set_machine
-      string: "Switch 33/63"
+      string: "Switch 33/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1474,7 +1479,7 @@ variable_player:
       string: "Right Outer Inlane"
     service_switch_num:
       action: set_machine
-      string: "Switch 33/63"
+      string: "Switch 33/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1484,7 +1489,7 @@ variable_player:
       string: "Right Outlane Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 34/63"
+      string: "Switch 34/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1494,7 +1499,7 @@ variable_player:
       string: "Right Outlane Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 34/63"
+      string: "Switch 34/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1504,7 +1509,7 @@ variable_player:
       string: "MIG Left Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 35/63"
+      string: "Switch 35/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1514,7 +1519,7 @@ variable_player:
       string: "MIG Left Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 35/63"
+      string: "Switch 35/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1524,7 +1529,7 @@ variable_player:
       string: "MIG Right Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 36/63"
+      string: "Switch 36/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1534,7 +1539,7 @@ variable_player:
       string: "MIG Right Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 36/63"
+      string: "Switch 36/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1544,7 +1549,7 @@ variable_player:
       string: "Left Lane Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 37/63"
+      string: "Switch 37/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1554,7 +1559,7 @@ variable_player:
       string: "Left Lane Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 37/63"
+      string: "Switch 37/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1564,7 +1569,7 @@ variable_player:
       string: "Left Orbit Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 38/63"
+      string: "Switch 38/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1574,7 +1579,7 @@ variable_player:
       string: "Left Orbit Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 38/63"
+      string: "Switch 38/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1584,7 +1589,7 @@ variable_player:
       string: "Upper Orbit Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 39/63"
+      string: "Switch 39/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1594,7 +1599,7 @@ variable_player:
       string: "Upper Orbit Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 39/63"
+      string: "Switch 39/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1604,7 +1609,7 @@ variable_player:
       string: "Lower Orbit Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 40/63"
+      string: "Switch 40/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1614,7 +1619,7 @@ variable_player:
       string: "Lower Orbit Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 40/63"
+      string: "Switch 40/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1624,7 +1629,7 @@ variable_player:
       string: "Right Orbit Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 41/63"
+      string: "Switch 41/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1634,7 +1639,7 @@ variable_player:
       string: "Right Orbit Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 41/63"
+      string: "Switch 41/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1644,7 +1649,7 @@ variable_player:
       string: "Right Lane Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 42/63"
+      string: "Switch 42/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1654,7 +1659,7 @@ variable_player:
       string: "Right Lane Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 42/63"
+      string: "Switch 42/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1664,7 +1669,7 @@ variable_player:
       string: "Iceman I Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 43/63"
+      string: "Switch 43/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1674,7 +1679,7 @@ variable_player:
       string: "Iceman I Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 43/63"
+      string: "Switch 43/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1684,7 +1689,7 @@ variable_player:
       string: "Iceman C Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 44/63"
+      string: "Switch 44/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1694,7 +1699,7 @@ variable_player:
       string: "Iceman C Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 44/63"
+      string: "Switch 44/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1704,7 +1709,7 @@ variable_player:
       string: "Iceman E Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 45/63"
+      string: "Switch 45/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1714,7 +1719,7 @@ variable_player:
       string: "Iceman E Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 45/63"
+      string: "Switch 45/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1724,7 +1729,7 @@ variable_player:
       string: "Iceman M Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 46/63"
+      string: "Switch 46/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1734,7 +1739,7 @@ variable_player:
       string: "Iceman M Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 46/63"
+      string: "Switch 46/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1744,7 +1749,7 @@ variable_player:
       string: "Iceman A Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 47/63"
+      string: "Switch 47/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1754,7 +1759,7 @@ variable_player:
       string: "Iceman A Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 47/63"
+      string: "Switch 47/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1764,7 +1769,7 @@ variable_player:
       string: "Iceman N Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 48/63"
+      string: "Switch 48/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1774,7 +1779,7 @@ variable_player:
       string: "Iceman N Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 48/63"
+      string: "Switch 48/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1784,7 +1789,7 @@ variable_player:
       string: "Lock L Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 49/63"
+      string: "Switch 49/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1794,7 +1799,7 @@ variable_player:
       string: "Lock L Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 49/63"
+      string: "Switch 49/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1804,7 +1809,7 @@ variable_player:
       string: "Lock O Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 50/63"
+      string: "Switch 50/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1814,7 +1819,7 @@ variable_player:
       string: "Lock O Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 50/63"
+      string: "Switch 50/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1824,7 +1829,7 @@ variable_player:
       string: "Lock C Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 51/63"
+      string: "Switch 51/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1834,7 +1839,7 @@ variable_player:
       string: "Lock C Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 51/63"
+      string: "Switch 51/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1844,7 +1849,7 @@ variable_player:
       string: "Lock K Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 52/63"
+      string: "Switch 52/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1854,7 +1859,7 @@ variable_player:
       string: "Lock K Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 52/63"
+      string: "Switch 52/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1864,7 +1869,7 @@ variable_player:
       string: "Barrier Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 53/63"
+      string: "Switch 53/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1874,7 +1879,7 @@ variable_player:
       string: "Barrier Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 53/63"
+      string: "Switch 53/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1884,7 +1889,7 @@ variable_player:
       string: "Flight Gear Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 54/63"
+      string: "Switch 54/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1894,7 +1899,7 @@ variable_player:
       string: "Flight Gear Target"
     service_switch_num:
       action: set_machine
-      string: "Switch 54/63"
+      string: "Switch 54/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1904,7 +1909,7 @@ variable_player:
       string: "Spinner"
     service_switch_num:
       action: set_machine
-      string: "Switch 55/63"
+      string: "Switch 55/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1914,7 +1919,7 @@ variable_player:
       string: "Spinner"
     service_switch_num:
       action: set_machine
-      string: "Switch 55/63"
+      string: "Switch 55/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1924,7 +1929,7 @@ variable_player:
       string: "Left Ramp Exit"
     service_switch_num:
       action: set_machine
-      string: "Switch 56/63"
+      string: "Switch 56/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1934,7 +1939,7 @@ variable_player:
       string: "Left Ramp Exit"
     service_switch_num:
       action: set_machine
-      string: "Switch 56/63"
+      string: "Switch 56/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1944,7 +1949,7 @@ variable_player:
       string: "Right Ramp Exit"
     service_switch_num:
       action: set_machine
-      string: "Switch 57/63"
+      string: "Switch 57/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1954,7 +1959,7 @@ variable_player:
       string: "Right Ramp Exit"
     service_switch_num:
       action: set_machine
-      string: "Switch 57/63"
+      string: "Switch 57/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1964,7 +1969,7 @@ variable_player:
       string: "Inner Ramp Exit"
     service_switch_num:
       action: set_machine
-      string: "Switch 58/63"
+      string: "Switch 58/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1974,7 +1979,7 @@ variable_player:
       string: "Inner Ramp Exit"
     service_switch_num:
       action: set_machine
-      string: "Switch 58/63"
+      string: "Switch 58/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -1984,7 +1989,7 @@ variable_player:
       string: "Tower Ramp Exit"
     service_switch_num:
       action: set_machine
-      string: "Switch 59/63"
+      string: "Switch 59/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -1994,7 +1999,7 @@ variable_player:
       string: "Tower Ramp Exit"
     service_switch_num:
       action: set_machine
-      string: "Switch 59/63"
+      string: "Switch 59/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -2004,7 +2009,7 @@ variable_player:
       string: "Lock Elevator Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 60/63"
+      string: "Switch 60/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -2014,7 +2019,7 @@ variable_player:
       string: "Lock Elevator Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 60/63"
+      string: "Switch 60/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -2024,7 +2029,7 @@ variable_player:
       string: "Mav Lock Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 61/63"
+      string: "Switch 61/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -2034,7 +2039,7 @@ variable_player:
       string: "Mav Lock Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 61/63"
+      string: "Switch 61/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -2044,7 +2049,7 @@ variable_player:
       string: "Goose Lock Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 62/63"
+      string: "Switch 62/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -2054,7 +2059,7 @@ variable_player:
       string: "Goose Lock Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 62/63"
+      string: "Switch 62/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -2064,7 +2069,7 @@ variable_player:
       string: "Mode Start Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 63/63"
+      string: "Switch 63/64"
     service_switch_state:
       action: set_machine
       string: "CLOSED"
@@ -2074,7 +2079,27 @@ variable_player:
       string: "Mode Start Switch"
     service_switch_num:
       action: set_machine
-      string: "Switch 63/63"
+      string: "Switch 63/64"
+    service_switch_state:
+      action: set_machine
+      string: "OPEN"
+  set_switch_63{device.switches.s_mig_capture.state==1}:
+    service_switch_name:
+      action: set_machine
+      string: "Mig Capture Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 64/64"
+    service_switch_state:
+      action: set_machine
+      string: "CLOSED"
+  set_switch_63{device.switches.s_mig_capture.state==0}:
+    service_switch_name:
+      action: set_machine
+      string: "Mig Capture Switch"
+    service_switch_num:
+      action: set_machine
+      string: "Switch 64/64"
     service_switch_state:
       action: set_machine
       string: "OPEN"
@@ -2086,154 +2111,161 @@ variable_player:
       string: "Left Flipper"
     service_coil_num:
       action: set_machine
-      string: "Coil 1/22"
+      string: "Coil 1/23"
   set_coil_1:
     service_coil_name:
       action: set_machine
       string: "Upper Left Flipper"
     service_coil_num:
       action: set_machine
-      string: "Coil 2/22"
+      string: "Coil 2/23"
   set_coil_2:
     service_coil_name:
       action: set_machine
       string: "Right Flipper"
     service_coil_num:
       action: set_machine
-      string: "Coil 3/22"
+      string: "Coil 3/23"
   set_coil_3:
     service_coil_name:
       action: set_machine
       string: "Trough Eject"
     service_coil_num:
       action: set_machine
-      string: "Coil 4/22"
+      string: "Coil 4/23"
   set_coil_4:
     service_coil_name:
       action: set_machine
       string: "Auto Plunger"
     service_coil_num:
       action: set_machine
-      string: "Coil 5/22"
+      string: "Coil 5/23"
   set_coil_5:
     service_coil_name:
       action: set_machine
       string: "Left Slingshot"
     service_coil_num:
       action: set_machine
-      string: "Coil 6/22"
+      string: "Coil 6/23"
   set_coil_6:
     service_coil_name:
       action: set_machine
       string: "Right Slingshot"
     service_coil_num:
       action: set_machine
-      string: "Coil 7/22"
+      string: "Coil 7/23"
   set_coil_7:
     service_coil_name:
       action: set_machine
       string: "Left Pop Bumper"
     service_coil_num:
       action: set_machine
-      string: "Coil 8/22"
+      string: "Coil 8/23"
   set_coil_8:
     service_coil_name:
       action: set_machine
       string: "Right Pop Bumper"
     service_coil_num:
       action: set_machine
-      string: "Coil 9/22"
+      string: "Coil 9/23"
   set_coil_9:
     service_coil_name:
       action: set_machine
       string: "Center Pop Bumper"
     service_coil_num:
       action: set_machine
-      string: "Coil 10/22"
+      string: "Coil 10/23"
   set_coil_10:
     service_coil_name:
       action: set_machine
       string: "Left Lane Up Post"
     service_coil_num:
       action: set_machine
-      string: "Coil 11/22"
+      string: "Coil 11/23"
   set_coil_11:
     service_coil_name:
       action: set_machine
       string: "Left MIG Up Post"
     service_coil_num:
       action: set_machine
-      string: "Coil 12/22"
+      string: "Coil 12/23"
   set_coil_12:
     service_coil_name:
       action: set_machine
       string: "Right MIG Up Post"
     service_coil_num:
       action: set_machine
-      string: "Coil 13/22"
+      string: "Coil 13/23"
   set_coil_13:
     service_coil_name:
       action: set_machine
       string: "Left Orbit Diverter"
     service_coil_num:
       action: set_machine
-      string: "Coil 14/22"
+      string: "Coil 14/23"
   set_coil_14:
     service_coil_name:
       action: set_machine
       string: "Right Orbit Diverter"
     service_coil_num:
       action: set_machine
-      string: "Coil 15/22"
+      string: "Coil 15/23"
   set_coil_15:
     service_coil_name:
       action: set_machine
       string: "Ejection Seat Magnet"
     service_coil_num:
       action: set_machine
-      string: "Coil 16/22"
+      string: "Coil 16/23"
   set_coil_16:
     service_coil_name:
       action: set_machine
       string: "Mode Barrier"
     service_coil_num:
       action: set_machine
-      string: "Coil 17/22"
+      string: "Coil 17/23"
   set_coil_17:
     service_coil_name:
       action: set_machine
       string: "Mode Outkicker"
     service_coil_num:
       action: set_machine
-      string: "Coil 18/22"
+      string: "Coil 18/23"
   set_coil_18:
     service_coil_name:
       action: set_machine
-      string: "Lock Release"
+      string: "Not Installed"
     service_coil_num:
       action: set_machine
-      string: "Coil 19/22"
+      string: "Coil 19/23"
   set_coil_19:
     service_coil_name:
       action: set_machine
       string: "Lock Upkicker"
     service_coil_num:
       action: set_machine
-      string: "Coil 20/22"
+      string: "Coil 20/23"
   set_coil_20:
     service_coil_name:
       action: set_machine
       string: "Start Button LED"
     service_coil_num:
       action: set_machine
-      string: "Coil 21/22"
+      string: "Coil 21/23"
   set_coil_21:
     service_coil_name:
       action: set_machine
       string: "Coin Door LED"
     service_coil_num:
       action: set_machine
-      string: "Coil 22/22"
+      string: "Coil 22/23"
+  set_coil_22:
+    service_coil_name:
+      action: set_machine
+      string: "Right Lane Post"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 23/23"
 
   # LIGHT TEXT SETTERS (91 lights)
   set_light_0:
@@ -3054,9 +3086,7 @@ coil_player:
   fire_coil_17:
     c_mode_outkicker:
       action: pulse
-  fire_coil_18:
-    c_lock_release:
-      action: pulse
+  fire_coil_18: {}
   fire_coil_19:
     c_lock_upkicker:
       action: pulse
@@ -3065,6 +3095,9 @@ coil_player:
       action: pulse
   fire_coil_21:
     c_coin_door_led:
+      action: pulse
+  fire_coil_22:
+    c_right_lane_post:
       action: pulse
 
 ##############################################################################

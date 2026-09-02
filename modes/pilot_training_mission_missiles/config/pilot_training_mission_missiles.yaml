@@ -2,36 +2,63 @@
 
 ####################################################################################
 # PILOT TRAINING MISSION: MISSILES
-# 
-# A single-ball timed training mission with lock-on-to-MIG mechanics.
-# 
-# THEME: Missile lock-on training - hit paired shots then lock targets
+#
+# A single-ball timed training mission with a locate/track/destroy loop.
+#
+# THEME: Locate a plane, track it across a moving radar sweep, then shoot it
+# down. 4 planes total across 4 rounds — each round burns one of the 4
+# candidate shots permanently, forcing the player to use all 4 instead of
+# spamming one easy shot.
+#
 # BALLS: 1 (normal flippers)
 # TIMER: 90 seconds
-# GI: Cyan (odd lights) and White (even lights) - NOTE: cyan is GRB-swapped cyan for WS2812 LEDs
-# INSERT COLORS: Green (pair shots) and Red (lock shots)
-# PERK: Missiles perk earned when step 9 completed, active for rest of ball
+# GI: Cyan (odd lights) and White (even lights) ambient; red strobe on bad shots
+# PERK: Missiles perk earned on mode win, active for rest of ball
 # CANNOT STACK WITH MULTIBALL
 #
-# MODE PROGRESSION:
-# Steps 1-2: LO and LR lit green (hit both, any order) - 500K / 550K
-# Step 3:    Random LOCK target lit white (lock on to MIG) - 750K
-# Steps 4-5: RO and TL lit green (right ramp UP, hit both, any order) - 650K / 700K
-# Step 6:    Random LOCK target lit white (lock on to MIG) - 900K
-# Steps 7-8: SP and TWR lit green (hit both, any order) - 800K / 850K
-# Step 9:    Random LOCK target lit white (lock on to MIG) -> MODE WON - 1,800K
-# TOTAL: 7,500,000 points (before multipliers)
+# ROUND STRUCTURE (x4):
+#   PHASE 1 - LOCATE: LO, LR, TWR, RR lit green (whichever aren't burned yet).
+#     Hit one -> locks it as this round's target. Hit a burned one, or any of
+#     SP/CNT/TL/TR -> bad shot (rainbow + red GI punishment).
+#   PHASE 2 - SWEEP: A window of N consecutive shots (from the 9-position
+#     order LL,LO,LR,SP,CNT,TWR,TL,TR,RR) is lit and slides right one step at
+#     a time, reversing at the far edge (RR), bouncing indefinitely. Hit ANY
+#     lit shot in the window to pass through. Never a bad shot here — this
+#     phase doesn't relate to Phase 1/3 targets at all. Window width shrinks
+#     each round: Round 1 = 4, Round 2 = 3, Round 3 = 2, Round 4 = 1. Sweep
+#     speed: 1s/step (rounds 1-2), 1.5s/step (rounds 3-4).
+#   PHASE 3 - DESTROY: focus returns to the SAME shot located in Phase 1.
+#     Hit it -> destroyed, permanently burned (bad from here on in both
+#     future Phase 1 and Phase 3). Hit anything else -> bad shot.
+#
+# SCORING (locate / destroy per round):
+#   Round 1: 500,000 / 750,000
+#   Round 2: 650,000 / 900,000
+#   Round 3: 800,000 / 1,050,000   (destroy value is our own pick — see notes)
+#   Round 4: 1,000,000 / 1,250,000 + 2,500,000 mode-complete bonus
+#
+# VIDEO ASSET MAPPING (only 3 sets of round-specific "destroy" scenes exist):
+#   Round 1 destroy -> missiles_step_3 slide/video
+#   Round 2 destroy -> missiles_step_6 slide/video
+#   Round 3 destroy -> missiles_step_9 slide/video
+#   Round 4 destroy -> REUSES missiles_step_3 (Round 1's asset), per instruction
+#   Phase 1 (any round) -> missiles_locating_jet background
+#   Phase 2 (any round) -> missiles_locking_on background
 #
 # SHOT LIGHTS:
-#   LO  = l_shot_left_orbit      LR  = l_shot_left_ramp
-#   RO  = l_shot_right_orbit     TL  = l_shot_upper_orbit
-#   SP  = l_shot_spinner         TWR = l_shot_tower_ramp
-#   Lock L = l_lock_l  Lock O = l_lock_o  Lock C = l_lock_c  Lock K = l_lock_k
+#   LL = l_shot_left_lane     LO  = l_shot_left_orbit
+#   LR = l_shot_left_ramp     SP  = l_shot_spinner
+#   CNT = l_shot_barrier      TWR = l_shot_tower_ramp
+#   TL = l_shot_upper_orbit   TR  = l_shot_middle_ramp (shares light with TO,
+#                                   unused here — this mode's 9-slot order
+#                                   uses TR/s_ramp_inner_exit, matching the
+#                                   original window mechanic this replaces)
+#   RR = l_shot_right_orbit
 ####################################################################################
 
 mode:
   start_events: start_mode_pilot_training_mission_missiles
-  stop_events: 
+  stop_events:
     - missiles_video_complete
     - timer_missiles_failed_delay_complete
     - missiles_drain_cleanup_complete
@@ -50,9 +77,9 @@ ball_holds:
   missiles_scoop_hold:
     balls_to_hold: 1
     hold_devices: bd_mode_scoop
-    enable_events: 
+    enable_events:
       - mode_pilot_training_mission_missiles_started
-    release_one_events: 
+    release_one_events:
       - missiles_ball_released
     release_all_events:
       - mode_pilot_training_mission_missiles_will_stop
@@ -66,14 +93,13 @@ queue_relay_player:
     post: missiles_ball_ending_hold
     wait_for: missiles_drain_cleanup_complete
     priority: 1000
-
 ####################################################################################
 # TIMERS
 ####################################################################################
 
 timers:
   missiles_timer:
-    start_value: 90
+    start_value: 150
     end_value: 0
     direction: down
     tick_interval: 1s
@@ -83,7 +109,7 @@ timers:
         action: start
       - event: missiles_complete
         action: stop
-      - event: timer_missiles_failed_delay_start
+      - event: missiles_failed
         action: stop
       - event: missiles_drain_detected
         action: stop
@@ -103,37 +129,24 @@ timers:
       - event: missiles_skip_intro
         action: stop
 
-  # Pair frustration timer - 30 seconds without a successful pair shot hit
-  # Starts when pair steps begin, restarts on each successful hit, stops on pair completion
-  missiles_pair_frustration_timer:
+  # Sweep tick — rounds 1-2 (1s/step)
+  # Sweep tick — rounds 1-2 (0.5s/step)
+  missiles_sweep_timer_fast:
     start_value: 0
-    end_value: 30
+    end_value: 1
     direction: up
-    tick_interval: 1s
+    tick_interval: 500ms
+    start_running: false
     control_events:
-      - event: missiles_setup_step_1
+      - event: missiles_start_sweep_fast
         action: start
-      - event: missiles_step_1_complete
+      - event: missiles_sweep_advance
         action: restart
-      - event: missiles_setup_step_3
+      - event: missiles_sweep_hit
         action: stop
-      - event: missiles_setup_step_4
-        action: restart
-      - event: missiles_step_4_complete
-        action: restart
-      - event: missiles_setup_step_6
+      - event: missiles_destroy_success
         action: stop
-      - event: missiles_setup_step_7
-        action: restart
-      - event: missiles_step_7_complete
-        action: restart
-      - event: missiles_setup_step_9
-        action: stop
-      - event: timer_missiles_pair_frustration_timer_complete
-        action: restart
       - event: missiles_failed
-        action: stop
-      - event: missiles_complete
         action: stop
       - event: missiles_drain_detected
         action: stop
@@ -142,134 +155,160 @@ timers:
       - event: lock_sequence_timer_resume
         action: start
 
-  ##############################################
-  ## MISSILE FLYING DELAY TIMERS - GI strobe during flight
-  ##############################################
-  missiles_step_3_flying_delay:
+  # Sweep tick — rounds 3-4 (1s/step)
+  missiles_sweep_timer_slow:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: missiles_start_sweep_slow
+        action: start
+      - event: missiles_sweep_advance
+        action: restart
+      - event: missiles_sweep_hit
+        action: stop
+      - event: missiles_destroy_success
+        action: stop
+      - event: missiles_failed
+        action: stop
+      - event: missiles_drain_detected
+        action: stop
+      - event: lock_sequence_timer_pause
+        action: pause
+      - event: lock_sequence_timer_resume
+        action: start
+
+  # Bad-shot punishment — 5s, restarts on every additional bad shot,
+  # stopped early by the next locate or destroy success
+  missiles_punishment_timer:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: missiles_bad_shot
+        action: restart
+      - event: missiles_locate_success
+        action: stop
+      - event: missiles_destroy_success
+        action: stop
+      - event: missiles_failed
+        action: stop
+      - event: missiles_drain_detected
+        action: stop
+
+  # PHASE 1 FRUSTRATION TIMER — 30s with no locate -> random nag callout,
+  # matching the original's "pair steps: 30 second timeout" behavior
+  missiles_phase1_frustration_timer:
+    start_value: 0
+    end_value: 30
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: missiles_setup_phase_1
+        action: restart
+      - event: missiles_locate_success
+        action: stop
+      - event: missiles_failed
+        action: stop
+      - event: missiles_drain_detected
+        action: stop
+
+  # MISSILE FLYING DELAY — time before the explosion GI kicks in, matching
+  # each destroy video's actual "missile in flight" runtime before impact.
+  # 4.0s (16 ticks): rounds 1, 3, 4 (round 4 reuses round 1's video)
+  # 4.5s (18 ticks): round 2
+  missiles_flying_delay_a:
     start_value: 0
     end_value: 16
     direction: up
     tick_interval: 250ms
+    start_running: false
     control_events:
-      - event: missiles_step_3_flying_start
+      - event: missiles_start_flying_a
         action: start
       - event: missiles_cleanup
         action: stop
       - event: missiles_drain_detected
         action: stop
-      - event: missiles_step_4_shot_hit
-        action: stop
-      - event: missiles_step_5_shot_hit
-        action: stop
 
-  missiles_step_6_flying_delay:
+  missiles_flying_delay_b:
     start_value: 0
     end_value: 18
     direction: up
     tick_interval: 250ms
+    start_running: false
     control_events:
-      - event: missiles_step_6_flying_start
-        action: start
-      - event: missiles_cleanup
-        action: stop
-      - event: missiles_drain_detected
-        action: stop
-      - event: missiles_step_7_shot_hit
-        action: stop
-      - event: missiles_step_8_shot_hit
-        action: stop
-
-  missiles_step_9_flying_delay:
-    start_value: 0
-    end_value: 16
-    direction: up
-    tick_interval: 250ms
-    control_events:
-      - event: missiles_step_9_flying_start
+      - event: missiles_start_flying_b
         action: start
       - event: missiles_cleanup
         action: stop
       - event: missiles_drain_detected
         action: stop
 
-  ##############################################
-  ## MISSILE EXPLOSION DELAY TIMERS - Extra time for explosion animation
-  ##############################################
-  missiles_step_3_explosion_delay:
+  # MISSILE EXPLOSION DELAY — how long the explosion GI/video plays before
+  # advancing to the next round. 2.5s (round 1/4), 2.75s (round 2), 3.5s (round 3)
+  missiles_explosion_delay_a:
     start_value: 0
     end_value: 10
     direction: up
     tick_interval: 250ms
+    start_running: false
     control_events:
-      - event: missiles_step_3_explosion_start
+      - event: missiles_start_explosion_a
         action: start
       - event: missiles_cleanup
         action: stop
       - event: missiles_drain_detected
         action: stop
-      - event: missiles_step_4_shot_hit
-        action: stop
-      - event: missiles_step_5_shot_hit
-        action: stop
 
-  missiles_step_6_explosion_delay:
+  missiles_explosion_delay_b:
     start_value: 0
     end_value: 11
     direction: up
     tick_interval: 250ms
+    start_running: false
     control_events:
-      - event: missiles_step_6_explosion_start
+      - event: missiles_start_explosion_b
         action: start
       - event: missiles_cleanup
         action: stop
       - event: missiles_drain_detected
         action: stop
-      - event: missiles_step_7_shot_hit
-        action: stop
-      - event: missiles_step_8_shot_hit
-        action: stop
 
-  missiles_step_9_explosion_delay:
+  missiles_explosion_delay_c:
     start_value: 0
     end_value: 14
     direction: up
     tick_interval: 250ms
-    control_events:
-      - event: missiles_step_9_explosion_start
-        action: start
-      - event: missiles_cleanup
-        action: stop
-      - event: missiles_drain_detected
-        action: stop
-
-
-
-  missiles_window_timer:
-    start_value: 0
-    end_value: 1
-    direction: up
-    tick_interval: 1500ms
     start_running: false
     control_events:
-      - event: missiles_window_advance
-        action: restart
-      - event: missiles_setup_step_1
+      - event: missiles_start_explosion_c
         action: start
-      - event: missiles_setup_step_4
-        action: start
-      - event: missiles_setup_step_7
-        action: start
-      - event: missiles_step_1_complete
-        action: stop
-      - event: missiles_step_4_complete
-        action: stop
-      - event: missiles_step_7_complete
-        action: stop
       - event: missiles_cleanup
         action: stop
       - event: missiles_drain_detected
         action: stop
+
+  # Simple, independent 6s timer for the "shoot the lit green shots" callout,
+  # decoupled from the flying/explosion chain so it doesn't depend on that
+  # timing being exactly right.
+  missiles_callout_delay:
+    start_value: 0
+    end_value: 6
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: missiles_destroy_success
+        action: restart
       - event: missiles_failed
+        action: stop
+      - event: missiles_drain_detected
         action: stop
 
   missiles_complete_delay:
@@ -300,7 +339,6 @@ timers:
     control_events:
       - event: missiles_drain_detected
         action: start
-
 ####################################################################################
 # VARIABLE PLAYER
 ####################################################################################
@@ -313,44 +351,56 @@ variable_player:
     letter_collection_paused:
       action: set
       int: 1
-    missiles_step:
+    missiles_phase:
       action: set
-      int: -1    # sentinel during intro; setup_step_1 sets to 0 when window phase actually opens
+      int: 0    # 0 = intro; setup_phase_1 sets to 1 when locate opens
+    missiles_round:
+      action: set
+      int: 1
+    missiles_target:
+      action: set
+      int: 0    # 0=none 1=LO 2=LR 3=TWR 4=RR
+    missiles_lo_burned:
+      action: set
+      int: 0
+    missiles_lr_burned:
+      action: set
+      int: 0
+    missiles_twr_burned:
+      action: set
+      int: 0
+    missiles_rr_burned:
+      action: set
+      int: 0
     missiles_complete_flag:
       action: set
       int: 0
     missiles_shots_remaining:
       action: set
-      int: 9
-    missiles_window_pos:
+      int: 12    # 3 hits/round (locate + sweep + destroy) x 4 rounds
+    missiles_phase3_bad_count:
       action: set
       int: 0
-    missiles_window_dir:
+    missiles_destroyed_round:
       action: set
       int: 0
-    missiles_window_lock_shot:
+    missiles_sweep_pos:
       action: set
       int: 0
-    missiles_step_3_target:
+    missiles_sweep_dir:
       action: set
       int: 0
-    missiles_step_6_target:
+    missiles_sweep_width:
       action: set
-      int: 0
-    missiles_step_9_target:
-      action: set
-      int: 0
+      int: 4
     mode_points_scored:
-      action: set
-      int: 0
-    missiles_pair_miss_count:
-      action: set
-      int: 0
-    missiles_lock_miss_count:
       action: set
       int: 0
     training_missions_played:
       action: add
+      int: 1
+    mode_pilot_training_mission_missiles_played:
+      action: set
       int: 1
     training_missles_complete:
       action: set
@@ -362,168 +412,118 @@ variable_player:
       int: 1
 
   ##############################################
-  ## Step scoring - 500K -> 550K -> 750K -> 650K -> 700K -> 900K -> 800K -> 850K -> 1.8M
+  ## PHASE 1 - LOCATE: which shot was hit
   ##############################################
+  missiles_locate_hit_lo:
+    missiles_target: { action: set, int: 1 }
+  missiles_locate_hit_lr:
+    missiles_target: { action: set, int: 2 }
+  missiles_locate_hit_twr:
+    missiles_target: { action: set, int: 3 }
+  missiles_locate_hit_rr:
+    missiles_target: { action: set, int: 4 }
 
-  # Step 1: 500,000
-  missiles_step_1_complete:
-    missiles_step:
-      action: set
-      int: 1
+  # Locate scoring + sweep width per round (merged into one block per round)
+  missiles_locate_success{current_player.missiles_round==1}:
     score: 500000 * current_player.total_scoring_multiplier
-    mode_points_scored:
-      action: set
-      int: 500000 * current_player.total_scoring_multiplier
-    missiles_shots_remaining:
-      action: add
-      int: -1
-    missiles_pair_miss_count:
-      action: set
-      int: 0
-
-  # Step 2: 550,000
-  missiles_step_2_complete:
-    missiles_step:
-      action: set
-      int: 2
-    score: 550000 * current_player.total_scoring_multiplier
-    mode_points_scored:
-      action: set
-      int: 550000 * current_player.total_scoring_multiplier
-    missiles_shots_remaining:
-      action: add
-      int: -1
-
-  # Step 3: Lock C - 750,000
-  # Lock target selection variables (set by random_event_player)
-  # Spinner lockout flag — set when a shot registers, cleared 2s after the
-  # spinner stops (timer_spinner_shot_timeout_complete lives in pilot_mission_qualifier
-  # and already restarts on every s_spinner_active; completes 2s after last spin).
-  spinner_shot_made:
-    missiles_spinner_locked:
-      action: set
-      int: 1
-
-  timer_spinner_shot_timeout_complete:
-    missiles_spinner_locked:
-      action: set
-      int: 0
-
-  # 1=LR  2=RR  3=SP  4=TWR  5=TL
-  missiles_step_3_target_lr: { missiles_step_3_target: { action: set, int: 1 } }
-  missiles_step_3_target_rr: { missiles_step_3_target: { action: set, int: 2 } }
-  missiles_step_3_target_sp: { missiles_step_3_target: { action: set, int: 3 } }
-  missiles_step_3_target_twr: { missiles_step_3_target: { action: set, int: 4 } }
-  missiles_step_3_target_tl: { missiles_step_3_target: { action: set, int: 5 } }
-  missiles_step_6_target_lr: { missiles_step_6_target: { action: set, int: 1 } }
-  missiles_step_6_target_rr: { missiles_step_6_target: { action: set, int: 2 } }
-  missiles_step_6_target_sp: { missiles_step_6_target: { action: set, int: 3 } }
-  missiles_step_6_target_twr: { missiles_step_6_target: { action: set, int: 4 } }
-  missiles_step_6_target_tl: { missiles_step_6_target: { action: set, int: 5 } }
-  missiles_step_9_target_lr: { missiles_step_9_target: { action: set, int: 1 } }
-  missiles_step_9_target_rr: { missiles_step_9_target: { action: set, int: 2 } }
-  missiles_step_9_target_sp: { missiles_step_9_target: { action: set, int: 3 } }
-  missiles_step_9_target_twr: { missiles_step_9_target: { action: set, int: 4 } }
-  missiles_step_9_target_tl: { missiles_step_9_target: { action: set, int: 5 } }
-
-  missiles_step_3_complete:
-    missiles_step:
-      action: set
-      int: 3
-    score: 750000 * current_player.total_scoring_multiplier
-    mode_points_scored:
-      action: set
-      int: 750000 * current_player.total_scoring_multiplier
-    missiles_shots_remaining:
-      action: add
-      int: -1
-
-  # Step 4: 650,000
-  missiles_step_4_complete:
-    missiles_step:
-      action: set
-      int: 4
+    mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
+    missiles_sweep_width: { action: set, int: 4 }
+  missiles_locate_success{current_player.missiles_round==2}:
     score: 650000 * current_player.total_scoring_multiplier
-    mode_points_scored:
-      action: set
-      int: 650000 * current_player.total_scoring_multiplier
-    missiles_shots_remaining:
-      action: add
-      int: -1
-    missiles_pair_miss_count:
-      action: set
-      int: 0
-
-  # Step 5: 700,000
-  missiles_step_5_complete:
-    missiles_step:
-      action: set
-      int: 5
-    score: 700000 * current_player.total_scoring_multiplier
-    mode_points_scored:
-      action: set
-      int: 700000 * current_player.total_scoring_multiplier
-    missiles_shots_remaining:
-      action: add
-      int: -1
-
-  # Step 6: Lock L - 900,000
-  missiles_step_6_complete:
-    missiles_step:
-      action: set
-      int: 6
-    score: 900000 * current_player.total_scoring_multiplier
-    mode_points_scored:
-      action: set
-      int: 900000 * current_player.total_scoring_multiplier
-    missiles_shots_remaining:
-      action: add
-      int: -1
-
-  # Step 7: 800,000
-  missiles_step_7_complete:
-    missiles_step:
-      action: set
-      int: 7
+    mode_points_scored: { action: set, int: 650000 * current_player.total_scoring_multiplier }
+    missiles_sweep_width: { action: set, int: 3 }
+  missiles_locate_success{current_player.missiles_round==3}:
     score: 800000 * current_player.total_scoring_multiplier
-    mode_points_scored:
-      action: set
-      int: 800000 * current_player.total_scoring_multiplier
-    missiles_shots_remaining:
-      action: add
-      int: -1
-    missiles_pair_miss_count:
-      action: set
-      int: 0
+    mode_points_scored: { action: set, int: 800000 * current_player.total_scoring_multiplier }
+    missiles_sweep_width: { action: set, int: 2 }
+  missiles_locate_success{current_player.missiles_round==4}:
+    score: 1000000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 1000000 * current_player.total_scoring_multiplier }
+    missiles_sweep_width: { action: set, int: 1 }
 
-  # Step 8: 850,000
-  missiles_step_8_complete:
-    missiles_step:
-      action: set
-      int: 8
-    score: 850000 * current_player.total_scoring_multiplier
-    mode_points_scored:
-      action: set
-      int: 850000 * current_player.total_scoring_multiplier
-    missiles_shots_remaining:
-      action: add
-      int: -1
+  missiles_locate_success:
+    missiles_phase: { action: set, int: 2 }
+    missiles_sweep_pos: { action: set, int: 0 }
+    missiles_sweep_dir: { action: set, int: 0 }
+    missiles_shots_remaining: { action: add, int: -1 }
 
-  # Step 9: Lock K - 1,800,000 - MODE WON + perk
-  missiles_step_9_complete:
-    missiles_step:
-      action: set
-      int: 9
+  ##############################################
+  ## PHASE 2 - SWEEP: position advance (direction handled separately —
+  ## keeping these apart avoids MPF cascading advance+flip+retreat in one
+  ## tick, same reasoning as the original window mechanic this replaces)
+  ##############################################
+  missiles_sweep_advance{current_player.missiles_sweep_dir==0 and current_player.missiles_sweep_pos<10-current_player.missiles_sweep_width}:
+    missiles_sweep_pos: { action: add, int: 1 }
+  missiles_sweep_advance{current_player.missiles_sweep_dir==1 and current_player.missiles_sweep_pos>0}:
+    missiles_sweep_pos: { action: add, int: -1 }
+
+  missiles_sweep_flip_right:
+    missiles_sweep_dir: { action: set, int: 1 }
+  missiles_sweep_flip_left:
+    missiles_sweep_dir: { action: set, int: 0 }
+
+  missiles_sweep_hit:
+    missiles_phase: { action: set, int: 3 }
+    missiles_shots_remaining: { action: add, int: -1 }
+    missiles_phase3_bad_count: { action: set, int: 0 }
+
+  missiles_bad_shot{current_player.missiles_phase==3}:
+    missiles_phase3_bad_count: { action: add, int: 1 }
+
+  ##############################################
+  ## PHASE 3 - DESTROY: scoring per round
+  ##############################################
+  missiles_destroy_success{current_player.missiles_round==1}:
+    score: 750000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 750000 * current_player.total_scoring_multiplier }
+  missiles_destroy_success{current_player.missiles_round==2}:
+    score: 900000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 900000 * current_player.total_scoring_multiplier }
+  missiles_destroy_success{current_player.missiles_round==3}:
+    score: 1050000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 1050000 * current_player.total_scoring_multiplier }
+  missiles_destroy_success{current_player.missiles_round==4}:
+    score: 1250000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 1250000 * current_player.total_scoring_multiplier }
+
+  missiles_complete_bonus:
+    score: 2500000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 2500000 * current_player.total_scoring_multiplier }
+
+  # Burn whichever shot was this round's target
+  missiles_burn_target{current_player.missiles_target==1}:
+    missiles_lo_burned: { action: set, int: 1 }
+  missiles_burn_target{current_player.missiles_target==2}:
+    missiles_lr_burned: { action: set, int: 1 }
+  missiles_burn_target{current_player.missiles_target==3}:
+    missiles_twr_burned: { action: set, int: 1 }
+  missiles_burn_target{current_player.missiles_target==4}:
+    missiles_rr_burned: { action: set, int: 1 }
+
+  missiles_destroy_success:
+    missiles_shots_remaining: { action: add, int: -1 }
+    missiles_destroyed_round: { action: set, int: current_player.missiles_round }
+
+  ##############################################
+  ## ROUND ADVANCE
+  ##############################################
+  missiles_setup_next_round:
+    missiles_round: { action: add, int: 1 }
+    missiles_phase: { action: set, int: 1 }
+    missiles_target: { action: set, int: 0 }
+
+  # THE BUG: this was missing entirely. missiles_setup_phase_1 fires at mode
+  # start (from skip_intro / intro_video_delay_complete) to arm lights/shows,
+  # but nothing ever set missiles_phase away from its init value of 0 for
+  # round 1 specifically — every Phase 1 condition checks missiles_phase==1,
+  # so round 1 never matched anything at all.
+  missiles_setup_phase_1:
+    missiles_phase: { action: set, int: 1 }
+
+  missiles_complete:
     missiles_complete_flag:
       action: set
       int: 1
-    score: 1800000 * current_player.total_scoring_multiplier
-    mode_points_scored:
-      action: set
-      int: 1800000 * current_player.total_scoring_multiplier
-    missiles_shots_remaining:
-      action: add
-      int: -1
     training_missiles_won:
       action: set
       int: 1
@@ -535,100 +535,18 @@ variable_player:
       int: 1
 
   ##############################################
-  ## Moving window - position/direction and lock shot
+  ## LEFT ORBIT SAFE RETURN — arm/clear
+  ## Phase 1 while LO unburned; Phase 3 when LO is this round's target.
   ##############################################
-
-  # Position advance only — direction reversals handled via separate boundary events
-  # (Moving all conditions on missiles_window_advance caused MPF to cascade through
-  #  pos-advance, dir-flip, and pos-retreat in a single tick, skipping pos==6.)
-  missiles_window_advance{current_player.missiles_window_dir==0 and current_player.missiles_window_pos<6}:
-    missiles_window_pos: { action: add, int: 1 }
-  missiles_window_advance{current_player.missiles_window_dir==1 and current_player.missiles_window_pos>0}:
-    missiles_window_pos: { action: add, int: -1 }
-  # Boundary events (fired from event_player on player_missiles_window_pos) flip direction
-  missiles_window_at_right_boundary:
-    missiles_window_dir: { action: set, int: 1 }
-  missiles_window_at_left_boundary:
-    missiles_window_dir: { action: set, int: 0 }
-
-  # Store chosen shot: 1=LL 2=LO 3=LR 4=SP 5=Barrier 6=TWR 7=TL 8=TR 9=RR
-  missiles_window_hit_ll:      { missiles_window_lock_shot: { action: set, int: 1 } }
-  missiles_window_hit_lo:      { missiles_window_lock_shot: { action: set, int: 2 } }
-  missiles_window_hit_lr:      { missiles_window_lock_shot: { action: set, int: 3 } }
-  missiles_window_hit_sp:      { missiles_window_lock_shot: { action: set, int: 4 } }
-  missiles_window_hit_barrier: { missiles_window_lock_shot: { action: set, int: 5 } }
-  missiles_window_hit_twr:     { missiles_window_lock_shot: { action: set, int: 6 } }
-  missiles_window_hit_tl:      { missiles_window_lock_shot: { action: set, int: 7 } }
-  missiles_window_hit_tr:      { missiles_window_lock_shot: { action: set, int: 8 } }
-  missiles_window_hit_rr:      { missiles_window_lock_shot: { action: set, int: 9 } }
-
-  # Random start position (setup_step_4 and _7): set pos to the randomly chosen value
-  missiles_window_init_pos_0:  { missiles_window_pos: { action: set, int: 0 } }
-  missiles_window_init_pos_1:  { missiles_window_pos: { action: set, int: 1 } }
-  missiles_window_init_pos_2:  { missiles_window_pos: { action: set, int: 2 } }
-  missiles_window_init_pos_3:  { missiles_window_pos: { action: set, int: 3 } }
-  missiles_window_init_pos_4:  { missiles_window_pos: { action: set, int: 4 } }
-  missiles_window_init_pos_5:  { missiles_window_pos: { action: set, int: 5 } }
-  missiles_window_init_pos_6:  { missiles_window_pos: { action: set, int: 6 } }
-
-  ##############################################
-  ## FRUSTRATION CALLOUT COUNTERS
-  ##############################################
-
-  # Pair miss counter - increments on non-scoring shot hits during pair steps
-  missiles_pair_miss:
-    missiles_pair_miss_count:
-      action: add
+  orbit_left_safe_return_arm:
+    orbit_left_shot_armed:
+      action: set
       int: 1
 
-  # Lock miss counter - increments on wrong LOCK target hits during lock steps
-  missiles_lock_miss:
-    missiles_lock_miss_count:
-      action: add
-      int: 1
-
-  # Reset window state at each window phase; also reset pair miss counter
-  missiles_setup_step_1:
-    missiles_step: { action: set, int: 0 }    # opens window phase (was -1 sentinel during intro)
-    missiles_window_pos: { action: set, int: 0 }
-    missiles_window_dir: { action: set, int: 0 }
-    missiles_window_lock_shot: { action: set, int: 0 }
-  missiles_setup_step_4:
-    missiles_pair_miss_count: { action: set, int: 0 }
-    missiles_window_dir: { action: set, int: 0 }
-    missiles_window_lock_shot: { action: set, int: 0 }
-  missiles_setup_step_7:
-    missiles_pair_miss_count: { action: set, int: 0 }
-    missiles_window_dir: { action: set, int: 0 }
-    missiles_window_lock_shot: { action: set, int: 0 }
-
-  # Reset lock miss counter on each lock step setup
-  missiles_setup_step_3:
-    missiles_lock_miss_count:
+  orbit_left_safe_return_clear:
+    orbit_left_shot_armed:
       action: set
       int: 0
-  missiles_setup_step_6:
-    missiles_lock_miss_count:
-      action: set
-      int: 0
-  missiles_setup_step_9:
-    missiles_lock_miss_count:
-      action: set
-      int: 0
-
-  # Reset pair miss counter after frustration callout fires (allows re-trigger)
-  missiles_pair_frustration_trigger:
-    missiles_pair_miss_count:
-      action: set
-      int: 0
-
-  # Reset lock miss counter after frustration callout fires (allows re-trigger)
-  missiles_reset_lock_miss_count:
-    missiles_lock_miss_count:
-      action: set
-      int: 0
-
-
 ####################################################################################
 # EVENT PLAYER - Mode flow and shot detection
 ####################################################################################
@@ -644,23 +562,23 @@ event_player:
   ##############################################
   ## SKIP INTRO - Both flippers pressed during intro
   ##############################################
-  s_flipper_left_active{current_player.missiles_step==0 and device.timers.missiles_intro_video_delay.running}:
+  s_flipper_left_active{current_player.missiles_phase==0 and device.timers.missiles_intro_video_delay.running}:
     - missiles_check_skip_intro
-  s_flipper_right_active{current_player.missiles_step==0 and device.timers.missiles_intro_video_delay.running}:
+  s_flipper_right_active{current_player.missiles_phase==0 and device.timers.missiles_intro_video_delay.running}:
     - missiles_check_skip_intro
 
   missiles_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
     - missiles_skip_intro
 
-  # SKIP PATH: Stop intro timer, release ball, setup shots
+  # SKIP PATH: stop intro timer, release ball, open Phase 1
   missiles_skip_intro:
     - missiles_ball_released
-    - missiles_setup_step_1
+    - missiles_setup_phase_1
 
-  # NORMAL PATH: Timer completes -> release ball AND setup shots
+  # NORMAL PATH: timer completes -> release ball AND open Phase 1
   timer_missiles_intro_video_delay_complete:
     - missiles_ball_released
-    - missiles_setup_step_1
+    - missiles_setup_phase_1
 
   ##############################################
   ## DRAIN HANDLING
@@ -673,440 +591,219 @@ event_player:
     - missiles_drain_cleanup_complete
     - missiles_cleanup
 
-  # Steps 1-2 replaced by moving window mechanic (see window section below)
+  ##############################################
+  ## PHASE 1 - LOCATE
+  ## LO/LR/TWR/RR lit green if not yet burned. Only an ALREADY-BURNED
+  ## candidate (visibly red) is a bad shot. SP/CNT/TL/TR are never
+  ## candidates and are never shown red, so hitting them is a no-op — they
+  ## were never marked as anything, good or bad. LL has no effect either.
+  ##############################################
+  left_orbit_shot_hit{current_player.missiles_phase==1 and current_player.missiles_lo_burned==0}:
+    - missiles_locate_hit_lo
+    - missiles_locate_success
+  left_orbit_shot_hit{current_player.missiles_phase==1 and current_player.missiles_lo_burned==1}:
+    - missiles_bad_shot
+
+  s_ramp_left_exit_active{current_player.missiles_phase==1 and current_player.missiles_lr_burned==0}:
+    - missiles_locate_hit_lr
+    - missiles_locate_success
+  s_ramp_left_exit_active{current_player.missiles_phase==1 and current_player.missiles_lr_burned==1}:
+    - missiles_bad_shot
+
+  s_ramp_tower_exit_active{current_player.missiles_phase==1 and current_player.missiles_twr_burned==0}:
+    - missiles_locate_hit_twr
+    - missiles_locate_success
+  s_ramp_tower_exit_active{current_player.missiles_phase==1 and current_player.missiles_twr_burned==1}:
+    - missiles_bad_shot
+
+  s_ramp_right_exit_active{current_player.missiles_phase==1 and current_player.missiles_rr_burned==0}:
+    - missiles_locate_hit_rr
+    - missiles_locate_success
+  s_ramp_right_exit_active{current_player.missiles_phase==1 and current_player.missiles_rr_burned==1}:
+    - missiles_bad_shot
 
   ##############################################
-  ## STEP 3: RANDOM SHOT (green-red fade) — 1=LR 2=RR 3=SP 4=TWR 5=TL
+  ## PHASE 2 - SWEEP setup: pick fast/slow timer by round, first redraw
   ##############################################
-  s_ramp_left_exit_active{current_player.missiles_step==2 and current_player.missiles_step_3_target==1}:
-    - missiles_step_3_complete
-    - missiles_step_3_shot_hit
-    - missiles_step_3_flying_start
-  s_ramp_right_exit_active{current_player.missiles_step==2 and current_player.missiles_step_3_target==2}:
-    - missiles_step_3_complete
-    - missiles_step_3_shot_hit
-    - missiles_step_3_flying_start
-  spinner_shot_made{current_player.missiles_step==2 and current_player.missiles_step_3_target==3 and current_player.missiles_spinner_locked==0}:
-    - missiles_step_3_complete
-    - missiles_step_3_shot_hit
-    - missiles_step_3_flying_start
-  s_ramp_tower_exit_active{current_player.missiles_step==2 and current_player.missiles_step_3_target==4}:
-    - missiles_step_3_complete
-    - missiles_step_3_shot_hit
-    - missiles_step_3_flying_start
-  s_orbit_upper_active{current_player.missiles_step==2 and current_player.missiles_step_3_target==5}:
-    - missiles_step_3_complete
-    - missiles_step_3_shot_hit
-    - missiles_step_3_flying_start
+  missiles_locate_success{current_player.missiles_round<=2}:
+    - missiles_start_sweep_fast
+    - missiles_sweep_redraw
+  missiles_locate_success{current_player.missiles_round>=3}:
+    - missiles_start_sweep_slow
+    - missiles_sweep_redraw
 
-  # Steps 4-5 replaced by moving window mechanic (see window section below)
+  timer_missiles_sweep_timer_fast_complete:
+    - missiles_sweep_advance
+  timer_missiles_sweep_timer_slow_complete:
+    - missiles_sweep_advance
 
-  ##############################################
-  ## STEP 6: RANDOM SHOT (green-red fade) — 1=LR 2=RR 3=SP 4=TWR 5=TL
-  ##############################################
-  s_ramp_left_exit_active{current_player.missiles_step==5 and current_player.missiles_step_6_target==1}:
-    - missiles_step_6_complete
-    - missiles_step_6_shot_hit
-    - missiles_step_6_flying_start
-  s_ramp_right_exit_active{current_player.missiles_step==5 and current_player.missiles_step_6_target==2}:
-    - missiles_step_6_complete
-    - missiles_step_6_shot_hit
-    - missiles_step_6_flying_start
-  spinner_shot_made{current_player.missiles_step==5 and current_player.missiles_step_6_target==3 and current_player.missiles_spinner_locked==0}:
-    - missiles_step_6_complete
-    - missiles_step_6_shot_hit
-    - missiles_step_6_flying_start
-  s_ramp_tower_exit_active{current_player.missiles_step==5 and current_player.missiles_step_6_target==4}:
-    - missiles_step_6_complete
-    - missiles_step_6_shot_hit
-    - missiles_step_6_flying_start
-  s_orbit_upper_active{current_player.missiles_step==5 and current_player.missiles_step_6_target==5}:
-    - missiles_step_6_complete
-    - missiles_step_6_shot_hit
-    - missiles_step_6_flying_start
+  missiles_sweep_advance:
+    - missiles_sweep_redraw
 
-  # Steps 7-8 replaced by moving window mechanic (see window section below)
+  # Boundary flip — checked off the derived position-changed event, kept
+  # separate from the advance itself for the same reason the original
+  # window mechanic did: avoids MPF cascading advance+flip+retreat in one tick
+  player_missiles_sweep_pos{value==10-current_player.missiles_sweep_width and current_player.missiles_sweep_dir==0}:
+    - missiles_sweep_flip_right
+  player_missiles_sweep_pos{value==0 and current_player.missiles_sweep_dir==1}:
+    - missiles_sweep_flip_left
+
+  # No ramp movement anywhere in this mode — position 7 in the sweep order
+  # is TR (s_ramp_inner_exit), reachable as-is with no ramp control needed.
 
   ##############################################
-  ## STEP 9: RANDOM SHOT (green-red fade) — 1=LR 2=RR 3=SP 4=TWR 5=TL
+  ## PHASE 2 SWEEP - shot detection
+  ## Any of the 10 positions counts if it's within the current window.
+  ## Never a bad shot here — anything outside the window is a no-op.
   ##############################################
-  s_ramp_left_exit_active{current_player.missiles_step==8 and current_player.missiles_step_9_target==1}:
-    - missiles_step_9_complete
-    - missiles_step_9_shot_hit
-    - missiles_step_9_flying_start
-  s_ramp_right_exit_active{current_player.missiles_step==8 and current_player.missiles_step_9_target==2}:
-    - missiles_step_9_complete
-    - missiles_step_9_shot_hit
-    - missiles_step_9_flying_start
-  spinner_shot_made{current_player.missiles_step==8 and current_player.missiles_step_9_target==3 and current_player.missiles_spinner_locked==0}:
-    - missiles_step_9_complete
-    - missiles_step_9_shot_hit
-    - missiles_step_9_flying_start
-  s_ramp_tower_exit_active{current_player.missiles_step==8 and current_player.missiles_step_9_target==4}:
-    - missiles_step_9_complete
-    - missiles_step_9_shot_hit
-    - missiles_step_9_flying_start
-  s_orbit_upper_active{current_player.missiles_step==8 and current_player.missiles_step_9_target==5}:
-    - missiles_step_9_complete
-    - missiles_step_9_shot_hit
-    - missiles_step_9_flying_start
+  s_lane_left_active{current_player.missiles_phase==2 and current_player.missiles_sweep_pos<=0 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=0}:
+    - missiles_sweep_hit
+  left_orbit_shot_hit{current_player.missiles_phase==2 and current_player.missiles_sweep_pos<=1 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=1}:
+    - missiles_sweep_hit
+  s_ramp_left_exit_active{current_player.missiles_phase==2 and current_player.missiles_sweep_pos<=2 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=2}:
+    - missiles_sweep_hit
+  spinner_shot_made{current_player.missiles_phase==2 and current_player.missiles_sweep_pos<=3 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=3 and current_player.missiles_spinner_locked==0}:
+    - missiles_sweep_hit
+  s_barrier_target_active{current_player.missiles_phase==2 and current_player.missiles_sweep_pos<=4 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=4}:
+    - missiles_sweep_hit
+  s_ramp_tower_exit_active{current_player.missiles_phase==2 and current_player.missiles_sweep_pos<=5 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=5}:
+    - missiles_sweep_hit
+  s_orbit_upper_active{current_player.missiles_phase==2 and current_player.missiles_sweep_pos<=6 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=6}:
+    - missiles_sweep_hit
+  s_ramp_inner_exit_active{current_player.missiles_phase==2 and current_player.missiles_sweep_pos<=7 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=7}:
+    - missiles_sweep_hit
+  s_flight_gear_target_active{current_player.missiles_phase==2 and current_player.missiles_sweep_pos<=8 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=8}:
+    - missiles_sweep_hit
+  s_ramp_right_exit_active{current_player.missiles_phase==2 and current_player.missiles_sweep_pos<=9 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=9}:
+    - missiles_sweep_hit
 
   ##############################################
-  ## IMMEDIATE STEP SETUP ON LOCK COMPLETION
-  ## Next pair shots light immediately - don't wait for flying/explosion animation
-  ## Player can shoot during the animation; if they hit, animation stops
+  ## PHASE 3 - DESTROY
+  ## Only the located target counts as good. Only an ALREADY-BURNED other
+  ## candidate (visibly red) is a bad shot. A not-yet-burned other candidate,
+  ## or any of SP/CNT/TL/TR, is a no-op — never shown red, never punished.
   ##############################################
-  # steps 3/6/9 complete handled in servo section above
+  left_orbit_shot_hit{current_player.missiles_phase==3 and current_player.missiles_target==1}:
+    - missiles_destroy_success
+  left_orbit_shot_hit{current_player.missiles_phase==3 and current_player.missiles_target!=1 and current_player.missiles_lo_burned==1}:
+    - missiles_bad_shot
+
+  s_ramp_left_exit_active{current_player.missiles_phase==3 and current_player.missiles_target==2}:
+    - missiles_destroy_success
+  s_ramp_left_exit_active{current_player.missiles_phase==3 and current_player.missiles_target!=2 and current_player.missiles_lr_burned==1}:
+    - missiles_bad_shot
+
+  s_ramp_tower_exit_active{current_player.missiles_phase==3 and current_player.missiles_target==3}:
+    - missiles_destroy_success
+  s_ramp_tower_exit_active{current_player.missiles_phase==3 and current_player.missiles_target!=3 and current_player.missiles_twr_burned==1}:
+    - missiles_bad_shot
+
+  s_ramp_right_exit_active{current_player.missiles_phase==3 and current_player.missiles_target==4}:
+    - missiles_destroy_success
+  s_ramp_right_exit_active{current_player.missiles_phase==3 and current_player.missiles_target!=4 and current_player.missiles_rr_burned==1}:
+    - missiles_bad_shot
 
   ##############################################
-  ## ANIMATION CLEANUP - Stop GI animation and restore normal GI
-  ## when player hits a pair shot during the flying/explosion animation
+  ## ROUND ADVANCE / MODE COMPLETE
+  ## Round advance now happens IMMEDIATELY on the destroy hit (rounds 1-3) —
+  ## next round's shots relight right away so the player isn't stuck waiting
+  ## for the explosion/video to finish before knowing where to go. The
+  ## explosion GI effect still runs on its own real delay, purely cosmetic
+  ## now — it no longer gates anything. missiles_destroyed_round captures
+  ## which round this was BEFORE the advance, so the delay chain (which
+  ## fires seconds later) doesn't accidentally read the already-advanced
+  ## round number.
   ##############################################
-  missiles_step_4_shot_hit:
-    - missiles_stop_explosion_gi
-    - missiles_set_gi|200ms
-    - missiles_show_locking_on|3s
-
-  missiles_step_5_shot_hit:
-    - missiles_stop_explosion_gi
-    - missiles_set_gi|200ms
-    - missiles_show_locked|4s
-
-  missiles_step_7_shot_hit:
-    - missiles_stop_explosion_gi
-    - missiles_set_gi|200ms
-    - missiles_show_locking_on|2s
-
-  missiles_step_8_shot_hit:
-    - missiles_stop_explosion_gi
-    - missiles_set_gi|200ms
-    - missiles_show_locked|3s
-
-  ##############################################
-  ## MISSILE FLYING → EXPLOSION → NEXT STEP CHAINS
-  ## Flying delay → explosion effect → explosion delay → GI restore
-  ##############################################
-  timer_missiles_step_3_flying_delay_complete:
-    - missiles_step_3_explosion_start
-    - missiles_explosion_effect
+  missiles_destroy_success:
+    - missiles_burn_target
+    - missiles_punishment_end
+    - orbit_left_safe_return_clear|700ms
     - shaker_rumble
 
-  timer_missiles_step_3_explosion_delay_complete:
-    - missiles_stop_explosion_gi
+  # Advance immediately (rounds 1-3) — next round's shots light up right away
+  missiles_destroy_success{current_player.missiles_round<4}:
+    - missiles_setup_next_round
+
+  # Stage 1: flying delay — 4.0s (rounds 1/3/4), 4.5s (round 2). Uses the
+  # captured round so this is unaffected by the immediate advance above.
+  missiles_destroy_success{current_player.missiles_destroyed_round==1 or current_player.missiles_destroyed_round==3 or current_player.missiles_destroyed_round==4}:
+    - missiles_start_flying_a
+  missiles_destroy_success{current_player.missiles_destroyed_round==2}:
+    - missiles_start_flying_b
+
+  timer_missiles_flying_delay_a_complete:
+    - missiles_explosion_start
+  timer_missiles_flying_delay_b_complete:
+    - missiles_explosion_start
+
+  # Stage 2: explosion delay — 2.5s (round 1/4), 2.75s (round 2), 3.5s (round 3)
+  missiles_explosion_start{current_player.missiles_destroyed_round==1 or current_player.missiles_destroyed_round==4}:
+    - missiles_start_explosion_a
+  missiles_explosion_start{current_player.missiles_destroyed_round==2}:
+    - missiles_start_explosion_b
+  missiles_explosion_start{current_player.missiles_destroyed_round==3}:
+    - missiles_start_explosion_c
+
+  timer_missiles_explosion_delay_a_complete:
+    - missiles_explosion_end
+  timer_missiles_explosion_delay_b_complete:
+    - missiles_explosion_end
+  timer_missiles_explosion_delay_c_complete:
+    - missiles_explosion_end
+
+  # Stage 3: explosion cleanup only. Round 1-3 advance already happened
+  # immediately above — this just restores ambient GI. Round 4 (mode
+  # complete) still waits for the full sequence since there's no "next
+  # round" to rush toward.
+  missiles_explosion_end:
     - missiles_set_gi
-
-  timer_missiles_step_6_flying_delay_complete:
-    - missiles_step_6_explosion_start
-    - missiles_explosion_effect
-    - shaker_rumble
-
-  timer_missiles_step_6_explosion_delay_complete:
-    - missiles_stop_explosion_gi
-    - missiles_set_gi
-
-  timer_missiles_step_9_flying_delay_complete:
-    - missiles_step_9_explosion_start
-    - missiles_explosion_effect
-    - shaker_rumble
-
-  timer_missiles_step_9_explosion_delay_complete:
+  missiles_explosion_end{current_player.missiles_destroyed_round==4}:
+    - missiles_complete_bonus
     - missiles_complete
 
-  ##############################################
-  ## MOVING WINDOW - Timer advance and boundary direction reversals
-  ##############################################
-  timer_missiles_window_timer_complete:
-    - missiles_window_advance
-
-  # When pos reaches 6, fire a SEPARATE event to flip direction.
-  # Keeping this separate from missiles_window_advance prevents MPF from
-  # cascading (advance→flip→retreat) all in one variable_player tick.
-  player_missiles_window_pos{value==6}:
-    - missiles_window_at_right_boundary
-
-  # When pos reaches 0 during gameplay (dir==1), flip direction.
-  # Condition guards against firing on setup resets (where dir==0).
-  player_missiles_window_pos{value==0 and current_player.missiles_window_dir==1}:
-    - missiles_window_at_left_boundary
+  missiles_setup_next_round:
+    - missiles_setup_phase_1
 
   ##############################################
-  ## MOVING WINDOW - Shot detection (active at steps 0, 3, 6)
-  ## Sequence: LL(0) LO(1) LR(2) SP(3) Barrier(4) TWR(5) TL(6) TR(7) RR(8)
-  ## Window left-edge = missiles_window_pos (0-6); covers indices pos/pos+1/pos+2
+  ## BAD SHOT PUNISHMENT
+  ## Restarts on every additional bad hit; ends early on the next locate or
+  ## destroy success. Never fires during Phase 2.
   ##############################################
+  missiles_bad_shot{current_player.missiles_complete_flag==0}:
+    - missiles_punishment_start
 
-  # LL: only at pos 0
-  s_lane_left_active{(current_player.missiles_step==0 or current_player.missiles_step==3 or current_player.missiles_step==6) and current_player.missiles_window_pos==0}:
-    - missiles_window_hit
-    - missiles_window_hit_ll
+  player_missiles_phase3_bad_count{value==3}:
+    - missiles_phase3_frustration_callout
 
-  # LO: at pos 0 or 1
-  left_orbit_shot_hit{(current_player.missiles_step==0 or current_player.missiles_step==3 or current_player.missiles_step==6) and current_player.missiles_window_pos<=1}:
-    - missiles_window_hit
-    - missiles_window_hit_lo
+  missiles_punishment_end:
+    - missiles_set_gi
 
-  # LR: at pos 0, 1, or 2
-  s_ramp_left_exit_active{(current_player.missiles_step==0 or current_player.missiles_step==3 or current_player.missiles_step==6) and current_player.missiles_window_pos<=2}:
-    - missiles_window_hit
-    - missiles_window_hit_lr
+  missiles_locate_success:
+    - missiles_punishment_end
+    - orbit_left_safe_return_clear|700ms
 
-  # SP: at pos 1, 2, or 3
-  spinner_shot_made{(current_player.missiles_step==0 or current_player.missiles_step==3 or current_player.missiles_step==6) and current_player.missiles_window_pos>=1 and current_player.missiles_window_pos<=3 and current_player.missiles_spinner_locked==0}:
-    - missiles_window_hit
-    - missiles_window_hit_sp
-
-  # Barrier: at pos 2, 3, or 4
-  s_barrier_target_active{(current_player.missiles_step==0 or current_player.missiles_step==3 or current_player.missiles_step==6) and current_player.missiles_window_pos>=2 and current_player.missiles_window_pos<=4}:
-    - missiles_window_hit
-    - missiles_window_hit_barrier
-
-  # TWR: at pos 3, 4, or 5
-  s_ramp_tower_exit_active{(current_player.missiles_step==0 or current_player.missiles_step==3 or current_player.missiles_step==6) and current_player.missiles_window_pos>=3 and current_player.missiles_window_pos<=5}:
-    - missiles_window_hit
-    - missiles_window_hit_twr
-
-  # TL: at pos 4, 5, or 6
-  s_orbit_upper_active{(current_player.missiles_step==0 or current_player.missiles_step==3 or current_player.missiles_step==6) and current_player.missiles_window_pos>=4}:
-    - missiles_window_hit
-    - missiles_window_hit_tl
-
-  # TR: at pos 5 or 6
-  s_ramp_inner_exit_active{(current_player.missiles_step==0 or current_player.missiles_step==3 or current_player.missiles_step==6) and current_player.missiles_window_pos>=5}:
-    - missiles_window_hit
-    - missiles_window_hit_tr
-
-  # RR: only at pos 6
-  s_ramp_right_exit_active{(current_player.missiles_step==0 or current_player.missiles_step==3 or current_player.missiles_step==6) and current_player.missiles_window_pos==6}:
-    - missiles_window_hit
-    - missiles_window_hit_rr
+  timer_missiles_punishment_timer_complete:
+    - missiles_punishment_end
 
   ##############################################
-  ## MOVING WINDOW - Route hit to correct step completion
+  ## LEFT ORBIT SAFE RETURN
   ##############################################
-  ##############################################
-  ## SLIDE SWAP EVENTS - Delayed triggers for background slide transitions
-  ## Step videos play at priority 800, new slides at 750.
-  ## Delays allow the step video to play before the next background slide appears.
-  ##############################################
-  missiles_step_1_shot_hit:
-    - missiles_show_locking_on|2s
-  missiles_step_2_shot_hit:
-    - missiles_show_locked|3s
-  missiles_step_3_shot_hit:
-    - shaker_soft
-    - missiles_show_locating_jet|4s
-  missiles_step_6_shot_hit:
-    - shaker_soft
-    - missiles_show_locating_jet|5s
-  missiles_step_9_shot_hit:
-    - shaker_soft
+  missiles_setup_phase_1{current_player.missiles_lo_burned==0}:
+    - orbit_left_safe_return_arm
+  missiles_setup_phase_1{current_player.missiles_lo_burned==1}:
+    - orbit_left_safe_return_clear
 
-  missiles_window_hit{current_player.missiles_step==0}:
-    - missiles_step_1_complete
-    - missiles_step_1_shot_hit
-
-  missiles_window_hit{current_player.missiles_step==3}:
-    - missiles_step_4_complete
-    - missiles_step_4_shot_hit
-
-  missiles_window_hit{current_player.missiles_step==6}:
-    - missiles_step_7_complete
-    - missiles_step_7_shot_hit
+  missiles_sweep_hit{current_player.missiles_target==1}:
+    - orbit_left_safe_return_arm
+  missiles_sweep_hit{current_player.missiles_target!=1}:
+    - orbit_left_safe_return_clear
 
   ##############################################
-  ## LOCK-ON SHOT DETECTION (steps 1, 4, 7)
-  ## Player hits the single shot chosen from the window.
-  ## missiles_window_lock_shot: 1=LL 2=LO 3=LR 4=SP 5=Barrier 6=TWR 7=TL 8=TR 9=RR
-  ##############################################
-
-  # Step 1 (missiles_step==1) → step 2 complete + setup step 3
-  s_lane_left_active{current_player.missiles_step==1 and current_player.missiles_window_lock_shot==1}:
-    - missiles_step_2_complete
-    - missiles_step_2_shot_hit
-    - missiles_setup_step_3
-  left_orbit_shot_hit{current_player.missiles_step==1 and current_player.missiles_window_lock_shot==2}:
-    - missiles_step_2_complete
-    - missiles_step_2_shot_hit
-    - missiles_setup_step_3
-  s_ramp_left_exit_active{current_player.missiles_step==1 and current_player.missiles_window_lock_shot==3}:
-    - missiles_step_2_complete
-    - missiles_step_2_shot_hit
-    - missiles_setup_step_3
-  spinner_shot_made{current_player.missiles_step==1 and current_player.missiles_window_lock_shot==4 and current_player.missiles_spinner_locked==0}:
-    - missiles_step_2_complete
-    - missiles_step_2_shot_hit
-    - missiles_setup_step_3
-  s_barrier_target_active{current_player.missiles_step==1 and current_player.missiles_window_lock_shot==5}:
-    - missiles_step_2_complete
-    - missiles_step_2_shot_hit
-    - missiles_setup_step_3
-  s_ramp_tower_exit_active{current_player.missiles_step==1 and current_player.missiles_window_lock_shot==6}:
-    - missiles_step_2_complete
-    - missiles_step_2_shot_hit
-    - missiles_setup_step_3
-  s_orbit_upper_active{current_player.missiles_step==1 and current_player.missiles_window_lock_shot==7}:
-    - missiles_step_2_complete
-    - missiles_step_2_shot_hit
-    - missiles_setup_step_3
-  s_ramp_inner_exit_active{current_player.missiles_step==1 and current_player.missiles_window_lock_shot==8}:
-    - missiles_step_2_complete
-    - missiles_step_2_shot_hit
-    - missiles_setup_step_3
-  s_ramp_right_exit_active{current_player.missiles_step==1 and current_player.missiles_window_lock_shot==9}:
-    - missiles_step_2_complete
-    - missiles_step_2_shot_hit
-    - missiles_setup_step_3
-
-  # Step 4 (missiles_step==4) → step 5 complete + setup step 6
-  s_lane_left_active{current_player.missiles_step==4 and current_player.missiles_window_lock_shot==1}:
-    - missiles_step_5_complete
-    - missiles_step_5_shot_hit
-    - missiles_setup_step_6
-  left_orbit_shot_hit{current_player.missiles_step==4 and current_player.missiles_window_lock_shot==2}:
-    - missiles_step_5_complete
-    - missiles_step_5_shot_hit
-    - missiles_setup_step_6
-  s_ramp_left_exit_active{current_player.missiles_step==4 and current_player.missiles_window_lock_shot==3}:
-    - missiles_step_5_complete
-    - missiles_step_5_shot_hit
-    - missiles_setup_step_6
-  spinner_shot_made{current_player.missiles_step==4 and current_player.missiles_window_lock_shot==4 and current_player.missiles_spinner_locked==0}:
-    - missiles_step_5_complete
-    - missiles_step_5_shot_hit
-    - missiles_setup_step_6
-  s_barrier_target_active{current_player.missiles_step==4 and current_player.missiles_window_lock_shot==5}:
-    - missiles_step_5_complete
-    - missiles_step_5_shot_hit
-    - missiles_setup_step_6
-  s_ramp_tower_exit_active{current_player.missiles_step==4 and current_player.missiles_window_lock_shot==6}:
-    - missiles_step_5_complete
-    - missiles_step_5_shot_hit
-    - missiles_setup_step_6
-  s_orbit_upper_active{current_player.missiles_step==4 and current_player.missiles_window_lock_shot==7}:
-    - missiles_step_5_complete
-    - missiles_step_5_shot_hit
-    - missiles_setup_step_6
-  s_ramp_inner_exit_active{current_player.missiles_step==4 and current_player.missiles_window_lock_shot==8}:
-    - missiles_step_5_complete
-    - missiles_step_5_shot_hit
-    - missiles_setup_step_6
-  s_ramp_right_exit_active{current_player.missiles_step==4 and current_player.missiles_window_lock_shot==9}:
-    - missiles_step_5_complete
-    - missiles_step_5_shot_hit
-    - missiles_setup_step_6
-
-  # Step 7 (missiles_step==7) → step 8 complete + setup step 9
-  s_lane_left_active{current_player.missiles_step==7 and current_player.missiles_window_lock_shot==1}:
-    - missiles_step_8_complete
-    - missiles_step_8_shot_hit
-    - missiles_setup_step_9
-  left_orbit_shot_hit{current_player.missiles_step==7 and current_player.missiles_window_lock_shot==2}:
-    - missiles_step_8_complete
-    - missiles_step_8_shot_hit
-    - missiles_setup_step_9
-  s_ramp_left_exit_active{current_player.missiles_step==7 and current_player.missiles_window_lock_shot==3}:
-    - missiles_step_8_complete
-    - missiles_step_8_shot_hit
-    - missiles_setup_step_9
-  spinner_shot_made{current_player.missiles_step==7 and current_player.missiles_window_lock_shot==4 and current_player.missiles_spinner_locked==0}:
-    - missiles_step_8_complete
-    - missiles_step_8_shot_hit
-    - missiles_setup_step_9
-  s_barrier_target_active{current_player.missiles_step==7 and current_player.missiles_window_lock_shot==5}:
-    - missiles_step_8_complete
-    - missiles_step_8_shot_hit
-    - missiles_setup_step_9
-  s_ramp_tower_exit_active{current_player.missiles_step==7 and current_player.missiles_window_lock_shot==6}:
-    - missiles_step_8_complete
-    - missiles_step_8_shot_hit
-    - missiles_setup_step_9
-  s_orbit_upper_active{current_player.missiles_step==7 and current_player.missiles_window_lock_shot==7}:
-    - missiles_step_8_complete
-    - missiles_step_8_shot_hit
-    - missiles_setup_step_9
-  s_ramp_inner_exit_active{current_player.missiles_step==7 and current_player.missiles_window_lock_shot==8}:
-    - missiles_step_8_complete
-    - missiles_step_8_shot_hit
-    - missiles_setup_step_9
-  s_ramp_right_exit_active{current_player.missiles_step==7 and current_player.missiles_window_lock_shot==9}:
-    - missiles_step_8_complete
-    - missiles_step_8_shot_hit
-    - missiles_setup_step_9
-
-  ##############################################
-  ## FRUSTRATION CALLOUT SYSTEM
-  ##############################################
-
-  # PAIR FRUSTRATION: 5 wrong shots OR 30 second timeout during pair steps
-  # Score thousands digit even → getting_away, odd → take_the_shot
-  player_missiles_pair_miss_count{value>=5}:
-    - missiles_pair_frustration_trigger
-
-  timer_missiles_pair_frustration_timer_complete:
-    - missiles_pair_frustration_trigger
-
-  # missiles_pair_frustration_trigger{current_player.score // 1000 % 2 == 0}:
-  #   - missiles_play_callout_getting_away
-
-  # missiles_pair_frustration_trigger{current_player.score // 1000 % 2 == 1}:
-  #   - missiles_play_callout_take_the_shot
-
-  # LOCK FRUSTRATION: 3 wrong LOCK target hits during lock steps
-  # player_missiles_lock_miss_count{value>=3}:
-  #   - missiles_play_callout_aim_first
-  #   - missiles_reset_lock_miss_count
-
-  # Pair miss detection removed — any of 9 shots can be valid in the window
-
-  # Lock miss detection removed
-
-  ##############################################
-  ## STEP CALLOUT DELAYS (5s delay before voice callouts)
-  ##############################################
-  # missiles_step_1_complete:
-  #   - missiles_callout_almost_1|5s
-  # missiles_setup_step_3:
-  #   - missiles_callout_strobing_1|5s
-  # missiles_step_4_complete:
-  #   - missiles_callout_almost_2|5s
-  # missiles_setup_step_6:
-  #   - missiles_callout_strobing_2|5s
-  # missiles_setup_step_7:
-  #   - missiles_callout_green_2|5s
-  # missiles_step_7_complete:
-  #   - missiles_callout_almost_3|5s
-  # missiles_setup_step_9:
-  #   - missiles_callout_strobing_3|5s
-
-  # TL lock target: raise right ramp
-  missiles_step_3_target_tl:
-    - right_ramp_up
-  missiles_step_6_target_tl:
-    - right_ramp_up
-  missiles_step_9_target_tl:
-    - right_ramp_up
-
-  # Right ramp down after each lock step (cleans up if TL was target)
-  missiles_step_3_complete:
-    - missiles_setup_step_4
-    - right_ramp_down
-  missiles_step_6_complete:
-    - missiles_setup_step_7
-    - right_ramp_down
-  missiles_step_9_complete:
-    - right_ramp_down
-
-  # Servo: right ramp stays DOWN for window mechanic (TR/RR use ramp-down switches)
-
-  ##############################################
-  ## TIMER EXPIRED - Mode failed
+  ## TIMER EXPIRED / MODE COMPLETION AND FAILURE
   ##############################################
   timer_missiles_timer_complete:
     - missiles_failed
 
-  ##############################################
-  ## MODE COMPLETION AND FAILURE
-  ##############################################
   missiles_complete:
     - missiles_cleanup
     - timer_missiles_complete_delay_start
@@ -1120,6 +817,7 @@ event_player:
     - missiles_cleanup
     - timer_missiles_failed_delay_start
     - missiles_mode_ended
+    - orbit_left_safe_return_clear
 
   timer_missiles_failed_delay_complete:
     - missiles_video_complete
@@ -1128,64 +826,19 @@ event_player:
   ##############################################
   ## MODE CLEANUP
   ##############################################
-  missiles_cleanup:
-    - right_ramp_down
+  missiles_cleanup: {}
 
+  timer_missiles_phase1_frustration_timer_complete:
+    - missiles_phase1_frustration_callout
 ####################################################################################
-# RANDOM EVENT PLAYER - Lock target randomizer
+# RANDOM EVENT PLAYER
+# 50/50 pick between the two Phase 1 "hurry up" nag callouts
 ####################################################################################
 
 random_event_player:
-  # Randomly select which LOCK target (L, O, C, K) to use for each lock step
-  # Random starting position for window phases 2 and 3
-  missiles_setup_step_4:
-    force_all: true
-    events:
-      - missiles_window_init_pos_0
-      - missiles_window_init_pos_1
-      - missiles_window_init_pos_2
-      - missiles_window_init_pos_3
-      - missiles_window_init_pos_4
-      - missiles_window_init_pos_5
-      - missiles_window_init_pos_6
-
-  missiles_setup_step_7:
-    force_all: true
-    events:
-      - missiles_window_init_pos_0
-      - missiles_window_init_pos_1
-      - missiles_window_init_pos_2
-      - missiles_window_init_pos_3
-      - missiles_window_init_pos_4
-      - missiles_window_init_pos_5
-      - missiles_window_init_pos_6
-
-  missiles_setup_step_3:
-    force_all: true
-    events:
-      - missiles_step_3_target_lr
-      - missiles_step_3_target_rr
-      - missiles_step_3_target_sp
-      - missiles_step_3_target_twr
-      - missiles_step_3_target_tl
-
-  missiles_setup_step_6:
-    force_all: true
-    events:
-      - missiles_step_6_target_lr
-      - missiles_step_6_target_rr
-      - missiles_step_6_target_sp
-      - missiles_step_6_target_twr
-      - missiles_step_6_target_tl
-
-  missiles_setup_step_9:
-    force_all: true
-    events:
-      - missiles_step_9_target_lr
-      - missiles_step_9_target_rr
-      - missiles_step_9_target_sp
-      - missiles_step_9_target_twr
-      - missiles_step_9_target_tl
+  missiles_phase1_frustration_callout:
+    - missiles_frustration_getting_away
+    - missiles_frustration_take_the_shot
 
 ####################################################################################
 # SOUND PLAYER - Voice Callouts ONLY (Music handled in base.yaml)
@@ -1202,85 +855,37 @@ sound_player:
       bus: voice
       loops: 0
 
-  ##############################################
-  ## STEP CALLOUTS - Play at the setup of each step
-  ## Triggered by delayed events from event_player (5s delay)
-  ##############################################
+  missiles_complete:
+    voice_missiles_completed:
+      bus: voice
+      loops: 0
 
-  # Step 2 setup (first pair shot hit - one more to go)
-  # missiles_callout_almost_1:
-  #   voice_missiles_almost_there:
-  #     bus: voice
-  #     loops: 0
+  # New round's shots are already lit (immediate), but the callout waits
+  # a flat 8s — long enough to cover the explosion sequence regardless of
+  # round — before announcing them
+  timer_missiles_callout_delay_complete{current_player.missiles_destroyed_round<4}:
+    voice_missiles_shoot_the_lit_green_shots:
+      bus: voice
+      loops: 0
 
-  # Step 3 setup (lock target)
-  # missiles_callout_strobing_1:
-  #   voice_missiles_shoot_the_strobing_lock_target:
-  #     bus: voice
-  #     loops: 0
+  # Phase 1, 30s with no locate — random nag
+  missiles_frustration_getting_away:
+    voice_hurry_up_hes_getting_away:
+      bus: voice
+      loops: 0
+  missiles_frustration_take_the_shot:
+    voice_take_the_shot_already:
+      bus: voice
+      loops: 0
 
-  # Step 4 setup (new pair - green shots)
-  # missiles_callout_green_1:
-  #   voice_missiles_shoot_the_lit_green_shots:
-  #     bus: voice
-  #     loops: 0
-
-  # Step 5 setup (first pair shot hit - one more to go)
-  # missiles_callout_almost_2:
-  #   voice_missiles_almost_there:
-  #     bus: voice
-  #     loops: 0
-
-  # Step 6 setup (lock target)
-  # missiles_callout_strobing_2:
-  #   voice_missiles_shoot_the_strobing_lock_target:
-  #     bus: voice
-  #     loops: 0
-
-  # Step 7 setup (new pair - green shots)
-  # missiles_callout_green_2:
-  #   voice_missiles_shoot_the_lit_green_shots:
-  #     bus: voice
-  #     loops: 0
-
-  # Step 8 setup (first pair shot hit - one more to go)
-  # missiles_callout_almost_3:
-  #   voice_missiles_almost_there:
-  #     bus: voice
-  #     loops: 0
-
-  # Step 9 setup (final lock target)
-  # missiles_callout_strobing_3:
-  #   voice_missiles_shoot_the_strobing_lock_target:
-  #     bus: voice
-  #     loops: 0
-
-  ##############################################
-  ## FRUSTRATION CALLOUTS
-  ##############################################
-
-  # Pair steps: 5 wrong shots or 30 second timeout (score-based selection)
-  # missiles_play_callout_getting_away:
-  #   voice_hurry_up_hes_getting_away:
-  #     bus: voice
-  #     loops: 0
-
-  # missiles_play_callout_take_the_shot:
-  #   voice_take_the_shot_already:
-  #     bus: voice
-  #     loops: 0
-
-  # Lock steps: 3 wrong LOCK target hits
-  # missiles_play_callout_aim_first:
-  #   voice_are_you_going_to_aim_first:
-  #     bus: voice
-  #     loops: 0
+  # Phase 3, 3 wrong hits on the same target attempt
+  missiles_phase3_frustration_callout:
+    voice_are_you_going_to_aim_first:
+      bus: voice
+      loops: 0
 
 ####################################################################################
 # SLIDE PLAYER - Mode Slides (Godot GMC)
-# missiles_instructions plays the ENTIRE mode (from start to end)
-# missiles_shots_remaining shows remaining shot count
-# missiles_perk_active shown on victory
 ####################################################################################
 
 slide_player:
@@ -1288,9 +893,6 @@ slide_player:
     missiles_timer:
       action: play
       priority: 1000
-    missiles_locating_jet:
-      action: play
-      priority: 750
     missiles_instructions:
       action: play
       priority: 760
@@ -1298,30 +900,92 @@ slide_player:
       action: play
       priority: 800
 
-  ##############################################
-  ## Step Videos + mode_points_scored display
-  ##############################################
   missiles_ball_released:
     missiles_instructions:
       action: remove
-
-  missiles_step_1_shot_hit:
     missiles_locating_jet:
-      action: remove
-    missiles_step_1:
       action: play
-      priority: 800
-    mode_points_scored:
-      action: play
-      priority: 840
-      expire: 2s
+      priority: 750
 
-  missiles_step_2_shot_hit:
-    missiles_step_1:
-      action: remove
+  ##############################################
+  ## PHASE 1 START — background swaps immediately (it's hidden underneath
+  ## the still-playing destroy video until that video's own removal at
+  ## missiles_explosion_end) — but we do NOT remove the previous round's
+  ## step video here, since it needs to keep playing its full duration.
+  ##############################################
+  missiles_setup_phase_1{current_player.missiles_round==1}:
+    missiles_locating_jet:
+      action: play
+      priority: 750
+  missiles_setup_phase_1{current_player.missiles_round==2}:
     missiles_locking_on:
       action: remove
-    missiles_step_2:
+    missiles_locating_jet:
+      action: play
+      priority: 750
+  missiles_setup_phase_1{current_player.missiles_round==3}:
+    missiles_locking_on:
+      action: remove
+    missiles_locating_jet:
+      action: play
+      priority: 750
+  missiles_setup_phase_1{current_player.missiles_round==4}:
+    missiles_locking_on:
+      action: remove
+    missiles_locating_jet:
+      action: play
+      priority: 750
+
+  ##############################################
+  ## LOCATE SUCCESS — swap to the round's first numbered slide (the reward
+  ## for finding the jet), same as the original's step_1_shot_hit behavior
+  ##############################################
+  missiles_locate_success{current_player.missiles_round==1}:
+    missiles_locating_jet:
+      action: remove
+    missiles_locking_on:
+      action: play
+      priority: 750
+    missiles_step_1:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+  missiles_locate_success{current_player.missiles_round==2}:
+    missiles_locating_jet:
+      action: remove
+    missiles_locking_on:
+      action: play
+      priority: 750
+    missiles_step_4:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+  missiles_locate_success{current_player.missiles_round==3}:
+    missiles_locating_jet:
+      action: remove
+    missiles_locking_on:
+      action: play
+      priority: 750
+    missiles_step_7:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+  missiles_locate_success{current_player.missiles_round==4}:
+    missiles_locating_jet:
+      action: remove
+    missiles_locking_on:
+      action: play
+      priority: 750
+    missiles_step_1:
       action: play
       priority: 800
     mode_points_scored:
@@ -1329,10 +993,43 @@ slide_player:
       priority: 840
       expire: 2s
 
-  missiles_step_3_shot_hit:
-    missiles_step_2:
+  ##############################################
+  ## SWEEP SUCCESS — swap to the round's middle numbered slide
+  ##############################################
+  missiles_sweep_hit{current_player.missiles_round==1}:
+    missiles_step_1:
       action: remove
-    missiles_locked:
+    missiles_step_2:
+      action: play
+      priority: 800
+  missiles_sweep_hit{current_player.missiles_round==2}:
+    missiles_step_4:
+      action: remove
+    missiles_step_5:
+      action: play
+      priority: 800
+  missiles_sweep_hit{current_player.missiles_round==3}:
+    missiles_step_7:
+      action: remove
+    missiles_step_8:
+      action: play
+      priority: 800
+  missiles_sweep_hit{current_player.missiles_round==4}:
+    missiles_step_1:
+      action: remove
+    missiles_step_2:
+      action: play
+      priority: 800
+
+  ##############################################
+  ## DESTROY VIDEOS — each round's last slide from its original 3-slide set.
+  ## Round 4 reuses Round 1's set. Uses missiles_destroyed_round (captured
+  ## at the moment of the hit) since the round advance now happens
+  ## immediately — missiles_round itself may have already ticked forward
+  ## by the time this same event's other handlers run.
+  ##############################################
+  missiles_destroy_success{current_player.missiles_destroyed_round==1}:
+    missiles_step_2:
       action: remove
     missiles_step_3:
       action: play
@@ -1342,36 +1039,8 @@ slide_player:
       priority: 840
       expire: 2s
 
-  missiles_step_4_shot_hit:
-    missiles_step_3:
-      action: remove
-    missiles_locating_jet:
-      action: remove
-    missiles_step_4:
-      action: play
-      priority: 800
-    mode_points_scored:
-      action: play
-      priority: 840
-      expire: 2s
-
-  missiles_step_5_shot_hit:
-    missiles_step_4:
-      action: remove
-    missiles_locking_on:
-      action: remove
+  missiles_destroy_success{current_player.missiles_destroyed_round==2}:
     missiles_step_5:
-      action: play
-      priority: 800
-    mode_points_scored:
-      action: play
-      priority: 840
-      expire: 2s
-
-  missiles_step_6_shot_hit:
-    missiles_step_5:
-      action: remove
-    missiles_locked:
       action: remove
     missiles_step_6:
       action: play
@@ -1381,40 +1050,47 @@ slide_player:
       priority: 840
       expire: 2s
 
-  missiles_step_7_shot_hit:
-    missiles_step_6:
-      action: remove
-    missiles_locating_jet:
-      action: remove
-    missiles_step_7:
-      action: play
-      priority: 800
-    mode_points_scored:
-      action: play
-      priority: 840
-      expire: 2s
-
-  missiles_step_8_shot_hit:
-    missiles_step_7:
-      action: remove
-    missiles_locking_on:
-      action: remove
+  missiles_destroy_success{current_player.missiles_destroyed_round==3}:
     missiles_step_8:
-      action: play
-      priority: 800
-    mode_points_scored:
-      action: play
-      priority: 840
-      expire: 2s
-
-  missiles_step_9_shot_hit:
-    missiles_step_8:
-      action: remove
-    missiles_locked:
       action: remove
     missiles_step_9:
       action: play
       priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  missiles_destroy_success{current_player.missiles_destroyed_round==4}:
+    missiles_step_2:
+      action: remove
+    missiles_step_3:
+      action: play
+      priority: 800
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  # Destroy video is removed once the explosion sequence naturally finishes
+  # (not immediately at round-advance) — this is what reveals the
+  # already-swapped locating_jet background underneath.
+  missiles_explosion_end{current_player.missiles_destroyed_round==1}:
+    missiles_step_3:
+      action: remove
+  missiles_explosion_end{current_player.missiles_destroyed_round==2}:
+    missiles_step_6:
+      action: remove
+  missiles_explosion_end{current_player.missiles_destroyed_round==3}:
+    missiles_step_9:
+      action: remove
+  missiles_explosion_end{current_player.missiles_destroyed_round==4}:
+    missiles_step_3:
+      action: remove
+
+  missiles_complete:
+    missiles_step_3:
+      action: remove
     missiles_timer:
       action: remove
     missiles_shots_remaining:
@@ -1425,47 +1101,36 @@ slide_player:
     missiles_perk_active:
       action: play
       priority: 850
-    mode_points_scored:
-      action: play
-      priority: 840
-      expire: 2s
 
   ##############################################
-  ## SLIDE SWAPS - Background slide transitions (caught from event_player delays)
-  ## Priority 750 keeps these under step videos (800) so videos always show on top.
-  ##############################################
-  missiles_show_locking_on:
-    missiles_locating_jet:
-      action: remove
-    missiles_locking_on:
-      action: play
-      priority: 750
-
-  missiles_show_locked:
-    missiles_locking_on:
-      action: remove
-    missiles_locked:
-      action: play
-      priority: 750
-
-  missiles_show_locating_jet:
-    missiles_locked:
-      action: remove
-    missiles_locating_jet:
-      action: play
-      priority: 750
-
-  ##############################################
-  ## Failure - remove HUD slides (no lost slide for now)
+  ## Failure - remove HUD slides
   ##############################################
   missiles_failed:
     missiles_timer:
       action: remove
+    missiles_instructions:
+      action: remove
     missiles_locating_jet:
       action: remove
     missiles_locking_on:
       action: remove
-    missiles_locked:
+    missiles_step_1:
+      action: remove
+    missiles_step_2:
+      action: remove
+    missiles_step_3:
+      action: remove
+    missiles_step_4:
+      action: remove
+    missiles_step_5:
+      action: remove
+    missiles_step_6:
+      action: remove
+    missiles_step_7:
+      action: remove
+    missiles_step_8:
+      action: remove
+    missiles_step_9:
       action: remove
     missiles_shots_remaining:
       action: remove
@@ -1474,17 +1139,34 @@ slide_player:
   mode_pilot_training_mission_missiles_stopped:
     missiles_timer:
       action: remove
+    missiles_instructions:
+      action: remove
     missiles_locating_jet:
       action: remove
     missiles_locking_on:
       action: remove
-    missiles_locked:
+    missiles_step_1:
+      action: remove
+    missiles_step_2:
+      action: remove
+    missiles_step_3:
+      action: remove
+    missiles_step_4:
+      action: remove
+    missiles_step_5:
+      action: remove
+    missiles_step_6:
+      action: remove
+    missiles_step_7:
+      action: remove
+    missiles_step_8:
+      action: remove
+    missiles_step_9:
       action: remove
     missiles_shots_remaining:
       action: remove
     missiles_perk_active:
       action: remove
-
 ####################################################################################
 # SHOW PLAYER - Flashing shot lights and GI effects
 ####################################################################################
@@ -1504,663 +1186,104 @@ show_player:
       key: missles_pulse
 
   ##############################################
-  ## STEPS 1-2: Moving window initial display (pos 0 = LL, LO, LR)
-  ## Position advance shows are handled by player_missiles_window_pos events below.
+  ## PHASE 1 - LOCATE: flash whichever of LO/LR/TWR/RR aren't burned yet.
+  ## Stops any leftover Phase 3 target flash first.
   ##############################################
-  missiles_setup_step_1:
-    stop_win_sp:      { show: sync_flash_mode, action: stop, key: mode_window_sp }
-    stop_win_barrier: { show: sync_flash_mode, action: stop, key: mode_window_barrier }
-    stop_win_twr:     { show: sync_flash_mode, action: stop, key: mode_window_twr }
-    stop_win_tl:      { show: sync_flash_mode, action: stop, key: mode_window_tl }
-    stop_win_tr:      { show: sync_flash_mode, action: stop, key: mode_window_tr }
-    stop_win_rr:      { show: sync_flash_mode, action: stop, key: mode_window_rr }
-    win_ll_flash:
+  missiles_setup_phase_1:
+    stop_target_flash0:
       show: sync_flash_mode
-      key: mode_window_ll
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_left_lane, color: 00FF00 }
-    win_lo_flash:
+      action: stop
+      key: mode_target_flash
+
+  missiles_setup_phase_1{current_player.missiles_lo_burned==0}:
+    locate_lo_flash:
       show: sync_flash_mode
-      key: mode_window_lo
+      key: mode_locate_lo
       sync_ms: 1000
       loops: -1
       show_tokens: { led: l_shot_left_orbit, color: 00FF00 }
-    win_lr_flash:
+  missiles_setup_phase_1{current_player.missiles_lr_burned==0}:
+    locate_lr_flash:
       show: sync_flash_mode
-      key: mode_window_lr
+      key: mode_locate_lr
       sync_ms: 1000
       loops: -1
       show_tokens: { led: l_shot_left_ramp, color: 00FF00 }
-
-  ##############################################
-  ## RANDOM START POSITION SHOWS (for setup_step_4 and setup_step_7)
-  ## Fired by random_event_player. Starts the 3 correct flashes for pos N.
-  ## All 9 shows were already stopped by missiles_setup_step_4/7 above.
-  ##############################################
-  missiles_window_init_pos_0:  # LL, LO, LR
-    win_ll_flash:
+  missiles_setup_phase_1{current_player.missiles_twr_burned==0}:
+    locate_twr_flash:
       show: sync_flash_mode
-      key: mode_window_ll
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_left_lane, color: 00FF00 }
-    win_lo_flash:
-      show: sync_flash_mode
-      key: mode_window_lo
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_left_orbit, color: 00FF00 }
-    win_lr_flash:
-      show: sync_flash_mode
-      key: mode_window_lr
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_left_ramp, color: 00FF00 }
-
-  missiles_window_init_pos_1:  # LO, LR, SP
-    win_lo_flash:
-      show: sync_flash_mode
-      key: mode_window_lo
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_left_orbit, color: 00FF00 }
-    win_lr_flash:
-      show: sync_flash_mode
-      key: mode_window_lr
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_left_ramp, color: 00FF00 }
-    win_sp_flash:
-      show: sync_flash_mode
-      key: mode_window_sp
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_spinner, color: 00FF00 }
-
-  missiles_window_init_pos_2:  # LR, SP, Barrier
-    win_lr_flash:
-      show: sync_flash_mode
-      key: mode_window_lr
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_left_ramp, color: 00FF00 }
-    win_sp_flash:
-      show: sync_flash_mode
-      key: mode_window_sp
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_spinner, color: 00FF00 }
-    win_barrier_flash:
-      show: sync_flash_mode
-      key: mode_window_barrier
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_barrier, color: 00FF00 }
-
-  missiles_window_init_pos_3:  # SP, Barrier, TWR
-    win_sp_flash:
-      show: sync_flash_mode
-      key: mode_window_sp
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_spinner, color: 00FF00 }
-    win_barrier_flash:
-      show: sync_flash_mode
-      key: mode_window_barrier
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_barrier, color: 00FF00 }
-    win_twr_flash:
-      show: sync_flash_mode
-      key: mode_window_twr
+      key: mode_locate_twr
       sync_ms: 1000
       loops: -1
       show_tokens: { led: l_shot_tower_ramp, color: 00FF00 }
-
-  missiles_window_init_pos_4:  # Barrier, TWR, TL
-    win_barrier_flash:
+  missiles_setup_phase_1{current_player.missiles_rr_burned==0}:
+    locate_rr_flash:
       show: sync_flash_mode
-      key: mode_window_barrier
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_barrier, color: 00FF00 }
-    win_twr_flash:
-      show: sync_flash_mode
-      key: mode_window_twr
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_tower_ramp, color: 00FF00 }
-    win_tl_flash:
-      show: sync_flash_mode
-      key: mode_window_tl
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_upper_orbit, color: 00FF00 }
-
-  missiles_window_init_pos_5:  # TWR, TL, TR
-    win_twr_flash:
-      show: sync_flash_mode
-      key: mode_window_twr
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_tower_ramp, color: 00FF00 }
-    win_tl_flash:
-      show: sync_flash_mode
-      key: mode_window_tl
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_upper_orbit, color: 00FF00 }
-    win_tr_flash:
-      show: sync_flash_mode
-      key: mode_window_tr
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_middle_ramp, color: 00FF00 }
-
-  missiles_window_init_pos_6:  # TL, TR, RR
-    win_tl_flash:
-      show: sync_flash_mode
-      key: mode_window_tl
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_upper_orbit, color: 00FF00 }
-    win_tr_flash:
-      show: sync_flash_mode
-      key: mode_window_tr
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_middle_ramp, color: 00FF00 }
-    win_rr_flash:
-      show: sync_flash_mode
-      key: mode_window_rr
+      key: mode_locate_rr
       sync_ms: 1000
       loops: -1
       show_tokens: { led: l_shot_right_orbit, color: 00FF00 }
 
-  ##############################################
-  ## MOVING WINDOW - Position change shows
-  ## Each fires when missiles_window_pos actually changes value.
-  ## Stops the 1 shot that left the window, starts the 1 that entered.
-  ## Initial pos 0 display handled by missiles_setup_step_1/4/7 above.
-  ##############################################
+  # Stop the flash on whichever shot was just burned (solid red set via
+  # light_player below, not a show — no animation needed for "permanently bad")
+  missiles_burn_target{current_player.missiles_target==1}:
+    stop_locate_lo: { show: sync_flash_mode, action: stop, key: mode_locate_lo }
+  missiles_burn_target{current_player.missiles_target==2}:
+    stop_locate_lr: { show: sync_flash_mode, action: stop, key: mode_locate_lr }
+  missiles_burn_target{current_player.missiles_target==3}:
+    stop_locate_twr: { show: sync_flash_mode, action: stop, key: mode_locate_twr }
+  missiles_burn_target{current_player.missiles_target==4}:
+    stop_locate_rr: { show: sync_flash_mode, action: stop, key: mode_locate_rr }
 
-  # Moving RIGHT: 0→1 stop LL, start SP
-  player_missiles_window_pos{value==1 and current_player.missiles_window_dir==0}:
-    stop_win_ll: { show: sync_flash_mode, action: stop, key: mode_window_ll }
-    win_sp_flash:
-      show: sync_flash_mode
-      key: mode_window_sp
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_spinner, color: 00FF00 }
-
-  # Moving RIGHT: 1→2 stop LO, start Barrier
-  player_missiles_window_pos{value==2 and current_player.missiles_window_dir==0}:
-    stop_win_lo: { show: sync_flash_mode, action: stop, key: mode_window_lo }
-    win_barrier_flash:
-      show: sync_flash_mode
-      key: mode_window_barrier
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_barrier, color: 00FF00 }
-
-  # Moving RIGHT: 2→3 stop LR, start TWR
-  player_missiles_window_pos{value==3 and current_player.missiles_window_dir==0}:
-    stop_win_lr: { show: sync_flash_mode, action: stop, key: mode_window_lr }
-    win_twr_flash:
-      show: sync_flash_mode
-      key: mode_window_twr
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_tower_ramp, color: 00FF00 }
-
-  # Moving RIGHT: 3→4 stop SP, start TL
-  player_missiles_window_pos{value==4 and current_player.missiles_window_dir==0}:
-    stop_win_sp: { show: sync_flash_mode, action: stop, key: mode_window_sp }
-    win_tl_flash:
-      show: sync_flash_mode
-      key: mode_window_tl
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_upper_orbit, color: 00FF00 }
-
-  # Moving RIGHT: 4→5 stop Barrier, start TR
-  player_missiles_window_pos{value==5 and current_player.missiles_window_dir==0}:
-    stop_win_barrier: { show: sync_flash_mode, action: stop, key: mode_window_barrier }
-    win_tr_flash:
-      show: sync_flash_mode
-      key: mode_window_tr
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_middle_ramp, color: 00FF00 }
-
-  # Moving RIGHT: 5→6 stop TWR, start RR
-  player_missiles_window_pos{value==6 and current_player.missiles_window_dir==0}:
-    stop_win_twr: { show: sync_flash_mode, action: stop, key: mode_window_twr }
-    win_rr_flash:
-      show: sync_flash_mode
-      key: mode_window_rr
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_right_orbit, color: 00FF00 }
-
-  # Moving LEFT: 6→5 stop RR, start TWR
-  player_missiles_window_pos{value==5 and current_player.missiles_window_dir==1}:
-    stop_win_rr: { show: sync_flash_mode, action: stop, key: mode_window_rr }
-    win_twr_flash:
-      show: sync_flash_mode
-      key: mode_window_twr
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_tower_ramp, color: 00FF00 }
-
-  # Moving LEFT: 5→4 stop TR, start Barrier
-  player_missiles_window_pos{value==4 and current_player.missiles_window_dir==1}:
-    stop_win_tr: { show: sync_flash_mode, action: stop, key: mode_window_tr }
-    win_barrier_flash:
-      show: sync_flash_mode
-      key: mode_window_barrier
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_barrier, color: 00FF00 }
-
-  # Moving LEFT: 4→3 stop TL, start SP
-  player_missiles_window_pos{value==3 and current_player.missiles_window_dir==1}:
-    stop_win_tl: { show: sync_flash_mode, action: stop, key: mode_window_tl }
-    win_sp_flash:
-      show: sync_flash_mode
-      key: mode_window_sp
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_spinner, color: 00FF00 }
-
-  # Moving LEFT: 3→2 stop TWR, start LR
-  player_missiles_window_pos{value==2 and current_player.missiles_window_dir==1}:
-    stop_win_twr: { show: sync_flash_mode, action: stop, key: mode_window_twr }
-    win_lr_flash:
-      show: sync_flash_mode
-      key: mode_window_lr
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_left_ramp, color: 00FF00 }
-
-  # Moving LEFT: 2→1 stop Barrier, start LO
-  player_missiles_window_pos{value==1 and current_player.missiles_window_dir==1}:
-    stop_win_barrier: { show: sync_flash_mode, action: stop, key: mode_window_barrier }
-    win_lo_flash:
-      show: sync_flash_mode
-      key: mode_window_lo
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_left_orbit, color: 00FF00 }
-
-  # Moving LEFT: 1→0 stop SP, start LL
-  player_missiles_window_pos{value==0 and current_player.missiles_window_dir==1}:
-    stop_win_sp: { show: sync_flash_mode, action: stop, key: mode_window_sp }
-    win_ll_flash:
-      show: sync_flash_mode
-      key: mode_window_ll
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_left_lane, color: 00FF00 }
+  # Leaving Phase 1 (locate succeeded) — stop the other 3 candidate flashes;
+  # the burn handler above already stopped the one that was just hit
+  missiles_locate_success:
+    stop_locate_lo2: { show: sync_flash_mode, action: stop, key: mode_locate_lo }
+    stop_locate_lr2: { show: sync_flash_mode, action: stop, key: mode_locate_lr }
+    stop_locate_twr2: { show: sync_flash_mode, action: stop, key: mode_locate_twr }
+    stop_locate_rr2: { show: sync_flash_mode, action: stop, key: mode_locate_rr }
 
   ##############################################
-  ## MOVING WINDOW HIT - Stop all 9 window shows
+  ## PHASE 3 - DESTROY: flash only the located target — GREEN (good shot).
+  ## Red is reserved for burned/bad shots so the player can always tell
+  ## which one is safe to hit.
   ##############################################
-  missiles_window_hit:
-    stop_win_ll:      { show: sync_flash_mode, action: stop, key: mode_window_ll }
-    stop_win_lo:      { show: sync_flash_mode, action: stop, key: mode_window_lo }
-    stop_win_lr:      { show: sync_flash_mode, action: stop, key: mode_window_lr }
-    stop_win_sp:      { show: sync_flash_mode, action: stop, key: mode_window_sp }
-    stop_win_barrier: { show: sync_flash_mode, action: stop, key: mode_window_barrier }
-    stop_win_twr:     { show: sync_flash_mode, action: stop, key: mode_window_twr }
-    stop_win_tl:      { show: sync_flash_mode, action: stop, key: mode_window_tl }
-    stop_win_tr:      { show: sync_flash_mode, action: stop, key: mode_window_tr }
-    stop_win_rr:      { show: sync_flash_mode, action: stop, key: mode_window_rr }
+  missiles_sweep_hit{current_player.missiles_target==1}:
+    target_flash: { show: sync_flash_mode, key: mode_target_flash, sync_ms: 500, loops: -1, show_tokens: { led: l_shot_left_orbit, color: 00FF00 } }
+  missiles_sweep_hit{current_player.missiles_target==2}:
+    target_flash: { show: sync_flash_mode, key: mode_target_flash, sync_ms: 500, loops: -1, show_tokens: { led: l_shot_left_ramp, color: 00FF00 } }
+  missiles_sweep_hit{current_player.missiles_target==3}:
+    target_flash: { show: sync_flash_mode, key: mode_target_flash, sync_ms: 500, loops: -1, show_tokens: { led: l_shot_tower_ramp, color: 00FF00 } }
+  missiles_sweep_hit{current_player.missiles_target==4}:
+    target_flash: { show: sync_flash_mode, key: mode_target_flash, sync_ms: 500, loops: -1, show_tokens: { led: l_shot_right_orbit, color: 00FF00 } }
+
+  missiles_destroy_success:
+    stop_target_flash: { show: sync_flash_mode, action: stop, key: mode_target_flash }
+
+  missiles_explosion_start:
+    explosion_gi: { show: missiles_explosion_gi, key: gi_effect, loops: -1 }
+
+  missiles_explosion_end:
+    stop_explosion_gi: { show: missiles_explosion_gi, action: stop, key: gi_effect }
 
   ##############################################
-  ## LOCK-ON SHOT FLASH - Single chosen shot stays lit green
+  ## BAD SHOT PUNISHMENT — rainbow chase (defined in shows: below) + red GI
   ##############################################
-  missiles_window_hit_ll:
-    lock_on_flash:
-      show: sync_flash_mode
-      key: mode_window_lock_on
-      sync_ms: 1000
+  missiles_punishment_start:
+    rainbow_punishment:
+      show: missiles_rainbow_punishment
+      key: missiles_punishment_effect
       loops: -1
-      show_tokens: { led: l_shot_left_lane, color: 00FF00 }
-  missiles_window_hit_lo:
-    lock_on_flash:
-      show: sync_flash_mode
-      key: mode_window_lock_on
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_left_orbit, color: 00FF00 }
-  missiles_window_hit_lr:
-    lock_on_flash:
-      show: sync_flash_mode
-      key: mode_window_lock_on
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_left_ramp, color: 00FF00 }
-  missiles_window_hit_sp:
-    lock_on_flash:
-      show: sync_flash_mode
-      key: mode_window_lock_on
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_spinner, color: 00FF00 }
-  missiles_window_hit_barrier:
-    lock_on_flash:
-      show: sync_flash_mode
-      key: mode_window_lock_on
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_barrier, color: 00FF00 }
-  missiles_window_hit_twr:
-    lock_on_flash:
-      show: sync_flash_mode
-      key: mode_window_lock_on
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_tower_ramp, color: 00FF00 }
-  missiles_window_hit_tl:
-    lock_on_flash:
-      show: sync_flash_mode
-      key: mode_window_lock_on
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_upper_orbit, color: 00FF00 }
-  missiles_window_hit_tr:
-    lock_on_flash:
-      show: sync_flash_mode
-      key: mode_window_lock_on
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_middle_ramp, color: 00FF00 }
-  missiles_window_hit_rr:
-    lock_on_flash:
-      show: sync_flash_mode
-      key: mode_window_lock_on
-      sync_ms: 1000
-      loops: -1
-      show_tokens: { led: l_shot_right_orbit, color: 00FF00 }
-
-  ##############################################
-  ## STEP 3: RANDOM LOCK TARGET (WHITE flash)
-  ## Target selected by random_event_player
-  ##############################################
-  missiles_setup_step_3:
-    stop_lock_on_cleanup:
-      show: sync_flash_mode
-      action: stop
-      key: mode_window_lock_on
-
-  missiles_step_3_target_lr:
-    lock_target_3:
-      show: missiles_lock_target_fade
-      key: mode_lock_target_3
-      loops: -1
-      show_tokens: { led: l_shot_left_ramp }
-  missiles_step_3_target_rr:
-    lock_target_3:
-      show: missiles_lock_target_fade
-      key: mode_lock_target_3
-      loops: -1
-      show_tokens: { led: l_shot_right_orbit }
-  missiles_step_3_target_sp:
-    lock_target_3:
-      show: missiles_lock_target_fade
-      key: mode_lock_target_3
-      loops: -1
-      show_tokens: { led: l_shot_spinner }
-  missiles_step_3_target_twr:
-    lock_target_3:
-      show: missiles_lock_target_fade
-      key: mode_lock_target_3
-      loops: -1
-      show_tokens: { led: l_shot_tower_ramp }
-  missiles_step_3_target_tl:
-    lock_target_3:
-      show: missiles_lock_target_fade
-      key: mode_lock_target_3
-      loops: -1
-      show_tokens: { led: l_shot_upper_orbit }
-
-  missiles_step_3_complete:
-    stop_lock_target_3:
-      show: missiles_lock_target_fade
-      action: stop
-      key: mode_lock_target_3
-
-  ##############################################
-  ## STEPS 4-5: Moving window — stop all shows; random_event_player fires
-  ## missiles_window_init_pos_N which starts the correct 3 flashes below.
-  ##############################################
-  missiles_setup_step_4:
-    stop_win_ll:      { show: sync_flash_mode, action: stop, key: mode_window_ll }
-    stop_win_lo:      { show: sync_flash_mode, action: stop, key: mode_window_lo }
-    stop_win_lr:      { show: sync_flash_mode, action: stop, key: mode_window_lr }
-    stop_win_sp:      { show: sync_flash_mode, action: stop, key: mode_window_sp }
-    stop_win_barrier: { show: sync_flash_mode, action: stop, key: mode_window_barrier }
-    stop_win_twr:     { show: sync_flash_mode, action: stop, key: mode_window_twr }
-    stop_win_tl:      { show: sync_flash_mode, action: stop, key: mode_window_tl }
-    stop_win_tr:      { show: sync_flash_mode, action: stop, key: mode_window_tr }
-    stop_win_rr:      { show: sync_flash_mode, action: stop, key: mode_window_rr }
-
-  ##############################################
-  ## STEP 6: RANDOM LOCK TARGET (WHITE flash)
-  ## Target selected by random_event_player
-  ##############################################
-  missiles_setup_step_6:
-    stop_lock_on_cleanup:
-      show: sync_flash_mode
-      action: stop
-      key: mode_window_lock_on
-
-  missiles_step_6_target_lr:
-    lock_target_6:
-      show: missiles_lock_target_fade
-      key: mode_lock_target_6
-      loops: -1
-      show_tokens: { led: l_shot_left_ramp }
-  missiles_step_6_target_rr:
-    lock_target_6:
-      show: missiles_lock_target_fade
-      key: mode_lock_target_6
-      loops: -1
-      show_tokens: { led: l_shot_right_orbit }
-  missiles_step_6_target_sp:
-    lock_target_6:
-      show: missiles_lock_target_fade
-      key: mode_lock_target_6
-      loops: -1
-      show_tokens: { led: l_shot_spinner }
-  missiles_step_6_target_twr:
-    lock_target_6:
-      show: missiles_lock_target_fade
-      key: mode_lock_target_6
-      loops: -1
-      show_tokens: { led: l_shot_tower_ramp }
-  missiles_step_6_target_tl:
-    lock_target_6:
-      show: missiles_lock_target_fade
-      key: mode_lock_target_6
-      loops: -1
-      show_tokens: { led: l_shot_upper_orbit }
-
-  missiles_step_6_complete:
-    stop_lock_target_6:
-      show: missiles_lock_target_fade
-      action: stop
-      key: mode_lock_target_6
-
-  ##############################################
-  ## STEPS 7-8: Moving window — stop all shows; random_event_player fires
-  ## missiles_window_init_pos_N which starts the correct 3 flashes below.
-  ##############################################
-  missiles_setup_step_7:
-    stop_win_ll:      { show: sync_flash_mode, action: stop, key: mode_window_ll }
-    stop_win_lo:      { show: sync_flash_mode, action: stop, key: mode_window_lo }
-    stop_win_lr:      { show: sync_flash_mode, action: stop, key: mode_window_lr }
-    stop_win_sp:      { show: sync_flash_mode, action: stop, key: mode_window_sp }
-    stop_win_barrier: { show: sync_flash_mode, action: stop, key: mode_window_barrier }
-    stop_win_twr:     { show: sync_flash_mode, action: stop, key: mode_window_twr }
-    stop_win_tl:      { show: sync_flash_mode, action: stop, key: mode_window_tl }
-    stop_win_tr:      { show: sync_flash_mode, action: stop, key: mode_window_tr }
-    stop_win_rr:      { show: sync_flash_mode, action: stop, key: mode_window_rr }
-
-  ##############################################
-  ## STEP 9: RANDOM LOCK TARGET (WHITE flash) - FINAL!
-  ## Target selected by random_event_player
-  ##############################################
-  missiles_setup_step_9:
-    stop_lock_on_cleanup:
-      show: sync_flash_mode
-      action: stop
-      key: mode_window_lock_on
-
-  missiles_step_9_target_lr:
-    lock_target_9:
-      show: missiles_lock_target_fade
-      key: mode_lock_target_9
-      loops: -1
-      show_tokens: { led: l_shot_left_ramp }
-  missiles_step_9_target_rr:
-    lock_target_9:
-      show: missiles_lock_target_fade
-      key: mode_lock_target_9
-      loops: -1
-      show_tokens: { led: l_shot_right_orbit }
-  missiles_step_9_target_sp:
-    lock_target_9:
-      show: missiles_lock_target_fade
-      key: mode_lock_target_9
-      loops: -1
-      show_tokens: { led: l_shot_spinner }
-  missiles_step_9_target_twr:
-    lock_target_9:
-      show: missiles_lock_target_fade
-      key: mode_lock_target_9
-      loops: -1
-      show_tokens: { led: l_shot_tower_ramp }
-  missiles_step_9_target_tl:
-    lock_target_9:
-      show: missiles_lock_target_fade
-      key: mode_lock_target_9
-      loops: -1
-      show_tokens: { led: l_shot_upper_orbit }
-
-  missiles_step_9_complete:
-    stop_lock_target_9:
-      show: missiles_lock_target_fade
-      action: stop
-      key: mode_lock_target_9
-
-  ##############################################
-  ## MISSILE FLYING GI STROBE - Rapid strobe during flight (3, 6, 9)
-  ##############################################
-  missiles_step_3_flying_start:
-    flying_gi_strobe_3:
-      show: missiles_missile_flying_gi
-      key: gi_effect
+    gi_penalty:
+      show: missiles_gi_penalty_strobe
+      key: missiles_penalty_gi_effect
       loops: -1
 
-  missiles_step_6_flying_start:
-    flying_gi_strobe_6:
-      show: missiles_missile_flying_gi
-      key: gi_effect
-      loops: -1
-
-  missiles_step_9_flying_start:
-    flying_gi_strobe_9:
-      show: missiles_missile_flying_gi
-      key: gi_effect
-      loops: -1
-
-  ##############################################
-  ## EXPLOSION GI EFFECT - Lock step shot hits (3, 6, 9)
-  ##############################################
-  missiles_explosion_effect:
-    explosion_gi:
-      show: missiles_explosion_gi
-      key: gi_effect
-      loops: -1
-
-  ##############################################
-  ## STOP EXPLOSION GI - Restore mode GI after steps 3/6 explosion
-  ##############################################
-  missiles_stop_explosion_gi:
-    stop_explosion:
-      show: missiles_explosion_gi
-      action: stop
-      key: gi_effect
-
-  ##############################################
-  ## SHOT HIT GI FLASH - Quick flash on pair shot hits (1,2,4,5,7,8)
-  ##############################################
-  missiles_step_1_shot_hit:
-    gi_flash_1:
-      show: missiles_gi_flash
-      key: gi_effect
-      loops: 0
-  missiles_step_2_shot_hit:
-    gi_flash_2:
-      show: missiles_gi_flash
-      key: gi_effect
-      loops: 0
-  missiles_step_4_shot_hit:
-    gi_flash_4:
-      show: missiles_gi_flash
-      key: gi_effect
-      loops: 0
-  missiles_step_5_shot_hit:
-    gi_flash_5:
-      show: missiles_gi_flash
-      key: gi_effect
-      loops: 0
-  missiles_step_7_shot_hit:
-    gi_flash_7:
-      show: missiles_gi_flash
-      key: gi_effect
-      loops: 0
-  missiles_step_8_shot_hit:
-    gi_flash_8:
-      show: missiles_gi_flash
-      key: gi_effect
-      loops: 0
-
-  ##############################################
-  ## MODE CLEANUP - Stop all flashing shows
-  ##############################################
-  missiles_cleanup:
-    stop_win_ll:      { show: sync_flash_mode, action: stop, key: mode_window_ll }
-    stop_win_lo:      { show: sync_flash_mode, action: stop, key: mode_window_lo }
-    stop_win_lr:      { show: sync_flash_mode, action: stop, key: mode_window_lr }
-    stop_win_sp:      { show: sync_flash_mode, action: stop, key: mode_window_sp }
-    stop_win_barrier: { show: sync_flash_mode, action: stop, key: mode_window_barrier }
-    stop_win_twr:     { show: sync_flash_mode, action: stop, key: mode_window_twr }
-    stop_win_tl:      { show: sync_flash_mode, action: stop, key: mode_window_tl }
-    stop_win_tr:      { show: sync_flash_mode, action: stop, key: mode_window_tr }
-    stop_win_rr:      { show: sync_flash_mode, action: stop, key: mode_window_rr }
-    stop_lock_on:     { show: sync_flash_mode, action: stop, key: mode_window_lock_on }
-    stop_lock_target_3: { show: missiles_lock_target_fade, action: stop, key: mode_lock_target_3 }
-    stop_lock_target_6: { show: missiles_lock_target_fade, action: stop, key: mode_lock_target_6 }
-    stop_lock_target_9: { show: missiles_lock_target_fade, action: stop, key: mode_lock_target_9 }
-    stop_flying_gi_final:
-      show: missiles_missile_flying_gi
-      action: stop
-      key: gi_effect
-    stop_lock_show_final:
-      show: missiles_show_lock_l
-      action: stop
-      key: missiles_lock_show
-    stop_insert_pulse:
-      action: stop
-      key: missles_pulse
-
+  missiles_punishment_end:
+    stop_rainbow: { show: missiles_rainbow_punishment, action: stop, key: missiles_punishment_effect }
+    stop_gi_penalty: { show: missiles_gi_penalty_strobe, action: stop, key: missiles_penalty_gi_effect }
 ####################################################################################
-# LIGHT PLAYER - GI colors and static shot lights
+# LIGHT PLAYER
 ####################################################################################
 
 light_player:
@@ -2168,284 +1291,181 @@ light_player:
   ## GI Color - Cyan (odd) and White (even) - cyan = GRB-swapped cyan
   ##############################################
   missiles_set_gi:
-    l_gi_light_1:
-      color: cyan
-      fade: 0ms
-    l_gi_light_2:
-      color: white
-      fade: 0ms
-    l_gi_light_3:
-      color: cyan
-      fade: 0ms
-    l_gi_light_4:
-      color: white
-      fade: 0ms
-    l_gi_light_5:
-      color: cyan
-      fade: 0ms
-    l_gi_light_6:
-      color: white
-      fade: 0ms
-    l_gi_light_7:
-      color: cyan
-      fade: 0ms
-    l_gi_light_8:
-      color: white
-      fade: 0ms
-    l_gi_light_9:
-      color: cyan
-      fade: 0ms
-    l_gi_light_10:
-      color: white
-      fade: 0ms
-    l_gi_light_11:
-      color: cyan
-      fade: 0ms
-    l_gi_light_12:
-      color: white
-      fade: 0ms
-    l_gi_light_13:
-      color: cyan
-      fade: 0ms
-    l_gi_light_14:
-      color: white
-      fade: 0ms
-    l_gi_light_15:
-      color: cyan
-      fade: 0ms
-    l_gi_light_16:
-      color: white
-      fade: 0ms
-    l_gi_light_17:
-      color: cyan
-      fade: 0ms
-    l_gi_light_18:
-      color: white
-      fade: 0ms
-    l_gi_light_19:
-      color: cyan
-      fade: 0ms
-    l_gi_light_20:
-      color: white
-      fade: 0ms
-    l_gi_light_21:
-      color: cyan
-      fade: 0ms
-    l_gi_light_22:
-      color: white
-      fade: 0ms
-    l_gi_light_23:
-      color: cyan
-      fade: 0ms
-    l_gi_light_24:
-      color: white
-      fade: 0ms
-    l_gi_light_25:
-      color: cyan
-      fade: 0ms
-    l_gi_light_26:
-      color: white
-      fade: 0ms
-    l_gi_light_27:
-      color: cyan
-      fade: 0ms
-    l_apron_light_1:
-      color: cyan
-      fade: 0ms
-    l_apron_light_2:
-      color: white
-      fade: 0ms
-    l_apron_light_3:
-      color: cyan
-      fade: 0ms
-    l_apron_light_4:
-      color: white
-      fade: 0ms
+    l_gi_light_1: { color: cyan, fade: 0ms }
+    l_gi_light_2: { color: white, fade: 0ms }
+    l_gi_light_3: { color: cyan, fade: 0ms }
+    l_gi_light_4: { color: white, fade: 0ms }
+    l_gi_light_5: { color: cyan, fade: 0ms }
+    l_gi_light_6: { color: white, fade: 0ms }
+    l_gi_light_7: { color: cyan, fade: 0ms }
+    l_gi_light_8: { color: white, fade: 0ms }
+    l_gi_light_9: { color: cyan, fade: 0ms }
+    l_gi_light_10: { color: white, fade: 0ms }
+    l_gi_light_11: { color: cyan, fade: 0ms }
+    l_gi_light_12: { color: white, fade: 0ms }
+    l_gi_light_13: { color: cyan, fade: 0ms }
+    l_gi_light_14: { color: white, fade: 0ms }
+    l_gi_light_15: { color: cyan, fade: 0ms }
+    l_gi_light_16: { color: white, fade: 0ms }
+    l_gi_light_17: { color: cyan, fade: 0ms }
+    l_gi_light_18: { color: white, fade: 0ms }
+    l_gi_light_19: { color: cyan, fade: 0ms }
+    l_gi_light_20: { color: white, fade: 0ms }
+    l_gi_light_21: { color: cyan, fade: 0ms }
+    l_gi_light_22: { color: white, fade: 0ms }
+    l_gi_light_23: { color: cyan, fade: 0ms }
+    l_gi_light_24: { color: white, fade: 0ms }
+    l_gi_light_25: { color: cyan, fade: 0ms }
+    l_gi_light_26: { color: white, fade: 0ms }
+    l_gi_light_27: { color: cyan, fade: 0ms }
+    l_apron_light_1: { color: cyan, fade: 0ms }
+    l_apron_light_2: { color: white, fade: 0ms }
+    l_apron_light_3: { color: cyan, fade: 0ms }
+    l_apron_light_4: { color: white, fade: 0ms }
 
   ##############################################
-  ## Restore GI to white on cleanup
+  ## BURNED SHOTS - solid red, permanent for the rest of the mode
   ##############################################
-  missiles_cleanup:
-    l_gi_light_1:
-      color: white
-      fade: 0ms
-    l_gi_light_2:
-      color: white
-      fade: 0ms
-    l_gi_light_3:
-      color: white
-      fade: 0ms
-    l_gi_light_4:
-      color: white
-      fade: 0ms
-    l_gi_light_5:
-      color: white
-      fade: 0ms
-    l_gi_light_6:
-      color: white
-      fade: 0ms
-    l_gi_light_7:
-      color: white
-      fade: 0ms
-    l_gi_light_8:
-      color: white
-      fade: 0ms
-    l_gi_light_9:
-      color: white
-      fade: 0ms
-    l_gi_light_10:
-      color: white
-      fade: 0ms
-    l_gi_light_11:
-      color: white
-      fade: 0ms
-    l_gi_light_12:
-      color: white
-      fade: 0ms
-    l_gi_light_13:
-      color: white
-      fade: 0ms
-    l_gi_light_14:
-      color: white
-      fade: 0ms
-    l_gi_light_15:
-      color: white
-      fade: 0ms
-    l_gi_light_16:
-      color: white
-      fade: 0ms
-    l_gi_light_17:
-      color: white
-      fade: 0ms
-    l_gi_light_18:
-      color: white
-      fade: 0ms
-    l_gi_light_19:
-      color: white
-      fade: 0ms
-    l_gi_light_20:
-      color: white
-      fade: 0ms
-    l_gi_light_21:
-      color: white
-      fade: 0ms
-    l_gi_light_22:
-      color: white
-      fade: 0ms
-    l_gi_light_23:
-      color: white
-      fade: 0ms
-    l_gi_light_24:
-      color: white
-      fade: 0ms
-    l_gi_light_25:
-      color: white
-      fade: 0ms
-    l_gi_light_26:
-      color: white
-      fade: 0ms
-    l_gi_light_27:
-      color: white
-      fade: 0ms
-    l_apron_light_1:
-      color: white
-      fade: 0ms
-    l_apron_light_2:
-      color: white
-      fade: 0ms
-    l_apron_light_3:
-      color: white
-      fade: 0ms
-    l_apron_light_4:
-      color: white
-      fade: 0ms
-    # Turn off all shot inserts
-    l_shot_left_orbit: off
-    l_shot_left_ramp: off
-    l_shot_right_orbit: off
-    l_shot_upper_orbit: off
-    l_shot_spinner: off
-    l_shot_tower_ramp: off
-    l_lock_c: off
-    l_lock_l: off
-    l_lock_k: off
-    l_lock_o: off
+  missiles_burn_target{current_player.missiles_target==1}:
+    l_shot_left_orbit: { color: FF0000, fade: 0ms }
+  missiles_burn_target{current_player.missiles_target==2}:
+    l_shot_left_ramp: { color: FF0000, fade: 0ms }
+  missiles_burn_target{current_player.missiles_target==3}:
+    l_shot_tower_ramp: { color: FF0000, fade: 0ms }
+  missiles_burn_target{current_player.missiles_target==4}:
+    l_shot_right_orbit: { color: FF0000, fade: 0ms }
+
+  # Re-assert burned reds at the start of every Phase 1 — Phase 2's sweep
+  # redraw may have overwritten them while the window passed over that light
+  missiles_setup_phase_1{current_player.missiles_lo_burned==1}:
+    l_shot_left_orbit: { color: FF0000, fade: 0ms }
+  missiles_setup_phase_1{current_player.missiles_lr_burned==1}:
+    l_shot_left_ramp: { color: FF0000, fade: 0ms }
+  missiles_setup_phase_1{current_player.missiles_twr_burned==1}:
+    l_shot_tower_ramp: { color: FF0000, fade: 0ms }
+  missiles_setup_phase_1{current_player.missiles_rr_burned==1}:
+    l_shot_right_orbit: { color: FF0000, fade: 0ms }
+
+  # Same re-assertion needed entering Phase 3 — Phase 2's sweep redraw runs
+  # right up until the moment of the sweep hit
+  missiles_sweep_hit{current_player.missiles_lo_burned==1}:
+    l_shot_left_orbit: { color: FF0000, fade: 0ms }
+  missiles_sweep_hit{current_player.missiles_lr_burned==1}:
+    l_shot_left_ramp: { color: FF0000, fade: 0ms }
+  missiles_sweep_hit{current_player.missiles_twr_burned==1}:
+    l_shot_tower_ramp: { color: FF0000, fade: 0ms }
+  missiles_sweep_hit{current_player.missiles_rr_burned==1}:
+    l_shot_right_orbit: { color: FF0000, fade: 0ms }
+
+  # Clear every sweep position to off when Phase 3 begins — the sweep timer
+  # is stopped now too (see timers:), but this makes sure nothing is still
+  # showing green from the last redraw before the target's own red flash
+  # (in show_player) takes over. Burned shots are excluded here by
+  # condition (not by ordering) so they can't get their red overwritten
+  # depending on which of these fires first.
+  missiles_sweep_hit:
+    l_shot_left_lane: { color: off, fade: 0ms }
+    l_shot_spinner: { color: off, fade: 0ms }
+    l_shot_barrier: { color: off, fade: 0ms }
+    l_shot_upper_orbit: { color: off, fade: 0ms }
+    l_shot_middle_ramp: { color: off, fade: 0ms }
+    l_shot_pilot_gear: { color: off, fade: 0ms }
+  missiles_sweep_hit{current_player.missiles_lo_burned==0 and current_player.missiles_target!=1}:
+    l_shot_left_orbit: { color: off, fade: 0ms }
+  missiles_sweep_hit{current_player.missiles_lr_burned==0 and current_player.missiles_target!=2}:
+    l_shot_left_ramp: { color: off, fade: 0ms }
+  missiles_sweep_hit{current_player.missiles_twr_burned==0 and current_player.missiles_target!=3}:
+    l_shot_tower_ramp: { color: off, fade: 0ms }
+  missiles_sweep_hit{current_player.missiles_rr_burned==0 and current_player.missiles_target!=4}:
+    l_shot_right_orbit: { color: off, fade: 0ms }
 
   ##############################################
-  ## Shot insert lighting - window mechanic
-  ## Flashing is handled entirely by show_player (sync_flash_mode).
-  ## These light_player entries ensure all 9 window shots are explicitly
-  ## turned off when entering each lock-target step.
+  ## PHASE 2 SWEEP - redraw all 10 positions on every tick/setup
+  ## Fires on missiles_sweep_redraw. General condition works for any
+  ## window width without needing per-width duplication.
   ##############################################
-
-  # Step 3: turn off all 9 window shot lights before lock target activates
-  missiles_setup_step_3:
-    l_shot_left_lane: off
-    l_shot_left_orbit: off
-    l_shot_left_ramp: off
-    l_shot_spinner: off
-    l_shot_barrier: off
-    l_shot_tower_ramp: off
-    l_shot_upper_orbit: off
-    l_shot_middle_ramp: off
-    l_shot_right_orbit: off
-
-  missiles_step_3_complete:
-    l_shot_left_ramp: off
-    l_shot_right_orbit: off
-    l_shot_spinner: off
-    l_shot_tower_ramp: off
-    l_shot_upper_orbit: off
-
-  # Step 6: turn off all 9 window shot lights before lock target activates
-  missiles_setup_step_6:
-    l_shot_left_lane: off
-    l_shot_left_orbit: off
-    l_shot_left_ramp: off
-    l_shot_spinner: off
-    l_shot_barrier: off
-    l_shot_tower_ramp: off
-    l_shot_upper_orbit: off
-    l_shot_middle_ramp: off
-    l_shot_right_orbit: off
-
-  missiles_step_6_complete:
-    l_shot_left_ramp: off
-    l_shot_right_orbit: off
-    l_shot_spinner: off
-    l_shot_tower_ramp: off
-    l_shot_upper_orbit: off
-
-  # Step 9: turn off all 9 window shot lights before final lock target activates
-  missiles_setup_step_9:
-    l_shot_left_lane: off
-    l_shot_left_orbit: off
-    l_shot_left_ramp: off
-    l_shot_spinner: off
-    l_shot_barrier: off
-    l_shot_tower_ramp: off
-    l_shot_upper_orbit: off
-    l_shot_middle_ramp: off
-    l_shot_right_orbit: off
-
-  missiles_step_9_complete:
-    l_shot_left_ramp: off
-    l_shot_right_orbit: off
-    l_shot_spinner: off
-    l_shot_tower_ramp: off
-    l_shot_upper_orbit: off
-
-  ##############################################
-  ## Perk active indicator
-  ##############################################
-  ## Insert light handled by iceman_letters.yaml on mode stop
-
+  missiles_sweep_redraw{current_player.missiles_sweep_pos<=0 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=0}:
+    l_shot_left_lane:
+      color: 00FF00
+      fade: 0ms
+  missiles_sweep_redraw{not (current_player.missiles_sweep_pos<=0 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=0)}:
+    l_shot_left_lane:
+      color: off
+      fade: 0ms
+  missiles_sweep_redraw{current_player.missiles_sweep_pos<=1 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=1}:
+    l_shot_left_orbit:
+      color: 00FF00
+      fade: 0ms
+  missiles_sweep_redraw{not (current_player.missiles_sweep_pos<=1 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=1)}:
+    l_shot_left_orbit:
+      color: off
+      fade: 0ms
+  missiles_sweep_redraw{current_player.missiles_sweep_pos<=2 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=2}:
+    l_shot_left_ramp:
+      color: 00FF00
+      fade: 0ms
+  missiles_sweep_redraw{not (current_player.missiles_sweep_pos<=2 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=2)}:
+    l_shot_left_ramp:
+      color: off
+      fade: 0ms
+  missiles_sweep_redraw{current_player.missiles_sweep_pos<=3 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=3}:
+    l_shot_spinner:
+      color: 00FF00
+      fade: 0ms
+  missiles_sweep_redraw{not (current_player.missiles_sweep_pos<=3 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=3)}:
+    l_shot_spinner:
+      color: off
+      fade: 0ms
+  missiles_sweep_redraw{current_player.missiles_sweep_pos<=4 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=4}:
+    l_shot_barrier:
+      color: 00FF00
+      fade: 0ms
+  missiles_sweep_redraw{not (current_player.missiles_sweep_pos<=4 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=4)}:
+    l_shot_barrier:
+      color: off
+      fade: 0ms
+  missiles_sweep_redraw{current_player.missiles_sweep_pos<=5 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=5}:
+    l_shot_tower_ramp:
+      color: 00FF00
+      fade: 0ms
+  missiles_sweep_redraw{not (current_player.missiles_sweep_pos<=5 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=5)}:
+    l_shot_tower_ramp:
+      color: off
+      fade: 0ms
+  missiles_sweep_redraw{current_player.missiles_sweep_pos<=6 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=6}:
+    l_shot_upper_orbit:
+      color: 00FF00
+      fade: 0ms
+  missiles_sweep_redraw{not (current_player.missiles_sweep_pos<=6 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=6)}:
+    l_shot_upper_orbit:
+      color: off
+      fade: 0ms
+  missiles_sweep_redraw{current_player.missiles_sweep_pos<=7 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=7}:
+    l_shot_middle_ramp:
+      color: 00FF00
+      fade: 0ms
+  missiles_sweep_redraw{not (current_player.missiles_sweep_pos<=7 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=7)}:
+    l_shot_middle_ramp:
+      color: off
+      fade: 0ms
+  missiles_sweep_redraw{current_player.missiles_sweep_pos<=8 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=8}:
+    l_shot_pilot_gear:
+      color: 00FF00
+      fade: 0ms
+  missiles_sweep_redraw{not (current_player.missiles_sweep_pos<=8 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=8)}:
+    l_shot_pilot_gear:
+      color: off
+      fade: 0ms
+  missiles_sweep_redraw{current_player.missiles_sweep_pos<=9 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=9}:
+    l_shot_right_orbit:
+      color: 00FF00
+      fade: 0ms
+  missiles_sweep_redraw{not (current_player.missiles_sweep_pos<=9 and current_player.missiles_sweep_pos+current_player.missiles_sweep_width-1>=9)}:
+    l_shot_right_orbit:
+      color: off
+      fade: 0ms
 ####################################################################################
-# SHOWS - Explosion GI and quick flash effects
-####################################################################################
-
-####################################################################################
-# COIL PLAYER - Left lane post hold during intro
+# COIL PLAYER
 ####################################################################################
 
 coil_player:
@@ -2469,12 +1489,13 @@ coil_player:
     c_left_lane_up_post:
       action: disable
 
+####################################################################################
+# SHOWS
+####################################################################################
 
 shows:
   ##############################################
-  ## LOCK TARGET FADE - smooth green↔red pulse, never off
-  ## Each frame fades TO the target color over its full 2s duration.
-  ## Uses (led) show_token for the specific shot insert.
+  ## LOCK TARGET FADE - reused as-is (available for future use)
   ##############################################
   missiles_lock_target_fade:
     - duration: 1000ms
@@ -2489,81 +1510,69 @@ shows:
           fade: 1000ms
 
   ##############################################
-  ## MISSILE FLYING GI STROBE - Rapid white strobe during missile flight
-  ## 2 frames at 100ms each = 200ms cycle (5 Hz strobe), loops infinitely
+  ## BAD SHOT PUNISHMENT - rainbow chase across the 8 main shot
+  ## inserts, each starting at a different point in the color wheel
+  ## so they're never all the same color at once. 80ms/step.
   ##############################################
-  missiles_missile_flying_gi:
-    - duration: 100ms
+  ##############################################
+  ## BAD SHOT PUNISHMENT - red/yellow/orange chase across the 8 main
+  ## shot inserts, each starting at a different point in the 3-color
+  ## cycle so they're never all the same color at once. 80ms/step.
+  ##############################################
+  missiles_rainbow_punishment:
+    - duration: 80ms
       lights:
-        l_gi_light_1: white
-        l_gi_light_2: white
-        l_gi_light_3: white
-        l_gi_light_4: white
-        l_gi_light_5: white
-        l_gi_light_6: white
-        l_gi_light_7: white
-        l_gi_light_8: white
-        l_gi_light_9: white
-        l_gi_light_10: white
-        l_gi_light_11: white
-        l_gi_light_12: white
-        l_gi_light_13: white
-        l_gi_light_14: white
-        l_gi_light_15: white
-        l_gi_light_16: white
-        l_gi_light_17: white
-        l_gi_light_18: white
-        l_gi_light_19: white
-        l_gi_light_20: white
-        l_gi_light_21: white
-        l_gi_light_22: white
-        l_gi_light_23: white
-        l_gi_light_24: white
-        l_gi_light_25: white
-        l_gi_light_26: white
-        l_gi_light_27: white
-        l_apron_light_1: white
-        l_apron_light_2: white
-        l_apron_light_3: white
-        l_apron_light_4: white
-    - duration: 100ms
+        l_shot_left_orbit: FF0000
+        l_shot_left_ramp: FFFF00
+        l_shot_spinner: FF7F00
+        l_shot_barrier: FF0000
+        l_shot_tower_ramp: FFFF00
+        l_shot_upper_orbit: FF7F00
+        l_shot_middle_ramp: FF0000
+        l_shot_right_orbit: FFFF00
+    - duration: 80ms
       lights:
-        l_gi_light_1: off
-        l_gi_light_2: off
-        l_gi_light_3: off
-        l_gi_light_4: off
-        l_gi_light_5: off
-        l_gi_light_6: off
-        l_gi_light_7: off
-        l_gi_light_8: off
-        l_gi_light_9: off
-        l_gi_light_10: off
-        l_gi_light_11: off
-        l_gi_light_12: off
-        l_gi_light_13: off
-        l_gi_light_14: off
-        l_gi_light_15: off
-        l_gi_light_16: off
-        l_gi_light_17: off
-        l_gi_light_18: off
-        l_gi_light_19: off
-        l_gi_light_20: off
-        l_gi_light_21: off
-        l_gi_light_22: off
-        l_gi_light_23: off
-        l_gi_light_24: off
-        l_gi_light_25: off
-        l_gi_light_26: off
-        l_gi_light_27: off
-        l_apron_light_1: off
-        l_apron_light_2: off
-        l_apron_light_3: off
-        l_apron_light_4: off
+        l_shot_left_orbit: FFFF00
+        l_shot_left_ramp: FF7F00
+        l_shot_spinner: FF0000
+        l_shot_barrier: FFFF00
+        l_shot_tower_ramp: FF7F00
+        l_shot_upper_orbit: FF0000
+        l_shot_middle_ramp: FFFF00
+        l_shot_right_orbit: FF7F00
+    - duration: 80ms
+      lights:
+        l_shot_left_orbit: FF7F00
+        l_shot_left_ramp: FF0000
+        l_shot_spinner: FFFF00
+        l_shot_barrier: FF7F00
+        l_shot_tower_ramp: FF0000
+        l_shot_upper_orbit: FFFF00
+        l_shot_middle_ramp: FF7F00
+        l_shot_right_orbit: FF0000
 
-  ##############################################
-  ## EXPLOSION GI - Rapid flicker for lock step hits
-  ## 8 frames of randomized Yellow/Orange/Red across all GI + apron
-  ##############################################
+  missiles_gi_penalty_strobe:
+    - duration: 200ms
+      lights:
+        l_gi_light_1: { color: FF0000, fade: 200ms }
+        l_gi_light_2: { color: FF0000, fade: 200ms }
+        l_gi_light_3: { color: FF0000, fade: 200ms }
+        l_gi_light_4: { color: FF0000, fade: 200ms }
+        l_gi_light_18: { color: FF0000, fade: 200ms }
+        l_gi_light_19: { color: FF0000, fade: 200ms }
+        l_gi_light_20: { color: FF0000, fade: 200ms }
+        l_gi_light_21: { color: FF0000, fade: 200ms }
+    - duration: 200ms
+      lights:
+        l_gi_light_1: { color: 330000, fade: 200ms }
+        l_gi_light_2: { color: 330000, fade: 200ms }
+        l_gi_light_3: { color: 330000, fade: 200ms }
+        l_gi_light_4: { color: 330000, fade: 200ms }
+        l_gi_light_18: { color: 330000, fade: 200ms }
+        l_gi_light_19: { color: 330000, fade: 200ms }
+        l_gi_light_20: { color: 330000, fade: 200ms }
+        l_gi_light_21: { color: 330000, fade: 200ms }
+
   missiles_explosion_gi:
     - duration: 100ms
       lights:
@@ -2797,210 +1806,6 @@ shows:
         l_apron_light_3: red
         l_apron_light_4: yellow
     - duration: 100ms
-      lights:
-        l_gi_light_1: cyan
-        l_gi_light_2: white
-        l_gi_light_3: cyan
-        l_gi_light_4: white
-        l_gi_light_5: cyan
-        l_gi_light_6: white
-        l_gi_light_7: cyan
-        l_gi_light_8: white
-        l_gi_light_9: cyan
-        l_gi_light_10: white
-        l_gi_light_11: cyan
-        l_gi_light_12: white
-        l_gi_light_13: cyan
-        l_gi_light_14: white
-        l_gi_light_15: cyan
-        l_gi_light_16: white
-        l_gi_light_17: cyan
-        l_gi_light_18: white
-        l_gi_light_19: cyan
-        l_gi_light_20: white
-        l_gi_light_21: cyan
-        l_gi_light_22: white
-        l_gi_light_23: cyan
-        l_gi_light_24: white
-        l_gi_light_25: cyan
-        l_gi_light_26: white
-        l_gi_light_27: cyan
-        l_apron_light_1: cyan
-        l_apron_light_2: white
-        l_apron_light_3: cyan
-        l_apron_light_4: white
-
-  ##############################################
-  ## GI FLASH - Rapid on/off flicker for pair shot hits
-  ## 3 cycles: white→off→white→off→white→restore
-  ##############################################
-  missiles_gi_flash:
-    - duration: 80ms
-      lights:
-        l_gi_light_1: white
-        l_gi_light_2: white
-        l_gi_light_3: white
-        l_gi_light_4: white
-        l_gi_light_5: white
-        l_gi_light_6: white
-        l_gi_light_7: white
-        l_gi_light_8: white
-        l_gi_light_9: white
-        l_gi_light_10: white
-        l_gi_light_11: white
-        l_gi_light_12: white
-        l_gi_light_13: white
-        l_gi_light_14: white
-        l_gi_light_15: white
-        l_gi_light_16: white
-        l_gi_light_17: white
-        l_gi_light_18: white
-        l_gi_light_19: white
-        l_gi_light_20: white
-        l_gi_light_21: white
-        l_gi_light_22: white
-        l_gi_light_23: white
-        l_gi_light_24: white
-        l_gi_light_25: white
-        l_gi_light_26: white
-        l_gi_light_27: white
-        l_apron_light_1: white
-        l_apron_light_2: white
-        l_apron_light_3: white
-        l_apron_light_4: white
-    - duration: 80ms
-      lights:
-        l_gi_light_1: off
-        l_gi_light_2: off
-        l_gi_light_3: off
-        l_gi_light_4: off
-        l_gi_light_5: off
-        l_gi_light_6: off
-        l_gi_light_7: off
-        l_gi_light_8: off
-        l_gi_light_9: off
-        l_gi_light_10: off
-        l_gi_light_11: off
-        l_gi_light_12: off
-        l_gi_light_13: off
-        l_gi_light_14: off
-        l_gi_light_15: off
-        l_gi_light_16: off
-        l_gi_light_17: off
-        l_gi_light_18: off
-        l_gi_light_19: off
-        l_gi_light_20: off
-        l_gi_light_21: off
-        l_gi_light_22: off
-        l_gi_light_23: off
-        l_gi_light_24: off
-        l_gi_light_25: off
-        l_gi_light_26: off
-        l_gi_light_27: off
-        l_apron_light_1: off
-        l_apron_light_2: off
-        l_apron_light_3: off
-        l_apron_light_4: off
-    - duration: 80ms
-      lights:
-        l_gi_light_1: white
-        l_gi_light_2: white
-        l_gi_light_3: white
-        l_gi_light_4: white
-        l_gi_light_5: white
-        l_gi_light_6: white
-        l_gi_light_7: white
-        l_gi_light_8: white
-        l_gi_light_9: white
-        l_gi_light_10: white
-        l_gi_light_11: white
-        l_gi_light_12: white
-        l_gi_light_13: white
-        l_gi_light_14: white
-        l_gi_light_15: white
-        l_gi_light_16: white
-        l_gi_light_17: white
-        l_gi_light_18: white
-        l_gi_light_19: white
-        l_gi_light_20: white
-        l_gi_light_21: white
-        l_gi_light_22: white
-        l_gi_light_23: white
-        l_gi_light_24: white
-        l_gi_light_25: white
-        l_gi_light_26: white
-        l_gi_light_27: white
-        l_apron_light_1: white
-        l_apron_light_2: white
-        l_apron_light_3: white
-        l_apron_light_4: white
-    - duration: 80ms
-      lights:
-        l_gi_light_1: off
-        l_gi_light_2: off
-        l_gi_light_3: off
-        l_gi_light_4: off
-        l_gi_light_5: off
-        l_gi_light_6: off
-        l_gi_light_7: off
-        l_gi_light_8: off
-        l_gi_light_9: off
-        l_gi_light_10: off
-        l_gi_light_11: off
-        l_gi_light_12: off
-        l_gi_light_13: off
-        l_gi_light_14: off
-        l_gi_light_15: off
-        l_gi_light_16: off
-        l_gi_light_17: off
-        l_gi_light_18: off
-        l_gi_light_19: off
-        l_gi_light_20: off
-        l_gi_light_21: off
-        l_gi_light_22: off
-        l_gi_light_23: off
-        l_gi_light_24: off
-        l_gi_light_25: off
-        l_gi_light_26: off
-        l_gi_light_27: off
-        l_apron_light_1: off
-        l_apron_light_2: off
-        l_apron_light_3: off
-        l_apron_light_4: off
-    - duration: 80ms
-      lights:
-        l_gi_light_1: white
-        l_gi_light_2: white
-        l_gi_light_3: white
-        l_gi_light_4: white
-        l_gi_light_5: white
-        l_gi_light_6: white
-        l_gi_light_7: white
-        l_gi_light_8: white
-        l_gi_light_9: white
-        l_gi_light_10: white
-        l_gi_light_11: white
-        l_gi_light_12: white
-        l_gi_light_13: white
-        l_gi_light_14: white
-        l_gi_light_15: white
-        l_gi_light_16: white
-        l_gi_light_17: white
-        l_gi_light_18: white
-        l_gi_light_19: white
-        l_gi_light_20: white
-        l_gi_light_21: white
-        l_gi_light_22: white
-        l_gi_light_23: white
-        l_gi_light_24: white
-        l_gi_light_25: white
-        l_gi_light_26: white
-        l_gi_light_27: white
-        l_apron_light_1: white
-        l_apron_light_2: white
-        l_apron_light_3: white
-        l_apron_light_4: white
-    - duration: 80ms
       lights:
         l_gi_light_1: cyan
         l_gi_light_2: white

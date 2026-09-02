@@ -472,6 +472,19 @@ queue_relay_player:
 ####################################################################################
 
 variable_player:
+  ##############################################
+  ## LEFT ORBIT SAFE RETURN — arm/clear
+  ##############################################
+  orbit_left_safe_return_arm:
+    orbit_left_shot_armed:
+      action: set
+      int: 1
+
+  orbit_left_safe_return_clear:
+    orbit_left_shot_armed:
+      action: set
+      int: 0
+
   mode_battle_jester_started:
     # Universal pilot mode tracking - set when any pilot mode starts
     missiles_perk_blocked:
@@ -875,6 +888,28 @@ event_player:
     - barrier_raise
 
   ##############################################
+  ## LEFT ORBIT SAFE RETURN
+  ## Step 1: LO is green the whole step, never individually expires — only
+  ##   cleared on a made shot or the step fully timing out unmade.
+  ## Step 4: LO is green only while battle_jester_step_4_timer.ticks < 20,
+  ##   then flips to a red/punishment shot on the SAME switch — clear right
+  ##   at that transition so a late hit isn't treated as a good shot.
+  ##############################################
+  battle_jester_setup_step_1:
+    - orbit_left_safe_return_arm
+  battle_jester_setup_step_4:
+    - orbit_left_safe_return_arm
+
+  # Step 1 fully times out without any shot made — LO never expired on its
+  # own, so clear it here since it never got the chance to naturally close
+  battle_jester_step_1_tick_30:
+    - orbit_left_safe_return_clear
+
+  # Step 4: LO flips from green to red right here — close the arm window
+  timer_battle_jester_step_4_timer_tick{current_player.battle_jester_step==3 and ticks==20}:
+    - orbit_left_safe_return_clear
+
+  ##############################################
   ## AFTERBURNER PERK: Pause Mode Timer
   ## Jumps timer to 9999s making it effectively infinite
   ## 500ms delay ensures timer has started before jump fires
@@ -1072,6 +1107,7 @@ event_player:
     - battle_jester_step_1_complete
     - battle_jester_setup_step_2
     - battle_jester_add_time_green
+    - orbit_left_safe_return_clear|700ms
 
   s_ramp_left_exit_active{current_player.battle_jester_step==0}:
     - battle_jester_step_1_complete
@@ -1182,6 +1218,7 @@ event_player:
     - battle_jester_step_4_complete
     - battle_jester_setup_step_5
     - battle_jester_add_time_green
+    - orbit_left_safe_return_clear|700ms
 
   # RED shots
   spinner_shot_made{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks >= 10 and device.timers.battle_jester_spinner_lockout.running==False}:
