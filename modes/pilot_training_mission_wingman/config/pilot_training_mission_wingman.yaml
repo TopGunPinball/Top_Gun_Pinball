@@ -40,11 +40,17 @@
 #
 # BALL SAVE: 15 seconds for initial launch and add-a-ball
 #
-# WIN CELEBRATION:
-#   Position +6 → disable flippers/pops/slings → balls drain
-#   Beaten animation (5s) + voice_wingman_won simultaneously
-#   Then pilot_training_mission_wingman_won video (18s)
-#   Mode stops → base game → auto-plunge + left MiG post
+# WIN CELEBRATION (v2 - VICTORY MODE, no draining):
+#   Position +6 → voice_wingman_won callout plays immediately
+#   All 9 shots (LL, LO, LR, SP, CNT, TWR, TO, 2X, RR) light up -
+#   flippers/multiball keep running normally, player keeps shooting.
+#   First hit on a shot = good (scores live, banks jackpot, shot turns
+#   red, position/value ramp up). Hit an already-red shot = bad (position
+#   -1). All 9 collected → barrier flashes for the super jackpot; hitting
+#   it pays the bank and relights the set - loop repeats.
+#   When the multiball naturally ends (down to 1 ball) → victory scoring
+#   stops, pilot_training_mission_wingman_won slide plays for 18s, then
+#   mode stops → base game (see VICTORY MODE section, ~line 875 onward)
 #
 # LOSS BY BAD SHOTS:
 #   Position -6 → pilot_training_mission_wingman_lost_2 slide (9.1s)
@@ -57,9 +63,8 @@
 # Adjustable Timing Values:
 #   - Intro video delay: 13 seconds (line ~134)
 #   - Ball save duration: 15 seconds (line ~96)
-#   - Zone shift interval: 20 seconds (line ~142)
-#   - Win beaten animation: 5 seconds (line ~172)
-#   - Win video: 18 seconds (line ~182)
+#   - Zone shift interval: 10 seconds (line ~142)
+#   - Victory slide (win, plays when multiball ends): 18 seconds
 #   - Lost slide duration: 10 seconds (lines ~192, ~202)
 ####################################################################################
 
@@ -91,7 +96,9 @@ multiballs:
     shoot_again: 15s
     start_events: wingman_start_multiball
     stop_events: 
-      - wingman_won_trigger
+      # NOTE: wingman_won_trigger REMOVED (v2 win flow) - the multiball
+      # now keeps running through victory mode; it only stops naturally
+      # (multiball_wingman_multiball_ended) or on loss/mode stop.
       - wingman_lost_bad_shots
       - mode_pilot_training_mission_wingman_will_stop
     add_a_ball_events: wingman_add_a_ball
@@ -116,24 +123,28 @@ ball_saves:
       - wingman_start_multiball
       - wingman_add_a_ball
     disable_events: 
-      - wingman_won_trigger
+      # NOTE: wingman_won_trigger REMOVED (v2 win flow) - normal ball-save
+      # protection should keep working through victory mode, same as any
+      # other point in the multiball.
       - wingman_lost_bad_shots
       - wingman_lost_drain
       - ball_will_end
     debug: true
 
   # DRAIN BALL SAVE: Catches the last ball when flippers are disabled
-  # after a WIN or LOSS by bad shots.  This prevents ball_ending from
+  # after a LOSS by bad shots.  This prevents ball_ending from
   # firing so the player does NOT lose their ball.
   # auto_launch: false → ball sits in shooter lane during video
   # We fire the plunger manually after the video completes.
+  # NOTE: wingman_won_trigger REMOVED from enable_events (v2 win flow) -
+  # winning no longer disables flippers/drains balls, so this device is
+  # no longer needed on the win path. Still used by the loss path.
   wingman_drain_ball_save:
     active_time: 30s
     grace_period: 2s
     auto_launch: false
     balls_to_save: 1
     enable_events:
-      - wingman_won_trigger
       - wingman_lost_bad_shots
     disable_events:
       - wingman_post_mode_plunge
@@ -171,10 +182,10 @@ timers:
       - event: wingman_skip_intro
         action: stop
 
-  # Zone shift timer - 20 seconds per zone
+  # Zone shift timer - 6 seconds per zone (was 10s)
   wingman_zone_shift_timer:
     start_value: 0
-    end_value: 20
+    end_value: 6
     direction: up
     tick_interval: 1s
     control_events:
@@ -224,6 +235,9 @@ timers:
         action: restart
 
   # Win beaten animation delay - 5 seconds
+  # NOTE: vestigial under win flow v2 - still starts on wingman_won_trigger
+  # but nothing consumes its completion anymore (no beaten-animation step
+  # in the new flow). Left in place/harmless; safe to remove later.
   wingman_beaten_animation_delay:
     start_value: 0
     end_value: 5
@@ -235,6 +249,9 @@ timers:
         action: start
 
   # Win video delay - 18 seconds
+  # Now starts when the multiball naturally ends (down to 1 ball) with a
+  # win, NOT immediately at wingman_won_trigger (see event_player:
+  # wingman_victory_final_start).
   wingman_won_video_delay:
     start_value: 0
     end_value: 18
@@ -242,8 +259,10 @@ timers:
     tick_interval: 1s
     start_running: false
     control_events:
-      - event: timer_wingman_beaten_animation_delay_complete
+      - event: wingman_victory_final_start
         action: start
+      - event: wingman_skip_won_video
+        action: stop
 
   # Lost by bad shots - drain delay (5s for balls to drain with flippers disabled)
   wingman_lost_bad_shots_drain_delay:
@@ -284,6 +303,8 @@ timers:
     control_events:
       - event: wingman_play_lost_bad_shots_video
         action: start
+      - event: wingman_skip_lost_bad_shots_video
+        action: stop
 
   # Lost by drain delay - 10 seconds (9.1s video + margin)
   wingman_lost_drain_delay:
@@ -295,6 +316,8 @@ timers:
     control_events:
       - event: wingman_lost_drain
         action: start
+      - event: wingman_skip_lost_drain_video
+        action: stop
 
   # Plunge orbit lockout - 2 seconds after ball passes shooter lane
   # Prevents orbit shots from counting when ball auto-plunges
@@ -635,9 +658,8 @@ variable_player:
     wingman_drain_handled:
       action: set
       int: 1
-    wingman_balls_draining:
-      action: set
-      int: 1
+    # NOTE: wingman_balls_draining REMOVED (v2 win flow) - we no longer
+    # drain balls or show the "BALLS DRAINING" banner at win.
     wingman_perk_active:
       action: set
       int: 1
@@ -807,6 +829,300 @@ variable_player:
       action: set
       int: 0
 
+  ##############################################
+  ## VICTORY MODE - INIT (defaults each ball; real
+  ## starting values are set by wingman_victory_start below)
+  ##############################################
+  wingman_victory_active:
+    action: set
+    int: 0
+  wingman_victory_position:
+    action: set
+    int: 0
+  wingman_victory_shot_value:
+    action: set
+    int: 0
+  wingman_victory_next_shot_total:
+    action: set
+    int: 0
+  wingman_victory_jackpot:
+    action: set
+    int: 0
+  wingman_victory_jackpot_ready:
+    action: set
+    int: 0
+  wingman_victory_hit_count:
+    action: set
+    int: 0
+  wingman_victory_hit_ll:
+    action: set
+    int: 0
+  wingman_victory_hit_lo:
+    action: set
+    int: 0
+  wingman_victory_hit_lr:
+    action: set
+    int: 0
+  wingman_victory_hit_sp:
+    action: set
+    int: 0
+  wingman_victory_hit_cnt:
+    action: set
+    int: 0
+  wingman_victory_hit_twr:
+    action: set
+    int: 0
+  wingman_victory_hit_to:
+    action: set
+    int: 0
+  wingman_victory_hit_gear:
+    action: set
+    int: 0
+  wingman_victory_hit_rr:
+    action: set
+    int: 0
+
+  ##############################################
+  ## VICTORY MODE - START
+  ## Position starts at 6 (closest to jet) since main mode
+  ## can only be won by reaching position +6.
+  ## Shot value starts at 50,000 and ramps every good hit,
+  ## capped at 250,000 - this value NEVER resets for the
+  ## rest of victory mode (persists across jackpot cycles).
+  ##############################################
+  wingman_victory_start:
+    wingman_victory_active:
+      action: set
+      int: 1
+    wingman_victory_position:
+      action: set
+      int: 6
+    wingman_victory_shot_value:
+      action: set
+      int: 50000
+    wingman_victory_next_shot_total:
+      action: set
+      int: 300000
+    wingman_victory_jackpot:
+      action: set
+      int: 0
+    wingman_victory_jackpot_ready:
+      action: set
+      int: 0
+    wingman_victory_hit_count:
+      action: set
+      int: 0
+    wingman_victory_hit_ll:
+      action: set
+      int: 0
+    wingman_victory_hit_lo:
+      action: set
+      int: 0
+    wingman_victory_hit_lr:
+      action: set
+      int: 0
+    wingman_victory_hit_sp:
+      action: set
+      int: 0
+    wingman_victory_hit_cnt:
+      action: set
+      int: 0
+    wingman_victory_hit_twr:
+      action: set
+      int: 0
+    wingman_victory_hit_to:
+      action: set
+      int: 0
+    wingman_victory_hit_gear:
+      action: set
+      int: 0
+    wingman_victory_hit_rr:
+      action: set
+      int: 0
+
+  ##############################################
+  ## VICTORY MODE - END (multiball naturally down to 1 ball)
+  ## Stops further shot scoring while the 18s victory slide plays.
+  ##############################################
+  wingman_victory_active_off:
+    wingman_victory_active:
+      action: set
+      int: 0
+
+  ##############################################
+  ## VICTORY MODE - PER-SHOT HIT FLAGS + COUNTER
+  ## Each fires once, the FIRST time that shot is made
+  ## since the set was last relit (mode start or jackpot reset)
+  ##############################################
+  wingman_victory_good_shot_ll:
+    wingman_victory_hit_ll:
+      action: set
+      int: 1
+    wingman_victory_hit_count:
+      action: add
+      int: 1
+  wingman_victory_good_shot_lo:
+    wingman_victory_hit_lo:
+      action: set
+      int: 1
+    wingman_victory_hit_count:
+      action: add
+      int: 1
+  wingman_victory_good_shot_lr:
+    wingman_victory_hit_lr:
+      action: set
+      int: 1
+    wingman_victory_hit_count:
+      action: add
+      int: 1
+  wingman_victory_good_shot_sp:
+    wingman_victory_hit_sp:
+      action: set
+      int: 1
+    wingman_victory_hit_count:
+      action: add
+      int: 1
+  wingman_victory_good_shot_cnt:
+    wingman_victory_hit_cnt:
+      action: set
+      int: 1
+    wingman_victory_hit_count:
+      action: add
+      int: 1
+  wingman_victory_good_shot_twr:
+    wingman_victory_hit_twr:
+      action: set
+      int: 1
+    wingman_victory_hit_count:
+      action: add
+      int: 1
+  wingman_victory_good_shot_to:
+    wingman_victory_hit_to:
+      action: set
+      int: 1
+    wingman_victory_hit_count:
+      action: add
+      int: 1
+  wingman_victory_good_shot_gear:
+    wingman_victory_hit_gear:
+      action: set
+      int: 1
+    wingman_victory_hit_count:
+      action: add
+      int: 1
+  wingman_victory_good_shot_rr:
+    wingman_victory_hit_rr:
+      action: set
+      int: 1
+    wingman_victory_hit_count:
+      action: add
+      int: 1
+
+  ##############################################
+  ## VICTORY MODE - COMMON GOOD SHOT SCORING
+  ## Scored using the CURRENT shot_value/position
+  ## (checked BEFORE increment - same pattern as main mode)
+  ## Live score includes mach/pf multiplier. The jackpot bank
+  ## banks the RAW value (no mach) so it isn't double-multiplied
+  ## when collected later.
+  ##############################################
+  wingman_victory_good_shot:
+    score:
+      action: add
+      int: current_player.wingman_victory_shot_value * current_player.wingman_victory_position * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: current_player.wingman_victory_shot_value * current_player.wingman_victory_position * current_player.total_scoring_multiplier
+    wingman_victory_jackpot:
+      action: add
+      int: current_player.wingman_victory_shot_value * current_player.wingman_victory_position
+
+  ##############################################
+  ## VICTORY MODE - COMMON BAD SHOT SCORING/MOVEMENT
+  ## Hitting an already-collected (red) shot: moves one
+  ## step away from the jet, multiplier drops by 1x, floors at 1x
+  ##############################################
+  wingman_victory_bad_shot_position{current_player.wingman_victory_position>1}:
+    wingman_victory_position:
+      action: add
+      int: -1
+
+  ##############################################
+  ## VICTORY MODE - POSITION/VALUE RAMP (after good shot scoring)
+  ##############################################
+  wingman_victory_position_increment{current_player.wingman_victory_position<6}:
+    wingman_victory_position:
+      action: add
+      int: 1
+  wingman_victory_shot_value_increment{current_player.wingman_victory_shot_value<250000}:
+    wingman_victory_shot_value:
+      action: add
+      int: 5000
+
+  ##############################################
+  ## VICTORY MODE - NEXT SHOT PREVIEW (recompute after any change)
+  ##############################################
+  wingman_victory_recompute_preview:
+    wingman_victory_next_shot_total:
+      action: set
+      int: current_player.wingman_victory_shot_value * current_player.wingman_victory_position
+
+  ##############################################
+  ## VICTORY MODE - JACKPOT READY / COLLECT
+  ## mach/pf multiplier IS applied at collection (only once,
+  ## on the raw banked total) - the mode's own 1x-6x position
+  ## multiplier is NOT re-applied since each hit already baked
+  ## its own position multiplier in when it was banked.
+  ##############################################
+  wingman_victory_all_collected:
+    wingman_victory_jackpot_ready:
+      action: set
+      int: 1
+
+  wingman_victory_jackpot_hit:
+    score:
+      action: add
+      int: current_player.wingman_victory_jackpot * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: current_player.wingman_victory_jackpot * current_player.total_scoring_multiplier
+    wingman_victory_jackpot:
+      action: set
+      int: 0
+    wingman_victory_jackpot_ready:
+      action: set
+      int: 0
+    wingman_victory_hit_count:
+      action: set
+      int: 0
+    wingman_victory_hit_ll:
+      action: set
+      int: 0
+    wingman_victory_hit_lo:
+      action: set
+      int: 0
+    wingman_victory_hit_lr:
+      action: set
+      int: 0
+    wingman_victory_hit_sp:
+      action: set
+      int: 0
+    wingman_victory_hit_cnt:
+      action: set
+      int: 0
+    wingman_victory_hit_twr:
+      action: set
+      int: 0
+    wingman_victory_hit_to:
+      action: set
+      int: 0
+    wingman_victory_hit_gear:
+      action: set
+      int: 0
+    wingman_victory_hit_rr:
+      action: set
+      int: 0
+
 ####################################################################################
 # EVENT PLAYER - Mode flow and shot detection
 ####################################################################################
@@ -893,14 +1209,18 @@ event_player:
     - wingman_light_zone_3
 
   ##############################################
-  ## ZONE WARNING - Green → Orange at 4 seconds remaining
+  ## ZONE WARNING - Green → Orange for the last 2 seconds
+  ## (6s zone - 2s warning = tick 4)
+  ## GUARDED with wingman_won==0: without this, a warning tick landing
+  ## in the same instant as the win can turn a shot orange right as
+  ## victory mode starts, racing victory_start's own light_player call.
   ##############################################
   
-  timer_wingman_zone_shift_timer_tick{ticks==16 and current_player.wingman_good_zone==1}:
+  timer_wingman_zone_shift_timer_tick{ticks==4 and current_player.wingman_good_zone==1 and current_player.wingman_won==0}:
     - wingman_warn_zone_1
-  timer_wingman_zone_shift_timer_tick{ticks==16 and current_player.wingman_good_zone==2}:
+  timer_wingman_zone_shift_timer_tick{ticks==4 and current_player.wingman_good_zone==2 and current_player.wingman_won==0}:
     - wingman_warn_zone_2
-  timer_wingman_zone_shift_timer_tick{ticks==16 and current_player.wingman_good_zone==3}:
+  timer_wingman_zone_shift_timer_tick{ticks==4 and current_player.wingman_good_zone==3 and current_player.wingman_won==0}:
     - wingman_warn_zone_3
 
   ##############################################
@@ -970,11 +1290,11 @@ event_player:
     - wingman_check_good_callout
 
   # Bad shot: score first, then decrement position, then floor check
+  # NOTE: bad shots no longer flash the GI (good-shot-only per latest design)
   wingman_bad_shot:
     - wingman_score_bad
     - wingman_position_down
     - wingman_check_bank_floor
-    - wingman_bad_shot_gi_flash
     - wingman_check_bad_callout
 
   # Only play random callouts if position didn't reach a milestone or endpoint
@@ -1006,32 +1326,54 @@ event_player:
   wingman_won_trigger{current_player.wingman_bad_shots_count==0}:
     - wingman_perfect_run_bonus
 
+  ##############################################
+  ## WIN FLOW v2 - NO DRAINING
+  ## voice_wingman_won still fires immediately on wingman_won_trigger
+  ## (see sound_player - unchanged). Instead of disabling flippers and
+  ## draining, we drop straight into victory mode and the multiball
+  ## keeps running normally.
+  ##############################################
   wingman_won_trigger:
-    - disable_normal_flippers
-    - disable_autofires
-    - wingman_cleanup_lights
+    - wingman_victory_start
 
-  # Beaten animation finishes → play won video
-  timer_wingman_beaten_animation_delay_complete:
+  # Multiball naturally winds down to 1 ball while the player has won ->
+  # stop victory scoring, play the victory slide for 18s (reuses the
+  # existing pilot_training_mission_wingman_won slide/timer), then clean
+  # up and hand back to the base game.
+  multiball_wingman_multiball_ended{current_player.wingman_won==1}:
+    - wingman_victory_final_start
+
+  wingman_victory_final_start:
+    - wingman_victory_active_off
     - wingman_play_won_video
 
-  # Won video finishes → fire "ball returning" callout, start 2s pre-plunge delay
-  timer_wingman_won_video_delay_complete:
-    - wingman_ball_returning
-
-  # Pre-plunge delay complete → clean up mode FIRST, then plunge saved ball
-  # Cleanup must happen before plunge so display is clear when ball launches
-  timer_wingman_pre_plunge_delay_complete:
+  timer_wingman_won_video_delay_complete{current_player.wingman_won==1}:
     - wingman_cleanup
     - pilot_mode_cleanup_complete
     - wingman_drain_cleanup_complete
-    - enable_normal_flippers
-    - enable_autofires
-    - wingman_post_mode_plunge
+
+  ##############################################
+  ## SKIP WON VIDEO WITH BOTH FLIPPERS
+  ## Same pattern as the intro skip - both flippers held while the 18s
+  ## video timer is running jumps straight to the same cleanup the timer
+  ## would normally trigger on its own.
+  ##############################################
+  s_flipper_left_active{device.timers.wingman_won_video_delay.running}:
+    - wingman_check_skip_won_video
+  s_flipper_right_active{device.timers.wingman_won_video_delay.running}:
+    - wingman_check_skip_won_video
+
+  wingman_check_skip_won_video{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - wingman_skip_won_video
+
+  wingman_skip_won_video{current_player.wingman_won==1}:
+    - wingman_cleanup
+    - pilot_mode_cleanup_complete
+    - wingman_drain_cleanup_complete
 
   ##############################################
   ## LOSE BY BAD SHOTS (position -6)
-  ## Same drain sequence as won: disable flippers → balls drain →
+  ## Unchanged: disable flippers → balls drain →
   ## ball_save catches last ball → video plays → plunge ball → continue
   ##############################################
   
@@ -1053,6 +1395,35 @@ event_player:
     - wingman_ball_returning
 
   ##############################################
+  ## SKIP LOST-BY-BAD-SHOTS VIDEO WITH BOTH FLIPPERS
+  ## Jumps to exactly what the timer's natural completion does
+  ## (wingman_ball_returning) - does NOT skip the 3s pre-plunge warning
+  ## after it, since that's a real-world "ball incoming" safety delay,
+  ## not part of the video.
+  ##############################################
+  s_flipper_left_active{device.timers.wingman_lost_bad_shots_delay.running}:
+    - wingman_check_skip_lost_bad_shots_video
+  s_flipper_right_active{device.timers.wingman_lost_bad_shots_delay.running}:
+    - wingman_check_skip_lost_bad_shots_video
+
+  wingman_check_skip_lost_bad_shots_video{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - wingman_skip_lost_bad_shots_video
+
+  wingman_skip_lost_bad_shots_video:
+    - wingman_ball_returning
+
+  # Pre-plunge delay complete → clean up mode FIRST, then plunge saved ball
+  # Cleanup must happen before plunge so display is clear when ball launches
+  # (shared tail - only the LOSS path feeds into this now; win no longer does)
+  timer_wingman_pre_plunge_delay_complete:
+    - wingman_cleanup
+    - pilot_mode_cleanup_complete
+    - wingman_drain_cleanup_complete
+    - enable_normal_flippers
+    - enable_autofires
+    - wingman_post_mode_plunge
+
+  ##############################################
   ## LOSE BY DRAIN (multiball ended)
   ##############################################
   
@@ -1064,6 +1435,24 @@ event_player:
     - wingman_cleanup
 
   timer_wingman_lost_drain_delay_complete:
+    - wingman_cleanup
+    - pilot_mode_cleanup_complete
+    - wingman_drain_cleanup_complete
+
+  ##############################################
+  ## SKIP LOST-BY-DRAIN VIDEO WITH BOTH FLIPPERS
+  ## No ball is being held/caught on this path, so skipping goes
+  ## straight to the same cleanup the timer would trigger on its own.
+  ##############################################
+  s_flipper_left_active{device.timers.wingman_lost_drain_delay.running}:
+    - wingman_check_skip_lost_drain_video
+  s_flipper_right_active{device.timers.wingman_lost_drain_delay.running}:
+    - wingman_check_skip_lost_drain_video
+
+  wingman_check_skip_lost_drain_video{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - wingman_skip_lost_drain_video
+
+  wingman_skip_lost_drain_video:
     - wingman_cleanup
     - pilot_mode_cleanup_complete
     - wingman_drain_cleanup_complete
@@ -1148,6 +1537,168 @@ event_player:
   # Auto-plunger fires 1 second after ball settles on shooter lane
   # (same pattern as inverted mode)
 
+  ##############################################
+  ## VICTORY MODE - SHOT DETECTION
+  ## All 9 shots lit at once. First hit on a shot = good.
+  ## Hitting an already-collected (red) shot again = bad.
+  ## CNT (barrier) does double duty: normal shot until all 9
+  ## are collected, then becomes the jackpot collect shot.
+  ##############################################
+
+  # LL (s_lane_left)
+  s_lane_left_active{current_player.wingman_victory_active==1 and current_player.wingman_victory_hit_ll==0}:
+    - wingman_victory_good_shot_ll
+  s_lane_left_active{current_player.wingman_victory_active==1 and current_player.wingman_victory_hit_ll==1}:
+    - wingman_victory_bad_shot_ll
+
+  # LO (left orbit, composite) - respects post-plunge orbit lockout
+  left_orbit_shot_hit{current_player.wingman_victory_active==1 and current_player.wingman_orbit_locked_out==0 and current_player.wingman_victory_hit_lo==0}:
+    - wingman_victory_good_shot_lo
+  left_orbit_shot_hit{current_player.wingman_victory_active==1 and current_player.wingman_orbit_locked_out==0 and current_player.wingman_victory_hit_lo==1}:
+    - wingman_victory_bad_shot_lo
+
+  # LR (s_ramp_left_exit)
+  s_ramp_left_exit_active{current_player.wingman_victory_active==1 and current_player.wingman_victory_hit_lr==0}:
+    - wingman_victory_good_shot_lr
+  s_ramp_left_exit_active{current_player.wingman_victory_active==1 and current_player.wingman_victory_hit_lr==1}:
+    - wingman_victory_bad_shot_lr
+
+  # SP (spinner, composite - 3 spins)
+  spinner_shot_made{current_player.wingman_victory_active==1 and current_player.wingman_victory_hit_sp==0}:
+    - wingman_victory_good_shot_sp
+  spinner_shot_made{current_player.wingman_victory_active==1 and current_player.wingman_victory_hit_sp==1}:
+    - wingman_victory_bad_shot_sp
+
+  # CNT (s_barrier_target) - jackpot shot once all 9 are collected
+  s_barrier_target_active{current_player.wingman_victory_active==1 and current_player.wingman_victory_jackpot_ready==1}:
+    - wingman_victory_jackpot_hit
+  s_barrier_target_active{current_player.wingman_victory_active==1 and current_player.wingman_victory_jackpot_ready==0 and current_player.wingman_victory_hit_cnt==0}:
+    - wingman_victory_good_shot_cnt
+  s_barrier_target_active{current_player.wingman_victory_active==1 and current_player.wingman_victory_jackpot_ready==0 and current_player.wingman_victory_hit_cnt==1}:
+    - wingman_victory_bad_shot_cnt
+
+  # TWR (s_ramp_tower_exit)
+  s_ramp_tower_exit_active{current_player.wingman_victory_active==1 and current_player.wingman_victory_hit_twr==0}:
+    - wingman_victory_good_shot_twr
+  s_ramp_tower_exit_active{current_player.wingman_victory_active==1 and current_player.wingman_victory_hit_twr==1}:
+    - wingman_victory_bad_shot_twr
+
+  # TO (s_orbit_lower) - respects post-plunge orbit lockout
+  s_orbit_lower_active{current_player.wingman_victory_active==1 and current_player.wingman_orbit_locked_out==0 and current_player.wingman_victory_hit_to==0}:
+    - wingman_victory_good_shot_to
+  s_orbit_lower_active{current_player.wingman_victory_active==1 and current_player.wingman_orbit_locked_out==0 and current_player.wingman_victory_hit_to==1}:
+    - wingman_victory_bad_shot_to
+
+  # 2X / Pilot Gear (s_flight_gear_target)
+  s_flight_gear_target_active{current_player.wingman_victory_active==1 and current_player.wingman_victory_hit_gear==0}:
+    - wingman_victory_good_shot_gear
+  s_flight_gear_target_active{current_player.wingman_victory_active==1 and current_player.wingman_victory_hit_gear==1}:
+    - wingman_victory_bad_shot_gear
+
+  # RR (s_ramp_right_exit)
+  s_ramp_right_exit_active{current_player.wingman_victory_active==1 and current_player.wingman_victory_hit_rr==0}:
+    - wingman_victory_good_shot_rr
+  s_ramp_right_exit_active{current_player.wingman_victory_active==1 and current_player.wingman_victory_hit_rr==1}:
+    - wingman_victory_bad_shot_rr
+
+  ##############################################
+  ## VICTORY MODE - GOOD SHOT CHAIN (per-shot events above
+  ## all funnel here after setting their own hit flag)
+  ## Order matters: score/bank FIRST (uses current values),
+  ## THEN ramp position/value for the next shot.
+  ##############################################
+  wingman_victory_good_shot_ll:
+    - wingman_victory_good_shot
+    - wingman_victory_position_increment
+    - wingman_victory_shot_value_increment
+    - wingman_victory_recompute_preview
+    - wingman_victory_check_all_collected
+  wingman_victory_good_shot_lo:
+    - wingman_victory_good_shot
+    - wingman_victory_position_increment
+    - wingman_victory_shot_value_increment
+    - wingman_victory_recompute_preview
+    - wingman_victory_check_all_collected
+  wingman_victory_good_shot_lr:
+    - wingman_victory_good_shot
+    - wingman_victory_position_increment
+    - wingman_victory_shot_value_increment
+    - wingman_victory_recompute_preview
+    - wingman_victory_check_all_collected
+  wingman_victory_good_shot_sp:
+    - wingman_victory_good_shot
+    - wingman_victory_position_increment
+    - wingman_victory_shot_value_increment
+    - wingman_victory_recompute_preview
+    - wingman_victory_check_all_collected
+  wingman_victory_good_shot_cnt:
+    - wingman_victory_good_shot
+    - wingman_victory_position_increment
+    - wingman_victory_shot_value_increment
+    - wingman_victory_recompute_preview
+    - wingman_victory_check_all_collected
+  wingman_victory_good_shot_twr:
+    - wingman_victory_good_shot
+    - wingman_victory_position_increment
+    - wingman_victory_shot_value_increment
+    - wingman_victory_recompute_preview
+    - wingman_victory_check_all_collected
+  wingman_victory_good_shot_to:
+    - wingman_victory_good_shot
+    - wingman_victory_position_increment
+    - wingman_victory_shot_value_increment
+    - wingman_victory_recompute_preview
+    - wingman_victory_check_all_collected
+  wingman_victory_good_shot_gear:
+    - wingman_victory_good_shot
+    - wingman_victory_position_increment
+    - wingman_victory_shot_value_increment
+    - wingman_victory_recompute_preview
+    - wingman_victory_check_all_collected
+  wingman_victory_good_shot_rr:
+    - wingman_victory_good_shot
+    - wingman_victory_position_increment
+    - wingman_victory_shot_value_increment
+    - wingman_victory_recompute_preview
+    - wingman_victory_check_all_collected
+
+  ##############################################
+  ## VICTORY MODE - BAD SHOT CHAIN
+  ##############################################
+  wingman_victory_bad_shot_ll:
+    - wingman_victory_bad_shot_position
+    - wingman_victory_recompute_preview
+  wingman_victory_bad_shot_lo:
+    - wingman_victory_bad_shot_position
+    - wingman_victory_recompute_preview
+  wingman_victory_bad_shot_lr:
+    - wingman_victory_bad_shot_position
+    - wingman_victory_recompute_preview
+  wingman_victory_bad_shot_sp:
+    - wingman_victory_bad_shot_position
+    - wingman_victory_recompute_preview
+  wingman_victory_bad_shot_cnt:
+    - wingman_victory_bad_shot_position
+    - wingman_victory_recompute_preview
+  wingman_victory_bad_shot_twr:
+    - wingman_victory_bad_shot_position
+    - wingman_victory_recompute_preview
+  wingman_victory_bad_shot_to:
+    - wingman_victory_bad_shot_position
+    - wingman_victory_recompute_preview
+  wingman_victory_bad_shot_gear:
+    - wingman_victory_bad_shot_position
+    - wingman_victory_recompute_preview
+  wingman_victory_bad_shot_rr:
+    - wingman_victory_bad_shot_position
+    - wingman_victory_recompute_preview
+
+  ##############################################
+  ## VICTORY MODE - ALL 9 COLLECTED -> ARM JACKPOT
+  ##############################################
+  wingman_victory_check_all_collected{current_player.wingman_victory_hit_count==9}:
+    - wingman_victory_all_collected
+
 ####################################################################################
 # SOUND PLAYER - Mode Voice Callouts
 ####################################################################################
@@ -1200,6 +1751,26 @@ slide_player:
     pilot_training_mission_wingman_instructions:
       action: remove
 
+  ##############################################
+  ## VICTORY MODE - SLIDE SWAP
+  ## wingman_beaten_animation's own win-overlay draw path is for the OLD
+  ## drain-at-win flow (it just sits static once wingman_won==1) - swap
+  ## it out for the dedicated wingman_victory slide as soon as victory
+  ## mode starts, so the live victory HUD actually shows.
+  ##############################################
+  wingman_victory_start:
+    wingman_beaten_animation:
+      action: remove
+    wingman_victory:
+      action: play
+      priority: 700
+
+  # Multiball ends -> the 18s won video takes over at priority 900;
+  # remove the victory HUD underneath it
+  wingman_victory_final_start:
+    wingman_victory:
+      action: remove
+
   # Position +4 milestone
   wingman_position_4_reached:
     wingman_positive_4:
@@ -1235,13 +1806,21 @@ slide_player:
       priority: 850
       expire: 3s
 
-  # WIN: Won video (18 seconds) - starts after beaten animation timer
-  # beaten_animation is already playing as HUD; won video covers it at higher priority
+  # WIN: Victory slide (18 seconds) - now fires when the multiball
+  # naturally ends (down to 1 ball), NOT immediately at win. See
+  # event_player: wingman_victory_final_start.
   wingman_play_won_video:
     pilot_training_mission_wingman_won:
       action: play
       priority: 900
       expire: 18s
+
+  # Skip won video - the slide's own "expire: 18s" is independent of the
+  # game timer, so skipping early needs an explicit removal or it would
+  # otherwise linger on screen for its remaining expire duration.
+  wingman_skip_won_video:
+    pilot_training_mission_wingman_won:
+      action: remove
 
   # LOSE by bad shots: lost_2 slide (9.1 seconds) - starts AFTER drain delay
   wingman_play_lost_bad_shots_video:
@@ -1250,12 +1829,36 @@ slide_player:
       priority: 900
       expire: 9.1s
 
+  # Skip lost-by-bad-shots video - explicit removal, same reasoning as won video
+  wingman_skip_lost_bad_shots_video:
+    pilot_training_mission_wingman_lost_2:
+      action: remove
+
   # LOSE by drain: lost_1 slide (9.1 seconds)
   wingman_lost_drain:
     pilot_training_mission_wingman_lost_1:
       action: play
       priority: 900
       expire: 9.1s
+
+  # Skip lost-by-drain video - explicit removal, same reasoning as won video
+  wingman_skip_lost_drain_video:
+    pilot_training_mission_wingman_lost_1:
+      action: remove
+
+  # Victory mode - good shot points display (reuses same slide as tug-of-war)
+  wingman_victory_good_shot:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
+  # Victory mode - jackpot collect points display
+  wingman_victory_jackpot_hit:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
 
   # Cleanup - remove all slides on mode end
   # NOTE: wingman_perk_active is NOT removed here - qualifier owns that slide's
@@ -1264,6 +1867,8 @@ slide_player:
     pilot_training_mission_wingman_instructions:
       action: remove
     wingman_beaten_animation:
+      action: remove
+    wingman_victory:
       action: remove
     mode_points_scored:
       action: remove
@@ -1613,7 +2218,7 @@ light_player:
       fade: 0ms
 
   ##############################################
-  ## ZONE WARNING - Orange at 4 seconds remaining
+  ## ZONE WARNING - Orange for the last 2 seconds
   ##############################################
   
   wingman_warn_zone_1:
@@ -1800,6 +2405,190 @@ light_player:
       color: off
       fade: 0ms
 
+  ##############################################
+  ## VICTORY MODE - LIGHT ALL 9 SHOTS (mode's good-shot color)
+  ## Fires on victory start AND again after jackpot collect
+  ## (the set relights and victory starts over).
+  ## priority: 800 on every entry here - this MUST outrank any
+  ## leftover zone-lighting/warning color from the tug-of-war phase,
+  ## regardless of exact timing (see TWR orange bug).
+  ##############################################
+  wingman_victory_start:
+    l_shot_left_lane:
+      color: lightblue
+      fade: 0ms
+      priority: 800
+    l_shot_left_orbit:
+      color: lightblue
+      fade: 0ms
+      priority: 800
+    l_shot_left_ramp:
+      color: lightblue
+      fade: 0ms
+      priority: 800
+    l_shot_spinner:
+      color: lightblue
+      fade: 0ms
+      priority: 800
+    l_shot_barrier:
+      color: lightblue
+      fade: 0ms
+      priority: 800
+    l_shot_tower_ramp:
+      color: lightblue
+      fade: 0ms
+      priority: 800
+    l_shot_middle_ramp:
+      color: lightblue
+      fade: 0ms
+      priority: 800
+    l_shot_pilot_gear:
+      color: lightblue
+      fade: 0ms
+      priority: 800
+    l_shot_right_orbit:
+      color: lightblue
+      fade: 0ms
+      priority: 800
+    # TL is not one of the 9 collectible victory shots, but it's a shot
+    # light on the same playfield - force it OFF so it can't be left
+    # showing a stray leftover zone color (green/orange) during victory.
+    l_shot_upper_orbit:
+      color: off
+      fade: 0ms
+      priority: 800
+
+  wingman_victory_jackpot_hit:
+    l_shot_left_lane:
+      color: lightblue
+      fade: 0ms
+      priority: 800
+    l_shot_left_orbit:
+      color: lightblue
+      fade: 0ms
+      priority: 800
+    l_shot_left_ramp:
+      color: lightblue
+      fade: 0ms
+      priority: 800
+    l_shot_spinner:
+      color: lightblue
+      fade: 0ms
+      priority: 800
+    l_shot_barrier:
+      color: lightblue
+      fade: 0ms
+      priority: 800
+    l_shot_tower_ramp:
+      color: lightblue
+      fade: 0ms
+      priority: 800
+    l_shot_middle_ramp:
+      color: lightblue
+      fade: 0ms
+      priority: 800
+    l_shot_pilot_gear:
+      color: lightblue
+      fade: 0ms
+      priority: 800
+    l_shot_right_orbit:
+      color: lightblue
+      fade: 0ms
+      priority: 800
+    l_shot_upper_orbit:
+      color: off
+      fade: 0ms
+      priority: 800
+
+  ##############################################
+  ## VICTORY MODE - ALL 9 COLLECTED: TURN OFF THE OTHER 8
+  ## Barrier itself is NOT included here - it gets its color from the
+  ## sync_flash_mode jackpot flash show (show_player) instead, which
+  ## overrides light_player while it's running.
+  ##############################################
+  wingman_victory_all_collected:
+    l_shot_left_lane:
+      color: off
+      fade: 0ms
+      priority: 800
+    l_shot_left_orbit:
+      color: off
+      fade: 0ms
+      priority: 800
+    l_shot_left_ramp:
+      color: off
+      fade: 0ms
+      priority: 800
+    l_shot_spinner:
+      color: off
+      fade: 0ms
+      priority: 800
+    l_shot_tower_ramp:
+      color: off
+      fade: 0ms
+      priority: 800
+    l_shot_middle_ramp:
+      color: off
+      fade: 0ms
+      priority: 800
+    l_shot_pilot_gear:
+      color: off
+      fade: 0ms
+      priority: 800
+    l_shot_right_orbit:
+      color: off
+      fade: 0ms
+      priority: 800
+
+  ##############################################
+  ## VICTORY MODE - COLLECTED SHOT TURNS RED
+  ##############################################
+  wingman_victory_good_shot_ll:
+    l_shot_left_lane:
+      color: red
+      fade: 0ms
+      priority: 800
+  wingman_victory_good_shot_lo:
+    l_shot_left_orbit:
+      color: red
+      fade: 0ms
+      priority: 800
+  wingman_victory_good_shot_lr:
+    l_shot_left_ramp:
+      color: red
+      fade: 0ms
+      priority: 800
+  wingman_victory_good_shot_sp:
+    l_shot_spinner:
+      color: red
+      fade: 0ms
+      priority: 800
+  wingman_victory_good_shot_cnt:
+    l_shot_barrier:
+      color: red
+      fade: 0ms
+      priority: 800
+  wingman_victory_good_shot_twr:
+    l_shot_tower_ramp:
+      color: red
+      fade: 0ms
+      priority: 800
+  wingman_victory_good_shot_to:
+    l_shot_middle_ramp:
+      color: red
+      fade: 0ms
+      priority: 800
+  wingman_victory_good_shot_gear:
+    l_shot_pilot_gear:
+      color: red
+      fade: 0ms
+      priority: 800
+  wingman_victory_good_shot_rr:
+    l_shot_right_orbit:
+      color: red
+      fade: 0ms
+      priority: 800
+
 ####################################################################################
 # SHOW PLAYER - GI Animations and Mode Insert
 ####################################################################################
@@ -1919,6 +2708,33 @@ show_player:
   ## CLEANUP
   ##############################################
   
+  ##############################################
+  ## VICTORY MODE - JACKPOT FLASH (barrier target)
+  ## Flashes once all 9 shots are collected, cued to collect
+  ## the super jackpot. Stops on collect (relight happens via
+  ## light_player) or on mode cleanup.
+  ## priority: 900 - MUST outrank the CNT good-shot light_player entry
+  ## (priority 800, which sets the barrier red when CNT itself is one of
+  ## the 9 hits and never auto-expires) or the red just sits on top of
+  ## the flash and the barrier never visibly flashes light blue.
+  ##############################################
+  wingman_victory_all_collected:
+    wingman_victory_jackpot_flash:
+      show: sync_flash_mode
+      key: wingman_victory_jackpot_flash
+      priority: 900
+      sync_ms: 500
+      loops: -1
+      show_tokens:
+        led: l_shot_barrier
+        color: lightblue
+
+  wingman_victory_jackpot_hit:
+    stop_wingman_victory_jackpot_flash:
+      show: sync_flash_mode
+      action: stop
+      key: wingman_victory_jackpot_flash
+
   wingman_cleanup:
     stop_wingman_static_gi:
       show: wingman_static_gi
@@ -1936,6 +2752,10 @@ show_player:
       show: sync_flash_mode
       action: stop
       key: wingman_pilot_gear_flash
+    stop_wingman_victory_jackpot_flash_cleanup:
+      show: sync_flash_mode
+      action: stop
+      key: wingman_victory_jackpot_flash
 
 ####################################################################################
 # COIL PLAYER - Left lane post and auto-plunger
