@@ -71,6 +71,19 @@ event_player:
   s_coin_door_service_4_active{machine.service_menu_level==2}: service_coil_fire
   s_coin_door_service_1_active{machine.service_menu_level==2}: service_enter_main_menu
 
+  # FLIPPER/START MIRROR — lets coil test be operated with the coin door
+  # closed (required due to the power interlock cutting high power when
+  # the door is open). Right flipper = next, left flipper = prev, start =
+  # fire. Gated on service_active (not just service_menu_level, which is a
+  # machine var and won't reset on its own) so this can never fire outside
+  # an actual, currently-running service session.
+  s_flipper_right_active{machine.service_active==1 and machine.service_menu_level==2}:
+    - s_coin_door_service_2_active
+  s_flipper_left_active{machine.service_active==1 and machine.service_menu_level==2}:
+    - s_coin_door_service_3_active
+  s_start_active{machine.service_active==1 and machine.service_menu_level==2}:
+    - s_coin_door_service_4_active
+
   service_coil_next:
     - service_update_coil_text
   service_coil_prev:
@@ -400,6 +413,7 @@ event_player:
   service_update_coil_text{machine.service_coil_index==20}: set_coil_20
   service_update_coil_text{machine.service_coil_index==21}: set_coil_21
   service_update_coil_text{machine.service_coil_index==22}: set_coil_22
+  service_update_coil_text{machine.service_coil_index==23}: set_coil_23
 
   # COIL FIRE MAPPING (23 coils)
   service_coil_fire{machine.service_coil_index==0}: fire_coil_0
@@ -427,6 +441,7 @@ event_player:
   service_coil_fire{machine.service_coil_index==20}: fire_coil_20
   service_coil_fire{machine.service_coil_index==21}: fire_coil_21
   service_coil_fire{machine.service_coil_index==22}: fire_coil_22
+  service_coil_fire{machine.service_coil_index==23}: fire_coil_23
 
   # LIGHT TEXT MAPPING (91 lights)
   service_update_light_text{machine.service_light_index==0}: set_light_0
@@ -630,6 +645,21 @@ event_player:
 ##############################################################################
 
 variable_player:
+  # SERVICE MODE ACTIVE FLAG — tracks whether service mode is genuinely
+  # running right now, independent of service_menu_level (which is a
+  # machine var and does NOT reset on its own when service mode exits).
+  # Used to gate the flipper/start coil-test mirroring below so it can
+  # never accidentally activate during real gameplay if service_menu_level
+  # happens to still be sitting at 2 from a previous session.
+  service_mode_entered:
+    service_active:
+      action: set_machine
+      int: 1
+  service_mode_exit:
+    service_active:
+      action: set_machine
+      int: 0
+
   # MENU LEVEL TRACKING
   service_enter_main_menu:
     service_menu_level:
@@ -701,11 +731,11 @@ variable_player:
   service_coil_next:
     service_coil_index:
       action: set_machine
-      int: (machine.service_coil_index + 1) % 23
+      int: (machine.service_coil_index + 1) % 24
   service_coil_prev:
     service_coil_index:
       action: set_machine
-      int: (machine.service_coil_index - 1) % 23
+      int: (machine.service_coil_index - 1) % 24
 
   # LIGHT INDEX NAVIGATION (91 lights: 0-90)
   service_light_next:
@@ -2111,161 +2141,168 @@ variable_player:
       string: "Left Flipper"
     service_coil_num:
       action: set_machine
-      string: "Coil 1/23"
+      string: "Coil 1/24"
   set_coil_1:
     service_coil_name:
       action: set_machine
       string: "Upper Left Flipper"
     service_coil_num:
       action: set_machine
-      string: "Coil 2/23"
+      string: "Coil 2/24"
   set_coil_2:
     service_coil_name:
       action: set_machine
       string: "Right Flipper"
     service_coil_num:
       action: set_machine
-      string: "Coil 3/23"
+      string: "Coil 3/24"
   set_coil_3:
     service_coil_name:
       action: set_machine
       string: "Trough Eject"
     service_coil_num:
       action: set_machine
-      string: "Coil 4/23"
+      string: "Coil 4/24"
   set_coil_4:
     service_coil_name:
       action: set_machine
       string: "Auto Plunger"
     service_coil_num:
       action: set_machine
-      string: "Coil 5/23"
+      string: "Coil 5/24"
   set_coil_5:
     service_coil_name:
       action: set_machine
       string: "Left Slingshot"
     service_coil_num:
       action: set_machine
-      string: "Coil 6/23"
+      string: "Coil 6/24"
   set_coil_6:
     service_coil_name:
       action: set_machine
       string: "Right Slingshot"
     service_coil_num:
       action: set_machine
-      string: "Coil 7/23"
+      string: "Coil 7/24"
   set_coil_7:
     service_coil_name:
       action: set_machine
       string: "Left Pop Bumper"
     service_coil_num:
       action: set_machine
-      string: "Coil 8/23"
+      string: "Coil 8/24"
   set_coil_8:
     service_coil_name:
       action: set_machine
       string: "Right Pop Bumper"
     service_coil_num:
       action: set_machine
-      string: "Coil 9/23"
+      string: "Coil 9/24"
   set_coil_9:
     service_coil_name:
       action: set_machine
       string: "Center Pop Bumper"
     service_coil_num:
       action: set_machine
-      string: "Coil 10/23"
+      string: "Coil 10/24"
   set_coil_10:
     service_coil_name:
       action: set_machine
       string: "Left Lane Up Post"
     service_coil_num:
       action: set_machine
-      string: "Coil 11/23"
+      string: "Coil 11/24"
   set_coil_11:
     service_coil_name:
       action: set_machine
       string: "Left MIG Up Post"
     service_coil_num:
       action: set_machine
-      string: "Coil 12/23"
+      string: "Coil 12/24"
   set_coil_12:
     service_coil_name:
       action: set_machine
       string: "Right MIG Up Post"
     service_coil_num:
       action: set_machine
-      string: "Coil 13/23"
+      string: "Coil 13/24"
   set_coil_13:
     service_coil_name:
       action: set_machine
       string: "Left Orbit Diverter"
     service_coil_num:
       action: set_machine
-      string: "Coil 14/23"
+      string: "Coil 14/24"
   set_coil_14:
     service_coil_name:
       action: set_machine
       string: "Right Orbit Diverter"
     service_coil_num:
       action: set_machine
-      string: "Coil 15/23"
+      string: "Coil 15/24"
   set_coil_15:
     service_coil_name:
       action: set_machine
       string: "Ejection Seat Magnet"
     service_coil_num:
       action: set_machine
-      string: "Coil 16/23"
+      string: "Coil 16/24"
   set_coil_16:
     service_coil_name:
       action: set_machine
       string: "Mode Barrier"
     service_coil_num:
       action: set_machine
-      string: "Coil 17/23"
+      string: "Coil 17/24"
   set_coil_17:
     service_coil_name:
       action: set_machine
       string: "Mode Outkicker"
     service_coil_num:
       action: set_machine
-      string: "Coil 18/23"
+      string: "Coil 18/24"
   set_coil_18:
     service_coil_name:
       action: set_machine
       string: "Not Installed"
     service_coil_num:
       action: set_machine
-      string: "Coil 19/23"
+      string: "Coil 19/24"
   set_coil_19:
     service_coil_name:
       action: set_machine
       string: "Lock Upkicker"
     service_coil_num:
       action: set_machine
-      string: "Coil 20/23"
+      string: "Coil 20/24"
   set_coil_20:
     service_coil_name:
       action: set_machine
       string: "Start Button LED"
     service_coil_num:
       action: set_machine
-      string: "Coil 21/23"
+      string: "Coil 21/24"
   set_coil_21:
     service_coil_name:
       action: set_machine
       string: "Coin Door LED"
     service_coil_num:
       action: set_machine
-      string: "Coil 22/23"
+      string: "Coil 22/24"
   set_coil_22:
     service_coil_name:
       action: set_machine
       string: "Right Lane Post"
     service_coil_num:
       action: set_machine
-      string: "Coil 23/23"
+      string: "Coil 23/24"
+  set_coil_23:
+    service_coil_name:
+      action: set_machine
+      string: "Ejection Seat Guard"
+    service_coil_num:
+      action: set_machine
+      string: "Coil 24/24"
 
   # LIGHT TEXT SETTERS (91 lights)
   set_light_0:
@@ -3098,6 +3135,9 @@ coil_player:
       action: pulse
   fire_coil_22:
     c_right_lane_post:
+      action: pulse
+  fire_coil_23:
+    c_ejection_seat_guard:
       action: pulse
 
 ##############################################################################

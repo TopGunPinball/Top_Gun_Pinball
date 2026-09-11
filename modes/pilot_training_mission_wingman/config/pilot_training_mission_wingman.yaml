@@ -751,18 +751,10 @@ variable_player:
   ## ADD-A-BALL TRACKING
   ##############################################
   
-  wingman_add_a_ball_qualified:
-    wingman_add_a_ball_ready:
-      action: set
-      int: 1
-
   wingman_add_a_ball:
     wingman_balls_in_play:
       action: add
       int: 1
-    wingman_add_a_ball_ready:
-      action: set
-      int: 0
 
   ##############################################
   ## CLEANUP - Clear perk slide (perk is ball-only)
@@ -1499,13 +1491,9 @@ event_player:
   s_n_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==0 and current_player.wingman_mode_active==1}:
     - wingman_iceman_complete
 
-  # Add-a-ball QUALIFIED on 1st ICEMAN completion only (max 3 balls)
-  # Lights pilot gear target flashing orange - player must hit it to collect
+  # Add-a-ball fires directly on 1st ICEMAN completion (max 3 balls) —
+  # no confirming shot needed anymore
   player_wingman_iceman_completions{value==1 and current_player.wingman_balls_in_play<3}:
-    - wingman_add_a_ball_qualified
-
-  # Pilot gear target hit while add-a-ball is ready → collect add-a-ball
-  s_flight_gear_target_active{current_player.wingman_add_a_ball_ready==1 and current_player.wingman_mode_active==1}:
     - wingman_add_a_ball
 
   ##############################################
@@ -2683,26 +2671,6 @@ show_player:
       show: wingman_iceman_complete_flash
       action: stop
       key: wingman_iceman_celebration
-
-  ##############################################
-  ## ADD-A-BALL PILOT GEAR TARGET (flashing orange)
-  ##############################################
-
-  wingman_add_a_ball_qualified:
-    wingman_pilot_gear_flash:
-      show: sync_flash_mode
-      key: wingman_pilot_gear_flash
-      sync_ms: 500
-      loops: -1
-      show_tokens:
-        led: l_shot_pilot_gear
-        color: FFA500
-
-  wingman_add_a_ball:
-    stop_wingman_pilot_gear_flash:
-      show: sync_flash_mode
-      action: stop
-      key: wingman_pilot_gear_flash
 
   ##############################################
   ## CLEANUP

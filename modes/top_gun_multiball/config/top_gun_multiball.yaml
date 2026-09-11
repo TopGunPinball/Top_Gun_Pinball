@@ -447,7 +447,10 @@ variable_player:
     mb_iceman_completions:
       action: set
       int: 0
-    mb_add_a_ball_ready:
+    mb_ice_fill_count:
+      action: set
+      int: 0
+    mb_man_fill_count:
       action: set
       int: 0
     mb_add_a_balls_used:
@@ -959,29 +962,83 @@ variable_player:
 
   ##############################################
   ## ICEMAN ADD-A-BALL LETTER COLLECTION
-  ## Only collects when: add-a-ball not ready AND fewer than 2 used
+  ## ROUND 1 (completions==0, forgiving): any hit to I/C/E fills whichever
+  ## of I/C/E is earliest still uncollected, in fixed I->C->E order. Same
+  ## independent rule for M/A/N. Routed through shared intermediate events
+  ## (mb_ice_hit_r1 / mb_man_hit_r1).
+  ##
+  ## Uses a counter (mb_ice_fill_count / mb_man_fill_count) instead of
+  ## chained i==0/i==1-and-c==0/etc conditions on the raw hit event — MPF
+  ## evaluates multiple handlers on the same event sequentially against
+  ## LIVE state, so the first block's "set i=1" was already visible to the
+  ## second block's condition within the same event dispatch, cascading
+  ## through and filling all 3 from a single hit. The counter's own
+  ## derived value-change event (player_X{value==N}) fires deterministically
+  ## exactly once per genuine transition, so only one letter is ever set.
   ##############################################
-  s_i_iceman_target_active{current_player.mb_iceman_i==0 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+  mb_ice_hit_r1{current_player.mb_ice_fill_count<3}:
+    mb_ice_fill_count:
+      action: add
+      int: 1
+
+  mb_man_hit_r1{current_player.mb_man_fill_count<3}:
+    mb_man_fill_count:
+      action: add
+      int: 1
+
+  # Counter's own value-change event fires exactly once per genuine
+  # transition — no cascade risk, unlike chaining conditions on the raw hit.
+  player_mb_ice_fill_count{value==1}:
     mb_iceman_i:
       action: set
       int: 1
-  s_c_iceman_target_active{current_player.mb_iceman_c==0 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+  player_mb_ice_fill_count{value==2}:
     mb_iceman_c:
       action: set
       int: 1
-  s_e_iceman_target_active{current_player.mb_iceman_e==0 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+  player_mb_ice_fill_count{value==3}:
     mb_iceman_e:
       action: set
       int: 1
-  s_m_iceman_target_active{current_player.mb_iceman_m==0 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+
+  player_mb_man_fill_count{value==1}:
     mb_iceman_m:
       action: set
       int: 1
-  s_a_iceman_target_active{current_player.mb_iceman_a==0 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+  player_mb_man_fill_count{value==2}:
     mb_iceman_a:
       action: set
       int: 1
-  s_n_iceman_target_active{current_player.mb_iceman_n==0 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+  player_mb_man_fill_count{value==3}:
+    mb_iceman_n:
+      action: set
+      int: 1
+
+  ##############################################
+  ## ROUND 2 (completions>=1, strict): exact match only, no free awards —
+  ## same direct 1:1 mapping as the original design.
+  ##############################################
+  s_i_iceman_target_active{current_player.mb_iceman_completions>=1 and current_player.mb_iceman_i==0 and current_player.mb_add_a_balls_used<2}:
+    mb_iceman_i:
+      action: set
+      int: 1
+  s_c_iceman_target_active{current_player.mb_iceman_completions>=1 and current_player.mb_iceman_c==0 and current_player.mb_add_a_balls_used<2}:
+    mb_iceman_c:
+      action: set
+      int: 1
+  s_e_iceman_target_active{current_player.mb_iceman_completions>=1 and current_player.mb_iceman_e==0 and current_player.mb_add_a_balls_used<2}:
+    mb_iceman_e:
+      action: set
+      int: 1
+  s_m_iceman_target_active{current_player.mb_iceman_completions>=1 and current_player.mb_iceman_m==0 and current_player.mb_add_a_balls_used<2}:
+    mb_iceman_m:
+      action: set
+      int: 1
+  s_a_iceman_target_active{current_player.mb_iceman_completions>=1 and current_player.mb_iceman_a==0 and current_player.mb_add_a_balls_used<2}:
+    mb_iceman_a:
+      action: set
+      int: 1
+  s_n_iceman_target_active{current_player.mb_iceman_completions>=1 and current_player.mb_iceman_n==0 and current_player.mb_add_a_balls_used<2}:
     mb_iceman_n:
       action: set
       int: 1
@@ -1013,18 +1070,15 @@ variable_player:
     mb_iceman_n:
       action: set
       int: 0
-
-  # Add-a-ball QUALIFIED (completions 1 and 3 only): set ready flag
-  mb_add_a_ball_qualified:
-    mb_add_a_ball_ready:
-      action: set
-      int: 1
-
-  # Add-a-ball activated: clear ready flag, increment used, reset letters
-  mb_add_a_ball_activate:
-    mb_add_a_ball_ready:
+    mb_ice_fill_count:
       action: set
       int: 0
+    mb_man_fill_count:
+      action: set
+      int: 0
+
+  # Add-a-ball activated: increment used, reset letters
+  mb_add_a_ball_activate:
     mb_add_a_balls_used:
       action: add
       int: 1
@@ -1044,6 +1098,12 @@ variable_player:
       action: set
       int: 0
     mb_iceman_n:
+      action: set
+      int: 0
+    mb_ice_fill_count:
+      action: set
+      int: 0
+    mb_man_fill_count:
       action: set
       int: 0
 
@@ -1256,28 +1316,48 @@ event_player:
   timer_mb_intro_instructions_delay_complete:
     - mb_play_intro_instructions
 
+  # ===== ROUND 1 (completions==0): route any ICE/MAN hit to the shared
+  # fill-next-slot logic (see variable_player) =====
+  s_i_iceman_target_active{current_player.mb_iceman_completions==0 and current_player.mb_add_a_balls_used<2}:
+    - mb_ice_hit_r1
+  s_c_iceman_target_active{current_player.mb_iceman_completions==0 and current_player.mb_add_a_balls_used<2}:
+    - mb_ice_hit_r1
+  s_e_iceman_target_active{current_player.mb_iceman_completions==0 and current_player.mb_add_a_balls_used<2}:
+    - mb_ice_hit_r1
+  s_m_iceman_target_active{current_player.mb_iceman_completions==0 and current_player.mb_add_a_balls_used<2}:
+    - mb_man_hit_r1
+  s_a_iceman_target_active{current_player.mb_iceman_completions==0 and current_player.mb_add_a_balls_used<2}:
+    - mb_man_hit_r1
+  s_n_iceman_target_active{current_player.mb_iceman_completions==0 and current_player.mb_add_a_balls_used<2}:
+    - mb_man_hit_r1
+
   # ===== ICEMAN ADD-A-BALL COMPLETION CHECK =====
-  # Each letter check: the letter being hit is 0, other 5 must be 1
-  s_i_iceman_target_active{current_player.mb_iceman_i==0 and current_player.mb_iceman_c==1 and current_player.mb_iceman_e==1 and current_player.mb_iceman_m==1 and current_player.mb_iceman_a==1 and current_player.mb_iceman_n==1 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+  # Keyed off the VALUE-CHANGE event (fires only when a letter actually
+  # flips 0->1) rather than the raw switch — this works correctly for both
+  # rounds regardless of whether the letter was set by Round 1's group-fill
+  # logic or Round 2's exact-match hit, since it just checks "did this
+  # letter just become the 6th one lit" rather than "was this specific
+  # physical target the completing hit."
+  player_mb_iceman_i{value==1 and current_player.mb_iceman_c==1 and current_player.mb_iceman_e==1 and current_player.mb_iceman_m==1 and current_player.mb_iceman_a==1 and current_player.mb_iceman_n==1 and current_player.mb_add_a_balls_used<2}:
     - mb_iceman_complete
-  s_c_iceman_target_active{current_player.mb_iceman_i==1 and current_player.mb_iceman_c==0 and current_player.mb_iceman_e==1 and current_player.mb_iceman_m==1 and current_player.mb_iceman_a==1 and current_player.mb_iceman_n==1 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+  player_mb_iceman_c{value==1 and current_player.mb_iceman_i==1 and current_player.mb_iceman_e==1 and current_player.mb_iceman_m==1 and current_player.mb_iceman_a==1 and current_player.mb_iceman_n==1 and current_player.mb_add_a_balls_used<2}:
     - mb_iceman_complete
-  s_e_iceman_target_active{current_player.mb_iceman_i==1 and current_player.mb_iceman_c==1 and current_player.mb_iceman_e==0 and current_player.mb_iceman_m==1 and current_player.mb_iceman_a==1 and current_player.mb_iceman_n==1 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+  player_mb_iceman_e{value==1 and current_player.mb_iceman_i==1 and current_player.mb_iceman_c==1 and current_player.mb_iceman_m==1 and current_player.mb_iceman_a==1 and current_player.mb_iceman_n==1 and current_player.mb_add_a_balls_used<2}:
     - mb_iceman_complete
-  s_m_iceman_target_active{current_player.mb_iceman_i==1 and current_player.mb_iceman_c==1 and current_player.mb_iceman_e==1 and current_player.mb_iceman_m==0 and current_player.mb_iceman_a==1 and current_player.mb_iceman_n==1 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+  player_mb_iceman_m{value==1 and current_player.mb_iceman_i==1 and current_player.mb_iceman_c==1 and current_player.mb_iceman_e==1 and current_player.mb_iceman_a==1 and current_player.mb_iceman_n==1 and current_player.mb_add_a_balls_used<2}:
     - mb_iceman_complete
-  s_a_iceman_target_active{current_player.mb_iceman_i==1 and current_player.mb_iceman_c==1 and current_player.mb_iceman_e==1 and current_player.mb_iceman_m==1 and current_player.mb_iceman_a==0 and current_player.mb_iceman_n==1 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+  player_mb_iceman_a{value==1 and current_player.mb_iceman_i==1 and current_player.mb_iceman_c==1 and current_player.mb_iceman_e==1 and current_player.mb_iceman_m==1 and current_player.mb_iceman_n==1 and current_player.mb_add_a_balls_used<2}:
     - mb_iceman_complete
-  s_n_iceman_target_active{current_player.mb_iceman_i==1 and current_player.mb_iceman_c==1 and current_player.mb_iceman_e==1 and current_player.mb_iceman_m==1 and current_player.mb_iceman_a==1 and current_player.mb_iceman_n==0 and current_player.mb_add_a_ball_ready==0 and current_player.mb_add_a_balls_used<2}:
+  player_mb_iceman_n{value==1 and current_player.mb_iceman_i==1 and current_player.mb_iceman_c==1 and current_player.mb_iceman_e==1 and current_player.mb_iceman_m==1 and current_player.mb_iceman_a==1 and current_player.mb_add_a_balls_used<2}:
     - mb_iceman_complete
 
   # ===== ICEMAN COMPLETION GRANTS ADD-A-BALL IMMEDIATELY =====
-  # On completions 1 and 3, completing ICEMAN fires mb_add_a_ball_activate
-  # directly (no gear target hit required). Uses player variable change event
-  # which fires AFTER mb_iceman_complete increments the count.
+  # Completion 1 (Round 1, forgiving) and completion 2 (Round 2, strict)
+  # each grant one add-a-ball. Uses player variable change event which
+  # fires AFTER mb_iceman_complete increments the count.
   player_mb_iceman_completions{value==1}:
     - mb_add_a_ball_activate
-  player_mb_iceman_completions{value==3}:
+  player_mb_iceman_completions{value==2}:
     - mb_add_a_ball_activate
 
   # ICEMAN celebration timer complete: reset lights when add-a-balls remain

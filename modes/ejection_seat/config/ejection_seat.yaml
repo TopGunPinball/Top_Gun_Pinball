@@ -27,10 +27,16 @@
 ##   - ejection_activation_delay: end_value = 750ms (time for ball to reach magnet)
 ##   - ejection_flipper_window: end_value = 5 seconds
 ##   - ejection_fling_drop_delay: end_value = 200ms (time for ball to drop)
-##   - ejection_fling_pull_duration: end_value = 125ms (brief magnet pull)
+##   - ejection_fling_pull_duration: end_value = 125ms (this timer now just
+##     schedules the ejection_fling_release safety-disable; the actual kick
+##     is entirely controlled by pulse_ms below, which self-terminates)
 ##
 ## POWER (in coil_player section):
-##   - ejection_fling_pull: hold_power = 0.75 (pull strength)
+##   - ejection_fling_pull: pulse_power = 1.0, pulse_ms = 50 (brief high-
+##     current PULSE, not a sustained hold — hold_power was already raised
+##     to its 0.9 safety ceiling with insufficient fling strength; pulse
+##     mode delivers much higher instantaneous current for a short burst,
+##     which the coil already supported but the fling never actually used)
 ##
 ##############################################################################
 
@@ -112,11 +118,22 @@ timers:
       - event: ejection_failed
         action: stop
 
+  # GUARD: 250ms after the fling process finishes, before disengaging —
+  # gives the ball time to clear the area before the guard opens
+  ejection_guard_release_delay:
+    start_value: 0
+    end_value: 250
+    direction: up
+    tick_interval: 1ms
+    control_events:
+      - event: ejection_guard_release_start
+        action: start
+
   # FLING STEP 1: Time for ball to drop away from magnet
   # TUNABLE: Increase if ball gets re-caught, decrease if fling is weak
   ejection_fling_drop_delay:
     start_value: 0
-    end_value: 200
+    end_value: 250
     direction: up
     tick_interval: 1ms
     control_events:
@@ -127,7 +144,7 @@ timers:
   # TUNABLE: Increase for stronger fling, decrease if ball gets stuck
   ejection_fling_pull_duration:
     start_value: 0
-    end_value: 18
+    end_value: 30
     direction: up
     tick_interval: 1ms
     control_events:
@@ -199,9 +216,11 @@ event_player:
   s_flipper_right_active{device.timers.ejection_flipper_window.running}:
     - ejection_check_flippers
 
-  # If both flippers are held, start fling sequence
+  # If both flippers are held: engage guard immediately, delay fling start
+  # by 250ms to give the guard time to physically close and capture the ball
   ejection_check_flippers{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
-    - ejection_fling_started
+    - ejection_guard_engage
+    - ejection_fling_started|250ms
 
   # FLING SEQUENCE:
   # Step 1: ejection_fling_started → Magnet OFF (ball drops) - handled in coil_player
@@ -214,6 +233,11 @@ event_player:
   timer_ejection_fling_pull_duration_complete:
     - ejection_fling_release
     - ejection_success
+    - ejection_guard_release_start
+
+  # GUARD: disengage 250ms after the fling process ends
+  timer_ejection_guard_release_delay_complete:
+    - ejection_guard_disengage
 
   # Flipper window expired without both flippers - failure
   timer_ejection_flipper_window_complete:
@@ -292,36 +316,60 @@ coil_player:
     c_ejection_seat_magnet:
       action: disable
 
-  # FLING STEP 2: Briefly enable magnet (pulls ball, gives momentum)
-  # Using higher power for stronger pull
+  # FLING STEP 2: Brief PULSE (not sustained hold) — pulse mode delivers much
+  # higher instantaneous current than hold mode for a short burst, which is
+  # what a real fling needs. hold_power was already raised to its 0.9 safety
+  # ceiling with insufficient result — pulse is the lever that was never
+  # actually tried. Starting at 50ms as a middle ground between the coil's
+  # tiny 15ms default and the 100ms safety cap — tune from here.
   ejection_fling_pull:
     c_ejection_seat_magnet:
-      action: enable
-      hold_power: 0.9
+      action: pulse
+      pulse_ms: 35
+      pulse_power: 1
 
   # FLING STEP 3: Disable magnet (ball continues with momentum)
   ejection_fling_release:
     c_ejection_seat_magnet:
       action: disable
 
+  # GUARD: engage and hold when both flippers pressed (captures the ball
+  # before the fling sequence begins)
+  ejection_guard_engage:
+    c_ejection_seat_guard:
+      action: enable
+
+  # GUARD: disengage 250ms after the fling process ends
+  ejection_guard_disengage:
+    c_ejection_seat_guard:
+      action: disable
+
   # SAFETY: Ensure magnet is off on success (belt and suspenders)
   ejection_success:
     c_ejection_seat_magnet:
+      action: disable
+    c_ejection_seat_guard:
       action: disable
 
   # SAFETY: Ensure magnet is off on failure
   ejection_failed:
     c_ejection_seat_magnet:
       action: disable
+    c_ejection_seat_guard:
+      action: disable
 
   # SAFETY: Ensure magnet is off when mode stops
   mode_ejection_seat_stopped:
     c_ejection_seat_magnet:
       action: disable
+    c_ejection_seat_guard:
+      action: disable
 
   # SAFETY: Ensure magnet is off if safety timeout triggers
   ejection_safety_triggered:
     c_ejection_seat_magnet:
+      action: disable
+    c_ejection_seat_guard:
       action: disable
 
 ##############################################################################
