@@ -24,6 +24,10 @@
 #   - Flash speed = time_remaining * 100ms (faster as time runs out)
 #   - Last 2 seconds: light OFF (grace period feel)
 #
+# >>> To change the standard MODE ball save duration used by all pilot
+#     missions, see the "mode_ball_save_countdown" timer at the top of the
+#     TIMERS section immediately below (single start_value, currently 10s). <<<
+#
 ##############################################################################
 
 mode:
@@ -35,7 +39,36 @@ mode:
 # TIMERS
 ##############################################################################
 timers:
-  # Main ball save countdown timer (10 seconds for new ball save)
+  ##############################################################################
+  # ⚙️  STANDARD MODE BALL SAVE DURATION — CHANGE HERE ONLY  ⚙️
+  # ──────────────────────────────────────────────────────────────────────────
+  # This ONE number (start_value below) controls the ball save duration for
+  # EVERY mode in the game that fires the plain "ball_save_mode_timer_start"
+  # event. To change the standard save time across all 25+ modes, edit the
+  # start_value on the line below — nothing else needs to change.
+  #
+  # Mode-side usage (this is the entire integration — one line):
+  #   event_player:
+  #     xxx_ball_released:
+  #       - ball_save_mode_timer_start
+  #
+  # NOTE: There is no per-mode override anymore — posting the event with a
+  # 'time:' parameter no longer has any effect. If a specific mode ever needs
+  # a genuinely different duration than the shared standard, that requires a
+  # config change here (a second timer/device), not just an event parameter.
+  ##############################################################################
+  mode_ball_save_countdown:
+    start_value: 10                # <-- THE SINGLE SOURCE OF TRUTH. Change duration here.
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    control_events:
+      - event: ball_save_mode_timer_start
+        action: restart             # Resets to start_value above. No 'value:' override.
+      - event: ball_save_mode_ball_save_disabled
+        action: stop
+
+  # Main ball save countdown timer (20 seconds for new ball save)
   # IMPORTANT: MPF ball_saves device event format is ball_save_<device_name>_<event>
   # So for device "new_ball_save", events are ball_save_new_ball_save_enabled, etc.
   ball_save_countdown:
@@ -47,22 +80,6 @@ timers:
       - event: ball_save_new_ball_save_timer_start
         action: restart
       - event: ball_save_new_ball_save_disabled
-        action: stop
-
-  # Mode ball save countdown timer
-  # Duration is set via the 'time' parameter in ball_save_mode_timer_start event
-  # Example: ball_save_mode_timer_start with time: 15 sets 15 second save
-  # NOTE: Timer does NOT stop when ball is saved - continues for full duration
-  mode_ball_save_countdown:
-    start_value: 30               # Default 30s; overridden by 'time' param on ball_save_mode_timer_start
-    end_value: 0
-    direction: down
-    tick_interval: 1s
-    control_events:
-      - event: ball_save_mode_timer_start
-        action: restart
-        value: time               # Uses 'time' parameter from event
-      - event: ball_save_mode_save_disabled
         action: stop
 
   # Scoop eject safety save countdown (5 seconds)
@@ -150,9 +167,24 @@ event_player:
   ##############################################################################
   # Mode ball save is enabled automatically when ball_save_mode_timer_start event is posted
   # (see ball_saves config - enable_events: ball_save_mode_timer_start)
-  
-  # When mode ball save is triggered - ball is auto-launched by MPF
-  # ball_save_mode_save_saving_ball event fires but ball save stays active
+
+  # When mode ball save catches a drain, play the same ball_saved / _2 / _3
+  # scene routing as new_ball_save, sharing the same consecutive-save counter
+  # and 20s window (see CONSECUTIVE BALL SAVE VIDEO ROUTING above). Ball
+  # save stays active afterward — MPF's balls_to_save: -1 means it keeps
+  # running for the rest of the timer, unlike scoop_eject_save's single use.
+  ball_save_mode_ball_save_saving_ball{current_player.consecutive_ball_saves==0}:
+    - ball_saved_scene_play
+    - consecutive_save_window_start
+    - consecutive_save_did_count
+
+  ball_save_mode_ball_save_saving_ball{current_player.consecutive_ball_saves==1}:
+    - ball_saved_2_scene_play
+    - consecutive_save_did_count
+
+  ball_save_mode_ball_save_saving_ball{current_player.consecutive_ball_saves==2}:
+    - ball_saved_3_scene_play
+    - consecutive_save_reset
 
   ##############################################################################
   # NEW BALL SAVE LIGHT FLASH - Based on timer value (10 second duration)
@@ -213,21 +245,28 @@ event_player:
   ##############################################################################
   # SCOOP EJECT SAVE LIGHT FLASH - 5 second duration
   # Starts medium, speeds up, grace period at end
+  #
+  # PRIORITY: mode_ball_save always wins the shared flash display over
+  # scoop_eject_save when both are active (mode save is the "real" one the
+  # player cares about; scoop save is just a silent safety net). Every rule
+  # below is gated with device.ball_saves.mode_ball_save.enabled==False so
+  # scoop's ticks (including its own grace-period "off") never clobber a
+  # concurrently-running mode save's flash.
   ##############################################################################
   # 5-4 seconds: Medium flash
-  timer_scoop_save_countdown_tick{ticks>=4}:
+  timer_scoop_save_countdown_tick{ticks>=4 and device.ball_saves.mode_ball_save.enabled==False}:
     - ball_save_flash_medium
 
   # 3 seconds: Fast flash
-  timer_scoop_save_countdown_tick{ticks>=3 and ticks<4}:
+  timer_scoop_save_countdown_tick{ticks>=3 and ticks<4 and device.ball_saves.mode_ball_save.enabled==False}:
     - ball_save_flash_fast
 
   # 2-0 seconds: Light OFF (grace period)
-  timer_scoop_save_countdown_tick{ticks<3}:
+  timer_scoop_save_countdown_tick{ticks<3 and device.ball_saves.mode_ball_save.enabled==False}:
     - ball_save_flash_off
 
-  # Timer complete - stop light
-  timer_scoop_save_countdown_complete:
+  # Timer complete - stop light (only if mode save isn't still running)
+  timer_scoop_save_countdown_complete{device.ball_saves.mode_ball_save.enabled==False}:
     - ball_save_flash_stop
 
 ##############################################################################
@@ -276,36 +315,46 @@ variable_player:
       action: set
       int: 0
 
+  ##############################################################################
+  # ball_save_active is a COUNT of currently-active save devices, not a flag.
+  # Reason: multiple saves (e.g. scoop_eject_save + mode_ball_save) run
+  # concurrently and finish at different times. If each device unconditionally
+  # SET this to 0 on its own disable, whichever save happened to finish first
+  # would incorrectly zero it out while a longer save was still running (this
+  # is exactly what happened before this fix — scoop_eject_save's 5s disable
+  # was clobbering mode_ball_save's still-active 10s window). Using add/-1
+  # instead of set means it only reaches 0 when the LAST active save ends.
+  ##############################################################################
   # MPF event format: ball_save_<device_name>_enabled/disabled
   ball_save_new_ball_save_enabled:
     ball_save_active:
-      action: set
+      action: add
       int: 1
   
   ball_save_new_ball_save_disabled:
     ball_save_active:
-      action: set
-      int: 0
+      action: add
+      int: -1
   
-  ball_save_mode_save_enabled:
+  ball_save_mode_ball_save_enabled:
     ball_save_active:
-      action: set
+      action: add
       int: 1
   
-  ball_save_mode_save_disabled:
+  ball_save_mode_ball_save_disabled:
     ball_save_active:
-      action: set
-      int: 0
+      action: add
+      int: -1
 
   ball_save_scoop_eject_save_enabled:
     ball_save_active:
-      action: set
+      action: add
       int: 1
 
   ball_save_scoop_eject_save_disabled:
     ball_save_active:
-      action: set
-      int: 0
+      action: add
+      int: -1
   
   # Set flag when ball is saved (for skillshot mode to check)
   # This prevents skillshot from showing when a saved ball returns to shooter lane
@@ -314,7 +363,7 @@ variable_player:
       action: set
       int: 1
   
-  ball_save_mode_save_saving_ball:
+  ball_save_mode_ball_save_saving_ball:
     ball_just_saved:
       action: set
       int: 1
@@ -383,7 +432,9 @@ show_player:
         color: white
 
   # Initial flash when SCOOP EJECT save starts (medium - only 5 seconds)
-  ball_save_scoop_eject_save_timer_start:
+  # Suppressed if mode_ball_save is already running — mode save has priority
+  # (see priority note in the SCOOP EJECT SAVE LIGHT FLASH section below)
+  ball_save_scoop_eject_save_timer_start{device.ball_saves.mode_ball_save.enabled==False}:
     ball_save_flash_show:
       key: ball_save_flash
       speed: 2                    # Start at medium (500ms cycle)
@@ -444,13 +495,13 @@ show_player:
       key: ball_save_flash
       action: stop
   
-  # Mode ball save continues - flash keeps going (don't stop on save)
-  ball_save_scoop_eject_save_saving_ball:
+  # Scoop eject save's own single-use net just caught a ball — stop the
+  # flash UNLESS mode_ball_save is still running concurrently, in which case
+  # mode save has priority and must keep its own flash going uninterrupted.
+  ball_save_scoop_eject_save_saving_ball{device.ball_saves.mode_ball_save.enabled==False}:
     ball_save_flash_show:
       key: ball_save_flash
       action: stop
-  
-  # Mode ball save continues - flash keeps going (don't stop on save)
 
 ##############################################################################
 # LIGHT PLAYER - Ensure light is off when mode stops

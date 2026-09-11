@@ -6,7 +6,7 @@
 # A multiball training mission with reversed flipper controls.
 # 
 # THEME: Reversed flippers (left button = right flipper, right button = left flippers)
-# BALLS: 2 balls at start, up to 4 with add-a-balls
+# BALLS: 4 balls at start, up to 6 with add-a-balls
 # GI: Red (even lights) and White (odd lights), flickers on switch hits during collection
 # INSERT COLOR: Red (l_mode_inverted)
 # PERK: Earned when step 6 jackpot collected, stays active for rest of ball
@@ -22,22 +22,26 @@
 # Step 8: Jackpot at CNT target
 # Step 9: Super jackpot at LL (sum of 4 jackpots), then restart at step 1
 #
-# MODE SHOTS: Bouncing shot (LO→LR→SP→TWR→TL→TR→RR→back)
+# MODE SHOTS: All-shots-lit progressive (LO, LR, SP, TWR, TL, TR, RR all lit
+# together)
 # - Only active during switch collection steps (1, 3, 5, 7)
-# - Moves every 10 seconds
-# - Progressive scoring: starts at 150,000, +50,000 per hit
+# - Each shot scores, then goes dark until either: all 7 have been hit, or
+#   the CNT jackpot is collected (both relight all 7)
+# - Progressive scoring: starts at 150,000, +50,000 per hit, never resets
 #
 # ADD-A-BALL: ICEMAN letters (cleared at mode start/end)
 # - 1st completion: Add a ball
 # - 3rd completion: Add another ball
-# - Max 4 balls in play
+# - Max 6 balls in play (4 base + 2 add-a-balls)
 #
-# BALL SAVE: 15 seconds for initial launch and all add-a-balls
+# BALL SAVE: 15 seconds for initial launch and all add-a-balls. Additionally,
+# the global scoop_eject_save (config_ball_saves.yaml) is triggered when the
+# multiball drops to its last ball, giving the player a window to get back
+# to normal flippers without losing that ball.
 #
 # Adjustable Timing Values:
 # - Intro video delay: 5 seconds (line ~135)
 # - Ball save duration: 15 seconds (line ~80)
-# - Mode shot timer: 10 seconds (line ~145)
 # - Barrier raise delay: 2 seconds (line ~155)
 ####################################################################################
 
@@ -64,7 +68,7 @@ mode_settings:
 
 multiballs:
   inverted_multiball:
-    ball_count: 2
+    ball_count: 4
     ball_count_type: total
     shoot_again: 15s
     start_events: pilot_training_mission_inverted_start_multiball
@@ -109,18 +113,6 @@ timers:
       - event: mode_pilot_training_mission_inverted_started
         action: start
       - event: pilot_training_mission_inverted_skip_intro
-        action: stop
-
-  # Mode shot movement timer - 10 seconds
-  inverted_mode_shot_timer:
-    start_value: 0
-    end_value: 10
-    direction: up
-    tick_interval: 1s
-    control_events:
-      - event: pilot_training_mission_inverted_start_mode_shot_timer
-        action: restart
-      - event: pilot_training_mission_inverted_stop_mode_shot_timer
         action: stop
 
   # Barrier raise delay - 2 seconds after ball eject
@@ -253,14 +245,31 @@ variable_player:
       action: set
       int: 0
     
-    # Mode shot tracking
+    # Mode shot tracking - progressive value, escalates every hit, never resets
     pilot_training_mission_inverted_mode_shot_value:
       action: set
       int: 150000
-    pilot_training_mission_inverted_mode_shot_index:
+
+    # All-shots-lit progressive - each of the 7 main shots starts lit
+    pilot_training_mission_inverted_shot_lo_lit:
       action: set
-      int: 0
-    pilot_training_mission_inverted_mode_shot_direction:
+      int: 1
+    pilot_training_mission_inverted_shot_lr_lit:
+      action: set
+      int: 1
+    pilot_training_mission_inverted_shot_sp_lit:
+      action: set
+      int: 1
+    pilot_training_mission_inverted_shot_twr_lit:
+      action: set
+      int: 1
+    pilot_training_mission_inverted_shot_tl_lit:
+      action: set
+      int: 1
+    pilot_training_mission_inverted_shot_tr_lit:
+      action: set
+      int: 1
+    pilot_training_mission_inverted_shot_rr_lit:
       action: set
       int: 1
     
@@ -295,7 +304,7 @@ variable_player:
     # Ball tracking
     pilot_training_mission_inverted_balls_in_play:
       action: set
-      int: 2
+      int: 4
     
     # Mode points display variable
     mode_points_scored:
@@ -3195,6 +3204,12 @@ variable_player:
       action: set
       int: 0
 
+  # Track actual balls added so the <6 ceiling check above is meaningful
+  pilot_training_mission_inverted_add_a_ball:
+    pilot_training_mission_inverted_balls_in_play:
+      action: add
+      int: 1
+
   ##############################################
   ## STEP TRANSITIONS
   ##############################################
@@ -3335,37 +3350,62 @@ variable_player:
       int: 10000
 
   ##############################################
-  ## MODE SHOT INDEX MOVEMENT
+  ## ALL-SHOTS-LIT PROGRESSIVE - clear/relight flags
   ##############################################
-  
-  # Move shot forward (direction = 1)
-  pilot_training_mission_inverted_move_shot_forward{current_player.pilot_training_mission_inverted_mode_shot_index < 6}:
-    pilot_training_mission_inverted_mode_shot_index:
-      action: add
-      int: 1
 
-  # Hit end, reverse direction
-  pilot_training_mission_inverted_move_shot_forward{current_player.pilot_training_mission_inverted_mode_shot_index == 6}:
-    pilot_training_mission_inverted_mode_shot_direction:
+  # A shot was hit - turn its own lit flag off
+  pilot_training_mission_inverted_shot_lo_cleared:
+    pilot_training_mission_inverted_shot_lo_lit:
       action: set
-      int: -1
-    pilot_training_mission_inverted_mode_shot_index:
-      action: add
-      int: -1
+      int: 0
+  pilot_training_mission_inverted_shot_lr_cleared:
+    pilot_training_mission_inverted_shot_lr_lit:
+      action: set
+      int: 0
+  pilot_training_mission_inverted_shot_sp_cleared:
+    pilot_training_mission_inverted_shot_sp_lit:
+      action: set
+      int: 0
+  pilot_training_mission_inverted_shot_twr_cleared:
+    pilot_training_mission_inverted_shot_twr_lit:
+      action: set
+      int: 0
+  pilot_training_mission_inverted_shot_tl_cleared:
+    pilot_training_mission_inverted_shot_tl_lit:
+      action: set
+      int: 0
+  pilot_training_mission_inverted_shot_tr_cleared:
+    pilot_training_mission_inverted_shot_tr_lit:
+      action: set
+      int: 0
+  pilot_training_mission_inverted_shot_rr_cleared:
+    pilot_training_mission_inverted_shot_rr_lit:
+      action: set
+      int: 0
 
-  # Move shot backward (direction = -1)
-  pilot_training_mission_inverted_move_shot_backward{current_player.pilot_training_mission_inverted_mode_shot_index > 0}:
-    pilot_training_mission_inverted_mode_shot_index:
-      action: add
-      int: -1
-
-  # Hit start, reverse direction
-  pilot_training_mission_inverted_move_shot_backward{current_player.pilot_training_mission_inverted_mode_shot_index == 0}:
-    pilot_training_mission_inverted_mode_shot_direction:
+  # Relight all 7 shots - fired on entering a new collection step, on the
+  # CNT jackpot being collected, and whenever all 7 have been cleared
+  pilot_training_mission_inverted_light_all_shots:
+    pilot_training_mission_inverted_shot_lo_lit:
       action: set
       int: 1
-    pilot_training_mission_inverted_mode_shot_index:
-      action: add
+    pilot_training_mission_inverted_shot_lr_lit:
+      action: set
+      int: 1
+    pilot_training_mission_inverted_shot_sp_lit:
+      action: set
+      int: 1
+    pilot_training_mission_inverted_shot_twr_lit:
+      action: set
+      int: 1
+    pilot_training_mission_inverted_shot_tl_lit:
+      action: set
+      int: 1
+    pilot_training_mission_inverted_shot_tr_lit:
+      action: set
+      int: 1
+    pilot_training_mission_inverted_shot_rr_lit:
+      action: set
       int: 1
 
   ##############################################
@@ -3420,14 +3460,13 @@ event_player:
   # Setup Step 1 - Start switch collection
   pilot_training_mission_inverted_setup_step_1:
     - pilot_training_mission_inverted_step_1_start
-    - pilot_training_mission_inverted_start_mode_shot_timer
-    - pilot_training_mission_inverted_setup_mode_shot
+    - pilot_training_mission_inverted_light_all_shots
 
   # Step 1 complete check (50 switches)
   player_pilot_training_mission_inverted_switches_hit{value>=25 and current_player.pilot_training_mission_inverted_step==1}:
     - pilot_training_mission_inverted_step_1_complete
     - pilot_training_mission_inverted_setup_step_2
-    - pilot_training_mission_inverted_stop_mode_shot_timer
+    - pilot_training_mission_inverted_stop_all_mode_shots
 
   # Setup Step 2 - Jackpot at CNT
   pilot_training_mission_inverted_setup_step_2:
@@ -3444,14 +3483,13 @@ event_player:
   # Setup Step 3 - Switch collection (150)
   pilot_training_mission_inverted_setup_step_3:
     - pilot_training_mission_inverted_step_3_start
-    - pilot_training_mission_inverted_start_mode_shot_timer
-    - pilot_training_mission_inverted_setup_mode_shot
+    - pilot_training_mission_inverted_light_all_shots
 
   # Step 3 complete check (100 switches)
   player_pilot_training_mission_inverted_switches_hit{value>=50 and current_player.pilot_training_mission_inverted_step==3}:
     - pilot_training_mission_inverted_step_3_complete
     - pilot_training_mission_inverted_setup_step_4
-    - pilot_training_mission_inverted_stop_mode_shot_timer
+    - pilot_training_mission_inverted_stop_all_mode_shots
 
   # Setup Step 4 - Jackpot at CNT
   pilot_training_mission_inverted_setup_step_4:
@@ -3468,14 +3506,13 @@ event_player:
   # Setup Step 5 - Switch collection (300)
   pilot_training_mission_inverted_setup_step_5:
     - pilot_training_mission_inverted_step_5_start
-    - pilot_training_mission_inverted_start_mode_shot_timer
-    - pilot_training_mission_inverted_setup_mode_shot
+    - pilot_training_mission_inverted_light_all_shots
 
   # Step 5 complete check (150 switches)
   player_pilot_training_mission_inverted_switches_hit{value>=100 and current_player.pilot_training_mission_inverted_step==5}:
     - pilot_training_mission_inverted_step_5_complete
     - pilot_training_mission_inverted_setup_step_6
-    - pilot_training_mission_inverted_stop_mode_shot_timer
+    - pilot_training_mission_inverted_stop_all_mode_shots
 
   # Setup Step 6 - Jackpot at CNT (MODE WIN)
   pilot_training_mission_inverted_setup_step_6:
@@ -3493,14 +3530,13 @@ event_player:
   # Setup Step 7 - Switch collection (500)
   pilot_training_mission_inverted_setup_step_7:
     - pilot_training_mission_inverted_step_7_start
-    - pilot_training_mission_inverted_start_mode_shot_timer
-    - pilot_training_mission_inverted_setup_mode_shot
+    - pilot_training_mission_inverted_light_all_shots
 
   # Step 7 complete check (200 switches)
   player_pilot_training_mission_inverted_switches_hit{value>=150 and current_player.pilot_training_mission_inverted_step==7}:
     - pilot_training_mission_inverted_step_7_complete
     - pilot_training_mission_inverted_setup_step_8
-    - pilot_training_mission_inverted_stop_mode_shot_timer
+    - pilot_training_mission_inverted_stop_all_mode_shots
 
   # Setup Step 8 - Jackpot at CNT
   pilot_training_mission_inverted_setup_step_8:
@@ -3531,68 +3567,67 @@ event_player:
     - pilot_training_mission_inverted_setup_step_1
 
   ##############################################
-  ## MODE SHOT TIMER
+  ## ALL-SHOTS-LIT PROGRESSIVE (only during collection steps 1, 3, 5, 7)
+  ## Each shot scores while lit, then goes dark until all 7 are cleared
+  ## or the CNT jackpot is collected (see setup_step_3/5/7 above).
   ##############################################
-  
-  timer_inverted_mode_shot_timer_complete{current_player.pilot_training_mission_inverted_mode_shot_direction==1}:
-    - pilot_training_mission_inverted_move_shot_forward
-    - pilot_training_mission_inverted_setup_mode_shot
-    - pilot_training_mission_inverted_start_mode_shot_timer
 
-  timer_inverted_mode_shot_timer_complete{current_player.pilot_training_mission_inverted_mode_shot_direction==-1}:
-    - pilot_training_mission_inverted_move_shot_backward
-    - pilot_training_mission_inverted_setup_mode_shot
-    - pilot_training_mission_inverted_start_mode_shot_timer
-
-  ##############################################
-  ## MODE SHOT HITS (only during collection steps 1, 3, 5, 7)
-  ##############################################
-  
-  # Shot 0: LO (Left Orbit)
-  s_orbit_left_active{current_player.pilot_training_mission_inverted_mode_shot_index==0 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
+  # Shot 0: LO (Left Orbit) - composite event, requires a genuine orbit
+  # shot (not just the entry switch), same pattern as edge_of_space.yaml
+  left_orbit_shot_hit{current_player.pilot_training_mission_inverted_shot_lo_lit==1 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
     - pilot_training_mission_inverted_mode_shot_hit
-    - pilot_training_mission_inverted_advance_mode_shot
+    - pilot_training_mission_inverted_shot_lo_cleared
 
   # Shot 1: LR (Left Ramp)
-  s_ramp_left_exit_active{current_player.pilot_training_mission_inverted_mode_shot_index==1 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
+  s_ramp_left_exit_active{current_player.pilot_training_mission_inverted_shot_lr_lit==1 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
     - pilot_training_mission_inverted_mode_shot_hit
-    - pilot_training_mission_inverted_advance_mode_shot
+    - pilot_training_mission_inverted_shot_lr_cleared
 
   # Shot 2: SP (Spinner)
-  spinner_shot_made{current_player.pilot_training_mission_inverted_mode_shot_index==2 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
+  spinner_shot_made{current_player.pilot_training_mission_inverted_shot_sp_lit==1 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
     - pilot_training_mission_inverted_mode_shot_hit
-    - pilot_training_mission_inverted_advance_mode_shot
+    - pilot_training_mission_inverted_shot_sp_cleared
 
   # Shot 3: TWR (Tower)
-  s_ramp_tower_exit_active{current_player.pilot_training_mission_inverted_mode_shot_index==3 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
+  s_ramp_tower_exit_active{current_player.pilot_training_mission_inverted_shot_twr_lit==1 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
     - pilot_training_mission_inverted_mode_shot_hit
-    - pilot_training_mission_inverted_advance_mode_shot
+    - pilot_training_mission_inverted_shot_twr_cleared
 
   # Shot 4: TL (Top Loop)
-  s_orbit_upper_active{current_player.pilot_training_mission_inverted_mode_shot_index==4 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
+  s_orbit_upper_active{current_player.pilot_training_mission_inverted_shot_tl_lit==1 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
     - pilot_training_mission_inverted_mode_shot_hit
-    - pilot_training_mission_inverted_advance_mode_shot
+    - pilot_training_mission_inverted_shot_tl_cleared
 
   # Shot 5: TR (Top Ramp)
-  s_ramp_inner_exit_active{current_player.pilot_training_mission_inverted_mode_shot_index==5 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
+  s_ramp_inner_exit_active{current_player.pilot_training_mission_inverted_shot_tr_lit==1 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
     - pilot_training_mission_inverted_mode_shot_hit
-    - pilot_training_mission_inverted_advance_mode_shot
+    - pilot_training_mission_inverted_shot_tr_cleared
 
   # Shot 6: RR (Right Ramp)
-  s_ramp_right_exit_active{current_player.pilot_training_mission_inverted_mode_shot_index==6 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
+  s_ramp_right_exit_active{current_player.pilot_training_mission_inverted_shot_rr_lit==1 and (current_player.pilot_training_mission_inverted_step==1 or current_player.pilot_training_mission_inverted_step==3 or current_player.pilot_training_mission_inverted_step==5 or current_player.pilot_training_mission_inverted_step==7)}:
     - pilot_training_mission_inverted_mode_shot_hit
-    - pilot_training_mission_inverted_advance_mode_shot
+    - pilot_training_mission_inverted_shot_rr_cleared
 
-  # Advance mode shot after hit
-  pilot_training_mission_inverted_advance_mode_shot{current_player.pilot_training_mission_inverted_mode_shot_direction==1}:
-    - pilot_training_mission_inverted_move_shot_forward
-    - pilot_training_mission_inverted_setup_mode_shot
-    - pilot_training_mission_inverted_start_mode_shot_timer
+  # Each "cleared" event stops that one shot's flash (show_player) and
+  # checks whether all 7 are now dark
+  pilot_training_mission_inverted_shot_lo_cleared:
+    - pilot_training_mission_inverted_check_all_shots_cleared
+  pilot_training_mission_inverted_shot_lr_cleared:
+    - pilot_training_mission_inverted_check_all_shots_cleared
+  pilot_training_mission_inverted_shot_sp_cleared:
+    - pilot_training_mission_inverted_check_all_shots_cleared
+  pilot_training_mission_inverted_shot_twr_cleared:
+    - pilot_training_mission_inverted_check_all_shots_cleared
+  pilot_training_mission_inverted_shot_tl_cleared:
+    - pilot_training_mission_inverted_check_all_shots_cleared
+  pilot_training_mission_inverted_shot_tr_cleared:
+    - pilot_training_mission_inverted_check_all_shots_cleared
+  pilot_training_mission_inverted_shot_rr_cleared:
+    - pilot_training_mission_inverted_check_all_shots_cleared
 
-  pilot_training_mission_inverted_advance_mode_shot{current_player.pilot_training_mission_inverted_mode_shot_direction==-1}:
-    - pilot_training_mission_inverted_move_shot_backward
-    - pilot_training_mission_inverted_setup_mode_shot
-    - pilot_training_mission_inverted_start_mode_shot_timer
+  # All 7 dark - relight everything and start the flashes again
+  pilot_training_mission_inverted_check_all_shots_cleared{current_player.pilot_training_mission_inverted_shot_lo_lit==0 and current_player.pilot_training_mission_inverted_shot_lr_lit==0 and current_player.pilot_training_mission_inverted_shot_sp_lit==0 and current_player.pilot_training_mission_inverted_shot_twr_lit==0 and current_player.pilot_training_mission_inverted_shot_tl_lit==0 and current_player.pilot_training_mission_inverted_shot_tr_lit==0 and current_player.pilot_training_mission_inverted_shot_rr_lit==0}:
+    - pilot_training_mission_inverted_light_all_shots
 
   ##############################################
   ## ICEMAN ADD-A-BALL CHECK
@@ -3613,11 +3648,11 @@ event_player:
   s_n_iceman_target_active{current_player.pilot_training_mission_inverted_iceman_i==1 and current_player.pilot_training_mission_inverted_iceman_c==1 and current_player.pilot_training_mission_inverted_iceman_e==1 and current_player.pilot_training_mission_inverted_iceman_m==1 and current_player.pilot_training_mission_inverted_iceman_a==1 and current_player.pilot_training_mission_inverted_iceman_n==0}:
     - pilot_training_mission_inverted_iceman_complete
 
-  # Add-a-ball on 1st and 3rd ICEMAN completion (max 4 balls)
+  # Add-a-ball on 1st and 3rd ICEMAN completion (max 6 balls: 4 base + 2 adds)
   # Use player variable change event which fires AFTER the increment
-  player_pilot_training_mission_inverted_iceman_completions{value==1 and current_player.pilot_training_mission_inverted_balls_in_play<4}:
+  player_pilot_training_mission_inverted_iceman_completions{value==1 and current_player.pilot_training_mission_inverted_balls_in_play<6}:
     - pilot_training_mission_inverted_add_a_ball
-  player_pilot_training_mission_inverted_iceman_completions{value==3 and current_player.pilot_training_mission_inverted_balls_in_play<4}:
+  player_pilot_training_mission_inverted_iceman_completions{value==3 and current_player.pilot_training_mission_inverted_balls_in_play<6}:
     - pilot_training_mission_inverted_add_a_ball
 
   ##############################################
@@ -3653,8 +3688,11 @@ event_player:
   multiball_inverted_multiball_ball_lost:
     - pilot_training_mission_inverted_check_single_ball
   
-  # Also check when multiball device reports ended
+  # This is the reliable trigger for "down to last ball" - confirmed via log
+  # that balls_live_target==1 below does not actually evaluate true when the
+  # device fires _ended, so the scoop save lives here instead.
   multiball_inverted_multiball_ended:
+    - pilot_training_mission_inverted_last_ball_scoop_save
     - pilot_training_mission_inverted_mode_ended
 
   pilot_training_mission_inverted_check_single_ball{device.multiballs.inverted_multiball.balls_live_target==1}:
@@ -4328,89 +4366,135 @@ show_player:
       action: stop
       key: inverted_iceman_celebration
 
-  # Mode shot - Shot 0: LO (Left Orbit)
-  pilot_training_mission_inverted_setup_mode_shot{current_player.pilot_training_mission_inverted_mode_shot_index==0}:
+  # All-shots-lit progressive - light and flash all 7 main shots at once.
+  # Fired entering each collection step (setup_step_1/3/5/7), and again any
+  # time all 7 get cleared or the CNT jackpot is collected mid-mode.
+  pilot_training_mission_inverted_light_all_shots:
     inverted_mode_shot_lo:
       show: sync_flash_mode
-      key: inverted_mode_shot
+      key: inverted_shot_lo
       sync_ms: 1000
       loops: -1
       show_tokens:
         led: l_shot_left_orbit
         color: red
-
-  # Mode shot - Shot 1: LR (Left Ramp)
-  pilot_training_mission_inverted_setup_mode_shot{current_player.pilot_training_mission_inverted_mode_shot_index==1}:
     inverted_mode_shot_lr:
       show: sync_flash_mode
-      key: inverted_mode_shot
+      key: inverted_shot_lr
       sync_ms: 1000
       loops: -1
       show_tokens:
         led: l_shot_left_ramp
         color: red
-
-  # Mode shot - Shot 2: SP (Spinner)
-  pilot_training_mission_inverted_setup_mode_shot{current_player.pilot_training_mission_inverted_mode_shot_index==2}:
     inverted_mode_shot_sp:
       show: sync_flash_mode
-      key: inverted_mode_shot
+      key: inverted_shot_sp
       sync_ms: 1000
       loops: -1
       show_tokens:
         led: l_shot_spinner
         color: red
-
-  # Mode shot - Shot 3: TWR (Tower)
-  pilot_training_mission_inverted_setup_mode_shot{current_player.pilot_training_mission_inverted_mode_shot_index==3}:
     inverted_mode_shot_twr:
       show: sync_flash_mode
-      key: inverted_mode_shot
+      key: inverted_shot_twr
       sync_ms: 1000
       loops: -1
       show_tokens:
         led: l_shot_tower_ramp
         color: red
-
-  # Mode shot - Shot 4: TL (Top Loop/Top Orbit)
-  pilot_training_mission_inverted_setup_mode_shot{current_player.pilot_training_mission_inverted_mode_shot_index==4}:
     inverted_mode_shot_tl:
       show: sync_flash_mode
-      key: inverted_mode_shot
+      key: inverted_shot_tl
       sync_ms: 1000
       loops: -1
       show_tokens:
         led: l_shot_upper_orbit
         color: red
-
-  # Mode shot - Shot 5: TR (Top Ramp)
-  pilot_training_mission_inverted_setup_mode_shot{current_player.pilot_training_mission_inverted_mode_shot_index==5}:
     inverted_mode_shot_tr:
       show: sync_flash_mode
-      key: inverted_mode_shot
+      key: inverted_shot_tr
       sync_ms: 1000
       loops: -1
       show_tokens:
         led: l_shot_middle_ramp
         color: red
-
-  # Mode shot - Shot 6: RR (Right Ramp)
-  pilot_training_mission_inverted_setup_mode_shot{current_player.pilot_training_mission_inverted_mode_shot_index==6}:
     inverted_mode_shot_rr:
       show: sync_flash_mode
-      key: inverted_mode_shot
+      key: inverted_shot_rr
       sync_ms: 1000
       loops: -1
       show_tokens:
         led: l_shot_right_orbit
         color: red
 
-  # Stop mode shot show during jackpot steps
-  pilot_training_mission_inverted_stop_mode_shot_timer:
-    stop_mode_shot:
+  # A single shot was hit - stop just that shot's flash (light_all_shots
+  # above will restart it if/when the shot relights)
+  pilot_training_mission_inverted_shot_lo_cleared:
+    stop_shot_lo:
       show: sync_flash_mode
       action: stop
-      key: inverted_mode_shot
+      key: inverted_shot_lo
+  pilot_training_mission_inverted_shot_lr_cleared:
+    stop_shot_lr:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_lr
+  pilot_training_mission_inverted_shot_sp_cleared:
+    stop_shot_sp:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_sp
+  pilot_training_mission_inverted_shot_twr_cleared:
+    stop_shot_twr:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_twr
+  pilot_training_mission_inverted_shot_tl_cleared:
+    stop_shot_tl:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_tl
+  pilot_training_mission_inverted_shot_tr_cleared:
+    stop_shot_tr:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_tr
+  pilot_training_mission_inverted_shot_rr_cleared:
+    stop_shot_rr:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_rr
+
+  # Stop all 7 shot flashes during jackpot-only steps (2, 4, 6, 8)
+  pilot_training_mission_inverted_stop_all_mode_shots:
+    stop_shot_lo_all:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_lo
+    stop_shot_lr_all:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_lr
+    stop_shot_sp_all:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_sp
+    stop_shot_twr_all:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_twr
+    stop_shot_tl_all:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_tl
+    stop_shot_tr_all:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_tr
+    stop_shot_rr_all:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_rr
 
   # Jackpot lit show (CNT target) - barrier target flashes red
   pilot_training_mission_inverted_jackpot_lit:
@@ -4428,18 +4512,19 @@ show_player:
       action: stop
       key: inverted_jackpot_barrier
 
-  # Super jackpot lit show (Left Lane) - uses show file in mode's shows folder
+  # Super jackpot lit - LL (Left Lane) flashes red
   pilot_training_mission_inverted_super_jackpot_lit:
     inverted_super_jackpot_show:
-      show: pilot_training_mission_inverted_super_jackpot_lit
+      show: sync_flash_mode
       key: inverted_super_jackpot
+      sync_ms: 1000
       loops: -1
-      speed: 10
+      show_tokens: { led: l_shot_left_lane, color: FF0000 }
 
   # Stop super jackpot show after collection
   pilot_training_mission_inverted_super_jackpot_collected:
     stop_super_jackpot:
-      show: pilot_training_mission_inverted_super_jackpot_lit
+      show: sync_flash_mode
       action: stop
       key: inverted_super_jackpot
 
@@ -4458,9 +4543,37 @@ show_player:
       action: stop
       key: inverted_jackpot_barrier
     stop_super_jackpot_cleanup:
-      show: pilot_training_mission_inverted_super_jackpot_lit
+      show: sync_flash_mode
       action: stop
       key: inverted_super_jackpot
+    stop_shot_lo_cleanup:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_lo
+    stop_shot_lr_cleanup:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_lr
+    stop_shot_sp_cleanup:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_sp
+    stop_shot_twr_cleanup:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_twr
+    stop_shot_tl_cleanup:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_tl
+    stop_shot_tr_cleanup:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_tr
+    stop_shot_rr_cleanup:
+      show: sync_flash_mode
+      action: stop
+      key: inverted_shot_rr
 
 ####################################################################################
 # COIL PLAYER - Left lane post and left orbit diverter control
