@@ -18,23 +18,25 @@
 # via coil_player instead, so flippers fire up but immediately drop back.
 # Player cannot hold flippers in the up position.
 #
-# MODE PROGRESSION (v2 - each step now accepts either of two shots,
-# added to make the mode more achievable):
-# Step 1: LR (Left Ramp) or LO (Left Orbit)                  - 500K
-# Step 2: RR (Right Ramp) or TWR (Tower Ramp)                - 550K
-# Step 3: LR (Left Ramp) or SP (Spinner)                     - 600K
-# Step 4: TWR (Tower Ramp) or TL (Upper Orbit)                - 700K
-# Step 5: LR (Left Ramp) or LO (Left Orbit)                  - 800K
-# Step 6: RO (Right Orbit, ramp UP) or TWR (Tower Ramp)       - 900K
-# Step 7: TL or TO (either one, top ramp UP, right ramp DOWN staggered) - 1,000K
-# Step 8: SP (Spinner, top ramp DOWN)                         - 1,200K
-# Step 9: CNT (Barrier Target)                                - 2,250K + perk
-# TOTAL: 8,500,000 points (before multipliers)
+# MODE PROGRESSION (v3 - wide-open at the start, narrows to single
+# shots by the end. Difficulty ramps via shrinking shot count, not
+# just shot placement. Each step advances on ANY listed shot.):
+# Step 1: LO, LR, SP, or CNT (Barrier)                        -   800K
+# Step 2: RO (right ramp UP), 2X (Pilot Gear), TR, TL, or TWR -   900K
+# Step 3: SP, CNT (Barrier), TWR, or TL (right ramp lowered)  - 1,000K
+# Step 4: LL, LO, or LR                                       - 1,100K
+# Step 5: TWR, TL, TO, or 2X (Pilot Gear) (top ramp raised)   - 1,300K
+# Step 6: LR or SP (top ramp lowered)                         - 1,500K
+# Step 7: RR or TWR                                           - 1,800K
+# Step 8: LR only                                             - 2,600K
+# Step 9: CNT (Barrier Target) only                           - 4,000K + perk
+# TOTAL: 15,000,000 points (before multipliers)
 #
-# SERVO CONTROL:
-# Step 6: Right ramp UP
-# Step 7: Top ramp UP first, then right ramp DOWN (staggered 2s delay)
-# Step 8: Top ramp DOWN
+# SERVO CONTROL (single servo move per step, no stagger needed):
+# Step 2: Right ramp UP   (enables RO)
+# Step 3: Right ramp DOWN (resets for later RR shot, step 7)
+# Step 5: Top ramp UP     (enables TO)
+# Step 6: Top ramp DOWN   (resets for later LR/step 8, no ramp dependency)
 #
 # GI PROGRESSION (afterburner heating effect):
 # Start: All yellow
@@ -48,11 +50,12 @@
 # No separate mode won video
 #
 # SHOT LIGHTS:
-#   LR  = l_shot_left_ramp       RR  = l_shot_right_orbit
-#   LO  = l_shot_left_orbit      RO  = l_shot_right_orbit
-#   TWR = l_shot_tower_ramp      TO  = l_shot_middle_ramp
+#   LL  = l_shot_left_lane       RR  = l_shot_right_orbit
+#   LR  = l_shot_left_ramp       RO  = l_shot_right_orbit
+#   LO  = l_shot_left_orbit      TWR = l_shot_tower_ramp
+#   TR  = l_shot_middle_ramp     TO  = l_shot_middle_ramp
 #   TL  = l_shot_upper_orbit     SP  = l_shot_spinner
-#   CNT = l_shot_barrier
+#   2X  = l_shot_pilot_gear      CNT = l_shot_barrier
 ####################################################################################
 
 mode:
@@ -69,19 +72,11 @@ mode_settings:
   can_stack_with_multiball: false
 
 ####################################################################################
-# BALL HOLDS - Prevent auto-eject during intro video
+# BALL HOLD - Left lane post only (training mission pattern).
+# Ball is held at c_left_lane_up_post (see coil_player below), NOT via
+# bd_mode_scoop ball_holds. Barrier is left UP the entire mode, so CNT
+# (barrier target) is hittable from Step 1 with no barrier_raise call.
 ####################################################################################
-
-ball_holds:
-  afterburner_scoop_hold:
-    balls_to_hold: 1
-    hold_devices: bd_mode_scoop
-    enable_events: 
-      - mode_pilot_training_mission_afterburner_started
-    release_one_events: 
-      - afterburner_ball_released
-    release_all_events:
-      - mode_pilot_training_mission_afterburner_will_stop
 
 ####################################################################################
 # QUEUE RELAY PLAYER - Hold ball_ending until mode cleanup completes
@@ -158,29 +153,13 @@ timers:
       - event: afterburner_drain_detected
         action: start
 
-  ##############################################
-  ## SERVO STAGGER TIMER - Delay right ramp down after top ramp up (step 7)
-  ##############################################
-  afterburner_right_ramp_down_delay:
-    start_value: 0
-    end_value: 2
-    direction: up
-    tick_interval: 1s
-    control_events:
-      - event: afterburner_stagger_right_ramp_down
-        action: restart
-      - event: afterburner_cleanup
-        action: stop
-      - event: afterburner_drain_detected
-        action: stop
-
 ####################################################################################
 # VARIABLE PLAYER
 ####################################################################################
 
 variable_player:
   ##############################################
-  ## LEFT ORBIT SAFE RETURN — arm/clear (Steps 1 and 5, either-or with LR)
+  ## LEFT ORBIT SAFE RETURN — arm/clear (Steps 1 and 4, one of several valid shots)
   ##############################################
   orbit_left_safe_return_arm:
     orbit_left_shot_armed:
@@ -243,63 +222,11 @@ variable_player:
   ## 500K → 550K → 600K → 700K → 800K → 900K → 1M → 1.2M → 2.25M
   ##############################################
 
-  # Step 1: LR - 500,000
+  # Step 1: LO, LR, SP, or CNT - 800,000
   afterburner_step_1_complete:
     afterburner_step:
       action: set
       int: 1
-    score: 500000 * current_player.total_scoring_multiplier
-    mode_points_scored:
-      action: set
-      int: 500000 * current_player.total_scoring_multiplier
-    afterburner_shots_remaining:
-      action: add
-      int: -1
-
-  # Step 2: RR - 550,000
-  afterburner_step_2_complete:
-    afterburner_step:
-      action: set
-      int: 2
-    score: 550000 * current_player.total_scoring_multiplier
-    mode_points_scored:
-      action: set
-      int: 550000 * current_player.total_scoring_multiplier
-    afterburner_shots_remaining:
-      action: add
-      int: -1
-
-  # Step 3: LR - 600,000
-  afterburner_step_3_complete:
-    afterburner_step:
-      action: set
-      int: 3
-    score: 600000 * current_player.total_scoring_multiplier
-    mode_points_scored:
-      action: set
-      int: 600000 * current_player.total_scoring_multiplier
-    afterburner_shots_remaining:
-      action: add
-      int: -1
-
-  # Step 4: TWR - 700,000
-  afterburner_step_4_complete:
-    afterburner_step:
-      action: set
-      int: 4
-    score: 700000 * current_player.total_scoring_multiplier
-    mode_points_scored:
-      action: set
-      int: 700000 * current_player.total_scoring_multiplier
-    afterburner_shots_remaining:
-      action: add
-      int: -1
-
-  # Step 5: LR - 800,000
-  afterburner_step_5_complete:
-    afterburner_step:
-      action: set
-      int: 5
     score: 800000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
@@ -308,11 +235,11 @@ variable_player:
       action: add
       int: -1
 
-  # Step 6: RO - 900,000
-  afterburner_step_6_complete:
+  # Step 2: RO, 2X, TR, TL, or TWR - 900,000
+  afterburner_step_2_complete:
     afterburner_step:
       action: set
-      int: 6
+      int: 2
     score: 900000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
@@ -321,11 +248,11 @@ variable_player:
       action: add
       int: -1
 
-  # Step 7: TL or TO - 1,000,000
-  afterburner_step_7_complete:
+  # Step 3: SP, CNT, TWR, or TL - 1,000,000
+  afterburner_step_3_complete:
     afterburner_step:
       action: set
-      int: 7
+      int: 3
     score: 1000000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
@@ -334,20 +261,72 @@ variable_player:
       action: add
       int: -1
 
-  # Step 8: SP - 1,200,000
-  afterburner_step_8_complete:
+  # Step 4: LL, LO, or LR - 1,100,000
+  afterburner_step_4_complete:
     afterburner_step:
       action: set
-      int: 8
-    score: 1200000 * current_player.total_scoring_multiplier
+      int: 4
+    score: 1100000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 1200000 * current_player.total_scoring_multiplier
+      int: 1100000 * current_player.total_scoring_multiplier
     afterburner_shots_remaining:
       action: add
       int: -1
 
-  # Step 9: CNT (Barrier Target) - 2,250,000 - MODE WON + perk
+  # Step 5: TWR, TL, TO, or 2X - 1,300,000
+  afterburner_step_5_complete:
+    afterburner_step:
+      action: set
+      int: 5
+    score: 1300000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 1300000 * current_player.total_scoring_multiplier
+    afterburner_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 6: LR or SP - 1,500,000
+  afterburner_step_6_complete:
+    afterburner_step:
+      action: set
+      int: 6
+    score: 1500000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 1500000 * current_player.total_scoring_multiplier
+    afterburner_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 7: RR or TWR - 1,800,000
+  afterburner_step_7_complete:
+    afterburner_step:
+      action: set
+      int: 7
+    score: 1800000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 1800000 * current_player.total_scoring_multiplier
+    afterburner_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 8: LR only - 2,600,000
+  afterburner_step_8_complete:
+    afterburner_step:
+      action: set
+      int: 8
+    score: 2600000 * current_player.total_scoring_multiplier
+    mode_points_scored:
+      action: set
+      int: 2600000 * current_player.total_scoring_multiplier
+    afterburner_shots_remaining:
+      action: add
+      int: -1
+
+  # Step 9: CNT (Barrier Target) only - 4,000,000 - MODE WON + perk
   afterburner_step_9_complete:
     afterburner_step:
       action: set
@@ -355,10 +334,10 @@ variable_player:
     afterburner_complete_flag:
       action: set
       int: 1
-    score: 2250000 * current_player.total_scoring_multiplier
+    score: 4000000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 2250000 * current_player.total_scoring_multiplier
+      int: 4000000 * current_player.total_scoring_multiplier
     afterburner_shots_remaining:
       action: add
       int: -1
@@ -415,7 +394,7 @@ event_player:
   afterburner_ball_released:
     - disable_normal_flippers
     - enable_no_hold_flippers
-
+    - ball_save_mode_timer_start
   ##############################################
   ## DRAIN HANDLING
   ##############################################
@@ -428,7 +407,7 @@ event_player:
     - afterburner_cleanup
 
   ##############################################
-  ## STEP 1: LR (Left Ramp) or LO (Left Orbit)
+  ## STEP 1: LO, LR, SP, or CNT (Barrier) — wide open start
   ##############################################
   afterburner_setup_step_1:
     - orbit_left_safe_return_arm
@@ -444,13 +423,39 @@ event_player:
     - afterburner_setup_step_2
     - orbit_left_safe_return_clear|700ms
 
+  spinner_shot_made{current_player.afterburner_step==0}:
+    - afterburner_step_1_complete
+    - afterburner_step_1_shot_hit
+    - afterburner_setup_step_2
+
+  s_barrier_target_active{current_player.afterburner_step==0}:
+    - afterburner_step_1_complete
+    - afterburner_step_1_shot_hit
+    - afterburner_setup_step_2
+
   ##############################################
-  ## STEP 2: RR (Right Ramp - ramp is DOWN) or TWR (Tower Ramp)
+  ## STEP 2: RO (right ramp UP), 2X (Pilot Gear), TR, TL, or TWR
   ##############################################
   afterburner_setup_step_2:
     - orbit_left_safe_return_clear
+    - right_ramp_up
 
-  s_ramp_right_exit_active{current_player.afterburner_step==1}:
+  s_orbit_right_active{current_player.afterburner_step==1}:
+    - afterburner_step_2_complete
+    - afterburner_step_2_shot_hit
+    - afterburner_setup_step_3
+
+  s_flight_gear_target_active{current_player.afterburner_step==1}:
+    - afterburner_step_2_complete
+    - afterburner_step_2_shot_hit
+    - afterburner_setup_step_3
+
+  s_ramp_inner_exit_active{current_player.afterburner_step==1}:
+    - afterburner_step_2_complete
+    - afterburner_step_2_shot_hit
+    - afterburner_setup_step_3
+
+  s_orbit_upper_active{current_player.afterburner_step==1}:
     - afterburner_step_2_complete
     - afterburner_step_2_shot_hit
     - afterburner_setup_step_3
@@ -461,115 +466,123 @@ event_player:
     - afterburner_setup_step_3
 
   ##############################################
-  ## STEP 3: LR (Left Ramp) or SP (Spinner)
+  ## STEP 3: SP, CNT (Barrier), TWR, or TL — right ramp lowered
   ##############################################
-  s_ramp_left_exit_active{current_player.afterburner_step==2}:
-    - afterburner_step_3_complete
-    - afterburner_step_3_shot_hit
-    - afterburner_setup_step_4
+  afterburner_setup_step_3:
+    - right_ramp_down
 
   spinner_shot_made{current_player.afterburner_step==2}:
     - afterburner_step_3_complete
     - afterburner_step_3_shot_hit
     - afterburner_setup_step_4
 
-  ##############################################
-  ## STEP 4: TWR (Tower Ramp) or TL (Upper Orbit)
-  ##############################################
-  s_ramp_tower_exit_active{current_player.afterburner_step==3}:
-    - afterburner_step_4_complete
-    - afterburner_step_4_shot_hit
-    - afterburner_setup_step_5
+  s_barrier_target_active{current_player.afterburner_step==2}:
+    - afterburner_step_3_complete
+    - afterburner_step_3_shot_hit
+    - afterburner_setup_step_4
 
-  s_orbit_upper_active{current_player.afterburner_step==3}:
-    - afterburner_step_4_complete
-    - afterburner_step_4_shot_hit
-    - afterburner_setup_step_5
+  s_ramp_tower_exit_active{current_player.afterburner_step==2}:
+    - afterburner_step_3_complete
+    - afterburner_step_3_shot_hit
+    - afterburner_setup_step_4
+
+  s_orbit_upper_active{current_player.afterburner_step==2}:
+    - afterburner_step_3_complete
+    - afterburner_step_3_shot_hit
+    - afterburner_setup_step_4
 
   ##############################################
-  ## STEP 5: LR (Left Ramp) or LO (Left Orbit)
+  ## STEP 4: LL, LO, or LR
   ##############################################
-  afterburner_setup_step_5:
+  afterburner_setup_step_4:
     - orbit_left_safe_return_arm
 
-  s_ramp_left_exit_active{current_player.afterburner_step==4}:
-    - afterburner_step_5_complete
-    - afterburner_step_5_shot_hit
-    - afterburner_setup_step_6
+  s_lane_left_active{current_player.afterburner_step==3}:
+    - afterburner_step_4_complete
+    - afterburner_step_4_shot_hit
+    - afterburner_setup_step_5
 
-  left_orbit_shot_hit{current_player.afterburner_step==4}:
-    - afterburner_step_5_complete
-    - afterburner_step_5_shot_hit
-    - afterburner_setup_step_6
+  left_orbit_shot_hit{current_player.afterburner_step==3}:
+    - afterburner_step_4_complete
+    - afterburner_step_4_shot_hit
+    - afterburner_setup_step_5
     - orbit_left_safe_return_clear|700ms
 
-  ##############################################
-  ## STEP 6: RO (Right Orbit - ramp is UP) or TWR (Tower Ramp)
-  ##############################################
+  s_ramp_left_exit_active{current_player.afterburner_step==3}:
+    - afterburner_step_4_complete
+    - afterburner_step_4_shot_hit
+    - afterburner_setup_step_5
 
+  ##############################################
+  ## STEP 5: TWR, TL, TO, or 2X (Pilot Gear) — top ramp raised
+  ##############################################
+  afterburner_setup_step_5:
+    - orbit_left_safe_return_clear
+    - top_ramp_up
+
+  s_ramp_tower_exit_active{current_player.afterburner_step==4}:
+    - afterburner_step_5_complete
+    - afterburner_step_5_shot_hit
+    - afterburner_setup_step_6
+
+  s_orbit_upper_active{current_player.afterburner_step==4}:
+    - afterburner_step_5_complete
+    - afterburner_step_5_shot_hit
+    - afterburner_setup_step_6
+
+  s_orbit_lower_active{current_player.afterburner_step==4}:
+    - afterburner_step_5_complete
+    - afterburner_step_5_shot_hit
+    - afterburner_setup_step_6
+
+  s_flight_gear_target_active{current_player.afterburner_step==4}:
+    - afterburner_step_5_complete
+    - afterburner_step_5_shot_hit
+    - afterburner_setup_step_6
 
   ##############################################
-  ## STEP 6: RO (Right Orbit - ramp is UP) or TWR (Tower Ramp)
+  ## STEP 6: LR or SP — top ramp lowered
   ##############################################
-  s_orbit_right_active{current_player.afterburner_step==5}:
+  afterburner_setup_step_6:
+    - top_ramp_down
+
+  s_ramp_left_exit_active{current_player.afterburner_step==5}:
     - afterburner_step_6_complete
     - afterburner_step_6_shot_hit
     - afterburner_setup_step_7
 
-  s_ramp_tower_exit_active{current_player.afterburner_step==5}:
+  spinner_shot_made{current_player.afterburner_step==5}:
     - afterburner_step_6_complete
     - afterburner_step_6_shot_hit
     - afterburner_setup_step_7
 
   ##############################################
-  ## STEP 7: TL or TO (hit either one)
-  ## TL = s_orbit_upper, TO = s_orbit_lower
+  ## STEP 7: RR or TWR
   ##############################################
-  s_orbit_upper_active{current_player.afterburner_step==6}:
+  s_ramp_right_exit_active{current_player.afterburner_step==6}:
     - afterburner_step_7_complete
     - afterburner_step_7_shot_hit
     - afterburner_setup_step_8
 
-  s_orbit_lower_active{current_player.afterburner_step==6}:
+  s_ramp_tower_exit_active{current_player.afterburner_step==6}:
     - afterburner_step_7_complete
     - afterburner_step_7_shot_hit
     - afterburner_setup_step_8
 
   ##############################################
-  ## STEP 8: SP (Spinner)
+  ## STEP 8: LR only
   ##############################################
-  spinner_shot_made{current_player.afterburner_step==7}:
+  s_ramp_left_exit_active{current_player.afterburner_step==7}:
     - afterburner_step_8_complete
     - afterburner_step_8_shot_hit
     - afterburner_setup_step_9
 
   ##############################################
-  ## STEP 9: CNT (Barrier Target)
+  ## STEP 9: CNT (Barrier Target) only
   ##############################################
   s_barrier_target_active{current_player.afterburner_step==8}:
     - afterburner_step_9_complete
     - afterburner_step_9_shot_hit
-
-  ##############################################
-  ## SERVO EVENTS
-  ##############################################
-
-  # Step 6: Right ramp UP
-  afterburner_setup_step_6:
-    - right_ramp_up
-    - orbit_left_safe_return_clear
-
-  # Step 7: Top ramp UP first, then right ramp DOWN (staggered)
-  afterburner_setup_step_7:
-    - top_ramp_up
-    - afterburner_stagger_right_ramp_down
-
-  timer_afterburner_right_ramp_down_delay_complete:
-    - right_ramp_down
-
-  # Step 8: Top ramp DOWN
-  afterburner_setup_step_8:
-    - top_ramp_down
 
   ##############################################
   ## GI RESTORE AFTER SHOT HIT FLASH
@@ -824,12 +837,13 @@ show_player:
       key: afterburner_pulse
 
   ##############################################
-  ## STEP 1: LR + LO (ORANGE flash)
+  ## STEP 1: LO, LR, SP, CNT (ORANGE flash)
   ## Every step below stops ALL possible flash keys first, then starts
   ## exactly what's needed - safer than tracking "stop just the previous
-  ## one(s)" now that most steps flash two shots at once.
+  ## one(s)" now that most steps flash several shots at once.
   ##############################################
   afterburner_setup_step_1:
+    stop_ll: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_lane}
     stop_lr: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_ramp}
     stop_lo: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_orbit}
     stop_rr: {show: sync_flash_mode, action: stop, key: mode_l_shot_right_orbit}
@@ -837,15 +851,8 @@ show_player:
     stop_tl: {show: sync_flash_mode, action: stop, key: mode_l_shot_upper_orbit}
     stop_to: {show: sync_flash_mode, action: stop, key: mode_l_shot_middle_ramp}
     stop_sp: {show: sync_flash_mode, action: stop, key: mode_l_shot_spinner}
+    stop_2x: {show: sync_flash_mode, action: stop, key: mode_l_shot_pilot_gear}
     stop_cnt: {show: sync_flash_mode, action: stop, key: mode_l_shot_barrier}
-    lr_mode_flash_s1:
-      show: sync_flash_mode
-      key: mode_l_shot_left_ramp
-      sync_ms: 1000
-      loops: -1
-      show_tokens:
-        led: l_shot_left_ramp
-        color: FF6600
     lo_mode_flash_s1:
       show: sync_flash_mode
       key: mode_l_shot_left_orbit
@@ -854,11 +861,36 @@ show_player:
       show_tokens:
         led: l_shot_left_orbit
         color: FF6600
+    lr_mode_flash_s1:
+      show: sync_flash_mode
+      key: mode_l_shot_left_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+        color: FF6600
+    sp_mode_flash_s1:
+      show: sync_flash_mode
+      key: mode_l_shot_spinner
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_spinner
+        color: FF6600
+    cnt_mode_flash_s1:
+      show: sync_flash_mode
+      key: mode_l_shot_barrier
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_barrier
+        color: FF6600
 
   ##############################################
-  ## STEP 2: RR + TWR (ORANGE flash)
+  ## STEP 2: RO, 2X, TR, TL, TWR (ORANGE flash)
   ##############################################
   afterburner_setup_step_2:
+    stop_ll: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_lane}
     stop_lr: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_ramp}
     stop_lo: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_orbit}
     stop_rr: {show: sync_flash_mode, action: stop, key: mode_l_shot_right_orbit}
@@ -866,14 +898,39 @@ show_player:
     stop_tl: {show: sync_flash_mode, action: stop, key: mode_l_shot_upper_orbit}
     stop_to: {show: sync_flash_mode, action: stop, key: mode_l_shot_middle_ramp}
     stop_sp: {show: sync_flash_mode, action: stop, key: mode_l_shot_spinner}
+    stop_2x: {show: sync_flash_mode, action: stop, key: mode_l_shot_pilot_gear}
     stop_cnt: {show: sync_flash_mode, action: stop, key: mode_l_shot_barrier}
-    rr_mode_flash_s2:
+    ro_mode_flash_s2:
       show: sync_flash_mode
       key: mode_l_shot_right_orbit
       sync_ms: 1000
       loops: -1
       show_tokens:
         led: l_shot_right_orbit
+        color: FF6600
+    twogear_mode_flash_s2:
+      show: sync_flash_mode
+      key: mode_l_shot_pilot_gear
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_pilot_gear
+        color: FF6600
+    tr_mode_flash_s2:
+      show: sync_flash_mode
+      key: mode_l_shot_middle_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: FF6600
+    tl_mode_flash_s2:
+      show: sync_flash_mode
+      key: mode_l_shot_upper_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
         color: FF6600
     twr_mode_flash_s2:
       show: sync_flash_mode
@@ -885,9 +942,10 @@ show_player:
         color: FF6600
 
   ##############################################
-  ## STEP 3: LR + SP (ORANGE flash)
+  ## STEP 3: SP, CNT, TWR, TL (ORANGE flash) - right ramp lowered
   ##############################################
   afterburner_setup_step_3:
+    stop_ll: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_lane}
     stop_lr: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_ramp}
     stop_lo: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_orbit}
     stop_rr: {show: sync_flash_mode, action: stop, key: mode_l_shot_right_orbit}
@@ -895,15 +953,8 @@ show_player:
     stop_tl: {show: sync_flash_mode, action: stop, key: mode_l_shot_upper_orbit}
     stop_to: {show: sync_flash_mode, action: stop, key: mode_l_shot_middle_ramp}
     stop_sp: {show: sync_flash_mode, action: stop, key: mode_l_shot_spinner}
+    stop_2x: {show: sync_flash_mode, action: stop, key: mode_l_shot_pilot_gear}
     stop_cnt: {show: sync_flash_mode, action: stop, key: mode_l_shot_barrier}
-    lr_mode_flash_s3:
-      show: sync_flash_mode
-      key: mode_l_shot_left_ramp
-      sync_ms: 1000
-      loops: -1
-      show_tokens:
-        led: l_shot_left_ramp
-        color: FF6600
     sp_mode_flash_s3:
       show: sync_flash_mode
       key: mode_l_shot_spinner
@@ -912,20 +963,15 @@ show_player:
       show_tokens:
         led: l_shot_spinner
         color: FF6600
-
-  ##############################################
-  ## STEP 4: TWR + TL (ORANGE flash)
-  ##############################################
-  afterburner_setup_step_4:
-    stop_lr: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_ramp}
-    stop_lo: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_orbit}
-    stop_rr: {show: sync_flash_mode, action: stop, key: mode_l_shot_right_orbit}
-    stop_twr: {show: sync_flash_mode, action: stop, key: mode_l_shot_tower_ramp}
-    stop_tl: {show: sync_flash_mode, action: stop, key: mode_l_shot_upper_orbit}
-    stop_to: {show: sync_flash_mode, action: stop, key: mode_l_shot_middle_ramp}
-    stop_sp: {show: sync_flash_mode, action: stop, key: mode_l_shot_spinner}
-    stop_cnt: {show: sync_flash_mode, action: stop, key: mode_l_shot_barrier}
-    twr_mode_flash_s4:
+    cnt_mode_flash_s3:
+      show: sync_flash_mode
+      key: mode_l_shot_barrier
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_barrier
+        color: FF6600
+    twr_mode_flash_s3:
       show: sync_flash_mode
       key: mode_l_shot_tower_ramp
       sync_ms: 1000
@@ -933,7 +979,7 @@ show_player:
       show_tokens:
         led: l_shot_tower_ramp
         color: FF6600
-    tl_mode_flash_s4:
+    tl_mode_flash_s3:
       show: sync_flash_mode
       key: mode_l_shot_upper_orbit
       sync_ms: 1000
@@ -943,9 +989,10 @@ show_player:
         color: FF6600
 
   ##############################################
-  ## STEP 5: LR + LO (ORANGE flash)
+  ## STEP 4: LL, LO, LR (ORANGE flash)
   ##############################################
-  afterburner_setup_step_5:
+  afterburner_setup_step_4:
+    stop_ll: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_lane}
     stop_lr: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_ramp}
     stop_lo: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_orbit}
     stop_rr: {show: sync_flash_mode, action: stop, key: mode_l_shot_right_orbit}
@@ -953,16 +1000,17 @@ show_player:
     stop_tl: {show: sync_flash_mode, action: stop, key: mode_l_shot_upper_orbit}
     stop_to: {show: sync_flash_mode, action: stop, key: mode_l_shot_middle_ramp}
     stop_sp: {show: sync_flash_mode, action: stop, key: mode_l_shot_spinner}
+    stop_2x: {show: sync_flash_mode, action: stop, key: mode_l_shot_pilot_gear}
     stop_cnt: {show: sync_flash_mode, action: stop, key: mode_l_shot_barrier}
-    lr_mode_flash_s5:
+    ll_mode_flash_s4:
       show: sync_flash_mode
-      key: mode_l_shot_left_ramp
+      key: mode_l_shot_left_lane
       sync_ms: 1000
       loops: -1
       show_tokens:
-        led: l_shot_left_ramp
+        led: l_shot_left_lane
         color: FF6600
-    lo_mode_flash_s5:
+    lo_mode_flash_s4:
       show: sync_flash_mode
       key: mode_l_shot_left_orbit
       sync_ms: 1000
@@ -970,11 +1018,20 @@ show_player:
       show_tokens:
         led: l_shot_left_orbit
         color: FF6600
+    lr_mode_flash_s4:
+      show: sync_flash_mode
+      key: mode_l_shot_left_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+        color: FF6600
 
   ##############################################
-  ## STEP 6: RO + TWR (ORANGE flash) - Right ramp UP
+  ## STEP 5: TWR, TL, TO, 2X (ORANGE flash) - top ramp raised
   ##############################################
-  afterburner_setup_step_6:
+  afterburner_setup_step_5:
+    stop_ll: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_lane}
     stop_lr: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_ramp}
     stop_lo: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_orbit}
     stop_rr: {show: sync_flash_mode, action: stop, key: mode_l_shot_right_orbit}
@@ -982,16 +1039,9 @@ show_player:
     stop_tl: {show: sync_flash_mode, action: stop, key: mode_l_shot_upper_orbit}
     stop_to: {show: sync_flash_mode, action: stop, key: mode_l_shot_middle_ramp}
     stop_sp: {show: sync_flash_mode, action: stop, key: mode_l_shot_spinner}
+    stop_2x: {show: sync_flash_mode, action: stop, key: mode_l_shot_pilot_gear}
     stop_cnt: {show: sync_flash_mode, action: stop, key: mode_l_shot_barrier}
-    ro_mode_flash_s6:
-      show: sync_flash_mode
-      key: mode_l_shot_right_orbit
-      sync_ms: 1000
-      loops: -1
-      show_tokens:
-        led: l_shot_right_orbit
-        color: FF6600
-    twr_mode_flash_s6:
+    twr_mode_flash_s5:
       show: sync_flash_mode
       key: mode_l_shot_tower_ramp
       sync_ms: 1000
@@ -999,9 +1049,64 @@ show_player:
       show_tokens:
         led: l_shot_tower_ramp
         color: FF6600
+    tl_mode_flash_s5:
+      show: sync_flash_mode
+      key: mode_l_shot_upper_orbit
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: FF6600
+    to_mode_flash_s5:
+      show: sync_flash_mode
+      key: mode_l_shot_middle_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: FF6600
+    twogear_mode_flash_s5:
+      show: sync_flash_mode
+      key: mode_l_shot_pilot_gear
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_pilot_gear
+        color: FF6600
 
   ##############################################
-  ## STEP 7: TL and TO (ORANGE flash both) - Hit either one
+  ## STEP 6: LR, SP (ORANGE flash) - top ramp lowered
+  ##############################################
+  afterburner_setup_step_6:
+    stop_ll: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_lane}
+    stop_lr: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_ramp}
+    stop_lo: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_orbit}
+    stop_rr: {show: sync_flash_mode, action: stop, key: mode_l_shot_right_orbit}
+    stop_twr: {show: sync_flash_mode, action: stop, key: mode_l_shot_tower_ramp}
+    stop_tl: {show: sync_flash_mode, action: stop, key: mode_l_shot_upper_orbit}
+    stop_to: {show: sync_flash_mode, action: stop, key: mode_l_shot_middle_ramp}
+    stop_sp: {show: sync_flash_mode, action: stop, key: mode_l_shot_spinner}
+    stop_2x: {show: sync_flash_mode, action: stop, key: mode_l_shot_pilot_gear}
+    stop_cnt: {show: sync_flash_mode, action: stop, key: mode_l_shot_barrier}
+    lr_mode_flash_s6:
+      show: sync_flash_mode
+      key: mode_l_shot_left_ramp
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_left_ramp
+        color: FF6600
+    sp_mode_flash_s6:
+      show: sync_flash_mode
+      key: mode_l_shot_spinner
+      sync_ms: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_spinner
+        color: FF6600
+
+  ##############################################
+  ## STEP 7: RR, TWR (ORANGE flash)
   ##############################################
   afterburner_setup_step_7:
     stop_lr: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_ramp}
@@ -1011,56 +1116,48 @@ show_player:
     stop_tl: {show: sync_flash_mode, action: stop, key: mode_l_shot_upper_orbit}
     stop_to: {show: sync_flash_mode, action: stop, key: mode_l_shot_middle_ramp}
     stop_sp: {show: sync_flash_mode, action: stop, key: mode_l_shot_spinner}
+    stop_2x: {show: sync_flash_mode, action: stop, key: mode_l_shot_pilot_gear}
     stop_cnt: {show: sync_flash_mode, action: stop, key: mode_l_shot_barrier}
-    tl_mode_flash_s7:
+    rr_mode_flash_s7:
       show: sync_flash_mode
-      key: mode_l_shot_upper_orbit
+      key: mode_l_shot_right_orbit
       sync_ms: 1000
       loops: -1
       show_tokens:
-        led: l_shot_upper_orbit
+        led: l_shot_right_orbit
         color: FF6600
-    to_mode_flash_s7:
+    twr_mode_flash_s7:
       show: sync_flash_mode
-      key: mode_l_shot_middle_ramp
+      key: mode_l_shot_tower_ramp
       sync_ms: 1000
       loops: -1
       show_tokens:
-        led: l_shot_middle_ramp
+        led: l_shot_tower_ramp
         color: FF6600
 
   ##############################################
-  ## STEP 8: SP (ORANGE flash)
+  ## STEP 8: LR only (ORANGE flash)
   ##############################################
   afterburner_setup_step_8:
     stop_lr: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_ramp}
-    stop_lo: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_orbit}
     stop_rr: {show: sync_flash_mode, action: stop, key: mode_l_shot_right_orbit}
     stop_twr: {show: sync_flash_mode, action: stop, key: mode_l_shot_tower_ramp}
-    stop_tl: {show: sync_flash_mode, action: stop, key: mode_l_shot_upper_orbit}
-    stop_to: {show: sync_flash_mode, action: stop, key: mode_l_shot_middle_ramp}
     stop_sp: {show: sync_flash_mode, action: stop, key: mode_l_shot_spinner}
     stop_cnt: {show: sync_flash_mode, action: stop, key: mode_l_shot_barrier}
-    sp_mode_flash_s8:
+    lr_mode_flash_s8:
       show: sync_flash_mode
-      key: mode_l_shot_spinner
+      key: mode_l_shot_left_ramp
       sync_ms: 1000
       loops: -1
       show_tokens:
-        led: l_shot_spinner
+        led: l_shot_left_ramp
         color: FF6600
 
   ##############################################
-  ## STEP 9: CNT (Barrier Target) (ORANGE flash)
+  ## STEP 9: CNT (Barrier Target) only (ORANGE flash)
   ##############################################
   afterburner_setup_step_9:
     stop_lr: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_ramp}
-    stop_lo: {show: sync_flash_mode, action: stop, key: mode_l_shot_left_orbit}
-    stop_rr: {show: sync_flash_mode, action: stop, key: mode_l_shot_right_orbit}
-    stop_twr: {show: sync_flash_mode, action: stop, key: mode_l_shot_tower_ramp}
-    stop_tl: {show: sync_flash_mode, action: stop, key: mode_l_shot_upper_orbit}
-    stop_to: {show: sync_flash_mode, action: stop, key: mode_l_shot_middle_ramp}
-    stop_sp: {show: sync_flash_mode, action: stop, key: mode_l_shot_spinner}
     stop_cnt: {show: sync_flash_mode, action: stop, key: mode_l_shot_barrier}
     cnt_mode_flash_s9:
       show: sync_flash_mode
@@ -1130,6 +1227,10 @@ show_player:
   ## MODE CLEANUP - Stop all flashing shows
   ##############################################
   afterburner_cleanup:
+    stop_ll_final:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_lane
     stop_lr_final:
       show: sync_flash_mode
       action: stop
@@ -1138,6 +1239,10 @@ show_player:
       show: sync_flash_mode
       action: stop
       key: mode_l_shot_left_orbit
+    stop_2x_final:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_pilot_gear
     stop_rr_final:
       show: sync_flash_mode
       action: stop
@@ -1601,6 +1706,7 @@ light_player:
     l_apron_light_3: {color: white, fade: 0ms}
     l_apron_light_4: {color: white, fade: 0ms}
     # Turn off all shot inserts
+    l_shot_left_lane: off
     l_shot_left_ramp: off
     l_shot_left_orbit: off
     l_shot_right_orbit: off
@@ -1619,42 +1725,15 @@ light_player:
   ## now that most steps light two shots at once.
   ##############################################
 
-  # Step 1: LR + LO solid orange
+  # Step 1: LO, LR, SP, CNT solid orange
   afterburner_setup_step_1:
+    l_shot_left_lane: off
     l_shot_left_ramp:
       color: FF6600
       fade: 0ms
     l_shot_left_orbit:
       color: FF6600
       fade: 0ms
-    l_shot_right_orbit: off
-    l_shot_tower_ramp: off
-    l_shot_upper_orbit: off
-    l_shot_middle_ramp: off
-    l_shot_spinner: off
-    l_shot_barrier: off
-
-  # Step 2: RR + TWR solid orange
-  afterburner_setup_step_2:
-    l_shot_left_ramp: off
-    l_shot_left_orbit: off
-    l_shot_right_orbit:
-      color: FF6600
-      fade: 0ms
-    l_shot_tower_ramp:
-      color: FF6600
-      fade: 0ms
-    l_shot_upper_orbit: off
-    l_shot_middle_ramp: off
-    l_shot_spinner: off
-    l_shot_barrier: off
-
-  # Step 3: LR + SP solid orange
-  afterburner_setup_step_3:
-    l_shot_left_ramp:
-      color: FF6600
-      fade: 0ms
-    l_shot_left_orbit: off
     l_shot_right_orbit: off
     l_shot_tower_ramp: off
     l_shot_upper_orbit: off
@@ -1662,40 +1741,14 @@ light_player:
     l_shot_spinner:
       color: FF6600
       fade: 0ms
-    l_shot_barrier: off
+    l_shot_pilot_gear: off
+    l_shot_barrier:
+      color: FF6600
+      fade: 0ms
 
-  # Step 4: TWR + TL solid orange
-  afterburner_setup_step_4:
-    l_shot_left_ramp: off
-    l_shot_left_orbit: off
-    l_shot_right_orbit: off
-    l_shot_tower_ramp:
-      color: FF6600
-      fade: 0ms
-    l_shot_upper_orbit:
-      color: FF6600
-      fade: 0ms
-    l_shot_middle_ramp: off
-    l_shot_spinner: off
-    l_shot_barrier: off
-
-  # Step 5: LR + LO solid orange
-  afterburner_setup_step_5:
-    l_shot_left_ramp:
-      color: FF6600
-      fade: 0ms
-    l_shot_left_orbit:
-      color: FF6600
-      fade: 0ms
-    l_shot_right_orbit: off
-    l_shot_tower_ramp: off
-    l_shot_upper_orbit: off
-    l_shot_middle_ramp: off
-    l_shot_spinner: off
-    l_shot_barrier: off
-
-  # Step 6: RO + TWR solid orange
-  afterburner_setup_step_6:
+  # Step 2: RO, 2X, TR, TL, TWR solid orange
+  afterburner_setup_step_2:
+    l_shot_left_lane: off
     l_shot_left_ramp: off
     l_shot_left_orbit: off
     l_shot_right_orbit:
@@ -1704,15 +1757,6 @@ light_player:
     l_shot_tower_ramp:
       color: FF6600
       fade: 0ms
-    l_shot_upper_orbit: off
-    l_shot_middle_ramp: off
-    l_shot_spinner: off
-    l_shot_barrier: off
-
-  # Step 7: TL and TO both solid orange
-  afterburner_setup_step_7:
-    l_shot_right_orbit: off
-    l_shot_tower_ramp: off
     l_shot_upper_orbit:
       color: FF6600
       fade: 0ms
@@ -1720,19 +1764,121 @@ light_player:
       color: FF6600
       fade: 0ms
     l_shot_spinner: off
+    l_shot_pilot_gear:
+      color: FF6600
+      fade: 0ms
     l_shot_barrier: off
 
-  # Step 8: SP solid orange
-  afterburner_setup_step_8:
+  # Step 3: SP, CNT, TWR, TL solid orange
+  afterburner_setup_step_3:
+    l_shot_left_lane: off
+    l_shot_left_ramp: off
+    l_shot_left_orbit: off
+    l_shot_right_orbit: off
+    l_shot_tower_ramp:
+      color: FF6600
+      fade: 0ms
+    l_shot_upper_orbit:
+      color: FF6600
+      fade: 0ms
+    l_shot_middle_ramp: off
+    l_shot_spinner:
+      color: FF6600
+      fade: 0ms
+    l_shot_pilot_gear: off
+    l_shot_barrier:
+      color: FF6600
+      fade: 0ms
+
+  # Step 4: LL, LO, LR solid orange
+  afterburner_setup_step_4:
+    l_shot_left_lane:
+      color: FF6600
+      fade: 0ms
+    l_shot_left_ramp:
+      color: FF6600
+      fade: 0ms
+    l_shot_left_orbit:
+      color: FF6600
+      fade: 0ms
+    l_shot_right_orbit: off
+    l_shot_tower_ramp: off
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+    l_shot_spinner: off
+    l_shot_pilot_gear: off
+    l_shot_barrier: off
+
+  # Step 5: TWR, TL, TO, 2X solid orange
+  afterburner_setup_step_5:
+    l_shot_left_lane: off
+    l_shot_left_ramp: off
+    l_shot_left_orbit: off
+    l_shot_right_orbit: off
+    l_shot_tower_ramp:
+      color: FF6600
+      fade: 0ms
+    l_shot_upper_orbit:
+      color: FF6600
+      fade: 0ms
+    l_shot_middle_ramp:
+      color: FF6600
+      fade: 0ms
+    l_shot_spinner: off
+    l_shot_pilot_gear:
+      color: FF6600
+      fade: 0ms
+    l_shot_barrier: off
+
+  # Step 6: LR, SP solid orange
+  afterburner_setup_step_6:
+    l_shot_left_lane: off
+    l_shot_left_ramp:
+      color: FF6600
+      fade: 0ms
+    l_shot_left_orbit: off
+    l_shot_right_orbit: off
+    l_shot_tower_ramp: off
     l_shot_upper_orbit: off
     l_shot_middle_ramp: off
     l_shot_spinner:
       color: FF6600
       fade: 0ms
+    l_shot_pilot_gear: off
     l_shot_barrier: off
 
-  # Step 9: CNT (Barrier Target) solid orange
+  # Step 7: RR, TWR solid orange
+  afterburner_setup_step_7:
+    l_shot_left_ramp: off
+    l_shot_left_orbit: off
+    l_shot_right_orbit:
+      color: FF6600
+      fade: 0ms
+    l_shot_tower_ramp:
+      color: FF6600
+      fade: 0ms
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+    l_shot_spinner: off
+    l_shot_pilot_gear: off
+    l_shot_barrier: off
+
+  # Step 8: LR solid orange (only shot)
+  afterburner_setup_step_8:
+    l_shot_left_ramp:
+      color: FF6600
+      fade: 0ms
+    l_shot_right_orbit: off
+    l_shot_tower_ramp: off
+    l_shot_upper_orbit: off
+    l_shot_middle_ramp: off
+    l_shot_spinner: off
+    l_shot_pilot_gear: off
+    l_shot_barrier: off
+
+  # Step 9: CNT (Barrier Target) solid orange (only shot)
   afterburner_setup_step_9:
+    l_shot_left_ramp: off
     l_shot_spinner: off
     l_shot_barrier:
       color: FF6600

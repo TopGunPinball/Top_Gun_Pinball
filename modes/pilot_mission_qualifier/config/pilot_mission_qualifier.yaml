@@ -3444,18 +3444,34 @@ event_player:
 
   mode_pilot_mission_qualifier_started{current_player.qualified_mode_number==0 and current_player.letter_collection_paused==0 and current_player.pilot_qualifier_paused==0}:
     - update_qualifying_show
+
+  mode_pilot_mission_qualifier_started{current_player.letter_collection_paused==0 and current_player.pilot_qualifier_paused==0}:
     - update_training_qual_lights
 
   player_letter_collection_paused{value==0 and current_player.qualified_mode_number==0 and current_player.pilot_qualifier_paused==0}:
     - update_qualifying_show
+
+  player_letter_collection_paused{value==0 and current_player.pilot_qualifier_paused==0}:
     - update_training_qual_lights
 
   player_pilot_qualifier_paused{value==0 and current_player.qualified_mode_number==0 and current_player.letter_collection_paused==0}:
     - update_qualifying_show
+
+  player_pilot_qualifier_paused{value==0 and current_player.letter_collection_paused==0}:
     - update_training_qual_lights
 
   player_lock_collection_paused{current_player.qualified_mode_number==0 and current_player.letter_collection_paused==0 and current_player.pilot_qualifier_paused==0}:
     - update_qualifying_show
+
+  player_lock_collection_paused{current_player.letter_collection_paused==0 and current_player.pilot_qualifier_paused==0}:
+    - update_training_qual_lights
+
+  # qualified_mode_number changing (qualifying, rotating, or being played off) is the
+  # other trigger the qual_ll combined-state branches depend on. update_qualifying_show
+  # deliberately does NOT run here — it only governs the pre-qualification letter shots
+  # and must stay gated to qualified_mode_number==0 above, or it re-flashes shots that
+  # should already be solid/settled once a pilot mission is qualified.
+  player_qualified_mode_number{current_player.letter_collection_paused==0 and current_player.pilot_qualifier_paused==0}:
     - update_training_qual_lights
 
   # (Tier D per-letter show update removed - no longer applicable)

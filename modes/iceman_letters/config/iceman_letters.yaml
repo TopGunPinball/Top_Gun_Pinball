@@ -354,6 +354,63 @@ variable_player:
       action: set
       int: current_player.training_mission_qualified
 
+  ##############################################
+  ## AUTO-SKIP COMPLETED MISSIONS
+  ## Sets directly to the next UNCOMPLETED mission value so the variable
+  ## always stays in sync with what's actually lit on the playfield.
+  ## Conditions are ordered most-specific first so MPF matches correctly.
+  ## NOTE: this belongs in variable_player (not event_player) because it
+  ## uses direct action:set/int assignment, not a posted event name.
+  ##############################################
+
+  # Skip value==1 (inverted complete) — find next uncompleted
+  player_training_mission_qualified{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==0}:
+    training_mission_qualified:
+      action: set
+      int: 2
+  player_training_mission_qualified{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==0}:
+    training_mission_qualified:
+      action: set
+      int: 3
+  player_training_mission_qualified{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==0}:
+    training_mission_qualified:
+      action: set
+      int: 4
+  player_training_mission_qualified{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1}:
+    training_mission_qualified:
+      action: set
+      int: 5
+
+  # Skip value==2 (missiles complete) — find next uncompleted
+  player_training_mission_qualified{value==2 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==0}:
+    training_mission_qualified:
+      action: set
+      int: 3
+  player_training_mission_qualified{value==2 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==0}:
+    training_mission_qualified:
+      action: set
+      int: 4
+  player_training_mission_qualified{value==2 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1}:
+    training_mission_qualified:
+      action: set
+      int: 5
+
+  # Skip value==3 (afterburner complete) — find next uncompleted
+  player_training_mission_qualified{value==3 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==0}:
+    training_mission_qualified:
+      action: set
+      int: 4
+  player_training_mission_qualified{value==3 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1}:
+    training_mission_qualified:
+      action: set
+      int: 5
+
+  # Skip value==4 (wingman complete) — jump to dogfight
+  player_training_mission_qualified{value==4 and current_player.training_wingman_complete==1}:
+    training_mission_qualified:
+      action: set
+      int: 5
+
   ## dogfight_others_done = 1 once all 4 NON-dogfight training missions are complete
   ## (fires from whichever of the four completes last).
   player_training_inverted_complete{value==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1}:
@@ -794,59 +851,6 @@ event_player:
   # it permanently sticky - the timer expires quickly and normal rotation resumes.
   player_training_mission_qualified{value==5 and current_player.dogfight_ready==1}:
     - dogfight_slot_settled
-
-  # Auto-skip completed missions during pop bumper rotation
-  # Sets directly to the next UNCOMPLETED mission value so the variable
-  # always stays in sync with what's actually lit on the playfield.
-  # Conditions are ordered most-specific first so MPF matches correctly.
-
-  # Skip value==1 (inverted complete) — find next uncompleted
-  player_training_mission_qualified{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==0}:
-    training_mission_qualified:
-      action: set
-      int: 2
-  player_training_mission_qualified{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==0}:
-    training_mission_qualified:
-      action: set
-      int: 3
-  player_training_mission_qualified{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==0}:
-    training_mission_qualified:
-      action: set
-      int: 4
-  player_training_mission_qualified{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1}:
-    training_mission_qualified:
-      action: set
-      int: 5
-
-  # Skip value==2 (missiles complete) — find next uncompleted
-  player_training_mission_qualified{value==2 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==0}:
-    training_mission_qualified:
-      action: set
-      int: 3
-  player_training_mission_qualified{value==2 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==0}:
-    training_mission_qualified:
-      action: set
-      int: 4
-  player_training_mission_qualified{value==2 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1}:
-    training_mission_qualified:
-      action: set
-      int: 5
-
-  # Skip value==3 (afterburner complete) — find next uncompleted
-  player_training_mission_qualified{value==3 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==0}:
-    training_mission_qualified:
-      action: set
-      int: 4
-  player_training_mission_qualified{value==3 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1}:
-    training_mission_qualified:
-      action: set
-      int: 5
-
-  # Skip value==4 (wingman complete) — jump to dogfight
-  player_training_mission_qualified{value==4 and current_player.training_wingman_complete==1}:
-    training_mission_qualified:
-      action: set
-      int: 5
 
   # Stop all pulse shows when any training mission starts
   mode_pilot_training_mission_inverted_started:
