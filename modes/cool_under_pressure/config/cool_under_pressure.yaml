@@ -373,6 +373,16 @@ variable_player:
       action: set
       int: 1
 
+  # Lock all shot scoring the instant the mode fails (timer expiry or bad
+  # shot at 0 crystals both route through this event). The mode stays
+  # "active" for the full lost-video delay, so without this flag any
+  # switch matching the current step still scores/relights during the
+  # lost video even though cup_stop_step_lights already killed the inserts.
+  cup_failed:
+    cup_step_locked:
+      action: set
+      int: 1
+
   # ─── STEP TRACKING ───────────────────────────────────────────────────────────
   cup_setup_step_1:
     cup_step:
@@ -724,9 +734,9 @@ event_player:
 
   # ─── INTRO SKIP (BOTH FLIPPERS) ──────────────────────────────────────────────
   # Works during BOTH the intro video AND the voice callout delay
-  s_flipper_left_active{current_player.cup_step==0 and (device.timers.cup_intro_video_delay.running or device.timers.cup_voice_callout_delay.running)}:
+  s_flipper_left_active{current_player.cup_step==0 and (device.timers.cup_intro_video_delay.running or device.timers.cup_voice_callout_delay.running) and current_player.cup_step_locked==0}:
     - cup_check_skip_intro
-  s_flipper_right_active{current_player.cup_step==0 and (device.timers.cup_intro_video_delay.running or device.timers.cup_voice_callout_delay.running)}:
+  s_flipper_right_active{current_player.cup_step==0 and (device.timers.cup_intro_video_delay.running or device.timers.cup_voice_callout_delay.running) and current_player.cup_step_locked==0}:
     - cup_check_skip_intro
   cup_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
     - cup_skip_intro
@@ -871,64 +881,64 @@ event_player:
 
   # ─── GOOD SHOT DETECTION ─────────────────────────────────────────────────────
   # Step 1: LR, LO, Spinner
-  s_ramp_left_exit_active{current_player.cup_step==1 and device.timers.cup_step_complete_lockout.running==False}:
+  s_ramp_left_exit_active{current_player.cup_step==1 and device.timers.cup_step_complete_lockout.running==False and current_player.cup_step_locked==0}:
     - cup_left_shot_hit
     - cup_step_1_complete
     - orbit_left_safe_return_clear
-  left_orbit_shot_hit{current_player.cup_step==1 and device.timers.cup_step_complete_lockout.running==False}:
+  left_orbit_shot_hit{current_player.cup_step==1 and device.timers.cup_step_complete_lockout.running==False and current_player.cup_step_locked==0}:
     - cup_left_shot_hit
     - cup_step_1_complete
     - orbit_left_safe_return_clear|700ms
-  spinner_shot_made{current_player.cup_step==1 and device.timers.cup_spinner_lockout.running==False and device.timers.cup_step_complete_lockout.running==False}:
+  spinner_shot_made{current_player.cup_step==1 and device.timers.cup_spinner_lockout.running==False and device.timers.cup_step_complete_lockout.running==False and current_player.cup_step_locked==0}:
     - cup_center_shot_hit
     - cup_step_1_complete
     - orbit_left_safe_return_clear
 
   # Step 2: TWR, RR, TR
-  s_ramp_tower_exit_active{current_player.cup_step==2 and device.timers.cup_step_complete_lockout.running==False}:
+  s_ramp_tower_exit_active{current_player.cup_step==2 and device.timers.cup_step_complete_lockout.running==False and current_player.cup_step_locked==0}:
     - cup_center_shot_hit
     - cup_step_2_complete
-  s_ramp_right_exit_active{current_player.cup_step==2 and device.timers.cup_step_complete_lockout.running==False}:
+  s_ramp_right_exit_active{current_player.cup_step==2 and device.timers.cup_step_complete_lockout.running==False and current_player.cup_step_locked==0}:
     - cup_right_shot_hit
     - cup_step_2_complete
-  s_ramp_inner_exit_active{current_player.cup_step==2 and device.timers.cup_step_complete_lockout.running==False}:
+  s_ramp_inner_exit_active{current_player.cup_step==2 and device.timers.cup_step_complete_lockout.running==False and current_player.cup_step_locked==0}:
     - cup_right_shot_hit
     - cup_step_2_complete
 
   # Step 3: Spinner, TWR
-  spinner_shot_made{current_player.cup_step==3 and device.timers.cup_spinner_lockout.running==False and device.timers.cup_step_complete_lockout.running==False}:
+  spinner_shot_made{current_player.cup_step==3 and device.timers.cup_spinner_lockout.running==False and device.timers.cup_step_complete_lockout.running==False and current_player.cup_step_locked==0}:
     - cup_center_shot_hit
     - cup_step_3_complete
-  s_ramp_tower_exit_active{current_player.cup_step==3 and device.timers.cup_step_complete_lockout.running==False}:
+  s_ramp_tower_exit_active{current_player.cup_step==3 and device.timers.cup_step_complete_lockout.running==False and current_player.cup_step_locked==0}:
     - cup_center_shot_hit
     - cup_step_3_complete
 
   # Step 4: TL, TO (top ramp is UP)
-  s_orbit_upper_active{current_player.cup_step==4 and device.timers.cup_step_complete_lockout.running==False}:
+  s_orbit_upper_active{current_player.cup_step==4 and device.timers.cup_step_complete_lockout.running==False and current_player.cup_step_locked==0}:
     - cup_right_shot_hit
     - cup_step_4_complete
-  s_orbit_lower_active{current_player.cup_step==4 and device.timers.cup_step_complete_lockout.running==False}:
+  s_orbit_lower_active{current_player.cup_step==4 and device.timers.cup_step_complete_lockout.running==False and current_player.cup_step_locked==0}:
     - cup_right_shot_hit
     - cup_step_4_complete
 
   # Step 5: RO (right orbit; right ramp is UP)
-  right_orbit_shot_hit{current_player.cup_step==5 and device.timers.cup_step_complete_lockout.running==False}:
+  right_orbit_shot_hit{current_player.cup_step==5 and device.timers.cup_step_complete_lockout.running==False and current_player.cup_step_locked==0}:
     - cup_right_shot_hit
     - cup_step_5_complete
 
   # Step 6: TO (top ramp is UP)
-  s_orbit_lower_active{current_player.cup_step==6 and device.timers.cup_step_complete_lockout.running==False}:
+  s_orbit_lower_active{current_player.cup_step==6 and device.timers.cup_step_complete_lockout.running==False and current_player.cup_step_locked==0}:
     - cup_right_shot_hit
     - cup_step_6_complete
 
   # Step 7: LO
-  left_orbit_shot_hit{current_player.cup_step==7 and device.timers.cup_step_complete_lockout.running==False}:
+  left_orbit_shot_hit{current_player.cup_step==7 and device.timers.cup_step_complete_lockout.running==False and current_player.cup_step_locked==0}:
     - cup_left_shot_hit
     - cup_step_7_complete
     - orbit_left_safe_return_clear|700ms
 
   # Step 8: Scoop (barrier is DOWN)
-  s_mode_start_active{current_player.cup_step==8 and device.timers.cup_step_complete_lockout.running==False}:
+  s_mode_start_active{current_player.cup_step==8 and device.timers.cup_step_complete_lockout.running==False and current_player.cup_step_locked==0}:
     - cup_center_shot_hit
     - cup_step_8_complete
 
@@ -936,26 +946,26 @@ event_player:
   # Event: missiles_perk_complete_shot (matches all other pilot modes)
   # complete_flag==0 guard prevents firing after mode is already won.
   # Step 8 (scoop) intentionally omitted — ball must physically enter scoop.
-  missiles_perk_complete_shot{current_player.cup_step==1 and current_player.cup_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.cup_step==1 and current_player.cup_complete_flag==0 and current_player.cup_step_locked==0}:
     - cup_left_shot_hit
     - cup_step_1_complete
     - orbit_left_safe_return_clear
-  missiles_perk_complete_shot{current_player.cup_step==2 and current_player.cup_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.cup_step==2 and current_player.cup_complete_flag==0 and current_player.cup_step_locked==0}:
     - cup_right_shot_hit
     - cup_step_2_complete
-  missiles_perk_complete_shot{current_player.cup_step==3 and current_player.cup_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.cup_step==3 and current_player.cup_complete_flag==0 and current_player.cup_step_locked==0}:
     - cup_center_shot_hit
     - cup_step_3_complete
-  missiles_perk_complete_shot{current_player.cup_step==4 and current_player.cup_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.cup_step==4 and current_player.cup_complete_flag==0 and current_player.cup_step_locked==0}:
     - cup_right_shot_hit
     - cup_step_4_complete
-  missiles_perk_complete_shot{current_player.cup_step==5 and current_player.cup_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.cup_step==5 and current_player.cup_complete_flag==0 and current_player.cup_step_locked==0}:
     - cup_right_shot_hit
     - cup_step_5_complete
-  missiles_perk_complete_shot{current_player.cup_step==6 and current_player.cup_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.cup_step==6 and current_player.cup_complete_flag==0 and current_player.cup_step_locked==0}:
     - cup_right_shot_hit
     - cup_step_6_complete
-  missiles_perk_complete_shot{current_player.cup_step==7 and current_player.cup_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.cup_step==7 and current_player.cup_complete_flag==0 and current_player.cup_step_locked==0}:
     - cup_left_shot_hit
     - cup_step_7_complete
     - orbit_left_safe_return_clear
@@ -966,114 +976,114 @@ event_player:
 
   # STEP 1 bad shots:
   # TL always bad (3,2,1,0)
-  s_orbit_upper_active{current_player.cup_step==1}:
+  s_orbit_upper_active{current_player.cup_step==1 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # TWR bad at 2,1,0 crystals
-  s_ramp_tower_exit_active{current_player.cup_step==1 and current_player.cup_crystals<=2}:
+  s_ramp_tower_exit_active{current_player.cup_step==1 and current_player.cup_crystals<=2 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # TR bad at 1,0 crystals
-  s_ramp_inner_exit_active{current_player.cup_step==1 and current_player.cup_crystals<=1}:
+  s_ramp_inner_exit_active{current_player.cup_step==1 and current_player.cup_crystals<=1 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # RR bad at 0 crystals
-  s_ramp_right_exit_active{current_player.cup_step==1 and current_player.cup_crystals==0}:
+  s_ramp_right_exit_active{current_player.cup_step==1 and current_player.cup_crystals==0 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
 
   # STEP 2 bad shots:
   # LR always bad
-  s_ramp_left_exit_active{current_player.cup_step==2}:
+  s_ramp_left_exit_active{current_player.cup_step==2 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # LO bad at 2,1,0
-  left_orbit_shot_hit{current_player.cup_step==2 and current_player.cup_crystals<=2}:
+  left_orbit_shot_hit{current_player.cup_step==2 and current_player.cup_crystals<=2 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # Spinner bad at 1,0
-  spinner_shot_made{current_player.cup_step==2 and current_player.cup_crystals<=1 and device.timers.cup_spinner_lockout.running==False}:
+  spinner_shot_made{current_player.cup_step==2 and current_player.cup_crystals<=1 and device.timers.cup_spinner_lockout.running==False and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # Barrier bad at 0
-  s_barrier_target_active{current_player.cup_step==2 and current_player.cup_crystals==0}:
+  s_barrier_target_active{current_player.cup_step==2 and current_player.cup_crystals==0 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
 
   # STEP 3 bad shots:
   # RR always bad
-  s_ramp_right_exit_active{current_player.cup_step==3}:
+  s_ramp_right_exit_active{current_player.cup_step==3 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # LR bad at 2,1,0
-  s_ramp_left_exit_active{current_player.cup_step==3 and current_player.cup_crystals<=2}:
+  s_ramp_left_exit_active{current_player.cup_step==3 and current_player.cup_crystals<=2 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # LO bad at 1,0
-  left_orbit_shot_hit{current_player.cup_step==3 and current_player.cup_crystals<=1}:
+  left_orbit_shot_hit{current_player.cup_step==3 and current_player.cup_crystals<=1 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # TR bad at 0
-  s_ramp_inner_exit_active{current_player.cup_step==3 and current_player.cup_crystals==0}:
+  s_ramp_inner_exit_active{current_player.cup_step==3 and current_player.cup_crystals==0 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
 
   # STEP 4 bad shots:
   # LR always bad
-  s_ramp_left_exit_active{current_player.cup_step==4}:
+  s_ramp_left_exit_active{current_player.cup_step==4 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # Spinner bad at 2,1,0
-  spinner_shot_made{current_player.cup_step==4 and current_player.cup_crystals<=2 and device.timers.cup_spinner_lockout.running==False}:
+  spinner_shot_made{current_player.cup_step==4 and current_player.cup_crystals<=2 and device.timers.cup_spinner_lockout.running==False and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # TWR bad at 1,0
-  s_ramp_tower_exit_active{current_player.cup_step==4 and current_player.cup_crystals<=1}:
+  s_ramp_tower_exit_active{current_player.cup_step==4 and current_player.cup_crystals<=1 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # Barrier bad at 0
-  s_barrier_target_active{current_player.cup_step==4 and current_player.cup_crystals==0}:
+  s_barrier_target_active{current_player.cup_step==4 and current_player.cup_crystals==0 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
 
   # STEP 5 bad shots:
   # Barrier always bad
-  s_barrier_target_active{current_player.cup_step==5}:
+  s_barrier_target_active{current_player.cup_step==5 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # Spinner bad at 2,1,0
-  spinner_shot_made{current_player.cup_step==5 and current_player.cup_crystals<=2 and device.timers.cup_spinner_lockout.running==False}:
+  spinner_shot_made{current_player.cup_step==5 and current_player.cup_crystals<=2 and device.timers.cup_spinner_lockout.running==False and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # TWR bad at 1,0
-  s_ramp_tower_exit_active{current_player.cup_step==5 and current_player.cup_crystals<=1}:
+  s_ramp_tower_exit_active{current_player.cup_step==5 and current_player.cup_crystals<=1 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # LR bad at 0
-  s_ramp_left_exit_active{current_player.cup_step==5 and current_player.cup_crystals==0}:
+  s_ramp_left_exit_active{current_player.cup_step==5 and current_player.cup_crystals==0 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
 
   # STEP 6 bad shots:
   # TL always bad
-  s_orbit_upper_active{current_player.cup_step==6}:
+  s_orbit_upper_active{current_player.cup_step==6 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # Barrier bad at 2,1,0
-  s_barrier_target_active{current_player.cup_step==6 and current_player.cup_crystals<=2}:
+  s_barrier_target_active{current_player.cup_step==6 and current_player.cup_crystals<=2 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # LR bad at 1,0
-  s_ramp_left_exit_active{current_player.cup_step==6 and current_player.cup_crystals<=1}:
+  s_ramp_left_exit_active{current_player.cup_step==6 and current_player.cup_crystals<=1 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # LO bad at 0
-  left_orbit_shot_hit{current_player.cup_step==6 and current_player.cup_crystals==0}:
+  left_orbit_shot_hit{current_player.cup_step==6 and current_player.cup_crystals==0 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
 
   # STEP 7 bad shots:
   # RR always bad
-  s_ramp_right_exit_active{current_player.cup_step==7}:
+  s_ramp_right_exit_active{current_player.cup_step==7 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # Spinner bad at 2,1,0
-  spinner_shot_made{current_player.cup_step==7 and current_player.cup_crystals<=2 and device.timers.cup_spinner_lockout.running==False}:
+  spinner_shot_made{current_player.cup_step==7 and current_player.cup_crystals<=2 and device.timers.cup_spinner_lockout.running==False and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # TWR bad at 1,0
-  s_ramp_tower_exit_active{current_player.cup_step==7 and current_player.cup_crystals<=1}:
+  s_ramp_tower_exit_active{current_player.cup_step==7 and current_player.cup_crystals<=1 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # LR bad at 0 (corrected per user: 0 crystals = RR, Spinner, LR, TWR)
-  s_ramp_left_exit_active{current_player.cup_step==7 and current_player.cup_crystals==0}:
+  s_ramp_left_exit_active{current_player.cup_step==7 and current_player.cup_crystals==0 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
 
   # STEP 8 bad shots:
   # LR always bad
-  s_ramp_left_exit_active{current_player.cup_step==8}:
+  s_ramp_left_exit_active{current_player.cup_step==8 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # RR bad at 2,1,0
-  s_ramp_right_exit_active{current_player.cup_step==8 and current_player.cup_crystals<=2}:
+  s_ramp_right_exit_active{current_player.cup_step==8 and current_player.cup_crystals<=2 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # Spinner bad at 1,0
-  spinner_shot_made{current_player.cup_step==8 and current_player.cup_crystals<=1 and device.timers.cup_spinner_lockout.running==False}:
+  spinner_shot_made{current_player.cup_step==8 and current_player.cup_crystals<=1 and device.timers.cup_spinner_lockout.running==False and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # TWR bad at 0
-  s_ramp_tower_exit_active{current_player.cup_step==8 and current_player.cup_crystals==0}:
+  s_ramp_tower_exit_active{current_player.cup_step==8 and current_player.cup_crystals==0 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
 
   # ─── CRYSTAL LOSS CHAIN ───────────────────────────────────────────────────────
@@ -1109,21 +1119,21 @@ event_player:
   # 100ms delay ensures variable_player has updated cup_crystals first.
   # NOTE: For servo steps (4-7), refiring setup re-sends servo position — this is safe
   # (idempotent) but will cause a brief motor pulse on crystal loss during those steps.
-  cup_crystal_lost{current_player.cup_step==1}:
+  cup_crystal_lost{current_player.cup_step==1 and current_player.cup_step_locked==0}:
     - cup_setup_step_1|100ms
-  cup_crystal_lost{current_player.cup_step==2}:
+  cup_crystal_lost{current_player.cup_step==2 and current_player.cup_step_locked==0}:
     - cup_setup_step_2|100ms
-  cup_crystal_lost{current_player.cup_step==3}:
+  cup_crystal_lost{current_player.cup_step==3 and current_player.cup_step_locked==0}:
     - cup_setup_step_3|100ms
-  cup_crystal_lost{current_player.cup_step==4}:
+  cup_crystal_lost{current_player.cup_step==4 and current_player.cup_step_locked==0}:
     - cup_setup_step_4|100ms
-  cup_crystal_lost{current_player.cup_step==5}:
+  cup_crystal_lost{current_player.cup_step==5 and current_player.cup_step_locked==0}:
     - cup_setup_step_5|100ms
-  cup_crystal_lost{current_player.cup_step==6}:
+  cup_crystal_lost{current_player.cup_step==6 and current_player.cup_step_locked==0}:
     - cup_setup_step_6|100ms
-  cup_crystal_lost{current_player.cup_step==7}:
+  cup_crystal_lost{current_player.cup_step==7 and current_player.cup_step_locked==0}:
     - cup_setup_step_7|100ms
-  cup_crystal_lost{current_player.cup_step==8}:
+  cup_crystal_lost{current_player.cup_step==8 and current_player.cup_step_locked==0}:
     - cup_setup_step_8|100ms
 
   # ─── VICTORY FLOW ────────────────────────────────────────────────────────────

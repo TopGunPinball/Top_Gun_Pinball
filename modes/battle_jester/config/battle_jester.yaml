@@ -511,6 +511,16 @@ variable_player:
     battle_jester_complete_flag:
       action: set
       int: 0
+    # Cleared at mode start; set the instant battle_jester_failed fires so every
+    # step's shot switches (and the points-bank/ramps-hit adds they trigger) stop
+    # touching mode state immediately, even though the mode stays "active" for
+    # the full lost-video delay (stop_events waits on timer_battle_jester_failed_delay_complete).
+    # Without this, a player could keep advancing steps/ramps after the timer
+    # expired and reach the step-11 decision, banking a full win payout on a
+    # mode that had already failed.
+    battle_jester_step_locked:
+      action: set
+      int: 0
     battle_jester_shots_remaining:
       action: set
       int: 11
@@ -567,6 +577,16 @@ variable_player:
       action: set
       int: current_player.battle_jester_points_bank
 
+  # Lock all shot scoring the instant the mode fails (main timer expiry while
+  # step<10). The mode stays "active" for the full lost-video delay, so without
+  # this flag any switch matching the current step still adds to the points
+  # bank / ramps counter during the lost video, and could even let the player
+  # fight through to the step-11 decision for a full win payout post-failure.
+  battle_jester_failed:
+    battle_jester_step_locked:
+      action: set
+      int: 1
+
   ##############################################
   ## POINTS BANK - Mode shots add to bank (NOT score)
   ## Green shots also ADD 5 seconds to timer
@@ -574,7 +594,7 @@ variable_player:
   ##############################################
 
   # Step 1 - Green shots (lane_left, orbit_left, ramp_left, spinner)
-  s_lane_left_active{current_player.battle_jester_step==0}:
+  s_lane_left_active{current_player.battle_jester_step==0 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 1600000 * current_player.total_scoring_multiplier
@@ -582,7 +602,7 @@ variable_player:
       action: add
       int: -1
       
-  left_orbit_shot_hit{current_player.battle_jester_step==0}:
+  left_orbit_shot_hit{current_player.battle_jester_step==0 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 1000000 * current_player.total_scoring_multiplier
@@ -590,103 +610,103 @@ variable_player:
       action: add
       int: -1
       
-  s_ramp_left_exit_active{current_player.battle_jester_step==0}:
+  s_ramp_left_exit_active{current_player.battle_jester_step==0 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 800000 * current_player.total_scoring_multiplier
       
-  spinner_shot_made{current_player.battle_jester_step==0 and device.timers.battle_jester_spinner_lockout.running==False}:
+  spinner_shot_made{current_player.battle_jester_step==0 and device.timers.battle_jester_spinner_lockout.running==False and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 650000 * current_player.total_scoring_multiplier
 
   # Step 2 - Green shots (ramp_left, spinner, barrier, tower)
-  s_ramp_left_exit_active{current_player.battle_jester_step==1}:
+  s_ramp_left_exit_active{current_player.battle_jester_step==1 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 800000 * current_player.total_scoring_multiplier
       
-  spinner_shot_made{current_player.battle_jester_step==1 and device.timers.battle_jester_spinner_lockout.running==False}:
+  spinner_shot_made{current_player.battle_jester_step==1 and device.timers.battle_jester_spinner_lockout.running==False and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 650000 * current_player.total_scoring_multiplier
       
-  s_barrier_target_active{current_player.battle_jester_step==1}:
+  s_barrier_target_active{current_player.battle_jester_step==1 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 500000 * current_player.total_scoring_multiplier
       
-  s_ramp_tower_exit_active{current_player.battle_jester_step==1}:
+  s_ramp_tower_exit_active{current_player.battle_jester_step==1 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 800000 * current_player.total_scoring_multiplier
 
   # Step 3 - Green shots (orbit_upper, orbit_lower, pilot_gear, orbit_right)
-  s_orbit_upper_active{current_player.battle_jester_step==2}:
+  s_orbit_upper_active{current_player.battle_jester_step==2 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 1600000 * current_player.total_scoring_multiplier
       
-  s_orbit_lower_active{current_player.battle_jester_step==2}:
+  s_orbit_lower_active{current_player.battle_jester_step==2 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 1150000 * current_player.total_scoring_multiplier
       
-  s_flight_gear_target_active{current_player.battle_jester_step==2}:
+  s_flight_gear_target_active{current_player.battle_jester_step==2 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 500000 * current_player.total_scoring_multiplier
       
-  right_orbit_shot_hit{current_player.battle_jester_step==2}:
+  right_orbit_shot_hit{current_player.battle_jester_step==2 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 1000000 * current_player.total_scoring_multiplier
 
   # Step 4 - Green shots (ramp_left, spinner, barrier)
-  s_ramp_left_exit_active{current_player.battle_jester_step==3}:
+  s_ramp_left_exit_active{current_player.battle_jester_step==3 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 800000 * current_player.total_scoring_multiplier
       
-  spinner_shot_made{current_player.battle_jester_step==3 and device.timers.battle_jester_spinner_lockout.running==False}:
+  spinner_shot_made{current_player.battle_jester_step==3 and device.timers.battle_jester_spinner_lockout.running==False and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 650000 * current_player.total_scoring_multiplier
       
-  left_orbit_shot_hit{current_player.battle_jester_step==3}:
+  left_orbit_shot_hit{current_player.battle_jester_step==3 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 1000000 * current_player.total_scoring_multiplier
       
-  s_barrier_target_active{current_player.battle_jester_step==3}:
+  s_barrier_target_active{current_player.battle_jester_step==3 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 500000 * current_player.total_scoring_multiplier
 
   # Step 5 - Green shots (ramp_right, pilot_gear, ramp_inner)
-  s_ramp_right_exit_active{current_player.battle_jester_step==4}:
+  s_ramp_right_exit_active{current_player.battle_jester_step==4 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 1000000 * current_player.total_scoring_multiplier
       
-  s_flight_gear_target_active{current_player.battle_jester_step==4}:
+  s_flight_gear_target_active{current_player.battle_jester_step==4 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 500000 * current_player.total_scoring_multiplier
       
-  s_ramp_inner_exit_active{current_player.battle_jester_step==4}:
+  s_ramp_inner_exit_active{current_player.battle_jester_step==4 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 1150000 * current_player.total_scoring_multiplier
 
   # Step 6 - Mode scoop shot (barrier target hit triggers this)
-  s_mode_start_active{current_player.battle_jester_step==5}:
+  s_mode_start_active{current_player.battle_jester_step==5 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 1250000 * current_player.total_scoring_multiplier
 
   # Steps 7-10 - Ramp shots (any ramp counts)
-  s_ramp_left_exit_active{current_player.battle_jester_step==6}:
+  s_ramp_left_exit_active{current_player.battle_jester_step==6 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 800000 * current_player.total_scoring_multiplier
@@ -694,7 +714,7 @@ variable_player:
       action: add
       int: 1
       
-  s_ramp_right_exit_active{current_player.battle_jester_step==6}:
+  s_ramp_right_exit_active{current_player.battle_jester_step==6 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 1000000 * current_player.total_scoring_multiplier
@@ -702,7 +722,7 @@ variable_player:
       action: add
       int: 1
       
-  s_ramp_inner_exit_active{current_player.battle_jester_step==6}:
+  s_ramp_inner_exit_active{current_player.battle_jester_step==6 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 1150000 * current_player.total_scoring_multiplier
@@ -710,7 +730,7 @@ variable_player:
       action: add
       int: 1
       
-  s_ramp_tower_exit_active{current_player.battle_jester_step==6}:
+  s_ramp_tower_exit_active{current_player.battle_jester_step==6 and current_player.battle_jester_step_locked==0}:
     battle_jester_points_bank:
       action: add
       int: 800000 * current_player.total_scoring_multiplier
@@ -906,7 +926,7 @@ event_player:
     - orbit_left_safe_return_clear
 
   # Step 4: LO flips from green to red right here — close the arm window
-  timer_battle_jester_step_4_timer_tick{current_player.battle_jester_step==3 and ticks==20}:
+  timer_battle_jester_step_4_timer_tick{current_player.battle_jester_step==3 and ticks==20 and current_player.battle_jester_step_locked==0}:
     - orbit_left_safe_return_clear
 
   ##############################################
@@ -974,28 +994,28 @@ event_player:
 
   # Repost timer ticks with step awareness for light/show changes
   # Orange transitions start 1 second earlier (was 8/18/28, now 7/17/27)
-  timer_battle_jester_step_1_timer_tick{current_player.battle_jester_step==0 and ticks==7}:
+  timer_battle_jester_step_1_timer_tick{current_player.battle_jester_step==0 and ticks==7 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_1_tick_7
-  timer_battle_jester_step_1_timer_tick{current_player.battle_jester_step==0 and ticks==10}:
+  timer_battle_jester_step_1_timer_tick{current_player.battle_jester_step==0 and ticks==10 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_1_tick_10
-  timer_battle_jester_step_1_timer_tick{current_player.battle_jester_step==0 and ticks==17}:
+  timer_battle_jester_step_1_timer_tick{current_player.battle_jester_step==0 and ticks==17 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_1_tick_17
-  timer_battle_jester_step_1_timer_tick{current_player.battle_jester_step==0 and ticks==20}:
+  timer_battle_jester_step_1_timer_tick{current_player.battle_jester_step==0 and ticks==20 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_1_tick_20
-  timer_battle_jester_step_1_timer_tick{current_player.battle_jester_step==0 and ticks==27}:
+  timer_battle_jester_step_1_timer_tick{current_player.battle_jester_step==0 and ticks==27 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_1_tick_27
   # Use timer_complete instead of ticks==30 — timer ends at 30 and posts complete, not a tick event
-  timer_battle_jester_step_1_timer_complete{current_player.battle_jester_step==0}:
+  timer_battle_jester_step_1_timer_complete{current_player.battle_jester_step==0 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_1_tick_30
 
   # Mode start - setup step 1 when ball leaves scoop
-  s_mode_start_inactive{current_player.battle_jester_step==0}:
+  s_mode_start_inactive{current_player.battle_jester_step==0 and current_player.battle_jester_step_locked==0}:
     - battle_jester_setup_step_1
     
   # Skip intro video with both flippers
-  s_flipper_left_active{current_player.battle_jester_step==0 and device.timers.battle_jester_intro_video_delay.running}:
+  s_flipper_left_active{current_player.battle_jester_step==0 and device.timers.battle_jester_intro_video_delay.running and current_player.battle_jester_step_locked==0}:
     - battle_jester_check_skip_intro
-  s_flipper_right_active{current_player.battle_jester_step==0 and device.timers.battle_jester_intro_video_delay.running}:
+  s_flipper_right_active{current_player.battle_jester_step==0 and device.timers.battle_jester_intro_video_delay.running and current_player.battle_jester_step_locked==0}:
     - battle_jester_check_skip_intro
     
   battle_jester_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
@@ -1107,32 +1127,32 @@ event_player:
   ##############################################
   
   # GREEN/ORANGE shots (advance step)
-  s_lane_left_active{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks < 20}:
+  s_lane_left_active{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks < 20 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_1_complete
     - battle_jester_setup_step_2
     - battle_jester_add_time_green
 
-  left_orbit_shot_hit{current_player.battle_jester_step==0}:
+  left_orbit_shot_hit{current_player.battle_jester_step==0 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_1_complete
     - battle_jester_setup_step_2
     - battle_jester_add_time_green
     - orbit_left_safe_return_clear|700ms
 
-  s_ramp_left_exit_active{current_player.battle_jester_step==0}:
+  s_ramp_left_exit_active{current_player.battle_jester_step==0 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_1_complete
     - battle_jester_setup_step_2
     - battle_jester_add_time_green
 
-  spinner_shot_made{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks < 10 and device.timers.battle_jester_spinner_lockout.running==False}:
+  spinner_shot_made{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks < 10 and device.timers.battle_jester_spinner_lockout.running==False and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_1_complete
     - battle_jester_setup_step_2
     - battle_jester_add_time_green
 
   # RED shots (penalty)
-  s_lane_left_active{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks >= 20}:
+  s_lane_left_active{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks >= 20 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
 
-  spinner_shot_made{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks >= 10 and device.timers.battle_jester_spinner_lockout.running==False}:
+  spinner_shot_made{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks >= 10 and device.timers.battle_jester_spinner_lockout.running==False and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
 
   ##############################################
@@ -1141,34 +1161,34 @@ event_player:
   ##############################################
   
   # GREEN/ORANGE shots
-  s_orbit_upper_active{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks < 10}:
+  s_orbit_upper_active{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks < 10 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_2_complete
     - battle_jester_setup_step_3
     - battle_jester_add_time_green
 
-  spinner_shot_made{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks < 20 and device.timers.battle_jester_spinner_lockout.running==False}:
+  spinner_shot_made{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks < 20 and device.timers.battle_jester_spinner_lockout.running==False and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_2_complete
     - battle_jester_setup_step_3
     - battle_jester_add_time_green
 
-  s_barrier_target_active{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks < 30}:
+  s_barrier_target_active{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks < 30 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_2_complete
     - battle_jester_setup_step_3
     - battle_jester_add_time_green
 
-  s_ramp_tower_exit_active{current_player.battle_jester_step==1}:
+  s_ramp_tower_exit_active{current_player.battle_jester_step==1 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_2_complete
     - battle_jester_setup_step_3
     - battle_jester_add_time_green
 
   # RED shots
-  s_orbit_upper_active{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks >= 10}:
+  s_orbit_upper_active{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks >= 10 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
 
-  spinner_shot_made{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks >= 20 and device.timers.battle_jester_spinner_lockout.running==False}:
+  spinner_shot_made{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks >= 20 and device.timers.battle_jester_spinner_lockout.running==False and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
 
-  s_barrier_target_active{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks >= 30}:
+  s_barrier_target_active{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks >= 30 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
 
   ##############################################
@@ -1177,34 +1197,34 @@ event_player:
   ##############################################
   
   # GREEN/ORANGE shots
-  s_orbit_upper_active{current_player.battle_jester_step==2 and device.timers.battle_jester_step_3_timer.ticks < 30}:
+  s_orbit_upper_active{current_player.battle_jester_step==2 and device.timers.battle_jester_step_3_timer.ticks < 30 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_3_complete
     - battle_jester_setup_step_4
     - battle_jester_add_time_green
 
-  s_orbit_lower_active{current_player.battle_jester_step==2}:
+  s_orbit_lower_active{current_player.battle_jester_step==2 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_3_complete
     - battle_jester_setup_step_4
     - battle_jester_add_time_green
 
-  s_flight_gear_target_active{current_player.battle_jester_step==2 and device.timers.battle_jester_step_3_timer.ticks < 20}:
+  s_flight_gear_target_active{current_player.battle_jester_step==2 and device.timers.battle_jester_step_3_timer.ticks < 20 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_3_complete
     - battle_jester_setup_step_4
     - battle_jester_add_time_green
 
-  right_orbit_shot_hit{current_player.battle_jester_step==2 and device.timers.battle_jester_step_3_timer.ticks < 10}:
+  right_orbit_shot_hit{current_player.battle_jester_step==2 and device.timers.battle_jester_step_3_timer.ticks < 10 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_3_complete
     - battle_jester_setup_step_4
     - battle_jester_add_time_green
 
   # RED shots
-  s_orbit_upper_active{current_player.battle_jester_step==2 and device.timers.battle_jester_step_3_timer.ticks >= 30}:
+  s_orbit_upper_active{current_player.battle_jester_step==2 and device.timers.battle_jester_step_3_timer.ticks >= 30 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
 
-  s_flight_gear_target_active{current_player.battle_jester_step==2 and device.timers.battle_jester_step_3_timer.ticks >= 20}:
+  s_flight_gear_target_active{current_player.battle_jester_step==2 and device.timers.battle_jester_step_3_timer.ticks >= 20 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
 
-  right_orbit_shot_hit{current_player.battle_jester_step==2 and device.timers.battle_jester_step_3_timer.ticks >= 10}:
+  right_orbit_shot_hit{current_player.battle_jester_step==2 and device.timers.battle_jester_step_3_timer.ticks >= 10 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
 
   ##############################################
@@ -1213,27 +1233,27 @@ event_player:
   ##############################################
   
   # GREEN/ORANGE shots
-  s_ramp_left_exit_active{current_player.battle_jester_step==3}:
+  s_ramp_left_exit_active{current_player.battle_jester_step==3 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_4_complete
     - battle_jester_setup_step_5
     - battle_jester_add_time_green
 
-  spinner_shot_made{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks < 10 and device.timers.battle_jester_spinner_lockout.running==False}:
+  spinner_shot_made{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks < 10 and device.timers.battle_jester_spinner_lockout.running==False and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_4_complete
     - battle_jester_setup_step_5
     - battle_jester_add_time_green
 
-  left_orbit_shot_hit{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks < 20}:
+  left_orbit_shot_hit{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks < 20 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_4_complete
     - battle_jester_setup_step_5
     - battle_jester_add_time_green
     - orbit_left_safe_return_clear|700ms
 
   # RED shots
-  spinner_shot_made{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks >= 10 and device.timers.battle_jester_spinner_lockout.running==False}:
+  spinner_shot_made{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks >= 10 and device.timers.battle_jester_spinner_lockout.running==False and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
 
-  left_orbit_shot_hit{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks >= 20}:
+  left_orbit_shot_hit{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks >= 20 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
 
   ##############################################
@@ -1242,31 +1262,31 @@ event_player:
   ##############################################
   
   # GREEN/ORANGE shots
-  s_ramp_right_exit_active{current_player.battle_jester_step==4}:
+  s_ramp_right_exit_active{current_player.battle_jester_step==4 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_5_complete
     - battle_jester_setup_step_6
     - battle_jester_add_time_green
 
-  s_flight_gear_target_active{current_player.battle_jester_step==4 and device.timers.battle_jester_step_5_timer.ticks < 20}:
+  s_flight_gear_target_active{current_player.battle_jester_step==4 and device.timers.battle_jester_step_5_timer.ticks < 20 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_5_complete
     - battle_jester_setup_step_6
     - battle_jester_add_time_green
 
-  s_ramp_inner_exit_active{current_player.battle_jester_step==4 and device.timers.battle_jester_step_5_timer.ticks < 10}:
+  s_ramp_inner_exit_active{current_player.battle_jester_step==4 and device.timers.battle_jester_step_5_timer.ticks < 10 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_5_complete
     - battle_jester_setup_step_6
     - battle_jester_add_time_green
 
   # RED shots
-  s_flight_gear_target_active{current_player.battle_jester_step==4 and device.timers.battle_jester_step_5_timer.ticks >= 20}:
+  s_flight_gear_target_active{current_player.battle_jester_step==4 and device.timers.battle_jester_step_5_timer.ticks >= 20 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
 
-  s_ramp_inner_exit_active{current_player.battle_jester_step==4 and device.timers.battle_jester_step_5_timer.ticks >= 10}:
+  s_ramp_inner_exit_active{current_player.battle_jester_step==4 and device.timers.battle_jester_step_5_timer.ticks >= 10 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
 
   ## STEP 6 - Mode scoop shot
   ##############################################
-  s_mode_start_active{current_player.battle_jester_step==5 and device.timers.battle_jester_mode_scoop_debounce.running==False}:
+  s_mode_start_active{current_player.battle_jester_step==5 and device.timers.battle_jester_mode_scoop_debounce.running==False and current_player.battle_jester_step_locked==0}:
     - battle_jester_mode_scoop_debounce_start
     - battle_jester_pause_timer
     - battle_jester_step_6_scoop_entered
@@ -1283,9 +1303,9 @@ event_player:
     - battle_jester_add_time_green
     
   # Skip step 6 video with both flippers
-  s_flipper_left_active{current_player.battle_jester_step==5 and device.timers.battle_jester_step_6_video_delay.running}:
+  s_flipper_left_active{current_player.battle_jester_step==5 and device.timers.battle_jester_step_6_video_delay.running and current_player.battle_jester_step_locked==0}:
     - battle_jester_check_skip_step_6
-  s_flipper_right_active{current_player.battle_jester_step==5 and device.timers.battle_jester_step_6_video_delay.running}:
+  s_flipper_right_active{current_player.battle_jester_step==5 and device.timers.battle_jester_step_6_video_delay.running and current_player.battle_jester_step_locked==0}:
     - battle_jester_check_skip_step_6
     
   battle_jester_check_skip_step_6{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
@@ -1302,7 +1322,7 @@ event_player:
     - battle_jester_ball_released
 
   # Step 7 starts when ball leaves scoop (after step 6)
-  s_mode_start_inactive{current_player.battle_jester_step==6}:
+  s_mode_start_inactive{current_player.battle_jester_step==6 and current_player.battle_jester_step_locked==0}:
     - battle_jester_setup_step_7
 
   ##############################################
@@ -1346,31 +1366,31 @@ event_player:
   ## Steps 10+: missiles do NOT work (decision/tower phases)
   ##############################################
 
-  missiles_perk_complete_shot{current_player.battle_jester_step==0 and current_player.battle_jester_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.battle_jester_step==0 and current_player.battle_jester_complete_flag==0 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_1_complete
     - battle_jester_setup_step_2
     - battle_jester_add_time_green
     - missiles_perk_bank_award
 
-  missiles_perk_complete_shot{current_player.battle_jester_step==1 and current_player.battle_jester_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.battle_jester_step==1 and current_player.battle_jester_complete_flag==0 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_2_complete
     - battle_jester_setup_step_3
     - battle_jester_add_time_green
     - missiles_perk_bank_award
 
-  missiles_perk_complete_shot{current_player.battle_jester_step==2 and current_player.battle_jester_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.battle_jester_step==2 and current_player.battle_jester_complete_flag==0 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_3_complete
     - battle_jester_setup_step_4
     - battle_jester_add_time_green
     - missiles_perk_bank_award
 
-  missiles_perk_complete_shot{current_player.battle_jester_step==3 and current_player.battle_jester_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.battle_jester_step==3 and current_player.battle_jester_complete_flag==0 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_4_complete
     - battle_jester_setup_step_5
     - battle_jester_add_time_green
     - missiles_perk_bank_award
 
-  missiles_perk_complete_shot{current_player.battle_jester_step==4 and current_player.battle_jester_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.battle_jester_step==4 and current_player.battle_jester_complete_flag==0 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_5_complete
     - battle_jester_setup_step_6
     - battle_jester_add_time_green
@@ -1380,7 +1400,7 @@ event_player:
   # missiles_perk_complete_shot for step 5 intentionally omitted
 
   # Step 6 = ramp phase. Missile completes 1 ramp hit
-  missiles_perk_complete_shot{current_player.battle_jester_step==6 and current_player.battle_jester_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.battle_jester_step==6 and current_player.battle_jester_complete_flag==0 and current_player.battle_jester_step_locked==0}:
     - missiles_perk_ramp_hit
     - battle_jester_add_time_green
     - missiles_perk_bank_award
@@ -1390,14 +1410,14 @@ event_player:
   ##############################################
   
   # Spinner or right orbit activates diverter
-  spinner_shot_made{current_player.battle_jester_step==10 and device.timers.battle_jester_spinner_lockout.running==False}:
+  spinner_shot_made{current_player.battle_jester_step==10 and device.timers.battle_jester_spinner_lockout.running==False and current_player.battle_jester_step_locked==0}:
     - battle_jester_activate_left_diverter
     
-  right_orbit_shot_hit{current_player.battle_jester_step==10}:
+  right_orbit_shot_hit{current_player.battle_jester_step==10 and current_player.battle_jester_step_locked==0}:
     - battle_jester_activate_left_diverter
     
   # Left lane hit - pause timer, hold ball, deactivate diverter, lower right ramp, and complete step 11
-  s_lane_left_active{current_player.battle_jester_step==10}:
+  s_lane_left_active{current_player.battle_jester_step==10 and current_player.battle_jester_step_locked==0}:
     - battle_jester_pause_timer
     - battle_jester_activate_left_lane_post
     - battle_jester_deactivate_left_diverter
@@ -1411,14 +1431,14 @@ event_player:
     
   # Left flipper = NO (play won video, 100% payout)
   # Can select during or after the decision video plays
-  s_flipper_left_active{current_player.battle_jester_step==11 and current_player.battle_jester_tower_choice==0}:
+  s_flipper_left_active{current_player.battle_jester_step==11 and current_player.battle_jester_tower_choice==0 and current_player.battle_jester_step_locked==0}:
     - battle_jester_choice_no
     - battle_jester_deactivate_left_lane_post
     - battle_jester_complete
     
   # Right flipper = YES (start tower challenge)
   # Can select during or after the decision video plays
-  s_flipper_right_active{current_player.battle_jester_step==11 and current_player.battle_jester_tower_choice==0}:
+  s_flipper_right_active{current_player.battle_jester_step==11 and current_player.battle_jester_tower_choice==0 and current_player.battle_jester_step_locked==0}:
     - battle_jester_choice_yes
     # Post stays up during accepted delay - drops when tower_challenge_start fires
     # Tower challenge start is now delayed - triggered by buzz_tower_accepted_delay timer
@@ -1435,7 +1455,7 @@ event_player:
   # Tower shot made - 150% payout
   # complete_flag==0 guard prevents double-award if the tower exit opto fires twice
   # (which happens — ball can re-trigger the opto ~30ms after the first hit)
-  s_ramp_tower_exit_active{current_player.battle_jester_step==11 and current_player.battle_jester_tower_choice==1 and current_player.battle_jester_complete_flag==0}:
+  s_ramp_tower_exit_active{current_player.battle_jester_step==11 and current_player.battle_jester_tower_choice==1 and current_player.battle_jester_complete_flag==0 and current_player.battle_jester_step_locked==0}:
     - battle_jester_tower_won
     
   # Tower challenge timer expired - 50% payout
@@ -1457,121 +1477,121 @@ event_player:
   ##############################################
   
   # Step 1 red shots (all except lane_left, orbit_left, ramp_left, spinner once they turn red)
-  s_barrier_target_active{current_player.battle_jester_step==0}:
+  s_barrier_target_active{current_player.battle_jester_step==0 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_ramp_tower_exit_active{current_player.battle_jester_step==0}:
+  s_ramp_tower_exit_active{current_player.battle_jester_step==0 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_orbit_upper_active{current_player.battle_jester_step==0}:
+  s_orbit_upper_active{current_player.battle_jester_step==0 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_ramp_inner_exit_active{current_player.battle_jester_step==0}:
+  s_ramp_inner_exit_active{current_player.battle_jester_step==0 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_flight_gear_target_active{current_player.battle_jester_step==0}:
+  s_flight_gear_target_active{current_player.battle_jester_step==0 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_ramp_right_exit_active{current_player.battle_jester_step==0}:
+  s_ramp_right_exit_active{current_player.battle_jester_step==0 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
     
   # Step 2 red shots (all non-green: lane_left, orbit_left, ramp_left, middle_ramp, pilot_gear, right_orbit)
-  s_lane_left_active{current_player.battle_jester_step==1}:
+  s_lane_left_active{current_player.battle_jester_step==1 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  left_orbit_shot_hit{current_player.battle_jester_step==1}:
+  left_orbit_shot_hit{current_player.battle_jester_step==1 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_ramp_left_exit_active{current_player.battle_jester_step==1}:
+  s_ramp_left_exit_active{current_player.battle_jester_step==1 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_ramp_inner_exit_active{current_player.battle_jester_step==1}:
+  s_ramp_inner_exit_active{current_player.battle_jester_step==1 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_flight_gear_target_active{current_player.battle_jester_step==1}:
+  s_flight_gear_target_active{current_player.battle_jester_step==1 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  right_orbit_shot_hit{current_player.battle_jester_step==1}:
+  right_orbit_shot_hit{current_player.battle_jester_step==1 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_ramp_right_exit_active{current_player.battle_jester_step==1}:
+  s_ramp_right_exit_active{current_player.battle_jester_step==1 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
     
   # Step 3 red shots
-  s_lane_left_active{current_player.battle_jester_step==2}:
+  s_lane_left_active{current_player.battle_jester_step==2 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  left_orbit_shot_hit{current_player.battle_jester_step==2}:
+  left_orbit_shot_hit{current_player.battle_jester_step==2 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_ramp_left_exit_active{current_player.battle_jester_step==2}:
+  s_ramp_left_exit_active{current_player.battle_jester_step==2 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  spinner_shot_made{current_player.battle_jester_step==2 and device.timers.battle_jester_spinner_lockout.running==False}:
+  spinner_shot_made{current_player.battle_jester_step==2 and device.timers.battle_jester_spinner_lockout.running==False and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_barrier_target_active{current_player.battle_jester_step==2}:
+  s_barrier_target_active{current_player.battle_jester_step==2 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_ramp_tower_exit_active{current_player.battle_jester_step==2}:
+  s_ramp_tower_exit_active{current_player.battle_jester_step==2 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_ramp_inner_exit_active{current_player.battle_jester_step==2}:
+  s_ramp_inner_exit_active{current_player.battle_jester_step==2 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
     
   # Step 4 red shots (greens are ramp_left, spinner, orbit_left — those are NOT in this list)
-  s_lane_left_active{current_player.battle_jester_step==3}:
+  s_lane_left_active{current_player.battle_jester_step==3 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_ramp_tower_exit_active{current_player.battle_jester_step==3}:
+  s_ramp_tower_exit_active{current_player.battle_jester_step==3 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_orbit_upper_active{current_player.battle_jester_step==3}:
+  s_orbit_upper_active{current_player.battle_jester_step==3 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_ramp_inner_exit_active{current_player.battle_jester_step==3}:
+  s_ramp_inner_exit_active{current_player.battle_jester_step==3 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_orbit_lower_active{current_player.battle_jester_step==3}:
+  s_orbit_lower_active{current_player.battle_jester_step==3 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_flight_gear_target_active{current_player.battle_jester_step==3}:
+  s_flight_gear_target_active{current_player.battle_jester_step==3 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  right_orbit_shot_hit{current_player.battle_jester_step==3}:
+  right_orbit_shot_hit{current_player.battle_jester_step==3 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_ramp_right_exit_active{current_player.battle_jester_step==3}:
+  s_ramp_right_exit_active{current_player.battle_jester_step==3 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
     
   # Step 5 red shots
-  s_lane_left_active{current_player.battle_jester_step==4}:
+  s_lane_left_active{current_player.battle_jester_step==4 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  left_orbit_shot_hit{current_player.battle_jester_step==4}:
+  left_orbit_shot_hit{current_player.battle_jester_step==4 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_ramp_left_exit_active{current_player.battle_jester_step==4}:
+  s_ramp_left_exit_active{current_player.battle_jester_step==4 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  spinner_shot_made{current_player.battle_jester_step==4 and device.timers.battle_jester_spinner_lockout.running==False}:
+  spinner_shot_made{current_player.battle_jester_step==4 and device.timers.battle_jester_spinner_lockout.running==False and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_barrier_target_active{current_player.battle_jester_step==4}:
+  s_barrier_target_active{current_player.battle_jester_step==4 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_ramp_tower_exit_active{current_player.battle_jester_step==4}:
+  s_ramp_tower_exit_active{current_player.battle_jester_step==4 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_orbit_upper_active{current_player.battle_jester_step==4}:
+  s_orbit_upper_active{current_player.battle_jester_step==4 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_orbit_lower_active{current_player.battle_jester_step==4}:
+  s_orbit_lower_active{current_player.battle_jester_step==4 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  right_orbit_shot_hit{current_player.battle_jester_step==4}:
+  right_orbit_shot_hit{current_player.battle_jester_step==4 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
     
   # Steps 7-10 red shots (lane_left, orbit_left, barrier, pilot_gear, spinner)
-  s_lane_left_active{current_player.battle_jester_step==6}:
+  s_lane_left_active{current_player.battle_jester_step==6 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  left_orbit_shot_hit{current_player.battle_jester_step==6}:
+  left_orbit_shot_hit{current_player.battle_jester_step==6 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_barrier_target_active{current_player.battle_jester_step==6}:
+  s_barrier_target_active{current_player.battle_jester_step==6 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_flight_gear_target_active{current_player.battle_jester_step==6}:
+  s_flight_gear_target_active{current_player.battle_jester_step==6 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  spinner_shot_made{current_player.battle_jester_step==6 and device.timers.battle_jester_spinner_lockout.running==False}:
+  spinner_shot_made{current_player.battle_jester_step==6 and device.timers.battle_jester_spinner_lockout.running==False and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
 
   # Step 10 red shots (after ramps complete, trying to hit left lane)
   # Green: left_lane (goal), spinner & right_orbit (helpers - activate diverter)
   # Red: everything else
-  left_orbit_shot_hit{current_player.battle_jester_step==10}:
+  left_orbit_shot_hit{current_player.battle_jester_step==10 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_ramp_left_exit_active{current_player.battle_jester_step==10}:
+  s_ramp_left_exit_active{current_player.battle_jester_step==10 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_barrier_target_active{current_player.battle_jester_step==10}:
+  s_barrier_target_active{current_player.battle_jester_step==10 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_ramp_tower_exit_active{current_player.battle_jester_step==10}:
+  s_ramp_tower_exit_active{current_player.battle_jester_step==10 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_orbit_upper_active{current_player.battle_jester_step==10}:
+  s_orbit_upper_active{current_player.battle_jester_step==10 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_orbit_lower_active{current_player.battle_jester_step==10}:
+  s_orbit_lower_active{current_player.battle_jester_step==10 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_ramp_inner_exit_active{current_player.battle_jester_step==10}:
+  s_ramp_inner_exit_active{current_player.battle_jester_step==10 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_flight_gear_target_active{current_player.battle_jester_step==10}:
+  s_flight_gear_target_active{current_player.battle_jester_step==10 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  s_ramp_right_exit_active{current_player.battle_jester_step==10}:
+  s_ramp_right_exit_active{current_player.battle_jester_step==10 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
 
   battle_jester_subtract_time_red:
@@ -1587,7 +1607,7 @@ event_player:
     - battle_jester_failed
   
   # Mode timer expired during step 11 decision - default to NO (safe choice)
-  timer_battle_jester_timer_complete{current_player.battle_jester_step==11}:
+  timer_battle_jester_timer_complete{current_player.battle_jester_step==11 and current_player.battle_jester_step_locked==0}:
     - battle_jester_choice_no
     - battle_jester_deactivate_left_lane_post
     - battle_jester_complete
@@ -1833,7 +1853,7 @@ slide_player:
       action: remove
 
   # Step 11 decision video (ask player to risk points)
-  s_lane_left_active{current_player.battle_jester_step==10}:
+  s_lane_left_active{current_player.battle_jester_step==10 and current_player.battle_jester_step_locked==0}:
     battle_jester_step_11_decision:
       action: play
       priority: 900

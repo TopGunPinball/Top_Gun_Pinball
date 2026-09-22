@@ -260,6 +260,12 @@ variable_player:
     nmfe_complete_flag:
       action: set
       int: 0
+    # Cleared at mode start; set the instant nmfe_failed fires so every burn/good/bad
+    # shot switch stops scoring immediately, even though the mode stays "active" for
+    # the full lost-video delay (stop_events waits on timer_nmfe_failed_delay_complete).
+    nmfe_step_locked:
+      action: set
+      int: 0
     nmfe_shots_remaining:
       action: set
       int: 11
@@ -366,6 +372,16 @@ variable_player:
   # Mark drain pending so qualifier routes bonus correctly
   ball_will_end{mode.no_margin_for_error.active==True}:
     pilot_mode_drain_pending:
+      action: set
+      int: 1
+
+  # Lock all shot scoring the instant the mode fails (main timer expiry or drain
+  # both route through this event). The mode stays "active" for the full
+  # lost-video delay, so without this flag any burn/good/bad shot switch still
+  # scores directly (this mode scores straight to `score`, not a bank) during
+  # the lost video even though the shows/lights are already killed by nmfe_cleanup.
+  nmfe_failed:
+    nmfe_step_locked:
       action: set
       int: 1
 
@@ -575,9 +591,9 @@ event_player:
   ##############################################
   ## SKIP INTRO — Both flippers during 43s intro
   ##############################################
-  s_flipper_left_active{current_player.nmfe_step==0 and device.timers.nmfe_intro_video_delay.running}:
+  s_flipper_left_active{current_player.nmfe_step==0 and device.timers.nmfe_intro_video_delay.running and current_player.nmfe_step_locked==0}:
     - nmfe_check_skip_intro
-  s_flipper_right_active{current_player.nmfe_step==0 and device.timers.nmfe_intro_video_delay.running}:
+  s_flipper_right_active{current_player.nmfe_step==0 and device.timers.nmfe_intro_video_delay.running and current_player.nmfe_step_locked==0}:
     - nmfe_check_skip_intro
 
   nmfe_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
@@ -687,11 +703,11 @@ event_player:
 
   # Pre-emptive diverter open when right orbit switch fires at step==10
   # (ball already in orbit heading left, need diverter open before it arrives)
-  s_orbit_right_active{current_player.nmfe_step==10}:
+  s_orbit_right_active{current_player.nmfe_step==10 and current_player.nmfe_step_locked==0}:
     - nmfe_preemptive_open_diverter
 
   # Same pre-emptive for re-shot attempts at step==11
-  s_orbit_right_active{current_player.nmfe_step==11}:
+  s_orbit_right_active{current_player.nmfe_step==11 and current_player.nmfe_step_locked==0}:
     - nmfe_preemptive_open_diverter
 
   # Step 11 shot confirmed — opens diverter AND raises left lane post
@@ -705,15 +721,15 @@ event_player:
     - nmfe_close_left_diverter
 
   # Ball confirmed in left lane — won video starts
-  s_lane_left_active{current_player.nmfe_step==11}:
+  s_lane_left_active{current_player.nmfe_step==11 and current_player.nmfe_step_locked==0}:
     - nmfe_won
 
   # Re-shots while waiting for ball: reopen diverter without scoring again
-  spinner_shot_made{current_player.nmfe_step==11 and current_player.spinner_shot_locked==0}:
+  spinner_shot_made{current_player.nmfe_step==11 and current_player.spinner_shot_locked==0 and current_player.nmfe_step_locked==0}:
     - nmfe_activate_won_catch
-  s_orbit_upper_active{current_player.nmfe_step==11}:
+  s_orbit_upper_active{current_player.nmfe_step==11 and current_player.nmfe_step_locked==0}:
     - nmfe_activate_won_catch
-  right_orbit_shot_hit{current_player.nmfe_step==11}:
+  right_orbit_shot_hit{current_player.nmfe_step==11 and current_player.nmfe_step_locked==0}:
     - nmfe_activate_won_catch
 
   ##############################################
@@ -760,37 +776,37 @@ event_player:
   ##############################################
 
   # PHASE 1 perk handlers — advance step and trigger priority burn
-  missiles_perk_complete_shot{current_player.nmfe_step==0 and current_player.nmfe_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.nmfe_step==0 and current_player.nmfe_complete_flag==0 and current_player.nmfe_step_locked==0}:
     - nmfe_step_1_complete
     - nmfe_good_shot_hit
     - nmfe_step_1_shot_hit
     - nmfe_perk_burn_phase1
 
-  missiles_perk_complete_shot{current_player.nmfe_step==1 and current_player.nmfe_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.nmfe_step==1 and current_player.nmfe_complete_flag==0 and current_player.nmfe_step_locked==0}:
     - nmfe_step_2_complete
     - nmfe_good_shot_hit
     - nmfe_step_2_shot_hit
     - nmfe_perk_burn_phase1
 
-  missiles_perk_complete_shot{current_player.nmfe_step==2 and current_player.nmfe_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.nmfe_step==2 and current_player.nmfe_complete_flag==0 and current_player.nmfe_step_locked==0}:
     - nmfe_step_3_complete
     - nmfe_good_shot_hit
     - nmfe_step_3_shot_hit
     - nmfe_perk_burn_phase1
 
-  missiles_perk_complete_shot{current_player.nmfe_step==3 and current_player.nmfe_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.nmfe_step==3 and current_player.nmfe_complete_flag==0 and current_player.nmfe_step_locked==0}:
     - nmfe_step_4_complete
     - nmfe_good_shot_hit
     - nmfe_step_4_shot_hit
     - nmfe_perk_burn_phase1
 
-  missiles_perk_complete_shot{current_player.nmfe_step==4 and current_player.nmfe_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.nmfe_step==4 and current_player.nmfe_complete_flag==0 and current_player.nmfe_step_locked==0}:
     - nmfe_step_5_complete
     - nmfe_good_shot_hit
     - nmfe_step_5_shot_hit
     - nmfe_perk_burn_phase1
 
-  missiles_perk_complete_shot{current_player.nmfe_step==5 and current_player.nmfe_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.nmfe_step==5 and current_player.nmfe_complete_flag==0 and current_player.nmfe_step_locked==0}:
     - nmfe_step_6_complete
     - nmfe_good_shot_hit
     - nmfe_step_6_shot_hit
@@ -815,25 +831,25 @@ event_player:
   nmfe_perk_burn_phase1{current_player.nmfe_sp_burned==1 and current_player.nmfe_ll_burned==1 and current_player.nmfe_rr_burned==1 and current_player.nmfe_lo_burned==1 and current_player.nmfe_lr_burned==1 and current_player.nmfe_cnt_burned==1 and current_player.nmfe_twr_burned==0}:
     - nmfe_burn_twr
 
-  missiles_perk_complete_shot{current_player.nmfe_step==6 and current_player.nmfe_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.nmfe_step==6 and current_player.nmfe_complete_flag==0 and current_player.nmfe_step_locked==0}:
     - nmfe_step_7_complete
     - nmfe_good_shot_hit
     - nmfe_step_7_shot_hit
     - nmfe_setup_step_8
 
-  missiles_perk_complete_shot{current_player.nmfe_step==7 and current_player.nmfe_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.nmfe_step==7 and current_player.nmfe_complete_flag==0 and current_player.nmfe_step_locked==0}:
     - nmfe_step_8_complete
     - nmfe_good_shot_hit
     - nmfe_step_8_shot_hit
     - nmfe_setup_step_9
 
-  missiles_perk_complete_shot{current_player.nmfe_step==8 and current_player.nmfe_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.nmfe_step==8 and current_player.nmfe_complete_flag==0 and current_player.nmfe_step_locked==0}:
     - nmfe_step_9_complete
     - nmfe_good_shot_hit
     - nmfe_step_9_shot_hit
     - nmfe_setup_step_10
 
-  missiles_perk_complete_shot{current_player.nmfe_step==9 and current_player.nmfe_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.nmfe_step==9 and current_player.nmfe_complete_flag==0 and current_player.nmfe_step_locked==0}:
     - nmfe_step_10_complete
     - nmfe_good_shot_hit
     - nmfe_step_10_shot_hit
@@ -860,27 +876,27 @@ event_player:
   ##############################################
   ## STEP ADVANCEMENT HELPER — fires correct step_N_complete based on current step
   ##############################################
-  nmfe_advance_step{current_player.nmfe_step==0}:
+  nmfe_advance_step{current_player.nmfe_step==0 and current_player.nmfe_step_locked==0}:
     - nmfe_step_1_complete
     - nmfe_good_shot_hit
     - nmfe_step_1_shot_hit
-  nmfe_advance_step{current_player.nmfe_step==1}:
+  nmfe_advance_step{current_player.nmfe_step==1 and current_player.nmfe_step_locked==0}:
     - nmfe_step_2_complete
     - nmfe_good_shot_hit
     - nmfe_step_2_shot_hit
-  nmfe_advance_step{current_player.nmfe_step==2}:
+  nmfe_advance_step{current_player.nmfe_step==2 and current_player.nmfe_step_locked==0}:
     - nmfe_step_3_complete
     - nmfe_good_shot_hit
     - nmfe_step_3_shot_hit
-  nmfe_advance_step{current_player.nmfe_step==3}:
+  nmfe_advance_step{current_player.nmfe_step==3 and current_player.nmfe_step_locked==0}:
     - nmfe_step_4_complete
     - nmfe_good_shot_hit
     - nmfe_step_4_shot_hit
-  nmfe_advance_step{current_player.nmfe_step==4}:
+  nmfe_advance_step{current_player.nmfe_step==4 and current_player.nmfe_step_locked==0}:
     - nmfe_step_5_complete
     - nmfe_good_shot_hit
     - nmfe_step_5_shot_hit
-  nmfe_advance_step{current_player.nmfe_step==5}:
+  nmfe_advance_step{current_player.nmfe_step==5 and current_player.nmfe_step_locked==0}:
     - nmfe_step_6_complete
     - nmfe_good_shot_hit
     - nmfe_step_6_shot_hit
@@ -889,29 +905,29 @@ event_player:
   ##############################################
   ## LL — Left Lane (s_lane_left)
   ##############################################
-  s_lane_left_active{current_player.nmfe_step<6 and current_player.nmfe_ll_burned==0}:
+  s_lane_left_active{current_player.nmfe_step<6 and current_player.nmfe_ll_burned==0 and current_player.nmfe_step_locked==0}:
     - nmfe_advance_step
     - nmfe_burn_ll
-  s_lane_left_active{current_player.nmfe_step<6 and current_player.nmfe_ll_burned==1}:
+  s_lane_left_active{current_player.nmfe_step<6 and current_player.nmfe_ll_burned==1 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
 
   ##############################################
   ## LO — Left Orbit (composite shot)
   ##############################################
-  left_orbit_shot_hit{current_player.nmfe_step<6 and current_player.nmfe_lo_burned==0}:
+  left_orbit_shot_hit{current_player.nmfe_step<6 and current_player.nmfe_lo_burned==0 and current_player.nmfe_step_locked==0}:
     - nmfe_advance_step
     - nmfe_burn_lo
     - orbit_left_safe_return_clear|700ms
-  left_orbit_shot_hit{current_player.nmfe_step<6 and current_player.nmfe_lo_burned==1}:
+  left_orbit_shot_hit{current_player.nmfe_step<6 and current_player.nmfe_lo_burned==1 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
 
   ##############################################
   ## LR — Left Ramp (s_ramp_left_exit)
   ##############################################
-  s_ramp_left_exit_active{current_player.nmfe_step<6 and current_player.nmfe_lr_burned==0}:
+  s_ramp_left_exit_active{current_player.nmfe_step<6 and current_player.nmfe_lr_burned==0 and current_player.nmfe_step_locked==0}:
     - nmfe_advance_step
     - nmfe_burn_lr
-  s_ramp_left_exit_active{current_player.nmfe_step<6 and current_player.nmfe_lr_burned==1}:
+  s_ramp_left_exit_active{current_player.nmfe_step<6 and current_player.nmfe_lr_burned==1 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
 
   ##############################################
@@ -919,45 +935,45 @@ event_player:
   ## SPECIAL: when burned, the spinner becomes neutral (dark, no penalty)
   ## No bad handler — burned spinner hits do nothing.
   ##############################################
-  spinner_shot_made{current_player.nmfe_step<6 and current_player.spinner_shot_locked==0 and current_player.nmfe_sp_burned==0}:
+  spinner_shot_made{current_player.nmfe_step<6 and current_player.spinner_shot_locked==0 and current_player.nmfe_sp_burned==0 and current_player.nmfe_step_locked==0}:
     - nmfe_advance_step
     - nmfe_burn_sp
 
   ##############################################
   ## CNT — Center Target / Barrier (s_barrier_target, barrier UP)
   ##############################################
-  s_barrier_target_active{current_player.nmfe_step<6 and current_player.nmfe_cnt_burned==0}:
+  s_barrier_target_active{current_player.nmfe_step<6 and current_player.nmfe_cnt_burned==0 and current_player.nmfe_step_locked==0}:
     - nmfe_advance_step
     - nmfe_burn_cnt
-  s_barrier_target_active{current_player.nmfe_step<6 and current_player.nmfe_cnt_burned==1}:
+  s_barrier_target_active{current_player.nmfe_step<6 and current_player.nmfe_cnt_burned==1 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
 
   ##############################################
   ## TWR — Tower Ramp (s_ramp_tower_exit)
   ##############################################
-  s_ramp_tower_exit_active{current_player.nmfe_step<6 and current_player.nmfe_twr_burned==0}:
+  s_ramp_tower_exit_active{current_player.nmfe_step<6 and current_player.nmfe_twr_burned==0 and current_player.nmfe_step_locked==0}:
     - nmfe_advance_step
     - nmfe_burn_twr
-  s_ramp_tower_exit_active{current_player.nmfe_step<6 and current_player.nmfe_twr_burned==1}:
+  s_ramp_tower_exit_active{current_player.nmfe_step<6 and current_player.nmfe_twr_burned==1 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
 
   ##############################################
   ## TL — Upper Orbit / Top Left (s_orbit_upper)
   ##############################################
-  s_orbit_upper_active{current_player.nmfe_step<6 and current_player.nmfe_tl_burned==0}:
+  s_orbit_upper_active{current_player.nmfe_step<6 and current_player.nmfe_tl_burned==0 and current_player.nmfe_step_locked==0}:
     - nmfe_advance_step
     - nmfe_burn_tl
-  s_orbit_upper_active{current_player.nmfe_step<6 and current_player.nmfe_tl_burned==1}:
+  s_orbit_upper_active{current_player.nmfe_step<6 and current_player.nmfe_tl_burned==1 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
 
   ##############################################
   ## TR — Top Ramp Inner Exit (s_ramp_inner_exit, top ramp DOWN)
   ## Shares light (l_shot_middle_ramp) with TO — burn uses nmfe_r_to_tr key.
   ##############################################
-  s_ramp_inner_exit_active{current_player.nmfe_step<6 and current_player.nmfe_tr_burned==0}:
+  s_ramp_inner_exit_active{current_player.nmfe_step<6 and current_player.nmfe_tr_burned==0 and current_player.nmfe_step_locked==0}:
     - nmfe_advance_step
     - nmfe_burn_tr
-  s_ramp_inner_exit_active{current_player.nmfe_step<6 and current_player.nmfe_tr_burned==1}:
+  s_ramp_inner_exit_active{current_player.nmfe_step<6 and current_player.nmfe_tr_burned==1 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
 
   ##############################################
@@ -965,156 +981,156 @@ event_player:
   ## Shares light (l_shot_right_orbit) with RO — burn uses nmfe_r_ro_rr key.
   ## RO can't physically fire in Phase 1 (right ramp is down), so no handler.
   ##############################################
-  s_ramp_right_exit_active{current_player.nmfe_step<6 and current_player.nmfe_rr_burned==0}:
+  s_ramp_right_exit_active{current_player.nmfe_step<6 and current_player.nmfe_rr_burned==0 and current_player.nmfe_step_locked==0}:
     - nmfe_advance_step
     - nmfe_burn_rr
-  s_ramp_right_exit_active{current_player.nmfe_step<6 and current_player.nmfe_rr_burned==1}:
+  s_ramp_right_exit_active{current_player.nmfe_step<6 and current_player.nmfe_rr_burned==1 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
 
   ##############################################
   ## STEP 7 — LR SP LO lit only; rest bad
   ##############################################
-  s_ramp_left_exit_active{current_player.nmfe_step==6}:
+  s_ramp_left_exit_active{current_player.nmfe_step==6 and current_player.nmfe_step_locked==0}:
     - nmfe_step_7_complete
     - nmfe_good_shot_hit
     - nmfe_step_7_shot_hit
     - nmfe_setup_step_8
-  spinner_shot_made{current_player.nmfe_step==6 and current_player.spinner_shot_locked==0}:
+  spinner_shot_made{current_player.nmfe_step==6 and current_player.spinner_shot_locked==0 and current_player.nmfe_step_locked==0}:
     - nmfe_step_7_complete
     - nmfe_good_shot_hit
     - nmfe_step_7_shot_hit
     - nmfe_setup_step_8
-  left_orbit_shot_hit{current_player.nmfe_step==6}:
+  left_orbit_shot_hit{current_player.nmfe_step==6 and current_player.nmfe_step_locked==0}:
     - nmfe_step_7_complete
     - nmfe_good_shot_hit
     - nmfe_step_7_shot_hit
     - nmfe_setup_step_8
     - orbit_left_safe_return_clear|700ms
   # BAD
-  s_lane_left_active{current_player.nmfe_step==6}:
+  s_lane_left_active{current_player.nmfe_step==6 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_barrier_target_active{current_player.nmfe_step==6}:
+  s_barrier_target_active{current_player.nmfe_step==6 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_ramp_tower_exit_active{current_player.nmfe_step==6}:
+  s_ramp_tower_exit_active{current_player.nmfe_step==6 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_orbit_upper_active{current_player.nmfe_step==6}:
+  s_orbit_upper_active{current_player.nmfe_step==6 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_orbit_lower_active{current_player.nmfe_step==6}:
+  s_orbit_lower_active{current_player.nmfe_step==6 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_ramp_inner_exit_active{current_player.nmfe_step==6}:
+  s_ramp_inner_exit_active{current_player.nmfe_step==6 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  right_orbit_shot_hit{current_player.nmfe_step==6}:
+  right_orbit_shot_hit{current_player.nmfe_step==6 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_ramp_right_exit_active{current_player.nmfe_step==6}:
+  s_ramp_right_exit_active{current_player.nmfe_step==6 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
 
   ##############################################
   ## STEP 8 — TWR TL TO RR lit; TOP RAMP UP; rest bad
   ## nmfe_setup_step_8 raises top ramp (event_player handles servo above)
   ##############################################
-  s_ramp_tower_exit_active{current_player.nmfe_step==7}:
+  s_ramp_tower_exit_active{current_player.nmfe_step==7 and current_player.nmfe_step_locked==0}:
     - nmfe_step_8_complete
     - nmfe_good_shot_hit
     - nmfe_step_8_shot_hit
     - nmfe_setup_step_9
-  s_orbit_upper_active{current_player.nmfe_step==7}:
+  s_orbit_upper_active{current_player.nmfe_step==7 and current_player.nmfe_step_locked==0}:
     - nmfe_step_8_complete
     - nmfe_good_shot_hit
     - nmfe_step_8_shot_hit
     - nmfe_setup_step_9
-  s_orbit_lower_active{current_player.nmfe_step==7}:
+  s_orbit_lower_active{current_player.nmfe_step==7 and current_player.nmfe_step_locked==0}:
     - nmfe_step_8_complete
     - nmfe_good_shot_hit
     - nmfe_step_8_shot_hit
     - nmfe_setup_step_9
-  s_ramp_right_exit_active{current_player.nmfe_step==7}:
+  s_ramp_right_exit_active{current_player.nmfe_step==7 and current_player.nmfe_step_locked==0}:
     - nmfe_step_8_complete
     - nmfe_good_shot_hit
     - nmfe_step_8_shot_hit
     - nmfe_setup_step_9
   # BAD
-  s_lane_left_active{current_player.nmfe_step==7}:
+  s_lane_left_active{current_player.nmfe_step==7 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  left_orbit_shot_hit{current_player.nmfe_step==7}:
+  left_orbit_shot_hit{current_player.nmfe_step==7 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_ramp_left_exit_active{current_player.nmfe_step==7}:
+  s_ramp_left_exit_active{current_player.nmfe_step==7 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  spinner_shot_made{current_player.nmfe_step==7 and current_player.spinner_shot_locked==0}:
+  spinner_shot_made{current_player.nmfe_step==7 and current_player.spinner_shot_locked==0 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_barrier_target_active{current_player.nmfe_step==7}:
+  s_barrier_target_active{current_player.nmfe_step==7 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  right_orbit_shot_hit{current_player.nmfe_step==7}:
+  right_orbit_shot_hit{current_player.nmfe_step==7 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
 
   ##############################################
   ## STEP 9 — SP CNT TWR lit; TOP RAMP DOWN; rest bad
   ## nmfe_setup_step_9 lowers top ramp (event_player handles servo above)
   ##############################################
-  spinner_shot_made{current_player.nmfe_step==8 and current_player.spinner_shot_locked==0}:
+  spinner_shot_made{current_player.nmfe_step==8 and current_player.spinner_shot_locked==0 and current_player.nmfe_step_locked==0}:
     - nmfe_step_9_complete
     - nmfe_good_shot_hit
     - nmfe_step_9_shot_hit
     - nmfe_setup_step_10
-  s_barrier_target_active{current_player.nmfe_step==8}:
+  s_barrier_target_active{current_player.nmfe_step==8 and current_player.nmfe_step_locked==0}:
     - nmfe_step_9_complete
     - nmfe_good_shot_hit
     - nmfe_step_9_shot_hit
     - nmfe_setup_step_10
-  s_ramp_tower_exit_active{current_player.nmfe_step==8}:
+  s_ramp_tower_exit_active{current_player.nmfe_step==8 and current_player.nmfe_step_locked==0}:
     - nmfe_step_9_complete
     - nmfe_good_shot_hit
     - nmfe_step_9_shot_hit
     - nmfe_setup_step_10
   # BAD
-  s_lane_left_active{current_player.nmfe_step==8}:
+  s_lane_left_active{current_player.nmfe_step==8 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  left_orbit_shot_hit{current_player.nmfe_step==8}:
+  left_orbit_shot_hit{current_player.nmfe_step==8 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_ramp_left_exit_active{current_player.nmfe_step==8}:
+  s_ramp_left_exit_active{current_player.nmfe_step==8 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_orbit_upper_active{current_player.nmfe_step==8}:
+  s_orbit_upper_active{current_player.nmfe_step==8 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_orbit_lower_active{current_player.nmfe_step==8}:
+  s_orbit_lower_active{current_player.nmfe_step==8 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_ramp_inner_exit_active{current_player.nmfe_step==8}:
+  s_ramp_inner_exit_active{current_player.nmfe_step==8 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  right_orbit_shot_hit{current_player.nmfe_step==8}:
+  right_orbit_shot_hit{current_player.nmfe_step==8 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_ramp_right_exit_active{current_player.nmfe_step==8}:
+  s_ramp_right_exit_active{current_player.nmfe_step==8 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
 
   ##############################################
   ## STEP 10 — LO LR lit only; rest bad
   ##############################################
-  left_orbit_shot_hit{current_player.nmfe_step==9}:
+  left_orbit_shot_hit{current_player.nmfe_step==9 and current_player.nmfe_step_locked==0}:
     - nmfe_step_10_complete
     - nmfe_good_shot_hit
     - nmfe_step_10_shot_hit
     - nmfe_setup_step_11
     - orbit_left_safe_return_clear|700ms
-  s_ramp_left_exit_active{current_player.nmfe_step==9}:
+  s_ramp_left_exit_active{current_player.nmfe_step==9 and current_player.nmfe_step_locked==0}:
     - nmfe_step_10_complete
     - nmfe_good_shot_hit
     - nmfe_step_10_shot_hit
     - nmfe_setup_step_11
   # BAD
-  s_lane_left_active{current_player.nmfe_step==9}:
+  s_lane_left_active{current_player.nmfe_step==9 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  spinner_shot_made{current_player.nmfe_step==9 and current_player.spinner_shot_locked==0}:
+  spinner_shot_made{current_player.nmfe_step==9 and current_player.spinner_shot_locked==0 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_barrier_target_active{current_player.nmfe_step==9}:
+  s_barrier_target_active{current_player.nmfe_step==9 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_ramp_tower_exit_active{current_player.nmfe_step==9}:
+  s_ramp_tower_exit_active{current_player.nmfe_step==9 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_orbit_upper_active{current_player.nmfe_step==9}:
+  s_orbit_upper_active{current_player.nmfe_step==9 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_orbit_lower_active{current_player.nmfe_step==9}:
+  s_orbit_lower_active{current_player.nmfe_step==9 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_ramp_inner_exit_active{current_player.nmfe_step==9}:
+  s_ramp_inner_exit_active{current_player.nmfe_step==9 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  right_orbit_shot_hit{current_player.nmfe_step==9}:
+  right_orbit_shot_hit{current_player.nmfe_step==9 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_ramp_right_exit_active{current_player.nmfe_step==9}:
+  s_ramp_right_exit_active{current_player.nmfe_step==9 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
 
   ##############################################
@@ -1122,28 +1138,28 @@ event_player:
   ## nmfe_setup_step_11 raises right ramp (event_player handles servo above)
   ## Won shot fires nmfe_step_11_complete (handled above in won-but-waiting section)
   ##############################################
-  spinner_shot_made{current_player.nmfe_step==10 and current_player.spinner_shot_locked==0}:
+  spinner_shot_made{current_player.nmfe_step==10 and current_player.spinner_shot_locked==0 and current_player.nmfe_step_locked==0}:
     - nmfe_step_11_complete
-  s_orbit_upper_active{current_player.nmfe_step==10}:
+  s_orbit_upper_active{current_player.nmfe_step==10 and current_player.nmfe_step_locked==0}:
     - nmfe_step_11_complete
-  right_orbit_shot_hit{current_player.nmfe_step==10}:
+  right_orbit_shot_hit{current_player.nmfe_step==10 and current_player.nmfe_step_locked==0}:
     - nmfe_step_11_complete
   # BAD
-  s_lane_left_active{current_player.nmfe_step==10}:
+  s_lane_left_active{current_player.nmfe_step==10 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  left_orbit_shot_hit{current_player.nmfe_step==10}:
+  left_orbit_shot_hit{current_player.nmfe_step==10 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_ramp_left_exit_active{current_player.nmfe_step==10}:
+  s_ramp_left_exit_active{current_player.nmfe_step==10 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_barrier_target_active{current_player.nmfe_step==10}:
+  s_barrier_target_active{current_player.nmfe_step==10 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_ramp_tower_exit_active{current_player.nmfe_step==10}:
+  s_ramp_tower_exit_active{current_player.nmfe_step==10 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_orbit_lower_active{current_player.nmfe_step==10}:
+  s_orbit_lower_active{current_player.nmfe_step==10 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_ramp_inner_exit_active{current_player.nmfe_step==10}:
+  s_ramp_inner_exit_active{current_player.nmfe_step==10 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
-  s_ramp_right_exit_active{current_player.nmfe_step==10}:
+  s_ramp_right_exit_active{current_player.nmfe_step==10 and current_player.nmfe_step_locked==0}:
     - nmfe_bad_shot
 
 

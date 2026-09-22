@@ -340,6 +340,15 @@ variable_player:
     edge_of_space_complete_flag:
       action: set
       int: 0
+    # Cleared at mode start; set the instant edge_of_space_failed fires so every
+    # step's shot switches stop touching the points bank immediately, even though
+    # the mode stays "active" for the full lost-video delay (stop_events waits on
+    # timer_edge_of_space_failed_delay_complete). Without this, a player could
+    # keep advancing after the bank was already paid out on timeout/drain and
+    # reach the decision or combo phase for a SECOND payout of the same bank.
+    edge_of_space_step_locked:
+      action: set
+      int: 0
     edge_of_space_shots_remaining:
       action: set
       int: 8
@@ -663,6 +672,17 @@ variable_player:
       action: set
       int: current_player.edge_of_space_points_bank
 
+  # Lock all shot scoring the instant the mode fails (main timer expiry or drain
+  # both route through this event). The mode stays "active" for the full
+  # lost-video delay, so without this flag any switch matching the current step
+  # still advances state during the lost video — and since the bank was already
+  # paid out above, reaching the decision/combo phase afterward would pay it
+  # out a second time.
+  edge_of_space_failed:
+    edge_of_space_step_locked:
+      action: set
+      int: 1
+
   # Choice: take 1x bank payout
   edge_of_space_choice_no:
     score:
@@ -691,7 +711,7 @@ variable_player:
       int: 0
 
   # Combo timer expired = 1x payout
-  timer_edge_of_space_timer_complete{current_player.edge_of_space_step==13}:
+  timer_edge_of_space_timer_complete{current_player.edge_of_space_step==13 and current_player.edge_of_space_step_locked==0}:
     score:
       action: add
       int: current_player.edge_of_space_points_bank
@@ -831,9 +851,9 @@ event_player:
     - edge_of_space_game_gi_start
 
   # Skip intro — both flippers held
-  s_flipper_left_active{current_player.edge_of_space_step==0 and device.timers.edge_of_space_intro_video_delay.running}:
+  s_flipper_left_active{current_player.edge_of_space_step==0 and device.timers.edge_of_space_intro_video_delay.running and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_check_skip_intro
-  s_flipper_right_active{current_player.edge_of_space_step==0 and device.timers.edge_of_space_intro_video_delay.running}:
+  s_flipper_right_active{current_player.edge_of_space_step==0 and device.timers.edge_of_space_intro_video_delay.running and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_check_skip_intro
   edge_of_space_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
     - edge_of_space_skip_intro
@@ -855,7 +875,7 @@ event_player:
   edge_of_space_setup_step_1:
     - orbit_left_safe_return_arm
 
-  left_orbit_shot_hit{current_player.edge_of_space_step==1}:
+  left_orbit_shot_hit{current_player.edge_of_space_step==1 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_step_1_complete
     - edge_of_space_step_1_shot_hit
     - edge_of_space_setup_step_2
@@ -870,11 +890,11 @@ event_player:
     - barrier_raise
 
   # Ball passes right lane gate — safe to raise ramp now
-  s_lane_right_active{current_player.edge_of_space_step==2}:
+  s_lane_right_active{current_player.edge_of_space_step==2 and current_player.edge_of_space_step_locked==0}:
     - right_ramp_up
 
   # RO shot made (ramp was up)
-  right_orbit_shot_hit{current_player.edge_of_space_step==2}:
+  right_orbit_shot_hit{current_player.edge_of_space_step==2 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_step_2_complete
     - edge_of_space_step_2_shot_hit
     - edge_of_space_setup_step_3
@@ -882,7 +902,7 @@ event_player:
     - edge_of_space_show_points
 
   # Fallback: if ramp servo fails and ball exits ramp-down path instead
-  s_ramp_right_exit_active{current_player.edge_of_space_step==2}:
+  s_ramp_right_exit_active{current_player.edge_of_space_step==2 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_step_2_complete
     - edge_of_space_step_2_shot_hit
     - edge_of_space_setup_step_3
@@ -896,13 +916,13 @@ event_player:
   edge_of_space_setup_step_3:
     - barrier_raise
 
-  spinner_shot_made{current_player.edge_of_space_step==3}:
+  spinner_shot_made{current_player.edge_of_space_step==3 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_step_3_complete
     - edge_of_space_step_3_shot_hit
     - edge_of_space_open_diverter
     - edge_of_space_show_points
 
-  s_orbit_upper_active{current_player.edge_of_space_step==3}:
+  s_orbit_upper_active{current_player.edge_of_space_step==3 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_step_3_complete
     - edge_of_space_step_3_shot_hit
     - edge_of_space_open_diverter
@@ -916,13 +936,13 @@ event_player:
 
   # Diverter retry — SP or TL hit while waiting for left lane catch
   # Reopens diverter for another 3s window and lights the left lane insert
-  s_orbit_upper_active{current_player.edge_of_space_step==4}:
+  s_orbit_upper_active{current_player.edge_of_space_step==4 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_diverter_retry
-  spinner_shot_made{current_player.edge_of_space_step==4}:
+  spinner_shot_made{current_player.edge_of_space_step==4 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_diverter_retry
-  s_orbit_upper_active{current_player.edge_of_space_step==10}:
+  s_orbit_upper_active{current_player.edge_of_space_step==10 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_diverter_retry
-  spinner_shot_made{current_player.edge_of_space_step==10}:
+  spinner_shot_made{current_player.edge_of_space_step==10 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_diverter_retry
 
   edge_of_space_diverter_retry:
@@ -933,7 +953,7 @@ event_player:
   ## STEP 4 — Left lane catch, hold for 12s
   ## step=4 waiting for left lane, step=5 waiting for TWR
   ##############################################
-  s_lane_left_active{current_player.edge_of_space_step==4}:
+  s_lane_left_active{current_player.edge_of_space_step==4 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_step4_hold_start
     - edge_of_space_activate_left_lane_post
     - left_orbit_diverter_closed
@@ -955,7 +975,7 @@ event_player:
   ## STEP 5 — TWR (s_ramp_tower_exit)
   ##############################################
 
-  s_ramp_tower_exit_active{current_player.edge_of_space_step==5}:
+  s_ramp_tower_exit_active{current_player.edge_of_space_step==5 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_step_4b_complete
     - edge_of_space_step_4b_shot_hit
     - edge_of_space_setup_step_6
@@ -967,7 +987,7 @@ event_player:
   edge_of_space_setup_step_6:
     - barrier_raise
 
-  s_ramp_left_exit_active{current_player.edge_of_space_step==6}:
+  s_ramp_left_exit_active{current_player.edge_of_space_step==6 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_step_5_complete
     - edge_of_space_step_5_shot_hit
     - edge_of_space_setup_step_7
@@ -980,11 +1000,11 @@ event_player:
     - barrier_raise
 
   # Ball passes right lane gate — safe to raise ramp now
-  s_lane_right_active{current_player.edge_of_space_step==7}:
+  s_lane_right_active{current_player.edge_of_space_step==7 and current_player.edge_of_space_step_locked==0}:
     - right_ramp_up
 
   # RO shot made (ramp was up)
-  right_orbit_shot_hit{current_player.edge_of_space_step==7}:
+  right_orbit_shot_hit{current_player.edge_of_space_step==7 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_step_6_complete
     - edge_of_space_step_6_shot_hit
     - edge_of_space_setup_step_8
@@ -992,7 +1012,7 @@ event_player:
     - edge_of_space_show_points
 
   # Fallback: if ramp servo fails and ball exits ramp-down path instead
-  s_ramp_right_exit_active{current_player.edge_of_space_step==7}:
+  s_ramp_right_exit_active{current_player.edge_of_space_step==7 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_step_6_complete
     - edge_of_space_step_6_shot_hit
     - edge_of_space_setup_step_8
@@ -1006,14 +1026,14 @@ event_player:
   edge_of_space_setup_step_8:
     - barrier_raise
 
-  s_orbit_upper_active{current_player.edge_of_space_step==8}:
+  s_orbit_upper_active{current_player.edge_of_space_step==8 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_step_7_complete
     - edge_of_space_step_7_shot_hit
     - edge_of_space_step_8_complete
     - edge_of_space_open_diverter
     - edge_of_space_show_points
 
-  spinner_shot_made{current_player.edge_of_space_step==8}:
+  spinner_shot_made{current_player.edge_of_space_step==8 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_step_7_complete
     - edge_of_space_step_7_shot_hit
     - edge_of_space_step_8_complete
@@ -1024,7 +1044,7 @@ event_player:
   ## VICTORY HOLD — Left lane catch after step 8 (step=10 waiting)
   ## Hold for 25s victory video then decision
   ##############################################
-  s_lane_left_active{current_player.edge_of_space_step==10}:
+  s_lane_left_active{current_player.edge_of_space_step==10 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_victory_hold_start
     - edge_of_space_activate_left_lane_post
     - left_orbit_diverter_closed
@@ -1038,10 +1058,10 @@ event_player:
   ## Left flipper = NO (1x bank), Right flipper = YES (combo)
   ## Decision timer expiry = NO
   ##############################################
-  s_flipper_left_active{current_player.edge_of_space_step==12 and not device.timers.edge_of_space_no_hold_delay.running}:
+  s_flipper_left_active{current_player.edge_of_space_step==12 and not device.timers.edge_of_space_no_hold_delay.running and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_choice_no
 
-  s_flipper_right_active{current_player.edge_of_space_step==12}:
+  s_flipper_right_active{current_player.edge_of_space_step==12 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_choice_yes
 
   timer_edge_of_space_decision_countdown_complete:
@@ -1073,7 +1093,7 @@ event_player:
     - edge_of_space_combo_start_timer_go|200ms
 
   # LR hit
-  s_ramp_left_exit_active{current_player.edge_of_space_step==13 and current_player.edge_of_space_combo_step==1}:
+  s_ramp_left_exit_active{current_player.edge_of_space_step==13 and current_player.edge_of_space_combo_step==1 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_combo_lr_hit
 
   # LR timer expired → reset combo
@@ -1082,7 +1102,7 @@ event_player:
     - edge_of_space_combo_setup_lr
 
   # RR hit (right ramp DOWN exit)
-  s_ramp_right_exit_active{current_player.edge_of_space_step==13 and current_player.edge_of_space_combo_step==2}:
+  s_ramp_right_exit_active{current_player.edge_of_space_step==13 and current_player.edge_of_space_combo_step==2 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_combo_rr_hit
 
   # RR timer expired → reset combo
@@ -1091,11 +1111,11 @@ event_player:
     - edge_of_space_combo_setup_lr
 
   # SP hit → 2x locked in, start 4s TL window
-  spinner_shot_made{current_player.edge_of_space_step==13 and current_player.edge_of_space_combo_step==3}:
+  spinner_shot_made{current_player.edge_of_space_step==13 and current_player.edge_of_space_combo_step==3 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_combo_sp_hit
 
   # TL hit → 3x!
-  s_orbit_upper_active{current_player.edge_of_space_step==13 and current_player.edge_of_space_combo_step==4}:
+  s_orbit_upper_active{current_player.edge_of_space_step==13 and current_player.edge_of_space_combo_step==4 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_combo_3x_payout
     - edge_of_space_end_combo
 
@@ -1105,7 +1125,7 @@ event_player:
     - edge_of_space_end_combo
 
   # Main timer expired during combo → 1x payout (variable_player handles score)
-  timer_edge_of_space_timer_complete{current_player.edge_of_space_step==13}:
+  timer_edge_of_space_timer_complete{current_player.edge_of_space_step==13 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_end_combo
 
   edge_of_space_end_combo:
@@ -1116,39 +1136,39 @@ event_player:
   ##############################################
   ## MISSILES PERK — auto-complete current step
   ##############################################
-  missiles_perk_complete_shot{current_player.edge_of_space_step==1 and current_player.edge_of_space_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.edge_of_space_step==1 and current_player.edge_of_space_complete_flag==0 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_step_1_complete
     - edge_of_space_step_1_shot_hit
     - edge_of_space_setup_step_2
 
-  missiles_perk_complete_shot{current_player.edge_of_space_step==2 and current_player.edge_of_space_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.edge_of_space_step==2 and current_player.edge_of_space_complete_flag==0 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_step_2_complete
     - edge_of_space_step_2_shot_hit
     - edge_of_space_setup_step_3
     - right_ramp_down
 
-  missiles_perk_complete_shot{current_player.edge_of_space_step==3 and current_player.edge_of_space_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.edge_of_space_step==3 and current_player.edge_of_space_complete_flag==0 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_step_3_complete
     - edge_of_space_step_3_shot_hit
     - edge_of_space_open_diverter
 
-  missiles_perk_complete_shot{current_player.edge_of_space_step==5 and current_player.edge_of_space_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.edge_of_space_step==5 and current_player.edge_of_space_complete_flag==0 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_step_4b_complete
     - edge_of_space_step_4b_shot_hit
     - edge_of_space_setup_step_6
 
-  missiles_perk_complete_shot{current_player.edge_of_space_step==6 and current_player.edge_of_space_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.edge_of_space_step==6 and current_player.edge_of_space_complete_flag==0 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_step_5_complete
     - edge_of_space_step_5_shot_hit
     - edge_of_space_setup_step_7
 
-  missiles_perk_complete_shot{current_player.edge_of_space_step==7 and current_player.edge_of_space_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.edge_of_space_step==7 and current_player.edge_of_space_complete_flag==0 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_step_6_complete
     - edge_of_space_step_6_shot_hit
     - edge_of_space_setup_step_8
     - right_ramp_down
 
-  missiles_perk_complete_shot{current_player.edge_of_space_step==8 and current_player.edge_of_space_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.edge_of_space_step==8 and current_player.edge_of_space_complete_flag==0 and current_player.edge_of_space_step_locked==0}:
     - edge_of_space_step_7_complete
     - edge_of_space_step_7_shot_hit
     - edge_of_space_step_8_complete
@@ -1240,11 +1260,11 @@ light_player:
 
   # Diverter timer expired — step 4 and 10 are still waiting for left lane catch,
   # keep the light ON in dark blue as a cue. All other steps: turn it off.
-  timer_edge_of_space_diverter_timer_complete{current_player.edge_of_space_step==4}:
+  timer_edge_of_space_diverter_timer_complete{current_player.edge_of_space_step==4 and current_player.edge_of_space_step_locked==0}:
     l_shot_left_lane:
       color: '0033AA'
 
-  timer_edge_of_space_diverter_timer_complete{current_player.edge_of_space_step==10}:
+  timer_edge_of_space_diverter_timer_complete{current_player.edge_of_space_step==10 and current_player.edge_of_space_step_locked==0}:
     l_shot_left_lane:
       color: '0033AA'
 
@@ -1733,7 +1753,7 @@ show_player:
       key: mode_l_shot_upper_orbit
 
   # Diverter miss at step 4 — restart SP/TL cues so player knows to hit them again
-  timer_edge_of_space_diverter_timer_complete{current_player.edge_of_space_step==4}:
+  timer_edge_of_space_diverter_timer_complete{current_player.edge_of_space_step==4 and current_player.edge_of_space_step_locked==0}:
     sp_flash_miss_4:
       show: sync_flash_mode
       key: mode_l_shot_spinner
@@ -1752,7 +1772,7 @@ show_player:
         color: '0033AA'
 
   # Diverter miss at step 10 (victory hold) — same
-  timer_edge_of_space_diverter_timer_complete{current_player.edge_of_space_step==10}:
+  timer_edge_of_space_diverter_timer_complete{current_player.edge_of_space_step==10 and current_player.edge_of_space_step_locked==0}:
     sp_flash_miss_10:
       show: sync_flash_mode
       key: mode_l_shot_spinner

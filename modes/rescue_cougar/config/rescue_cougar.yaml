@@ -107,6 +107,12 @@ variable_player:
     rescue_cougar_complete_flag:
       action: set
       int: 0
+    # Cleared at mode start; set the instant rescue_cougar_failed fires so every
+    # switch/step-advance condition below stops scoring immediately, even though
+    # the mode itself stays "active" for the full 16s lost-video delay.
+    rescue_cougar_step_locked:
+      action: set
+      int: 0
     pilot_missions_played:
       action: add
       int: 1
@@ -275,6 +281,16 @@ variable_player:
     missiles_perk_active:
       action: set
       int: 0
+
+  # Lock all shot scoring/step-advance the instant the mode fails (timer expiry
+  # or drain both route through this event). The mode stays "active" for the full
+  # 16s lost-video delay (stop_events waits for timer_rescue_cougar_failed_delay_complete),
+  # so without this flag any switch matching the current step still scores during
+  # the lost video even though the shot lights/flashers are already killed.
+  rescue_cougar_failed:
+    rescue_cougar_step_locked:
+      action: set
+      int: 1
 
 ####################################################################################
 # SLIDE PLAYER - Mode Slides (GODOT 4.1.1 Format)
@@ -869,120 +885,120 @@ event_player:
   # Step 1 and 2 - Left and Right Orbits (using entrance switches for MIG post shots)
   # These steps use single switch detection since the MIG posts stop the ball
   # s_orbit_left triggers RIGHT MIG post, s_orbit_right triggers LEFT MIG post
-  s_orbit_left_active{current_player.rescue_cougar_step==0 and device.timers.rescue_cougar_left_orbit_lockout.running==False}:
+  s_orbit_left_active{current_player.rescue_cougar_step==0 and device.timers.rescue_cougar_left_orbit_lockout.running==False and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_1_complete
     - rescue_cougar_activate_right_mig_post
     - rescue_cougar_step_1_shot_hit
 
-  s_orbit_right_active{current_player.rescue_cougar_step==0 and device.timers.rescue_cougar_right_orbit_lockout.running==False}:
+  s_orbit_right_active{current_player.rescue_cougar_step==0 and device.timers.rescue_cougar_right_orbit_lockout.running==False and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_1_complete
     - rescue_cougar_activate_left_mig_post
     - rescue_cougar_step_1_shot_hit
 
-  s_orbit_left_active{current_player.rescue_cougar_step==1 and device.timers.rescue_cougar_left_orbit_lockout.running==False}:
+  s_orbit_left_active{current_player.rescue_cougar_step==1 and device.timers.rescue_cougar_left_orbit_lockout.running==False and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_2_complete
     - rescue_cougar_activate_right_mig_post
     - rescue_cougar_step_2_shot_hit
 
-  s_orbit_right_active{current_player.rescue_cougar_step==1 and device.timers.rescue_cougar_right_orbit_lockout.running==False}:
+  s_orbit_right_active{current_player.rescue_cougar_step==1 and device.timers.rescue_cougar_right_orbit_lockout.running==False and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_2_complete
     - rescue_cougar_activate_left_mig_post
     - rescue_cougar_step_2_shot_hit
 
   # Step 3, 4, 5 - Left Ramp, Upper Orbit, Inner Ramp, Right Ramp
-  s_ramp_left_exit_active{current_player.rescue_cougar_step==2}:
+  s_ramp_left_exit_active{current_player.rescue_cougar_step==2 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_3_complete
     - rescue_cougar_step_3_shot_hit
 
-  s_orbit_upper_active{current_player.rescue_cougar_step==2}:
+  s_orbit_upper_active{current_player.rescue_cougar_step==2 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_3_complete
     - rescue_cougar_step_3_shot_hit
 
-  s_ramp_inner_exit_active{current_player.rescue_cougar_step==2}:
+  s_ramp_inner_exit_active{current_player.rescue_cougar_step==2 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_3_complete
     - rescue_cougar_step_3_shot_hit
 
-  s_ramp_right_exit_active{current_player.rescue_cougar_step==2}:
+  s_ramp_right_exit_active{current_player.rescue_cougar_step==2 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_3_complete
     - rescue_cougar_step_3_shot_hit
 
-  s_ramp_left_exit_active{current_player.rescue_cougar_step==3}:
+  s_ramp_left_exit_active{current_player.rescue_cougar_step==3 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_4_complete
     - rescue_cougar_step_4_shot_hit
 
-  s_orbit_upper_active{current_player.rescue_cougar_step==3}:
+  s_orbit_upper_active{current_player.rescue_cougar_step==3 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_4_complete
     - rescue_cougar_step_4_shot_hit
 
-  s_ramp_inner_exit_active{current_player.rescue_cougar_step==3}:
+  s_ramp_inner_exit_active{current_player.rescue_cougar_step==3 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_4_complete
     - rescue_cougar_step_4_shot_hit
 
-  s_ramp_right_exit_active{current_player.rescue_cougar_step==3}:
+  s_ramp_right_exit_active{current_player.rescue_cougar_step==3 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_4_complete
     - rescue_cougar_step_4_shot_hit
 
-  s_ramp_left_exit_active{current_player.rescue_cougar_step==4}:
+  s_ramp_left_exit_active{current_player.rescue_cougar_step==4 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_5_complete
     - rescue_cougar_step_5_shot_hit
 
-  s_orbit_upper_active{current_player.rescue_cougar_step==4}:
+  s_orbit_upper_active{current_player.rescue_cougar_step==4 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_5_complete
     - rescue_cougar_step_5_shot_hit
 
-  s_ramp_inner_exit_active{current_player.rescue_cougar_step==4}:
+  s_ramp_inner_exit_active{current_player.rescue_cougar_step==4 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_5_complete
     - rescue_cougar_step_5_shot_hit
 
-  s_ramp_right_exit_active{current_player.rescue_cougar_step==4}:
+  s_ramp_right_exit_active{current_player.rescue_cougar_step==4 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_5_complete
     - rescue_cougar_step_5_shot_hit
 
   # Step 6 - Left Lane
-  s_lane_left_active{current_player.rescue_cougar_step==5 and device.timers.rescue_cougar_left_lane_lockout.running==False}:
+  s_lane_left_active{current_player.rescue_cougar_step==5 and device.timers.rescue_cougar_left_lane_lockout.running==False and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_6_complete
     - rescue_cougar_activate_left_lane_post
     - rescue_cougar_step_6_shot_hit
 
   # Step 7 - Right Orbit
-  right_orbit_shot_hit{current_player.rescue_cougar_step==6 and device.timers.rescue_cougar_right_orbit_lockout.running==False}:
+  right_orbit_shot_hit{current_player.rescue_cougar_step==6 and device.timers.rescue_cougar_right_orbit_lockout.running==False and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_7_complete
     - rescue_cougar_step_7_shot_hit
 
   # Step 8 - Left Orbit or Spinner
-  left_orbit_shot_hit{current_player.rescue_cougar_step==7 and device.timers.rescue_cougar_left_orbit_lockout.running==False}:
+  left_orbit_shot_hit{current_player.rescue_cougar_step==7 and device.timers.rescue_cougar_left_orbit_lockout.running==False and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_8_complete
     - rescue_cougar_step_8_shot_hit
 
-  spinner_shot_made{current_player.rescue_cougar_step==7}:
+  spinner_shot_made{current_player.rescue_cougar_step==7 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_8_complete
     - rescue_cougar_step_8_shot_hit
 
   # Step 9 - Upper Orbit or Flight Gear Target
-  s_orbit_upper_active{current_player.rescue_cougar_step==8}:
+  s_orbit_upper_active{current_player.rescue_cougar_step==8 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_9_complete
     - rescue_cougar_step_9_shot_hit
 
-  s_flight_gear_target_active{current_player.rescue_cougar_step==8}:
+  s_flight_gear_target_active{current_player.rescue_cougar_step==8 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_9_complete
     - rescue_cougar_step_9_shot_hit
 
   # Step 10 - Spinner or Tower Ramp
-  spinner_shot_made{current_player.rescue_cougar_step==9}:
+  spinner_shot_made{current_player.rescue_cougar_step==9 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_10_complete
     - rescue_cougar_step_10_shot_hit
 
-  s_ramp_tower_exit_active{current_player.rescue_cougar_step==9}:
+  s_ramp_tower_exit_active{current_player.rescue_cougar_step==9 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_10_complete
     - rescue_cougar_step_10_shot_hit
 
   # Step 11 - Left Orbit or Lower Orbit (FINAL SHOT)
-  left_orbit_shot_hit{current_player.rescue_cougar_step==10 and device.timers.rescue_cougar_left_orbit_lockout.running==False}:
+  left_orbit_shot_hit{current_player.rescue_cougar_step==10 and device.timers.rescue_cougar_left_orbit_lockout.running==False and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_11_complete
     - rescue_cougar_step_11_shot_hit
     - rescue_cougar_complete
 
-  s_orbit_lower_active{current_player.rescue_cougar_step==10}:
+  s_orbit_lower_active{current_player.rescue_cougar_step==10 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_11_complete
     - rescue_cougar_step_11_shot_hit
     - rescue_cougar_complete
@@ -1042,46 +1058,46 @@ event_player:
   ## NOTE: MIG posts and left lane post are NOT activated by missiles
   ##############################################
 
-  missiles_perk_complete_shot{current_player.rescue_cougar_step==0 and current_player.rescue_cougar_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==0 and current_player.rescue_cougar_complete_flag==0 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_1_complete
     - rescue_cougar_step_1_shot_hit
 
-  missiles_perk_complete_shot{current_player.rescue_cougar_step==1 and current_player.rescue_cougar_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==1 and current_player.rescue_cougar_complete_flag==0 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_2_complete
     - rescue_cougar_step_2_shot_hit
 
-  missiles_perk_complete_shot{current_player.rescue_cougar_step==2 and current_player.rescue_cougar_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==2 and current_player.rescue_cougar_complete_flag==0 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_3_complete
     - rescue_cougar_step_3_shot_hit
 
-  missiles_perk_complete_shot{current_player.rescue_cougar_step==3 and current_player.rescue_cougar_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==3 and current_player.rescue_cougar_complete_flag==0 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_4_complete
     - rescue_cougar_step_4_shot_hit
 
-  missiles_perk_complete_shot{current_player.rescue_cougar_step==4 and current_player.rescue_cougar_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==4 and current_player.rescue_cougar_complete_flag==0 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_5_complete
     - rescue_cougar_step_5_shot_hit
 
   # Step 6 = left lane shot - missile cannot substitute (ball must be physically held in lane)
   # missiles_perk_complete_shot for step 5 intentionally omitted
 
-  missiles_perk_complete_shot{current_player.rescue_cougar_step==6 and current_player.rescue_cougar_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==6 and current_player.rescue_cougar_complete_flag==0 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_7_complete
     - rescue_cougar_step_7_shot_hit
 
-  missiles_perk_complete_shot{current_player.rescue_cougar_step==7 and current_player.rescue_cougar_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==7 and current_player.rescue_cougar_complete_flag==0 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_8_complete
     - rescue_cougar_step_8_shot_hit
 
-  missiles_perk_complete_shot{current_player.rescue_cougar_step==8 and current_player.rescue_cougar_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==8 and current_player.rescue_cougar_complete_flag==0 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_9_complete
     - rescue_cougar_step_9_shot_hit
 
-  missiles_perk_complete_shot{current_player.rescue_cougar_step==9 and current_player.rescue_cougar_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==9 and current_player.rescue_cougar_complete_flag==0 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_10_complete
     - rescue_cougar_step_10_shot_hit
 
-  missiles_perk_complete_shot{current_player.rescue_cougar_step==10 and current_player.rescue_cougar_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.rescue_cougar_step==10 and current_player.rescue_cougar_complete_flag==0 and current_player.rescue_cougar_step_locked==0}:
     - rescue_cougar_step_11_complete
     - rescue_cougar_step_11_shot_hit
     - rescue_cougar_complete
@@ -1958,57 +1974,57 @@ light_player:
       color: off
 
   # Step 3 shot hits - turn off shots as they're made
-  s_ramp_left_exit_active{current_player.rescue_cougar_step==2}:
+  s_ramp_left_exit_active{current_player.rescue_cougar_step==2 and current_player.rescue_cougar_step_locked==0}:
     l_shot_left_ramp:
       color: off
 
-  s_orbit_upper_active{current_player.rescue_cougar_step==2}:
+  s_orbit_upper_active{current_player.rescue_cougar_step==2 and current_player.rescue_cougar_step_locked==0}:
     l_shot_upper_orbit:
       color: off
 
-  s_ramp_inner_exit_active{current_player.rescue_cougar_step==2}:
+  s_ramp_inner_exit_active{current_player.rescue_cougar_step==2 and current_player.rescue_cougar_step_locked==0}:
     l_shot_middle_ramp:
       color: off
 
-  s_ramp_right_exit_active{current_player.rescue_cougar_step==2}:
+  s_ramp_right_exit_active{current_player.rescue_cougar_step==2 and current_player.rescue_cougar_step_locked==0}:
     l_shot_right_orbit:
       color: off
 
   # Step 4 setup - shots continue pulsing via show_player (no light_player setup needed)
 
   # Step 4 shot hits
-  s_ramp_left_exit_active{current_player.rescue_cougar_step==3}:
+  s_ramp_left_exit_active{current_player.rescue_cougar_step==3 and current_player.rescue_cougar_step_locked==0}:
     l_shot_left_ramp:
       color: off
 
-  s_orbit_upper_active{current_player.rescue_cougar_step==3}:
+  s_orbit_upper_active{current_player.rescue_cougar_step==3 and current_player.rescue_cougar_step_locked==0}:
     l_shot_upper_orbit:
       color: off
 
-  s_ramp_inner_exit_active{current_player.rescue_cougar_step==3}:
+  s_ramp_inner_exit_active{current_player.rescue_cougar_step==3 and current_player.rescue_cougar_step_locked==0}:
     l_shot_middle_ramp:
       color: off
 
-  s_ramp_right_exit_active{current_player.rescue_cougar_step==3}:
+  s_ramp_right_exit_active{current_player.rescue_cougar_step==3 and current_player.rescue_cougar_step_locked==0}:
     l_shot_right_orbit:
       color: off
 
   # Step 5 setup - shots continue pulsing via show_player (no light_player setup needed)
 
   # Step 5 shot hits
-  s_ramp_left_exit_active{current_player.rescue_cougar_step==4}:
+  s_ramp_left_exit_active{current_player.rescue_cougar_step==4 and current_player.rescue_cougar_step_locked==0}:
     l_shot_left_ramp:
       color: off
 
-  s_orbit_upper_active{current_player.rescue_cougar_step==4}:
+  s_orbit_upper_active{current_player.rescue_cougar_step==4 and current_player.rescue_cougar_step_locked==0}:
     l_shot_upper_orbit:
       color: off
 
-  s_ramp_inner_exit_active{current_player.rescue_cougar_step==4}:
+  s_ramp_inner_exit_active{current_player.rescue_cougar_step==4 and current_player.rescue_cougar_step_locked==0}:
     l_shot_middle_ramp:
       color: off
 
-  s_ramp_right_exit_active{current_player.rescue_cougar_step==4}:
+  s_ramp_right_exit_active{current_player.rescue_cougar_step==4 and current_player.rescue_cougar_step_locked==0}:
     l_shot_right_orbit:
       color: off
 
@@ -2055,7 +2071,7 @@ light_player:
     l_shot_spinner:
       color: off
 
-  spinner_shot_made{current_player.rescue_cougar_step==7}:
+  spinner_shot_made{current_player.rescue_cougar_step==7 and current_player.rescue_cougar_step_locked==0}:
     l_shot_left_orbit:
       color: off
     l_shot_spinner:
@@ -2073,13 +2089,13 @@ light_player:
     # Upper orbit and pilot gear flash via show_player
 
   # Step 9 shot hits
-  s_orbit_upper_active{current_player.rescue_cougar_step==8}:
+  s_orbit_upper_active{current_player.rescue_cougar_step==8 and current_player.rescue_cougar_step_locked==0}:
     l_shot_upper_orbit:
       color: off
     l_shot_pilot_gear:
       color: off
 
-  s_flight_gear_target_active{current_player.rescue_cougar_step==8}:
+  s_flight_gear_target_active{current_player.rescue_cougar_step==8 and current_player.rescue_cougar_step_locked==0}:
     l_shot_upper_orbit:
       color: off
     l_shot_pilot_gear:
@@ -2097,13 +2113,13 @@ light_player:
     # Spinner and tower ramp flash via show_player
 
   # Step 10 shot hits
-  spinner_shot_made{current_player.rescue_cougar_step==9}:
+  spinner_shot_made{current_player.rescue_cougar_step==9 and current_player.rescue_cougar_step_locked==0}:
     l_shot_spinner:
       color: off
     l_shot_tower_ramp:
       color: off
 
-  s_ramp_tower_exit_active{current_player.rescue_cougar_step==9}:
+  s_ramp_tower_exit_active{current_player.rescue_cougar_step==9 and current_player.rescue_cougar_step_locked==0}:
     l_shot_spinner:
       color: off
     l_shot_tower_ramp:
@@ -2127,7 +2143,7 @@ light_player:
     l_shot_middle_ramp:
       color: off
 
-  s_orbit_lower_active{current_player.rescue_cougar_step==10}:
+  s_orbit_lower_active{current_player.rescue_cougar_step==10 and current_player.rescue_cougar_step_locked==0}:
     l_shot_left_orbit:
       color: off
     l_shot_middle_ramp:

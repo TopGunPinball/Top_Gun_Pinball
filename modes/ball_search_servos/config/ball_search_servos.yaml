@@ -118,9 +118,23 @@ event_player:
   ball_search_seq_done{machine.ball_search_active_flag==1}:
     - ball_search_servo_seq_complete
 
-  # CLEANUP: Ball found — ramps down staggered, lock held if balls remain
-  ball_search_stopped:
+  # CLEANUP: Ball found — restore each ramp to its actual pre-search
+  # commanded position (tracked in base.yaml as right_ramp_true_state /
+  # top_ramp_true_state) instead of blindly forcing both down. That old
+  # unconditional reset is what left a mode's ramp in the wrong position
+  # after a search, stranding the player on a shot that had become
+  # physically unreachable.
+  # Staggered 500ms apart either way to avoid simultaneous servo movement.
+  ball_search_stopped{machine.right_ramp_true_state==1}:
+    - right_ramp_up
+
+  ball_search_stopped{machine.right_ramp_true_state==0}:
     - right_ramp_down
+
+  ball_search_stopped{machine.top_ramp_true_state==1}:
+    - top_ramp_up|500ms
+
+  ball_search_stopped{machine.top_ramp_true_state==0}:
     - top_ramp_down|500ms
 
   ball_search_stopped{device.switches.s_lock_goose.state or device.switches.s_lock_mav.state}:

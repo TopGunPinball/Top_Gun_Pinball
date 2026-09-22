@@ -331,10 +331,20 @@ coil_player:
     c_coin_door_led:
       action: enable
 
-# Start button LED - Solid on during game (attract mode handles flashing)
+# Start button LED - On during the add-a-player window only (attract mode handles flashing)
   game_started:
     c_start_button_led:
       action: enable
+
+  # Turn off once ball 2 begins - the add-a-player window has closed
+  ball_started{current_player.ball>=2}:
+    c_start_button_led:
+      action: disable
+
+  # Turn off immediately if a 4th player joins, even still on ball 1
+  player_added{game.num_players>=4}:
+    c_start_button_led:
+      action: disable
 
   game_ended:
     c_start_button_led:

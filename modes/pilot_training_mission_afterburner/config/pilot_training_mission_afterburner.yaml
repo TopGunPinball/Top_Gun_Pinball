@@ -184,6 +184,13 @@ variable_player:
     afterburner_complete_flag:
       action: set
       int: 0
+    # Cleared at mode start; set the instant afterburner_failed fires so every
+    # step's shot switches stop scoring immediately, even though the mode stays
+    # "active" for the full lost-video delay (stop_events waits on
+    # timer_afterburner_failed_delay_complete).
+    afterburner_step_locked:
+      action: set
+      int: 0
     afterburner_shots_remaining:
       action: set
       int: 9
@@ -214,6 +221,16 @@ variable_player:
 
   ball_will_end{mode.pilot_training_mission_afterburner.active==True}:
     pilot_mode_drain_pending:
+      action: set
+      int: 1
+
+  # Lock all shot scoring the instant the mode fails (timer expiry or drain
+  # both route through this event). The mode stays "active" for the full
+  # lost-video delay, so without this flag any switch matching the current
+  # step still scores during the lost video even though the shots/lights
+  # are already killed by afterburner_cleanup.
+  afterburner_failed:
+    afterburner_step_locked:
       action: set
       int: 1
 
@@ -366,9 +383,9 @@ event_player:
   ##############################################
   ## SKIP INTRO - Both flippers pressed during intro
   ##############################################
-  s_flipper_left_active{current_player.afterburner_step==0 and device.timers.afterburner_intro_video_delay.running}:
+  s_flipper_left_active{current_player.afterburner_step==0 and device.timers.afterburner_intro_video_delay.running and current_player.afterburner_step_locked==0}:
     - afterburner_check_skip_intro
-  s_flipper_right_active{current_player.afterburner_step==0 and device.timers.afterburner_intro_video_delay.running}:
+  s_flipper_right_active{current_player.afterburner_step==0 and device.timers.afterburner_intro_video_delay.running and current_player.afterburner_step_locked==0}:
     - afterburner_check_skip_intro
 
   afterburner_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
@@ -412,23 +429,23 @@ event_player:
   afterburner_setup_step_1:
     - orbit_left_safe_return_arm
 
-  s_ramp_left_exit_active{current_player.afterburner_step==0}:
+  s_ramp_left_exit_active{current_player.afterburner_step==0 and current_player.afterburner_step_locked==0}:
     - afterburner_step_1_complete
     - afterburner_step_1_shot_hit
     - afterburner_setup_step_2
 
-  left_orbit_shot_hit{current_player.afterburner_step==0}:
+  left_orbit_shot_hit{current_player.afterburner_step==0 and current_player.afterburner_step_locked==0}:
     - afterburner_step_1_complete
     - afterburner_step_1_shot_hit
     - afterburner_setup_step_2
     - orbit_left_safe_return_clear|700ms
 
-  spinner_shot_made{current_player.afterburner_step==0}:
+  spinner_shot_made{current_player.afterburner_step==0 and current_player.afterburner_step_locked==0}:
     - afterburner_step_1_complete
     - afterburner_step_1_shot_hit
     - afterburner_setup_step_2
 
-  s_barrier_target_active{current_player.afterburner_step==0}:
+  s_barrier_target_active{current_player.afterburner_step==0 and current_player.afterburner_step_locked==0}:
     - afterburner_step_1_complete
     - afterburner_step_1_shot_hit
     - afterburner_setup_step_2
@@ -440,27 +457,27 @@ event_player:
     - orbit_left_safe_return_clear
     - right_ramp_up
 
-  s_orbit_right_active{current_player.afterburner_step==1}:
+  s_orbit_right_active{current_player.afterburner_step==1 and current_player.afterburner_step_locked==0}:
     - afterburner_step_2_complete
     - afterburner_step_2_shot_hit
     - afterburner_setup_step_3
 
-  s_flight_gear_target_active{current_player.afterburner_step==1}:
+  s_flight_gear_target_active{current_player.afterburner_step==1 and current_player.afterburner_step_locked==0}:
     - afterburner_step_2_complete
     - afterburner_step_2_shot_hit
     - afterburner_setup_step_3
 
-  s_ramp_inner_exit_active{current_player.afterburner_step==1}:
+  s_ramp_inner_exit_active{current_player.afterburner_step==1 and current_player.afterburner_step_locked==0}:
     - afterburner_step_2_complete
     - afterburner_step_2_shot_hit
     - afterburner_setup_step_3
 
-  s_orbit_upper_active{current_player.afterburner_step==1}:
+  s_orbit_upper_active{current_player.afterburner_step==1 and current_player.afterburner_step_locked==0}:
     - afterburner_step_2_complete
     - afterburner_step_2_shot_hit
     - afterburner_setup_step_3
 
-  s_ramp_tower_exit_active{current_player.afterburner_step==1}:
+  s_ramp_tower_exit_active{current_player.afterburner_step==1 and current_player.afterburner_step_locked==0}:
     - afterburner_step_2_complete
     - afterburner_step_2_shot_hit
     - afterburner_setup_step_3
@@ -471,22 +488,22 @@ event_player:
   afterburner_setup_step_3:
     - right_ramp_down
 
-  spinner_shot_made{current_player.afterburner_step==2}:
+  spinner_shot_made{current_player.afterburner_step==2 and current_player.afterburner_step_locked==0}:
     - afterburner_step_3_complete
     - afterburner_step_3_shot_hit
     - afterburner_setup_step_4
 
-  s_barrier_target_active{current_player.afterburner_step==2}:
+  s_barrier_target_active{current_player.afterburner_step==2 and current_player.afterburner_step_locked==0}:
     - afterburner_step_3_complete
     - afterburner_step_3_shot_hit
     - afterburner_setup_step_4
 
-  s_ramp_tower_exit_active{current_player.afterburner_step==2}:
+  s_ramp_tower_exit_active{current_player.afterburner_step==2 and current_player.afterburner_step_locked==0}:
     - afterburner_step_3_complete
     - afterburner_step_3_shot_hit
     - afterburner_setup_step_4
 
-  s_orbit_upper_active{current_player.afterburner_step==2}:
+  s_orbit_upper_active{current_player.afterburner_step==2 and current_player.afterburner_step_locked==0}:
     - afterburner_step_3_complete
     - afterburner_step_3_shot_hit
     - afterburner_setup_step_4
@@ -497,18 +514,18 @@ event_player:
   afterburner_setup_step_4:
     - orbit_left_safe_return_arm
 
-  s_lane_left_active{current_player.afterburner_step==3}:
+  s_lane_left_active{current_player.afterburner_step==3 and current_player.afterburner_step_locked==0}:
     - afterburner_step_4_complete
     - afterburner_step_4_shot_hit
     - afterburner_setup_step_5
 
-  left_orbit_shot_hit{current_player.afterburner_step==3}:
+  left_orbit_shot_hit{current_player.afterburner_step==3 and current_player.afterburner_step_locked==0}:
     - afterburner_step_4_complete
     - afterburner_step_4_shot_hit
     - afterburner_setup_step_5
     - orbit_left_safe_return_clear|700ms
 
-  s_ramp_left_exit_active{current_player.afterburner_step==3}:
+  s_ramp_left_exit_active{current_player.afterburner_step==3 and current_player.afterburner_step_locked==0}:
     - afterburner_step_4_complete
     - afterburner_step_4_shot_hit
     - afterburner_setup_step_5
@@ -520,22 +537,22 @@ event_player:
     - orbit_left_safe_return_clear
     - top_ramp_up
 
-  s_ramp_tower_exit_active{current_player.afterburner_step==4}:
+  s_ramp_tower_exit_active{current_player.afterburner_step==4 and current_player.afterburner_step_locked==0}:
     - afterburner_step_5_complete
     - afterburner_step_5_shot_hit
     - afterburner_setup_step_6
 
-  s_orbit_upper_active{current_player.afterburner_step==4}:
+  s_orbit_upper_active{current_player.afterburner_step==4 and current_player.afterburner_step_locked==0}:
     - afterburner_step_5_complete
     - afterburner_step_5_shot_hit
     - afterburner_setup_step_6
 
-  s_orbit_lower_active{current_player.afterburner_step==4}:
+  s_orbit_lower_active{current_player.afterburner_step==4 and current_player.afterburner_step_locked==0}:
     - afterburner_step_5_complete
     - afterburner_step_5_shot_hit
     - afterburner_setup_step_6
 
-  s_flight_gear_target_active{current_player.afterburner_step==4}:
+  s_flight_gear_target_active{current_player.afterburner_step==4 and current_player.afterburner_step_locked==0}:
     - afterburner_step_5_complete
     - afterburner_step_5_shot_hit
     - afterburner_setup_step_6
@@ -546,12 +563,12 @@ event_player:
   afterburner_setup_step_6:
     - top_ramp_down
 
-  s_ramp_left_exit_active{current_player.afterburner_step==5}:
+  s_ramp_left_exit_active{current_player.afterburner_step==5 and current_player.afterburner_step_locked==0}:
     - afterburner_step_6_complete
     - afterburner_step_6_shot_hit
     - afterburner_setup_step_7
 
-  spinner_shot_made{current_player.afterburner_step==5}:
+  spinner_shot_made{current_player.afterburner_step==5 and current_player.afterburner_step_locked==0}:
     - afterburner_step_6_complete
     - afterburner_step_6_shot_hit
     - afterburner_setup_step_7
@@ -559,12 +576,12 @@ event_player:
   ##############################################
   ## STEP 7: RR or TWR
   ##############################################
-  s_ramp_right_exit_active{current_player.afterburner_step==6}:
+  s_ramp_right_exit_active{current_player.afterburner_step==6 and current_player.afterburner_step_locked==0}:
     - afterburner_step_7_complete
     - afterburner_step_7_shot_hit
     - afterburner_setup_step_8
 
-  s_ramp_tower_exit_active{current_player.afterburner_step==6}:
+  s_ramp_tower_exit_active{current_player.afterburner_step==6 and current_player.afterburner_step_locked==0}:
     - afterburner_step_7_complete
     - afterburner_step_7_shot_hit
     - afterburner_setup_step_8
@@ -572,7 +589,7 @@ event_player:
   ##############################################
   ## STEP 8: LR only
   ##############################################
-  s_ramp_left_exit_active{current_player.afterburner_step==7}:
+  s_ramp_left_exit_active{current_player.afterburner_step==7 and current_player.afterburner_step_locked==0}:
     - afterburner_step_8_complete
     - afterburner_step_8_shot_hit
     - afterburner_setup_step_9
@@ -580,7 +597,7 @@ event_player:
   ##############################################
   ## STEP 9: CNT (Barrier Target) only
   ##############################################
-  s_barrier_target_active{current_player.afterburner_step==8}:
+  s_barrier_target_active{current_player.afterburner_step==8 and current_player.afterburner_step_locked==0}:
     - afterburner_step_9_complete
     - afterburner_step_9_shot_hit
 

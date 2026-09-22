@@ -218,9 +218,26 @@ variable_player:
     mode_points_scored:
       action: set
       int: 0
+    # Cleared at mode start; set the instant no_points_for_second_place_failed
+    # fires so every wave's shot switches stop adding to the points bank
+    # immediately, even though the mode stays "active" for the full lost-video
+    # delay (stop_events waits on timer_no_points_for_second_place_failed_delay_complete).
+    # Without this, a player could keep playing after a FAIL (which pays zero)
+    # and ride the same session all the way to a later wave's Cash In decision
+    # for a payout the fail was supposed to deny.
+    no_points_for_second_place_wave_locked:
+      action: set
+      int: 0
 
   ball_will_end{mode.no_points_for_second_place.active==True}:
     pilot_mode_drain_pending:
+      action: set
+      int: 1
+
+  # Lock all shot scoring the instant the mode fails (main timer expiry or
+  # drain both route through this event).
+  no_points_for_second_place_failed:
+    no_points_for_second_place_wave_locked:
       action: set
       int: 1
 
@@ -1090,9 +1107,9 @@ event_player:
   ##############################################
   ## SKIP INTRO — Both flippers during intro timer
   ##############################################
-  s_flipper_left_active{current_player.no_points_for_second_place_wave==1 and device.timers.no_points_for_second_place_intro_video_delay.running}:
+  s_flipper_left_active{current_player.no_points_for_second_place_wave==1 and device.timers.no_points_for_second_place_intro_video_delay.running and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_check_skip_intro
-  s_flipper_right_active{current_player.no_points_for_second_place_wave==1 and device.timers.no_points_for_second_place_intro_video_delay.running}:
+  s_flipper_right_active{current_player.no_points_for_second_place_wave==1 and device.timers.no_points_for_second_place_intro_video_delay.running and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_check_skip_intro
 
   no_points_for_second_place_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
@@ -1118,11 +1135,11 @@ event_player:
     - barrier_raise
     - no_points_for_second_place_post_barrier_wave_check
 
-  no_points_for_second_place_post_barrier_wave_check{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_complete_flag==0}:
+  no_points_for_second_place_post_barrier_wave_check{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_setup_wave2
-  no_points_for_second_place_post_barrier_wave_check{current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_complete_flag==0}:
+  no_points_for_second_place_post_barrier_wave_check{current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_setup_wave3
-  no_points_for_second_place_post_barrier_wave_check{current_player.no_points_for_second_place_wave==4 and current_player.no_points_for_second_place_complete_flag==0}:
+  no_points_for_second_place_post_barrier_wave_check{current_player.no_points_for_second_place_wave==4 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_setup_wave4
 
   ##############################################
@@ -1134,19 +1151,19 @@ event_player:
   ##############################################
   ## WAVE 1 SHOT DETECTION
   ##############################################
-  s_ramp_left_exit_active{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave1_lr_hit==0 and current_player.no_points_for_second_place_wave1_final_shot_lit==0}:
+  s_ramp_left_exit_active{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave1_lr_hit==0 and current_player.no_points_for_second_place_wave1_final_shot_lit==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave1_lr_hit
     - no_points_for_second_place_wave1_shot_hit
 
-  s_ramp_right_exit_active{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave1_rr_hit==0 and current_player.no_points_for_second_place_wave1_final_shot_lit==0}:
+  s_ramp_right_exit_active{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave1_rr_hit==0 and current_player.no_points_for_second_place_wave1_final_shot_lit==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave1_rr_hit
     - no_points_for_second_place_wave1_shot_hit
 
-  spinner_shot_made{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave1_sp_hit==0 and current_player.no_points_for_second_place_wave1_final_shot_lit==0}:
+  spinner_shot_made{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave1_sp_hit==0 and current_player.no_points_for_second_place_wave1_final_shot_lit==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave1_sp_hit
     - no_points_for_second_place_wave1_shot_hit
 
-  s_ramp_tower_exit_active{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave1_twr_hit==0 and current_player.no_points_for_second_place_wave1_final_shot_lit==0}:
+  s_ramp_tower_exit_active{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave1_twr_hit==0 and current_player.no_points_for_second_place_wave1_final_shot_lit==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave1_twr_hit
     - no_points_for_second_place_wave1_shot_hit
 
@@ -1166,7 +1183,7 @@ event_player:
   no_points_for_second_place_wave1_final_shot_setup:
     - barrier_drop
 
-  s_mode_start_active{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave1_final_shot_lit==1}:
+  s_mode_start_active{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave1_final_shot_lit==1 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave1_final_shot_hit
 
   no_points_for_second_place_wave1_final_shot_hit:
@@ -1201,39 +1218,39 @@ event_player:
   ## Required: L+O+C+K lock targets + ICEMAN A + ICEMAN C (6 total)
   ## IMPORTANT: s_c_lock_target and s_c_iceman_target are DIFFERENT switches
   ##############################################
-  s_l_lock_target_active{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_l_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0}:
+  s_l_lock_target_active{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_l_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave2_l_hit
     - no_points_for_second_place_wave2_shot_hit
 
-  s_o_lock_target_active{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_o_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0}:
+  s_o_lock_target_active{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_o_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave2_o_hit
     - no_points_for_second_place_wave2_shot_hit
 
-  s_c_lock_target_active{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_c_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0}:
+  s_c_lock_target_active{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_c_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave2_c_hit
     - no_points_for_second_place_wave2_shot_hit
 
-  s_k_lock_target_active{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_k_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0}:
+  s_k_lock_target_active{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_k_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave2_k_hit
     - no_points_for_second_place_wave2_shot_hit
 
-  s_a_iceman_target_active{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_iceman_a_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0}:
+  s_a_iceman_target_active{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_iceman_a_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave2_iceman_a_hit
     - no_points_for_second_place_wave2_shot_hit
 
-  s_c_iceman_target_active{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_iceman_c_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0}:
+  s_c_iceman_target_active{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_iceman_c_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave2_iceman_c_hit
     - no_points_for_second_place_wave2_shot_hit
 
   ##############################################
   ## DIVERTER ASSIST — SP/TL/RO open left diverter 3s during collection phase only
-  s_spinner_active{(current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_final_shot_lit==1) or (current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_final_shot_lit==1)}:
+  s_spinner_active{(current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_final_shot_lit==1) or (current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_final_shot_lit==1) and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_diverter_assist_trigger
 
-  s_orbit_right_active{(current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_final_shot_lit==1) or (current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_final_shot_lit==1)}:
+  s_orbit_right_active{(current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_final_shot_lit==1) or (current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_final_shot_lit==1) and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_diverter_assist_trigger
 
-  s_orbit_upper_active{(current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_final_shot_lit==1) or (current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_final_shot_lit==1)}:
+  s_orbit_upper_active{(current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_final_shot_lit==1) or (current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_final_shot_lit==1) and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_diverter_assist_trigger
 
   no_points_for_second_place_diverter_assist_trigger:
@@ -1269,7 +1286,7 @@ event_player:
   ## WAVE 2 FINAL SHOT HIT — Ball captured at left lane post
   ## Guard: wave==2 AND wave2_final_shot_lit==1
   ##############################################
-  s_lane_left_active{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_final_shot_lit==1}:
+  s_lane_left_active{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_final_shot_lit==1 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave2_final_shot_hit
 
   no_points_for_second_place_wave2_final_shot_hit:
@@ -1280,18 +1297,18 @@ event_player:
   ##############################################
   ## DECISION — LEFT FLIPPER = Risk It (wave-aware)
   ##############################################
-  s_flipper_left_active{device.timers.no_points_for_second_place_decision_timer.running and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave==1}:
+  s_flipper_left_active{device.timers.no_points_for_second_place_decision_timer.running and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_risk_wave1
-  s_flipper_left_active{device.timers.no_points_for_second_place_decision_timer.running and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave==2}:
+  s_flipper_left_active{device.timers.no_points_for_second_place_decision_timer.running and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_risk_wave2
-  s_flipper_left_active{device.timers.no_points_for_second_place_decision_timer.running and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave==3}:
+  s_flipper_left_active{device.timers.no_points_for_second_place_decision_timer.running and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_risk_wave3
 
-  timer_no_points_for_second_place_decision_timer_complete{current_player.no_points_for_second_place_wave==1}:
+  timer_no_points_for_second_place_decision_timer_complete{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_risk_wave1
-  timer_no_points_for_second_place_decision_timer_complete{current_player.no_points_for_second_place_wave==2}:
+  timer_no_points_for_second_place_decision_timer_complete{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_risk_wave2
-  timer_no_points_for_second_place_decision_timer_complete{current_player.no_points_for_second_place_wave==3}:
+  timer_no_points_for_second_place_decision_timer_complete{current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_risk_wave3
 
   ##############################################
@@ -1312,17 +1329,17 @@ event_player:
     - barrier_raise
 
   # Wave 1 win: release scoop via ball_holds
-  no_points_for_second_place_release_hold{current_player.no_points_for_second_place_wave==1}:
+  no_points_for_second_place_release_hold{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave_locked==0}:
     - barrier_drop
     - no_points_for_second_place_victory_ball_released
 
   # Wave 2 win: drop left lane post
-  no_points_for_second_place_release_hold{current_player.no_points_for_second_place_wave==2}:
+  no_points_for_second_place_release_hold{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave2_left_lane_post_deactivate
     - ball_search_unblock
 
   # Wave 3 win: drop left lane post (same mechanism as wave 2)
-  no_points_for_second_place_release_hold{current_player.no_points_for_second_place_wave==3}:
+  no_points_for_second_place_release_hold{current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave3_left_lane_post_deactivate
     - ball_search_unblock
   # WAVE 4: Add release_hold{wave==4} here when built
@@ -1355,6 +1372,13 @@ event_player:
     - timer_no_points_for_second_place_failed_delay_start
     - missiles_perk_unload
     - no_points_for_second_place_release_hold
+    # Kill all mode shot inserts/servos immediately instead of waiting for the
+    # full lost-video delay — this file's cleanup was only wired to the delayed
+    # timer_..._failed_delay_complete, unlike every other mode, so inserts and
+    # right_ramp stayed live/lit for the whole ~10s lost video. Firing it here
+    # too is safe: it doesn't touch anything the lost video (slide_player) needs.
+    - no_points_for_second_place_cleanup
+    - no_points_for_second_place_kill_all_shot_shows
 
   # Only fire cleanup in the failed path (complete_flag==0).
   # In the won path, skip_end_video also jumps this timer to 0 — without this
@@ -1389,15 +1413,15 @@ event_player:
   ## WAVE 3 SHOT DETECTION
   ## Required: LR (s_ramp_left_exit) + TL (s_orbit_upper) + RR (s_ramp_right_exit)
   ##############################################
-  s_ramp_left_exit_active{current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_lr_hit==0 and current_player.no_points_for_second_place_wave3_final_shot_lit==0}:
+  s_ramp_left_exit_active{current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_lr_hit==0 and current_player.no_points_for_second_place_wave3_final_shot_lit==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave3_lr_hit
     - no_points_for_second_place_wave3_shot_hit
 
-  s_orbit_upper_active{current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_tl_hit==0 and current_player.no_points_for_second_place_wave3_final_shot_lit==0}:
+  s_orbit_upper_active{current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_tl_hit==0 and current_player.no_points_for_second_place_wave3_final_shot_lit==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave3_tl_hit
     - no_points_for_second_place_wave3_shot_hit
 
-  s_ramp_right_exit_active{current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_rr_hit==0 and current_player.no_points_for_second_place_wave3_final_shot_lit==0}:
+  s_ramp_right_exit_active{current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_rr_hit==0 and current_player.no_points_for_second_place_wave3_final_shot_lit==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave3_rr_hit
     - no_points_for_second_place_wave3_shot_hit
 
@@ -1427,7 +1451,7 @@ event_player:
   ## WAVE 3 FINAL SHOT HIT — Ball captured at left lane post
   ## Guard: wave==3 AND wave3_final_shot_lit==1
   ##############################################
-  s_lane_left_active{current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_final_shot_lit==1}:
+  s_lane_left_active{current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_final_shot_lit==1 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave3_final_shot_hit
 
   no_points_for_second_place_wave3_final_shot_hit:
@@ -1450,23 +1474,23 @@ event_player:
 
   ## Wave 4 collection: ball hits lit position (goose_letter_X==1)
   ## All 5 start lit. Each hit sets that position to 0. Rotation moves remaining 1s around.
-  s_outlane_left_active{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_g==1}:
+  s_outlane_left_active{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_g==1 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave4_g_hit
     - no_points_for_second_place_wave_shot_hit
 
-  s_inlane_left_active{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_o_left==1}:
+  s_inlane_left_active{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_o_left==1 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave4_o_left_hit
     - no_points_for_second_place_wave_shot_hit
 
-  s_outlane_right_active{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_e==1}:
+  s_outlane_right_active{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_e==1 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave4_e_hit
     - no_points_for_second_place_wave_shot_hit
 
-  s_inner_inlane_right_active{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_o_right==1}:
+  s_inner_inlane_right_active{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_o_right==1 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave4_o_right_hit
     - no_points_for_second_place_wave_shot_hit
 
-  s_outer_inlane_right_active{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_s==1}:
+  s_outer_inlane_right_active{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_s==1 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave4_s_hit
     - no_points_for_second_place_wave_shot_hit
 
@@ -1488,7 +1512,7 @@ event_player:
   no_points_for_second_place_wave4_final_shot_setup:
     - barrier_drop
 
-  s_mode_start_active{current_player.no_points_for_second_place_wave==4 and current_player.no_points_for_second_place_wave4_final_shot_lit==1}:
+  s_mode_start_active{current_player.no_points_for_second_place_wave==4 and current_player.no_points_for_second_place_wave4_final_shot_lit==1 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave4_final_shot_hit
 
   ## AUTO WIN — no decision for wave 4. Ball held in scoop during won video.
@@ -1506,75 +1530,75 @@ event_player:
   ##############################################
 
   # WAVE 1 — LR → RR → SP → TWR (in priority order)
-  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave1_lr_hit==0 and current_player.no_points_for_second_place_wave1_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave1_lr_hit==0 and current_player.no_points_for_second_place_wave1_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave1_lr_hit
     - no_points_for_second_place_wave1_shot_hit
 
-  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave1_lr_hit==1 and current_player.no_points_for_second_place_wave1_rr_hit==0 and current_player.no_points_for_second_place_wave1_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave1_lr_hit==1 and current_player.no_points_for_second_place_wave1_rr_hit==0 and current_player.no_points_for_second_place_wave1_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave1_rr_hit
     - no_points_for_second_place_wave1_shot_hit
 
-  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave1_lr_hit==1 and current_player.no_points_for_second_place_wave1_rr_hit==1 and current_player.no_points_for_second_place_wave1_sp_hit==0 and current_player.no_points_for_second_place_wave1_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave1_lr_hit==1 and current_player.no_points_for_second_place_wave1_rr_hit==1 and current_player.no_points_for_second_place_wave1_sp_hit==0 and current_player.no_points_for_second_place_wave1_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave1_sp_hit
     - no_points_for_second_place_wave1_shot_hit
 
-  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave1_lr_hit==1 and current_player.no_points_for_second_place_wave1_rr_hit==1 and current_player.no_points_for_second_place_wave1_sp_hit==1 and current_player.no_points_for_second_place_wave1_twr_hit==0 and current_player.no_points_for_second_place_wave1_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave1_lr_hit==1 and current_player.no_points_for_second_place_wave1_rr_hit==1 and current_player.no_points_for_second_place_wave1_sp_hit==1 and current_player.no_points_for_second_place_wave1_twr_hit==0 and current_player.no_points_for_second_place_wave1_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave1_twr_hit
     - no_points_for_second_place_wave1_shot_hit
 
   # WAVE 2 — L → O → C → K → ICEMAN A → ICEMAN C (in priority order)
-  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_l_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_l_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave2_l_hit
     - no_points_for_second_place_wave2_shot_hit
 
-  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_l_hit==1 and current_player.no_points_for_second_place_wave2_o_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_l_hit==1 and current_player.no_points_for_second_place_wave2_o_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave2_o_hit
     - no_points_for_second_place_wave2_shot_hit
 
-  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_l_hit==1 and current_player.no_points_for_second_place_wave2_o_hit==1 and current_player.no_points_for_second_place_wave2_c_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_l_hit==1 and current_player.no_points_for_second_place_wave2_o_hit==1 and current_player.no_points_for_second_place_wave2_c_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave2_c_hit
     - no_points_for_second_place_wave2_shot_hit
 
-  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_l_hit==1 and current_player.no_points_for_second_place_wave2_o_hit==1 and current_player.no_points_for_second_place_wave2_c_hit==1 and current_player.no_points_for_second_place_wave2_k_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_l_hit==1 and current_player.no_points_for_second_place_wave2_o_hit==1 and current_player.no_points_for_second_place_wave2_c_hit==1 and current_player.no_points_for_second_place_wave2_k_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave2_k_hit
     - no_points_for_second_place_wave2_shot_hit
 
-  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_l_hit==1 and current_player.no_points_for_second_place_wave2_o_hit==1 and current_player.no_points_for_second_place_wave2_c_hit==1 and current_player.no_points_for_second_place_wave2_k_hit==1 and current_player.no_points_for_second_place_wave2_iceman_a_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_l_hit==1 and current_player.no_points_for_second_place_wave2_o_hit==1 and current_player.no_points_for_second_place_wave2_c_hit==1 and current_player.no_points_for_second_place_wave2_k_hit==1 and current_player.no_points_for_second_place_wave2_iceman_a_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave2_iceman_a_hit
     - no_points_for_second_place_wave2_shot_hit
 
-  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_l_hit==1 and current_player.no_points_for_second_place_wave2_o_hit==1 and current_player.no_points_for_second_place_wave2_c_hit==1 and current_player.no_points_for_second_place_wave2_k_hit==1 and current_player.no_points_for_second_place_wave2_iceman_a_hit==1 and current_player.no_points_for_second_place_wave2_iceman_c_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave2_l_hit==1 and current_player.no_points_for_second_place_wave2_o_hit==1 and current_player.no_points_for_second_place_wave2_c_hit==1 and current_player.no_points_for_second_place_wave2_k_hit==1 and current_player.no_points_for_second_place_wave2_iceman_a_hit==1 and current_player.no_points_for_second_place_wave2_iceman_c_hit==0 and current_player.no_points_for_second_place_wave2_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave2_iceman_c_hit
     - no_points_for_second_place_wave2_shot_hit
 
   # WAVE 3 — LR → TL → RR (in priority order)
-  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_lr_hit==0 and current_player.no_points_for_second_place_wave3_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_lr_hit==0 and current_player.no_points_for_second_place_wave3_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave3_lr_hit
     - no_points_for_second_place_wave3_shot_hit
 
-  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_lr_hit==1 and current_player.no_points_for_second_place_wave3_tl_hit==0 and current_player.no_points_for_second_place_wave3_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_lr_hit==1 and current_player.no_points_for_second_place_wave3_tl_hit==0 and current_player.no_points_for_second_place_wave3_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave3_tl_hit
     - no_points_for_second_place_wave3_shot_hit
 
-  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_lr_hit==1 and current_player.no_points_for_second_place_wave3_tl_hit==1 and current_player.no_points_for_second_place_wave3_rr_hit==0 and current_player.no_points_for_second_place_wave3_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave3_lr_hit==1 and current_player.no_points_for_second_place_wave3_tl_hit==1 and current_player.no_points_for_second_place_wave3_rr_hit==0 and current_player.no_points_for_second_place_wave3_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave3_rr_hit
     - no_points_for_second_place_wave3_shot_hit
 
   # WAVE 4 — G → O_left → E → O_right → S (in priority order)
   ## Missiles set the goose_letter variable directly, triggering all downstream handling
-  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_g==0 and current_player.no_points_for_second_place_wave4_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_g==0 and current_player.no_points_for_second_place_wave4_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave4_missile_g
 
-  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_g==1 and current_player.goose_letter_o_left==0 and current_player.no_points_for_second_place_wave4_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_g==1 and current_player.goose_letter_o_left==0 and current_player.no_points_for_second_place_wave4_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave4_missile_o_left
 
-  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_g==1 and current_player.goose_letter_o_left==1 and current_player.goose_letter_e==0 and current_player.no_points_for_second_place_wave4_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_g==1 and current_player.goose_letter_o_left==1 and current_player.goose_letter_e==0 and current_player.no_points_for_second_place_wave4_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave4_missile_e
 
-  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_g==1 and current_player.goose_letter_o_left==1 and current_player.goose_letter_e==1 and current_player.goose_letter_o_right==0 and current_player.no_points_for_second_place_wave4_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_g==1 and current_player.goose_letter_o_left==1 and current_player.goose_letter_e==1 and current_player.goose_letter_o_right==0 and current_player.no_points_for_second_place_wave4_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave4_missile_o_right
 
-  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_g==1 and current_player.goose_letter_o_left==1 and current_player.goose_letter_e==1 and current_player.goose_letter_o_right==1 and current_player.goose_letter_s==0 and current_player.no_points_for_second_place_wave4_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.no_points_for_second_place_wave==4 and current_player.goose_letter_g==1 and current_player.goose_letter_o_left==1 and current_player.goose_letter_e==1 and current_player.goose_letter_o_right==1 and current_player.goose_letter_s==0 and current_player.no_points_for_second_place_wave4_final_shot_lit==0 and current_player.no_points_for_second_place_complete_flag==0 and current_player.no_points_for_second_place_wave_locked==0}:
     - no_points_for_second_place_wave4_missile_s
 
   ##############################################
@@ -1620,22 +1644,22 @@ light_player:
   ## npfsp_gi_wave_color_flash fires from wave_shot_hit strobe chain.
   ## Returns GI to current wave color after each white flash.
   ##############################################
-  npfsp_gi_wave_color_flash{current_player.no_points_for_second_place_wave==1}:
+  npfsp_gi_wave_color_flash{current_player.no_points_for_second_place_wave==1 and current_player.no_points_for_second_place_wave_locked==0}:
     gi_lights:
       color: ADD8E6
       fade: 30ms
 
-  npfsp_gi_wave_color_flash{current_player.no_points_for_second_place_wave==2}:
+  npfsp_gi_wave_color_flash{current_player.no_points_for_second_place_wave==2 and current_player.no_points_for_second_place_wave_locked==0}:
     gi_lights:
       color: FF8C42
       fade: 30ms
 
-  npfsp_gi_wave_color_flash{current_player.no_points_for_second_place_wave==3}:
+  npfsp_gi_wave_color_flash{current_player.no_points_for_second_place_wave==3 and current_player.no_points_for_second_place_wave_locked==0}:
     gi_lights:
       color: FFFF00
       fade: 30ms
 
-  npfsp_gi_wave_color_flash{current_player.no_points_for_second_place_wave==4}:
+  npfsp_gi_wave_color_flash{current_player.no_points_for_second_place_wave==4 and current_player.no_points_for_second_place_wave_locked==0}:
     gi_lights:
       color: FF8C00
       fade: 30ms
@@ -1825,6 +1849,124 @@ light_player:
 ####################################################################################
 
 show_player:
+
+  ##############################################
+  ## FAILURE — stop every mode shot show immediately, regardless of which
+  ## wave was active. Without this, whichever shots were flashing/pulsing
+  ## when the timer expired or the ball drained kept flashing for the full
+  ## ~10s lost video (nothing previously stopped them until the deferred
+  ## cleanup at timer_..._failed_delay_complete).
+  ##############################################
+  no_points_for_second_place_kill_all_shot_shows:
+    npfsp_kill_lr_flash:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_left_ramp
+    npfsp_kill_rr_flash:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_right_orbit
+    npfsp_kill_sp_flash:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_spinner
+    npfsp_kill_twr_flash:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_tower_ramp
+    npfsp_kill_scoop_flash:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_shot_barrier
+    npfsp_kill_lock_l:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_lock_l
+    npfsp_kill_lock_o:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_lock_o
+    npfsp_kill_lock_c:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_lock_c
+    npfsp_kill_lock_k:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_lock_k
+    npfsp_kill_iceman_a:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_iceman_a
+    npfsp_kill_iceman_c:
+      show: sync_flash_mode
+      action: stop
+      key: mode_l_iceman_c
+    npfsp_kill_w2_sp_flash:
+      show: sync_flash_mode
+      action: stop
+      key: mode_w2_l_shot_spinner
+    npfsp_kill_w2_tl_flash:
+      show: sync_flash_mode
+      action: stop
+      key: mode_w2_l_shot_upper_orbit
+    npfsp_kill_w2_ro_flash:
+      show: sync_flash_mode
+      action: stop
+      key: mode_w2_l_shot_right_orbit
+    npfsp_kill_w2_sp_pulse:
+      show: sync_pulse_mode
+      action: stop
+      key: mode_w2_l_shot_spinner
+    npfsp_kill_w2_ro_pulse:
+      show: sync_pulse_mode
+      action: stop
+      key: mode_w2_l_shot_right_orbit
+    npfsp_kill_w2_tl_pulse:
+      show: sync_pulse_mode
+      action: stop
+      key: mode_w2_l_shot_upper_orbit
+    npfsp_kill_w3_lr_flash:
+      show: sync_flash_mode
+      action: stop
+      key: mode_w3_l_shot_left_ramp
+    npfsp_kill_w3_tl_flash:
+      show: sync_flash_mode
+      action: stop
+      key: mode_w3_l_shot_upper_orbit
+    npfsp_kill_w3_rr_flash:
+      show: sync_flash_mode
+      action: stop
+      key: mode_w3_l_shot_right_orbit
+    npfsp_kill_w3_sp_flash:
+      show: sync_flash_mode
+      action: stop
+      key: mode_w3_l_shot_spinner
+    npfsp_kill_w4_goose_g:
+      show: sync_flash_mode
+      action: stop
+      key: mode_w4_l_goose_g
+    npfsp_kill_w4_goose_o_left:
+      show: sync_flash_mode
+      action: stop
+      key: mode_w4_l_goose_o_left
+    npfsp_kill_w4_goose_e:
+      show: sync_flash_mode
+      action: stop
+      key: mode_w4_l_goose_e
+    npfsp_kill_w4_goose_o_right:
+      show: sync_flash_mode
+      action: stop
+      key: mode_w4_l_goose_o_right
+    npfsp_kill_w4_goose_s:
+      show: sync_flash_mode
+      action: stop
+      key: mode_w4_l_goose_s
+    npfsp_kill_w4_scoop_flash:
+      show: sync_flash_mode
+      action: stop
+      key: mode_w4_l_shot_barrier
+
 
   ##############################################
   ## WAVE 1 — Flash all 4 required shots (light blue)
@@ -2152,35 +2294,35 @@ show_player:
       show_tokens: { led: l_goose_s, color: FFFFFF }
 
   ## Cursor moves to a letter — start its flash (only if not already collected)
-  player_goose_letter_g{current_player.no_points_for_second_place_wave==4 and value==1 and current_player.no_points_for_second_place_wave4_g_hit==0}:
+  player_goose_letter_g{current_player.no_points_for_second_place_wave==4 and value==1 and current_player.no_points_for_second_place_wave4_g_hit==0 and current_player.no_points_for_second_place_wave_locked==0}:
     npfsp_w4_g_flash:
       show: sync_flash_mode
       key: mode_w4_l_goose_g
       sync_ms: 1000
       loops: -1
       show_tokens: { led: l_goose_g, color: FFFFFF }
-  player_goose_letter_o_left{current_player.no_points_for_second_place_wave==4 and value==1 and current_player.no_points_for_second_place_wave4_o_left_hit==0}:
+  player_goose_letter_o_left{current_player.no_points_for_second_place_wave==4 and value==1 and current_player.no_points_for_second_place_wave4_o_left_hit==0 and current_player.no_points_for_second_place_wave_locked==0}:
     npfsp_w4_o_left_flash:
       show: sync_flash_mode
       key: mode_w4_l_goose_o_left
       sync_ms: 1000
       loops: -1
       show_tokens: { led: l_goose_o_left, color: FFFFFF }
-  player_goose_letter_e{current_player.no_points_for_second_place_wave==4 and value==1 and current_player.no_points_for_second_place_wave4_e_hit==0}:
+  player_goose_letter_e{current_player.no_points_for_second_place_wave==4 and value==1 and current_player.no_points_for_second_place_wave4_e_hit==0 and current_player.no_points_for_second_place_wave_locked==0}:
     npfsp_w4_e_flash:
       show: sync_flash_mode
       key: mode_w4_l_goose_e
       sync_ms: 1000
       loops: -1
       show_tokens: { led: l_goose_e, color: FFFFFF }
-  player_goose_letter_o_right{current_player.no_points_for_second_place_wave==4 and value==1 and current_player.no_points_for_second_place_wave4_o_right_hit==0}:
+  player_goose_letter_o_right{current_player.no_points_for_second_place_wave==4 and value==1 and current_player.no_points_for_second_place_wave4_o_right_hit==0 and current_player.no_points_for_second_place_wave_locked==0}:
     npfsp_w4_o_right_flash:
       show: sync_flash_mode
       key: mode_w4_l_goose_o_right
       sync_ms: 1000
       loops: -1
       show_tokens: { led: l_goose_o_right, color: FFFFFF }
-  player_goose_letter_s{current_player.no_points_for_second_place_wave==4 and value==1 and current_player.no_points_for_second_place_wave4_s_hit==0}:
+  player_goose_letter_s{current_player.no_points_for_second_place_wave==4 and value==1 and current_player.no_points_for_second_place_wave4_s_hit==0 and current_player.no_points_for_second_place_wave_locked==0}:
     npfsp_w4_s_flash:
       show: sync_flash_mode
       key: mode_w4_l_goose_s
@@ -2189,27 +2331,27 @@ show_player:
       show_tokens: { led: l_goose_s, color: FFFFFF }
 
   ## Cursor leaves a letter — stop its flash
-  player_goose_letter_g{current_player.no_points_for_second_place_wave==4 and value==0}:
+  player_goose_letter_g{current_player.no_points_for_second_place_wave==4 and value==0 and current_player.no_points_for_second_place_wave_locked==0}:
     npfsp_w4_g_flash:
       show: sync_flash_mode
       action: stop
       key: mode_w4_l_goose_g
-  player_goose_letter_o_left{current_player.no_points_for_second_place_wave==4 and value==0}:
+  player_goose_letter_o_left{current_player.no_points_for_second_place_wave==4 and value==0 and current_player.no_points_for_second_place_wave_locked==0}:
     npfsp_w4_o_left_flash:
       show: sync_flash_mode
       action: stop
       key: mode_w4_l_goose_o_left
-  player_goose_letter_e{current_player.no_points_for_second_place_wave==4 and value==0}:
+  player_goose_letter_e{current_player.no_points_for_second_place_wave==4 and value==0 and current_player.no_points_for_second_place_wave_locked==0}:
     npfsp_w4_e_flash:
       show: sync_flash_mode
       action: stop
       key: mode_w4_l_goose_e
-  player_goose_letter_o_right{current_player.no_points_for_second_place_wave==4 and value==0}:
+  player_goose_letter_o_right{current_player.no_points_for_second_place_wave==4 and value==0 and current_player.no_points_for_second_place_wave_locked==0}:
     npfsp_w4_o_right_flash:
       show: sync_flash_mode
       action: stop
       key: mode_w4_l_goose_o_right
-  player_goose_letter_s{current_player.no_points_for_second_place_wave==4 and value==0}:
+  player_goose_letter_s{current_player.no_points_for_second_place_wave==4 and value==0 and current_player.no_points_for_second_place_wave_locked==0}:
     npfsp_w4_s_flash:
       show: sync_flash_mode
       action: stop

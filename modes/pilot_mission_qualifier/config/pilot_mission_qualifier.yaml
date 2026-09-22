@@ -1901,7 +1901,7 @@ variable_player:
   ## Awards +1 extra TOPGUN letter per qualifying shot
   ## Cap at <6 to prevent overshooting the qualification trigger
   ##############################################
-  inverted_bonus_topgun_letter{current_player.topgun_shots_collected<6}:
+  inverted_bonus_topgun_letter{current_player.qualified_mode_number==0 and current_player.topgun_shots_collected<6}:
     topgun_shots_collected:
       action: add
       int: 1
@@ -1914,7 +1914,7 @@ variable_player:
   ## All other skillshots fire this three times (200ms apart) = 3 letters.
   ## Cap at <6 — no carry-over past qualification.
   ##############################################
-  skillshot_add_topgun_letter{current_player.topgun_shots_collected<6}:
+  skillshot_add_topgun_letter{current_player.qualified_mode_number==0 and current_player.topgun_shots_collected<6}:
     topgun_shots_collected:
       action: add
       int: 1
@@ -1926,7 +1926,7 @@ variable_player:
   ## Mission 3 (played==2): 1 letter spotted  (need 5 more)
   ## Same cap as skillshot: won't overshoot qualification
   ##############################################
-  spot_topgun_letter{current_player.topgun_shots_collected<6}:
+  spot_topgun_letter{current_player.qualified_mode_number==0 and current_player.topgun_shots_collected<6}:
     topgun_shots_collected:
       action: add
       int: 1
@@ -2118,10 +2118,15 @@ event_player:
   s_mode_start_active{current_player.scoop_release_pending==1}:
     - global_scoop_eject_cancel
 
-  # Restore complete — raise barrier (UNLESS a pilot mission is now qualified,
-  # in which case the qualifier's mode_*_stopped handler has already dropped
-  # the barrier intentionally for the queued pilot mission).
-  timer_global_scoop_eject_delay_complete{current_player.qualified_mode_number==0}:
+  # Restore complete — raise barrier (UNLESS a pilot mission OR multiball is
+  # now qualified, in which case the qualifier's mode_*_stopped handler /
+  # top_gun_multiball_locks.yaml has already dropped the barrier intentionally
+  # for the queued pilot mission / multiball).
+  # NOTE: previously only checked qualified_mode_number, so a barrier drop
+  # for a qualified-but-not-yet-started multiball was getting stomped back
+  # up ~1s later by this handler. Fixed to match the guard pattern used
+  # everywhere else in this file (e.g. the mystery-award barrier restores).
+  timer_global_scoop_eject_delay_complete{current_player.qualified_mode_number==0 and current_player.multiball_qualified==0}:
     - barrier_raise
   ## eject_coil removed from bd_plunger so it never auto-fires.
   ## Ball save already sets ball_just_saved=1 (in ball_save.yaml)

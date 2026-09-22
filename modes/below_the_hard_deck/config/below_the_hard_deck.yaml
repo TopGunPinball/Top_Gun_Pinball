@@ -268,6 +268,12 @@ variable_player:
     bthd_complete_flag:
       action: set
       int: 0
+    # Cleared at mode start; set the instant bthd_failed fires so every good/bad
+    # shot switch stops scoring immediately, even though the mode stays "active"
+    # for the full lost-video delay (stop_events waits on timer_bthd_failed_delay_complete).
+    bthd_step_locked:
+      action: set
+      int: 0
     bthd_shots_completed:
       action: set
       int: 0
@@ -362,7 +368,7 @@ variable_player:
   ##############################################
 
   # Single unconditional increment — fires once per good shot, no cascade
-  bthd_good_shot_hit_increment{current_player.bthd_complete_flag==0}:
+  bthd_good_shot_hit_increment{current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     bthd_shots_completed:
       action: add
       int: 1
@@ -475,6 +481,16 @@ variable_player:
       action: set
       int: 0
 
+  # Lock all shot scoring the instant the mode fails (timer expiry or drain
+  # both route through this event). The mode stays "active" for the full
+  # lost-video delay, so without this flag any good/bad shot switch still
+  # scores/registers a miss during the lost video even though the shows and
+  # lights are already killed by bthd_cleanup.
+  bthd_failed:
+    bthd_step_locked:
+      action: set
+      int: 1
+
 
 ####################################################################################
 # EVENT PLAYER
@@ -492,9 +508,9 @@ event_player:
   ##############################################
   ## SKIP INTRO — Both flippers during 17s intro
   ##############################################
-  s_flipper_left_active{current_player.bthd_complete_flag==0 and device.timers.bthd_intro_video_delay.running}:
+  s_flipper_left_active{current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0 and device.timers.bthd_intro_video_delay.running}:
     - bthd_check_skip_intro
-  s_flipper_right_active{current_player.bthd_complete_flag==0 and device.timers.bthd_intro_video_delay.running}:
+  s_flipper_right_active{current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0 and device.timers.bthd_intro_video_delay.running}:
     - bthd_check_skip_intro
 
   bthd_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
@@ -571,40 +587,40 @@ event_player:
   # shot at positions 4, 8, and 10. Armed only entering position 0, cleared
   # defensively entering every other position (covers both a good shot
   # advancing away and the move-timer timing out unmade).
-  player_bthd_position{value==0 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
+  player_bthd_position{value==0 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_setup_pos_0
     - orbit_left_safe_return_arm
-  player_bthd_position{value==1 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
+  player_bthd_position{value==1 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_setup_pos_1
     - orbit_left_safe_return_clear
-  player_bthd_position{value==2 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
+  player_bthd_position{value==2 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_setup_pos_2
     - orbit_left_safe_return_clear
-  player_bthd_position{value==3 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
+  player_bthd_position{value==3 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_setup_pos_3
     - orbit_left_safe_return_clear
-  player_bthd_position{value==4 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
+  player_bthd_position{value==4 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_setup_pos_4
     - orbit_left_safe_return_clear
-  player_bthd_position{value==5 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
+  player_bthd_position{value==5 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_setup_pos_5
     - orbit_left_safe_return_clear
-  player_bthd_position{value==6 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
+  player_bthd_position{value==6 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_setup_pos_6
     - orbit_left_safe_return_clear
-  player_bthd_position{value==7 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
+  player_bthd_position{value==7 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_setup_pos_7
     - orbit_left_safe_return_clear
-  player_bthd_position{value==8 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
+  player_bthd_position{value==8 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_setup_pos_8
     - orbit_left_safe_return_clear
-  player_bthd_position{value==9 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
+  player_bthd_position{value==9 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_setup_pos_9
     - orbit_left_safe_return_clear
-  player_bthd_position{value==10 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
+  player_bthd_position{value==10 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_setup_pos_10
     - orbit_left_safe_return_clear
-  player_bthd_position{value==11 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0}:
+  player_bthd_position{value==11 and device.timers.bthd_move_timer.running and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_setup_pos_11
     - orbit_left_safe_return_clear
 
@@ -641,7 +657,7 @@ event_player:
     - bthd_good_shot_hit_increment
 
   # Good shot moves immediately to next position (skips rest of current timer)
-  bthd_good_shot_hit{current_player.bthd_complete_flag==0 and current_player.bthd_last_shot_active==0}:
+  bthd_good_shot_hit{current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0 and current_player.bthd_last_shot_active==0}:
     - bthd_move_shot
 
   # Step video events — fired when shots_completed changes (after increment)
@@ -729,7 +745,7 @@ event_player:
   bthd_ball_ending_hold:
     - bthd_drain_detected
 
-  bthd_drain_detected{current_player.bthd_complete_flag==0}:
+  bthd_drain_detected{current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_failed
 
   bthd_drain_detected{current_player.bthd_complete_flag==1}:
@@ -767,74 +783,74 @@ event_player:
   ##############################################
   ## GOOD SHOT DETECTION — Position 0 (LO)
   ##############################################
-  left_orbit_shot_hit{current_player.bthd_position==0 and current_player.bthd_complete_flag==0}:
+  left_orbit_shot_hit{current_player.bthd_position==0 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_good_shot_hit
     - orbit_left_safe_return_clear|700ms
 
   # Bad shots at position 0: LL, LR
-  s_lane_left_active{current_player.bthd_position==0 and current_player.bthd_complete_flag==0}:
+  s_lane_left_active{current_player.bthd_position==0 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
-  s_ramp_left_exit_active{current_player.bthd_position==0 and current_player.bthd_complete_flag==0}:
+  s_ramp_left_exit_active{current_player.bthd_position==0 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
 
   ##############################################
   ## POSITION 1 (TWR)
   ##############################################
-  s_ramp_tower_exit_active{current_player.bthd_position==1 and current_player.bthd_complete_flag==0}:
+  s_ramp_tower_exit_active{current_player.bthd_position==1 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_good_shot_hit
 
   # Bad shots at position 1: CNT, SP
-  s_barrier_target_active{current_player.bthd_position==1 and current_player.bthd_complete_flag==0}:
+  s_barrier_target_active{current_player.bthd_position==1 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
-  spinner_shot_made{current_player.bthd_position==1 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0}:
+  spinner_shot_made{current_player.bthd_position==1 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
 
   ##############################################
   ## POSITION 2 (SP)
   ##############################################
-  spinner_shot_made{current_player.bthd_position==2 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0}:
+  spinner_shot_made{current_player.bthd_position==2 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_good_shot_hit
 
   # Bad shots at position 2: LR, TWR
-  s_ramp_left_exit_active{current_player.bthd_position==2 and current_player.bthd_complete_flag==0}:
+  s_ramp_left_exit_active{current_player.bthd_position==2 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
-  s_ramp_tower_exit_active{current_player.bthd_position==2 and current_player.bthd_complete_flag==0}:
+  s_ramp_tower_exit_active{current_player.bthd_position==2 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
 
   ##############################################
   ## POSITION 3 (RR)
   ##############################################
-  s_ramp_right_exit_active{current_player.bthd_position==3 and current_player.bthd_complete_flag==0}:
+  s_ramp_right_exit_active{current_player.bthd_position==3 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_good_shot_hit
 
   # Bad shots at position 3: TWR, CNT
-  s_ramp_tower_exit_active{current_player.bthd_position==3 and current_player.bthd_complete_flag==0}:
+  s_ramp_tower_exit_active{current_player.bthd_position==3 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
-  s_barrier_target_active{current_player.bthd_position==3 and current_player.bthd_complete_flag==0}:
+  s_barrier_target_active{current_player.bthd_position==3 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
 
   ##############################################
   ## POSITION 4 (LR)
   ##############################################
-  s_ramp_left_exit_active{current_player.bthd_position==4 and current_player.bthd_complete_flag==0}:
+  s_ramp_left_exit_active{current_player.bthd_position==4 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_good_shot_hit
 
   # Bad shots at position 4: LO, SP
-  left_orbit_shot_hit{current_player.bthd_position==4 and current_player.bthd_complete_flag==0}:
+  left_orbit_shot_hit{current_player.bthd_position==4 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
-  spinner_shot_made{current_player.bthd_position==4 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0}:
+  spinner_shot_made{current_player.bthd_position==4 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
 
   ##############################################
   ## POSITION 5 (CNT)
   ##############################################
-  s_barrier_target_active{current_player.bthd_position==5 and current_player.bthd_complete_flag==0}:
+  s_barrier_target_active{current_player.bthd_position==5 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_good_shot_hit
 
   # Bad shots at position 5: SP, TWR
-  spinner_shot_made{current_player.bthd_position==5 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0}:
+  spinner_shot_made{current_player.bthd_position==5 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
-  s_ramp_tower_exit_active{current_player.bthd_position==5 and current_player.bthd_complete_flag==0}:
+  s_ramp_tower_exit_active{current_player.bthd_position==5 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
 
   ##############################################
@@ -855,72 +871,72 @@ event_player:
   ## handler keyed on complete_flag==1) since both would otherwise be racing
   ## on the same base event.
   ##############################################
-  right_orbit_shot_hit{current_player.bthd_position==6 and current_player.bthd_complete_flag==0 and current_player.bthd_last_shot_active==0}:
+  right_orbit_shot_hit{current_player.bthd_position==6 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0 and current_player.bthd_last_shot_active==0}:
     - bthd_good_shot_hit
 
-  s_lane_left_active{current_player.bthd_position==6 and current_player.bthd_complete_flag==0 and current_player.bthd_last_shot_active==1}:
+  s_lane_left_active{current_player.bthd_position==6 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0 and current_player.bthd_last_shot_active==1}:
     - bthd_good_shot_hit
     - bthd_won
 
   # Bad shots at position 6: TWR, CNT
-  s_ramp_tower_exit_active{current_player.bthd_position==6 and current_player.bthd_complete_flag==0}:
+  s_ramp_tower_exit_active{current_player.bthd_position==6 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
-  s_barrier_target_active{current_player.bthd_position==6 and current_player.bthd_complete_flag==0}:
+  s_barrier_target_active{current_player.bthd_position==6 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
 
   ##############################################
   ## POSITION 7 (TWR — same bad shots as pos 1)
   ##############################################
-  s_ramp_tower_exit_active{current_player.bthd_position==7 and current_player.bthd_complete_flag==0}:
+  s_ramp_tower_exit_active{current_player.bthd_position==7 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_good_shot_hit
 
-  s_barrier_target_active{current_player.bthd_position==7 and current_player.bthd_complete_flag==0}:
+  s_barrier_target_active{current_player.bthd_position==7 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
-  spinner_shot_made{current_player.bthd_position==7 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0}:
+  spinner_shot_made{current_player.bthd_position==7 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
 
   ##############################################
   ## POSITION 8 (LR — same bad shots as pos 4)
   ##############################################
-  s_ramp_left_exit_active{current_player.bthd_position==8 and current_player.bthd_complete_flag==0}:
+  s_ramp_left_exit_active{current_player.bthd_position==8 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_good_shot_hit
 
-  left_orbit_shot_hit{current_player.bthd_position==8 and current_player.bthd_complete_flag==0}:
+  left_orbit_shot_hit{current_player.bthd_position==8 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
-  spinner_shot_made{current_player.bthd_position==8 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0}:
+  spinner_shot_made{current_player.bthd_position==8 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
 
   ##############################################
   ## POSITION 9 (SP — same bad shots as pos 2)
   ##############################################
-  spinner_shot_made{current_player.bthd_position==9 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0}:
+  spinner_shot_made{current_player.bthd_position==9 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_good_shot_hit
 
-  s_ramp_left_exit_active{current_player.bthd_position==9 and current_player.bthd_complete_flag==0}:
+  s_ramp_left_exit_active{current_player.bthd_position==9 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
-  s_ramp_tower_exit_active{current_player.bthd_position==9 and current_player.bthd_complete_flag==0}:
+  s_ramp_tower_exit_active{current_player.bthd_position==9 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
 
   ##############################################
   ## POSITION 10 (LR — same bad shots as pos 4)
   ##############################################
-  s_ramp_left_exit_active{current_player.bthd_position==10 and current_player.bthd_complete_flag==0}:
+  s_ramp_left_exit_active{current_player.bthd_position==10 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_good_shot_hit
 
-  left_orbit_shot_hit{current_player.bthd_position==10 and current_player.bthd_complete_flag==0}:
+  left_orbit_shot_hit{current_player.bthd_position==10 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
-  spinner_shot_made{current_player.bthd_position==10 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0}:
+  spinner_shot_made{current_player.bthd_position==10 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
 
   ##############################################
   ## POSITION 11 (RR — same bad shots as pos 3)
   ##############################################
-  s_ramp_right_exit_active{current_player.bthd_position==11 and current_player.bthd_complete_flag==0}:
+  s_ramp_right_exit_active{current_player.bthd_position==11 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_good_shot_hit
 
-  s_ramp_tower_exit_active{current_player.bthd_position==11 and current_player.bthd_complete_flag==0}:
+  s_ramp_tower_exit_active{current_player.bthd_position==11 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
-  s_barrier_target_active{current_player.bthd_position==11 and current_player.bthd_complete_flag==0}:
+  s_barrier_target_active{current_player.bthd_position==11 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
 
 

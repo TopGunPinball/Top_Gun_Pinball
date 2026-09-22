@@ -124,6 +124,13 @@ variable_player:
     rise_of_phoenix_complete_flag:
       action: set
       int: 0
+    # Cleared at mode start; set the instant rise_of_phoenix_failed fires so every
+    # shot switch (including the 4 LOCK targets) stops scoring immediately, even
+    # though the mode stays "active" for the full lost-video delay (stop_events
+    # waits on timer_rise_of_phoenix_failed_delay_complete).
+    rise_of_phoenix_step_locked:
+      action: set
+      int: 0
     pilot_missions_played:
       action: add
       int: 1
@@ -135,6 +142,17 @@ variable_player:
   ball_will_end{mode.rise_of_phoenix.active==True}:
     # Mark that drain happened during pilot mode - triggers bonus after cleanup
     pilot_mode_drain_pending:
+      action: set
+      int: 1
+
+  # Lock all shot scoring the instant the mode fails (timer expiry or drain
+  # both route through this event). The mode stays "active" for the full
+  # lost-video delay, so without this flag any switch matching the current
+  # step (including the LOCK targets at step 6) still scores during the
+  # lost video even though the shots/lights are already killed by
+  # rise_of_phoenix_cleanup.
+  rise_of_phoenix_failed:
+    rise_of_phoenix_step_locked:
       action: set
       int: 1
 
@@ -564,9 +582,9 @@ event_player:
     - barrier_raise
 
   # Skip intro video with both flippers (match battle_jester pattern)
-  s_flipper_left_active{current_player.rise_of_phoenix_step==0 and device.timers.rise_of_phoenix_intro_video_delay.running}:
+  s_flipper_left_active{current_player.rise_of_phoenix_step==0 and device.timers.rise_of_phoenix_intro_video_delay.running and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_check_skip_intro
-  s_flipper_right_active{current_player.rise_of_phoenix_step==0 and device.timers.rise_of_phoenix_intro_video_delay.running}:
+  s_flipper_right_active{current_player.rise_of_phoenix_step==0 and device.timers.rise_of_phoenix_intro_video_delay.running and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_check_skip_intro
     
   rise_of_phoenix_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
@@ -576,7 +594,7 @@ event_player:
   rise_of_phoenix_setup_step_1:
     - orbit_left_safe_return_arm
 
-  left_orbit_shot_hit{current_player.rise_of_phoenix_step==0 and device.timers.shot_lockout.running==False}:
+  left_orbit_shot_hit{current_player.rise_of_phoenix_step==0 and device.timers.shot_lockout.running==False and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_step_1_complete
     - rise_of_phoenix_step_1_shot_hit
     - timer_shot_lockout_start
@@ -584,21 +602,21 @@ event_player:
     - orbit_left_safe_return_clear|700ms
 
   # Step 2: Spinner (1 shot required - spinner_shot_made is already debounced to require 3 spins)
-  spinner_shot_made{current_player.rise_of_phoenix_step==1}:
+  spinner_shot_made{current_player.rise_of_phoenix_step==1 and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_step_2_complete
     - rise_of_phoenix_step_2_shot_hit
     - timer_shot_lockout_start
     - rise_of_phoenix_setup_step_3
 
   # Step 3: Barrier Target
-  s_barrier_target_active{current_player.rise_of_phoenix_step==2 and device.timers.shot_lockout.running==False}:
+  s_barrier_target_active{current_player.rise_of_phoenix_step==2 and device.timers.shot_lockout.running==False and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_step_3_complete
     - rise_of_phoenix_step_3_shot_hit
     - timer_shot_lockout_start
     - rise_of_phoenix_setup_step_4
 
   # Step 4: Tower Ramp
-  s_ramp_tower_exit_active{current_player.rise_of_phoenix_step==3 and device.timers.shot_lockout.running==False}:
+  s_ramp_tower_exit_active{current_player.rise_of_phoenix_step==3 and device.timers.shot_lockout.running==False and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_step_4_complete
     - rise_of_phoenix_step_4_shot_hit
     - timer_shot_lockout_start
@@ -607,7 +625,7 @@ event_player:
 
   # Step 5: Right Orbit (lifter raised until shot made)
   # NOTE: right_ramp_down is delayed 2 seconds via timer to prevent servo power contention
-  right_orbit_shot_hit{current_player.rise_of_phoenix_step==4 and device.timers.shot_lockout.running==False}:
+  right_orbit_shot_hit{current_player.rise_of_phoenix_step==4 and device.timers.shot_lockout.running==False and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_step_5_complete
     - rise_of_phoenix_step_5_shot_hit
     - timer_shot_lockout_start
@@ -620,7 +638,7 @@ event_player:
     - right_ramp_down
 
   # Step 6: Lower Orbit (ball goes through raised top ramp, exits via lower orbit)
-  s_orbit_lower_active{current_player.rise_of_phoenix_step==5 and device.timers.shot_lockout.running==False}:
+  s_orbit_lower_active{current_player.rise_of_phoenix_step==5 and device.timers.shot_lockout.running==False and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_step_6_complete
     - rise_of_phoenix_step_6_shot_hit
     - timer_shot_lockout_start
@@ -628,19 +646,19 @@ event_player:
     - top_ramp_down               # SERVO: Lower top ramp after step 6
 
   # Step 7: All 4 LOCK Targets (need 3 of 4)
-  s_l_lock_target_active{current_player.rise_of_phoenix_step==6 and current_player.rise_of_phoenix_lock_l==0}:
+  s_l_lock_target_active{current_player.rise_of_phoenix_step==6 and current_player.rise_of_phoenix_lock_l==0 and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_lock_l_hit
     - rise_of_phoenix_lock_target_hit
 
-  s_o_lock_target_active{current_player.rise_of_phoenix_step==6 and current_player.rise_of_phoenix_lock_o==0}:
+  s_o_lock_target_active{current_player.rise_of_phoenix_step==6 and current_player.rise_of_phoenix_lock_o==0 and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_lock_o_hit
     - rise_of_phoenix_lock_target_hit
 
-  s_c_lock_target_active{current_player.rise_of_phoenix_step==6 and current_player.rise_of_phoenix_lock_c==0}:
+  s_c_lock_target_active{current_player.rise_of_phoenix_step==6 and current_player.rise_of_phoenix_lock_c==0 and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_lock_c_hit
     - rise_of_phoenix_lock_target_hit
 
-  s_k_lock_target_active{current_player.rise_of_phoenix_step==6 and current_player.rise_of_phoenix_lock_k==0}:
+  s_k_lock_target_active{current_player.rise_of_phoenix_step==6 and current_player.rise_of_phoenix_lock_k==0 and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_lock_k_hit
     - rise_of_phoenix_lock_target_hit
 
@@ -651,14 +669,14 @@ event_player:
     - rise_of_phoenix_setup_step_8
 
   # Step 8: Upper Orbit
-  s_orbit_upper_active{current_player.rise_of_phoenix_step==7 and device.timers.shot_lockout.running==False}:
+  s_orbit_upper_active{current_player.rise_of_phoenix_step==7 and device.timers.shot_lockout.running==False and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_step_8_complete
     - rise_of_phoenix_step_8_shot_hit
     - timer_shot_lockout_start
     - rise_of_phoenix_setup_step_9
 
   # Step 9: Mode Scoop (final shot - barrier is down)
-  s_mode_start_active{current_player.rise_of_phoenix_step==8}:
+  s_mode_start_active{current_player.rise_of_phoenix_step==8 and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_step_9_complete
     - rise_of_phoenix_step_9_shot_hit
     - rise_of_phoenix_complete
@@ -678,47 +696,47 @@ event_player:
   ## Mirrors the switch event chains exactly (minus shot lockout timer)
   ##############################################
 
-  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==0 and current_player.rise_of_phoenix_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==0 and current_player.rise_of_phoenix_complete_flag==0 and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_step_1_complete
     - rise_of_phoenix_step_1_shot_hit
     - rise_of_phoenix_setup_step_2
 
-  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==1 and current_player.rise_of_phoenix_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==1 and current_player.rise_of_phoenix_complete_flag==0 and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_step_2_complete
     - rise_of_phoenix_step_2_shot_hit
     - rise_of_phoenix_setup_step_3
 
-  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==2 and current_player.rise_of_phoenix_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==2 and current_player.rise_of_phoenix_complete_flag==0 and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_step_3_complete
     - rise_of_phoenix_step_3_shot_hit
     - rise_of_phoenix_setup_step_4
 
-  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==3 and current_player.rise_of_phoenix_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==3 and current_player.rise_of_phoenix_complete_flag==0 and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_step_4_complete
     - rise_of_phoenix_step_4_shot_hit
     - rise_of_phoenix_setup_step_5
     - right_ramp_up
 
-  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==4 and current_player.rise_of_phoenix_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==4 and current_player.rise_of_phoenix_complete_flag==0 and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_step_5_complete
     - rise_of_phoenix_step_5_shot_hit
     - rise_of_phoenix_setup_step_6
     - top_ramp_up
     # right_ramp_down fires automatically via timer triggered by step_5_complete
 
-  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==5 and current_player.rise_of_phoenix_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==5 and current_player.rise_of_phoenix_complete_flag==0 and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_step_6_complete
     - rise_of_phoenix_step_6_shot_hit
     - rise_of_phoenix_setup_step_7
     - top_ramp_down
 
   # Step 6 = LOCK target phase - missile skips ALL remaining locks
-  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==6 and current_player.rise_of_phoenix_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==6 and current_player.rise_of_phoenix_complete_flag==0 and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_step_7_complete
     - rise_of_phoenix_step_7_shot_hit
     - rise_of_phoenix_setup_step_8
 
-  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==7 and current_player.rise_of_phoenix_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.rise_of_phoenix_step==7 and current_player.rise_of_phoenix_complete_flag==0 and current_player.rise_of_phoenix_step_locked==0}:
     - rise_of_phoenix_step_8_complete
     - rise_of_phoenix_step_8_shot_hit
     - rise_of_phoenix_setup_step_9

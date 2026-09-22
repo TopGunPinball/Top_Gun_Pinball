@@ -159,6 +159,13 @@ variable_player:
   mode_hard_deck_honoring_iceman_started:
     hoi_step: { action: set, int: 0 }
     hoi_complete_flag: { action: set, int: 0 }
+    # Cleared at mode start; set the instant honoring_iceman_lost fires (drain).
+    # hoi_complete_flag alone doesn't cover this — it's only set to 1 on WIN, never
+    # on drain — and this mode's timer keeps ticking for the full remaining
+    # duration after a drain (no separate failed-delay timer), during which the
+    # player may already be shooting their NEXT ball. Without this flag, iceman
+    # target / main shot switches stay live and keep scoring into the lost video.
+    hoi_step_locked: { action: set, int: 0 }
     hoi_scoop_lit: { action: set, int: 0 }
     hoi_main_shots_hit: { action: set, int: 0 }
     hoi_shots_remaining: { action: set, int: 13 }
@@ -197,7 +204,7 @@ variable_player:
   ## Each qualifier target → 350K + activate its paired main shot
   ## Guards: not-already-hit, gameplay phase, not already won
   ##############################################
-  s_i_iceman_target_active{current_player.hoi_iceman_i_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_i_iceman_target_active{current_player.hoi_iceman_i_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     score: 350000 * current_player.total_scoring_multiplier
     mode_points_scored: { action: set, int: 350000 * current_player.total_scoring_multiplier }
     hoi_iceman_i_hit: { action: set, int: 1 }
@@ -205,35 +212,35 @@ variable_player:
     orbit_left_shot_armed: { action: set, int: 1 }
     hoi_shots_remaining: { action: add, int: -1 }
 
-  s_c_iceman_target_active{current_player.hoi_iceman_c_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_c_iceman_target_active{current_player.hoi_iceman_c_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     score: 350000 * current_player.total_scoring_multiplier
     mode_points_scored: { action: set, int: 350000 * current_player.total_scoring_multiplier }
     hoi_iceman_c_hit: { action: set, int: 1 }
     hoi_lr_active: { action: set, int: 1 }
     hoi_shots_remaining: { action: add, int: -1 }
 
-  s_e_iceman_target_active{current_player.hoi_iceman_e_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_e_iceman_target_active{current_player.hoi_iceman_e_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     score: 350000 * current_player.total_scoring_multiplier
     mode_points_scored: { action: set, int: 350000 * current_player.total_scoring_multiplier }
     hoi_iceman_e_hit: { action: set, int: 1 }
     hoi_spinner_active: { action: set, int: 1 }
     hoi_shots_remaining: { action: add, int: -1 }
 
-  s_m_iceman_target_active{current_player.hoi_iceman_m_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_m_iceman_target_active{current_player.hoi_iceman_m_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     score: 350000 * current_player.total_scoring_multiplier
     mode_points_scored: { action: set, int: 350000 * current_player.total_scoring_multiplier }
     hoi_iceman_m_hit: { action: set, int: 1 }
     hoi_tower_active: { action: set, int: 1 }
     hoi_shots_remaining: { action: add, int: -1 }
 
-  s_a_iceman_target_active{current_player.hoi_iceman_a_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_a_iceman_target_active{current_player.hoi_iceman_a_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     score: 350000 * current_player.total_scoring_multiplier
     mode_points_scored: { action: set, int: 350000 * current_player.total_scoring_multiplier }
     hoi_iceman_a_hit: { action: set, int: 1 }
     hoi_to_active: { action: set, int: 1 }
     hoi_shots_remaining: { action: add, int: -1 }
 
-  s_n_iceman_target_active{current_player.hoi_iceman_n_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_n_iceman_target_active{current_player.hoi_iceman_n_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     score: 350000 * current_player.total_scoring_multiplier
     mode_points_scored: { action: set, int: 350000 * current_player.total_scoring_multiplier }
     hoi_iceman_n_hit: { action: set, int: 1 }
@@ -316,7 +323,7 @@ variable_player:
   player_hoi_main_shots_hit{value==6}:
     hoi_scoop_lit: { action: set, int: 1 }
 
-  s_mode_start_active{current_player.hoi_scoop_lit==1 and current_player.hoi_complete_flag==0}:
+  s_mode_start_active{current_player.hoi_scoop_lit==1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     score: 1500000 * current_player.total_scoring_multiplier
     mode_points_scored: { action: set, int: 1500000 * current_player.total_scoring_multiplier }
     hoi_shots_remaining: { action: add, int: -1 }
@@ -330,6 +337,13 @@ variable_player:
     hoi_plunge_pending: { action: set, int: 1 }
   hoi_plunge_pending_clear:
     hoi_plunge_pending: { action: set, int: 0 }
+
+  # Lock all shot scoring the instant the ball drains (this mode has no
+  # separate failed-delay timer — the same main timer keeps ticking after a
+  # drain while the lost slide overlays, so the player could already be on
+  # their next ball while these switches are still live).
+  honoring_iceman_lost:
+    hoi_step_locked: { action: set, int: 1 }
 
 ####################################################################################
 # EVENT PLAYER
@@ -401,15 +415,15 @@ event_player:
   ## route through named events. variable_player / light_player / show_player
   ## still key off the switch events directly.
   ##############################################
-  s_i_iceman_target_active{current_player.hoi_iceman_i_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_i_iceman_target_active{current_player.hoi_iceman_i_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     - hoi_qualifier_i_hit
-  s_c_iceman_target_active{current_player.hoi_iceman_c_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_c_iceman_target_active{current_player.hoi_iceman_c_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     - hoi_qualifier_c_hit
-  s_e_iceman_target_active{current_player.hoi_iceman_e_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_e_iceman_target_active{current_player.hoi_iceman_e_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     - hoi_qualifier_e_hit
-  s_m_iceman_target_active{current_player.hoi_iceman_m_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_m_iceman_target_active{current_player.hoi_iceman_m_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     - hoi_qualifier_m_hit
-  s_n_iceman_target_active{current_player.hoi_iceman_n_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_n_iceman_target_active{current_player.hoi_iceman_n_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     - hoi_qualifier_n_hit
   # (A qualifier already has its own event_player block below — qualifier_a_hit added there)
 
@@ -420,7 +434,7 @@ event_player:
   ##############################################
 
   # LO — Left Orbit (composite: s_orbit_left → s_orbit_right)
-  left_orbit_shot_hit{current_player.hoi_lo_active==1 and current_player.hoi_complete_flag==0}:
+  left_orbit_shot_hit{current_player.hoi_lo_active==1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     - hoi_lo_shot_made
     - hoi_main_shot_scored
 
@@ -428,27 +442,27 @@ event_player:
     - orbit_left_safe_return_clear|700ms
 
   # LR — Left Ramp (s_ramp_left_exit)
-  s_ramp_left_exit_active{current_player.hoi_lr_active==1 and current_player.hoi_complete_flag==0}:
+  s_ramp_left_exit_active{current_player.hoi_lr_active==1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     - hoi_lr_shot_made
     - hoi_main_shot_scored
 
   # Spinner — uses composite shot event from pilot_mission_qualifier (3 spins within window)
-  spinner_shot_made{current_player.hoi_spinner_active==1 and current_player.hoi_complete_flag==0}:
+  spinner_shot_made{current_player.hoi_spinner_active==1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     - hoi_spinner_shot_made
     - hoi_main_shot_scored
 
   # Tower — Tower Ramp (s_ramp_tower_exit)
-  s_ramp_tower_exit_active{current_player.hoi_tower_active==1 and current_player.hoi_complete_flag==0}:
+  s_ramp_tower_exit_active{current_player.hoi_tower_active==1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     - hoi_tower_shot_made
     - hoi_main_shot_scored
 
   # TO — Top Loop (s_orbit_lower, requires top ramp UP)
-  s_orbit_lower_active{current_player.hoi_to_active==1 and current_player.hoi_complete_flag==0}:
+  s_orbit_lower_active{current_player.hoi_to_active==1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     - hoi_to_shot_made
     - hoi_main_shot_scored
 
   # RR — Right Ramp (s_ramp_right_exit)
-  s_ramp_right_exit_active{current_player.hoi_rr_active==1 and current_player.hoi_complete_flag==0}:
+  s_ramp_right_exit_active{current_player.hoi_rr_active==1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     - hoi_rr_shot_made
     - hoi_main_shot_scored
 
@@ -476,7 +490,7 @@ event_player:
   ##############################################
   ## A QUALIFIER — raises top ramp so TO shot is achievable
   ##############################################
-  s_a_iceman_target_active{current_player.hoi_iceman_a_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_a_iceman_target_active{current_player.hoi_iceman_a_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     - top_ramp_up
     - hoi_qualifier_a_hit
 
@@ -494,7 +508,7 @@ event_player:
   ## (drops barrier) and the mode stops via stop_event. mode_will_stop's
   ## release_all_events on ball_holds then ejects the held ball.
   ##############################################
-  s_mode_start_active{current_player.hoi_scoop_lit==1 and current_player.hoi_complete_flag==0}:
+  s_mode_start_active{current_player.hoi_scoop_lit==1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     - honoring_iceman_won
 
   honoring_iceman_won:
@@ -532,7 +546,7 @@ event_player:
     - top_ramp_down
 
   # Raise barrier directly on LOST path only (won path handled by global eject logic)
-  mode_hard_deck_honoring_iceman_will_stop{current_player.hoi_complete_flag==0}:
+  mode_hard_deck_honoring_iceman_will_stop{current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     - barrier_raise
 
 ####################################################################################
@@ -800,22 +814,22 @@ light_player:
   ##############################################
   ## QUALIFIER HIT — turn off qualifier light (main shot flash starts via show_player)
   ##############################################
-  s_i_iceman_target_active{current_player.hoi_iceman_i_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_i_iceman_target_active{current_player.hoi_iceman_i_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     l_iceman_i: { color: off, fade: 0ms }
 
-  s_c_iceman_target_active{current_player.hoi_iceman_c_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_c_iceman_target_active{current_player.hoi_iceman_c_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     l_iceman_c: { color: off, fade: 0ms }
 
-  s_e_iceman_target_active{current_player.hoi_iceman_e_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_e_iceman_target_active{current_player.hoi_iceman_e_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     l_iceman_e: { color: off, fade: 0ms }
 
-  s_m_iceman_target_active{current_player.hoi_iceman_m_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_m_iceman_target_active{current_player.hoi_iceman_m_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     l_iceman_m: { color: off, fade: 0ms }
 
-  s_a_iceman_target_active{current_player.hoi_iceman_a_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_a_iceman_target_active{current_player.hoi_iceman_a_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     l_iceman_a: { color: off, fade: 0ms }
 
-  s_n_iceman_target_active{current_player.hoi_iceman_n_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_n_iceman_target_active{current_player.hoi_iceman_n_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     l_iceman_n: { color: off, fade: 0ms }
 
   ##############################################
@@ -884,7 +898,7 @@ show_player:
   ##############################################
   ## QUALIFIER HIT → start pulse on matching main shot insert
   ##############################################
-  s_i_iceman_target_active{current_player.hoi_iceman_i_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_i_iceman_target_active{current_player.hoi_iceman_i_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     hoi_flash_lo:
       show: sync_pulse_mode
       key: mode_l_shot_left_orbit
@@ -892,7 +906,7 @@ show_player:
       loops: -1
       show_tokens: { led: l_shot_left_orbit, color: 88DDFF }
 
-  s_c_iceman_target_active{current_player.hoi_iceman_c_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_c_iceman_target_active{current_player.hoi_iceman_c_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     hoi_flash_lr:
       show: sync_pulse_mode
       key: mode_l_shot_left_ramp
@@ -900,7 +914,7 @@ show_player:
       loops: -1
       show_tokens: { led: l_shot_left_ramp, color: 88DDFF }
 
-  s_e_iceman_target_active{current_player.hoi_iceman_e_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_e_iceman_target_active{current_player.hoi_iceman_e_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     hoi_flash_spinner:
       show: sync_pulse_mode
       key: mode_l_shot_spinner
@@ -908,7 +922,7 @@ show_player:
       loops: -1
       show_tokens: { led: l_shot_spinner, color: 88DDFF }
 
-  s_m_iceman_target_active{current_player.hoi_iceman_m_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_m_iceman_target_active{current_player.hoi_iceman_m_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     hoi_flash_tower:
       show: sync_pulse_mode
       key: mode_l_shot_tower_ramp
@@ -916,7 +930,7 @@ show_player:
       loops: -1
       show_tokens: { led: l_shot_tower_ramp, color: 88DDFF }
 
-  s_a_iceman_target_active{current_player.hoi_iceman_a_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_a_iceman_target_active{current_player.hoi_iceman_a_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     hoi_flash_to:
       show: sync_pulse_mode
       key: mode_l_shot_middle_ramp
@@ -924,7 +938,7 @@ show_player:
       loops: -1
       show_tokens: { led: l_shot_middle_ramp, color: 88DDFF }
 
-  s_n_iceman_target_active{current_player.hoi_iceman_n_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0}:
+  s_n_iceman_target_active{current_player.hoi_iceman_n_hit==0 and current_player.hoi_step>=1 and current_player.hoi_complete_flag==0 and current_player.hoi_step_locked==0}:
     hoi_flash_rr:
       show: sync_pulse_mode
       key: mode_l_shot_right_orbit

@@ -84,6 +84,12 @@ variable_player:
     canyon_run_complete_flag:
       action: set
       int: 0
+    # Cleared at mode start; set the instant canyon_run_failed fires so every
+    # shot switch stops scoring immediately, even though the mode stays "active"
+    # for the full lost-video delay (stop_events waits on timer_canyon_run_failed_delay_complete).
+    canyon_run_step_locked:
+      action: set
+      int: 0
     missiles_perk_blocked:
       action: set
       int: 0
@@ -268,6 +274,16 @@ variable_player:
     canyon_run_step8_position:
       action: set
       int: 6
+
+  # Lock all shot scoring the instant the mode fails (timer expiry or drain
+  # both route through this event). The mode stays "active" for the full
+  # lost-video delay, so without this flag any switch matching the current
+  # step still scores during the lost video even though shows/lights are
+  # already killed by canyon_run_cleanup.
+  canyon_run_failed:
+    canyon_run_step_locked:
+      action: set
+      int: 1
 
 ####################################################################################
 # SLIDE PLAYER
@@ -827,120 +843,120 @@ event_player:
   # SHOT DETECTION
 
   # Step 1: Spinner
-  spinner_shot_made{current_player.canyon_run_step==0}:
+  spinner_shot_made{current_player.canyon_run_step==0 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_1_complete
     - canyon_run_step_1_shot_hit
 
   # Step 2: TL (s_orbit_upper) or TO (s_orbit_lower) - top ramp UP
-  s_orbit_upper_active{current_player.canyon_run_step==1}:
+  s_orbit_upper_active{current_player.canyon_run_step==1 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_2_complete
     - canyon_run_step_2_shot_hit
 
-  s_orbit_lower_active{current_player.canyon_run_step==1}:
+  s_orbit_lower_active{current_player.canyon_run_step==1 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_2_complete
     - canyon_run_step_2_shot_hit
 
   # Step 3: Spinner
-  spinner_shot_made{current_player.canyon_run_step==2}:
+  spinner_shot_made{current_player.canyon_run_step==2 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_3_complete
     - canyon_run_step_3_shot_hit
 
   # Step 4: RO composite shot - right ramp UP
-  right_orbit_shot_hit{current_player.canyon_run_step==3}:
+  right_orbit_shot_hit{current_player.canyon_run_step==3 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_4_complete
     - canyon_run_step_4_shot_hit
 
   # Step 5: TL or TO - top ramp UP
-  s_orbit_upper_active{current_player.canyon_run_step==4}:
+  s_orbit_upper_active{current_player.canyon_run_step==4 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_5_complete
     - canyon_run_step_5_shot_hit
 
-  s_orbit_lower_active{current_player.canyon_run_step==4}:
+  s_orbit_lower_active{current_player.canyon_run_step==4 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_5_complete
     - canyon_run_step_5_shot_hit
 
   # Step 6: LO composite shot
-  left_orbit_shot_hit{current_player.canyon_run_step==5}:
+  left_orbit_shot_hit{current_player.canyon_run_step==5 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_6_complete
     - canyon_run_step_6_shot_hit
     - orbit_left_safe_return_clear|700ms
 
   # Step 7: TWR (no callout - intentional, step 8 voice fires on setup instead)
-  s_ramp_tower_exit_active{current_player.canyon_run_step==6}:
+  s_ramp_tower_exit_active{current_player.canyon_run_step==6 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_7_complete
     - canyon_run_step_7_shot_hit
 
   # Step 8: Moving target - position 0 = LR (initial 7s)
-  s_ramp_left_exit_active{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==0}:
+  s_ramp_left_exit_active{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==0 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_8_complete
     - canyon_run_step_8_shot_hit
 
   # Step 8: position 1 = TWR
-  s_ramp_tower_exit_active{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==1}:
+  s_ramp_tower_exit_active{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==1 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_8_complete
     - canyon_run_step_8_shot_hit
 
   # Step 8: position 2 = RR (right ramp DOWN)
-  s_ramp_right_exit_active{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==2}:
+  s_ramp_right_exit_active{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==2 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_8_complete
     - canyon_run_step_8_shot_hit
 
   # Step 8: position 3 = LO
-  left_orbit_shot_hit{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==3}:
+  left_orbit_shot_hit{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==3 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_8_complete
     - canyon_run_step_8_shot_hit
     - orbit_left_safe_return_clear|700ms
 
   # Step 8: position 4 = Spinner
-  spinner_shot_made{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==4}:
+  spinner_shot_made{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==4 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_8_complete
     - canyon_run_step_8_shot_hit
 
   # Step 8: position 5 = RR (right ramp DOWN again)
-  s_ramp_right_exit_active{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==5}:
+  s_ramp_right_exit_active{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==5 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_8_complete
     - canyon_run_step_8_shot_hit
 
   # Step 8: position 6 = LR (loops back)
-  s_ramp_left_exit_active{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==6}:
+  s_ramp_left_exit_active{current_player.canyon_run_step==7 and current_player.canyon_run_step8_position==6 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_8_complete
     - canyon_run_step_8_shot_hit
 
   # Step 9: Scoop (barrier DOWN, s_mode_start)
-  s_mode_start_active{current_player.canyon_run_step==8}:
+  s_mode_start_active{current_player.canyon_run_step==8 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_9_complete
     - canyon_run_step_9_shot_hit
 
   # MISSILES PERK - auto-complete current step
-  missiles_perk_complete_shot{current_player.canyon_run_step==0 and current_player.canyon_run_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.canyon_run_step==0 and current_player.canyon_run_complete_flag==0 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_1_complete
     - canyon_run_step_1_shot_hit
 
-  missiles_perk_complete_shot{current_player.canyon_run_step==1 and current_player.canyon_run_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.canyon_run_step==1 and current_player.canyon_run_complete_flag==0 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_2_complete
     - canyon_run_step_2_shot_hit
 
-  missiles_perk_complete_shot{current_player.canyon_run_step==2 and current_player.canyon_run_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.canyon_run_step==2 and current_player.canyon_run_complete_flag==0 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_3_complete
     - canyon_run_step_3_shot_hit
 
-  missiles_perk_complete_shot{current_player.canyon_run_step==3 and current_player.canyon_run_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.canyon_run_step==3 and current_player.canyon_run_complete_flag==0 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_4_complete
     - canyon_run_step_4_shot_hit
 
-  missiles_perk_complete_shot{current_player.canyon_run_step==4 and current_player.canyon_run_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.canyon_run_step==4 and current_player.canyon_run_complete_flag==0 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_5_complete
     - canyon_run_step_5_shot_hit
 
-  missiles_perk_complete_shot{current_player.canyon_run_step==5 and current_player.canyon_run_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.canyon_run_step==5 and current_player.canyon_run_complete_flag==0 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_6_complete
     - canyon_run_step_6_shot_hit
 
-  missiles_perk_complete_shot{current_player.canyon_run_step==6 and current_player.canyon_run_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.canyon_run_step==6 and current_player.canyon_run_complete_flag==0 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_7_complete
     - canyon_run_step_7_shot_hit
 
-  missiles_perk_complete_shot{current_player.canyon_run_step==7 and current_player.canyon_run_complete_flag==0}:
+  missiles_perk_complete_shot{current_player.canyon_run_step==7 and current_player.canyon_run_complete_flag==0 and current_player.canyon_run_step_locked==0}:
     - canyon_run_step_8_complete
     - canyon_run_step_8_shot_hit
 

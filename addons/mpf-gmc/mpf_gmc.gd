@@ -179,7 +179,10 @@ func _input(event: InputEvent) -> void:
 			return
 		# Cannot use quit() method because it won't cleanly shut down threads
 		# Instead, send a notification to the main thread to shut down
-		get_tree().notification(NOTIFICATION_WM_CLOSE_REQUEST)
+		# NOTE: get_tree().notification() only calls _notification() on the
+		# SceneTree object itself, not on child nodes - propagate_notification()
+		# is required to actually reach nodes like GMCProcess.
+		get_tree().root.propagate_notification(NOTIFICATION_WM_CLOSE_REQUEST)
 		get_tree().quit()
 		return
 

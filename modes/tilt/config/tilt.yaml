@@ -20,6 +20,7 @@ mode:
   stop_events: 
     - ball_will_end{current_player.ball_tilted==0}
     - timer_tilt_video_delay_complete
+    - restart_hold_confirmed
   priority: 10000                 # Very high to ensure tilt effects work
   game_mode: false                # Tilt mode must be non-game mode
 
@@ -32,6 +33,11 @@ tilt:
   # Debounce to let tilt bob settle - adjust if getting rapid warnings
   multiple_hit_window: 2500ms
   settle_time: 5s
+  # restart_hold_confirmed comes from base.yaml's flipper+start hold gesture -
+  # routes through the same slam-tilt mechanism (skips bonus, ends the whole
+  # game) but the queue_relay_player and slide_player entries below skip the
+  # tilt video/hold for this specific trigger via the restart_hold_active flag.
+  tilt_slam_tilt_events: restart_hold_confirmed
 
 ##############################################################################
 # TIMERS - Delay for tilt video to play
@@ -50,7 +56,7 @@ timers:
 # QUEUE RELAY PLAYER - Hold ball_ending until tilt video finishes
 ##############################################################################
 queue_relay_player:
-  ball_ending{current_player.ball_tilted==1}:
+  ball_ending{current_player.ball_tilted==1 and current_player.restart_hold_active==0}:
     post: tilt_ball_ending_hold
     wait_for: tilt_video_complete
 
@@ -92,7 +98,7 @@ slide_player:
       priority: 50000
       
   # On tilt, show ball_tilted full screen
-  tilt:
+  tilt{current_player.restart_hold_active==0}:
     single_danger:
       action: remove
     double_danger:

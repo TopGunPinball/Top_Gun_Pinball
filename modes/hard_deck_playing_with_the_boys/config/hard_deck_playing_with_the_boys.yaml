@@ -38,11 +38,29 @@
 #   Phase 1: Yellow/White alternating (odd=yellow, even=white), pops=yellow
 #   Phase 2: Red/White/Blue (1,4,7=white; 2,5,8=red; 3,6,9=blue)
 #
-# DOGFIGHT TEAM SHOTS (FIXED — no swapping):
-#   Red: LL, LR, CNT(barrier), TL, RR, I,C,E (iceman)
-#   Blue: LO, Spinner, TWR, TR, M,A,N (iceman)
-#   Teams stay fixed for the entire mode. 50K start, +5K per hit.
-#   Winner gets both banks. Loser gets half their bank.
+# DOGFIGHT TEAM SHOTS (ROTATES on every ball drain — see PENALTY SYSTEM below):
+#   Variation 1 (index 0, starting layout):
+#     Red: LL, LR, CNT(barrier), TL, RR, I,C,E (iceman)
+#     Blue: LO, Spinner, TWR, TR, M,A,N (iceman)
+#   Variation 2 (index 1) = exact opposite of Variation 1
+#   Variation 3 (index 2) = alternating mix: Red=LL,CNT,RR,ICE-C,LO,TWR,ICE-M,ICE-N
+#                                             Blue=LR,TL,ICE-I,ICE-E,SP,TR,ICE-A
+#   Variation 4 (index 3) = exact opposite of Variation 3
+#   current_player.ptb_dogfight_light_variation (0-3) cycles forward by one
+#   every time a ball drains during dogfight (ptb_dogfight_drain_count % 4).
+#   50K start, +5K per hit. Winner gets both banks. Loser gets half their bank.
+#
+# DOGFIGHT DRAIN PENALTY SYSTEM (Unlimited-ball-save escalation):
+#   Every ball_save_ptb_dogfight_ball_save_saving_ball event (i.e. every drain)
+#   rotates the shot layout above AND advances ptb_dogfight_drain_count.
+#   Tier 1 @ 5 drains:  no-hold flippers (voice_dogfight_football_no_holds)
+#   Tier 2 @ 10 drains: + reversed flippers, stacks with no-hold
+#                       (voice_dogfight_football_reverse_flippers)
+#   Tier 3 @ 15 drains: shot inserts go dark (scoring/rotation keeps running,
+#                       just invisible) (voice_dogfight_football_lights_out)
+#   Dogfight starts with NORMAL flippers — tiers ramp up from there.
+#   current_player.ptb_dogfight_drains_until_next_penalty exposes the
+#   countdown to the next tier (0 once all three have hit) for the slide.
 #
 # MODE TIMER: 120s (phase 1), reused as 121s (dogfight)
 # MUSIC: hard_deck_playing_with_the_boys_music (controlled in base.yaml)
@@ -444,6 +462,15 @@ variable_player:
     ptb_complete_flag:
       action: set
       int: 0
+    # Cleared at mode start; set the instant Phase 1 fails (timer expiry OR
+    # drain both route through this flag being set to 1). ptb_complete_flag
+    # alone doesn't cover this — it's only set to 1 when reaching step 8
+    # (Phase 1 fully cleared), not on a Phase 1 failure. Only gates ptb_step
+    # 0-8 conditions; Phase 2 (dogfight, steps 9-11) ends through its own
+    # multiball lifecycle and doesn't use this flag.
+    ptb_step_locked:
+      action: set
+      int: 0
     ptb_rally_hits:
       action: set
       int: 0
@@ -498,6 +525,32 @@ variable_player:
     ptb_dogfight_payout:
       action: set
       int: 0
+    # --- Drain penalty system init (set here, at mode start, NOT at
+    # ptb_dogfight_activate — that event also creates the dogfight timer
+    # slide, and setting these on the same tick as slide creation is a
+    # race: the slide can bind before the variable_player write lands,
+    # showing blank until the value changes again on the first drain) ---
+    ptb_dogfight_drain_count:
+      action: set
+      int: 0
+    ptb_dogfight_light_variation:
+      action: set
+      int: 0
+    ptb_dogfight_no_hold_applied:
+      action: set
+      int: 0
+    ptb_dogfight_reverse_applied:
+      action: set
+      int: 0
+    ptb_dogfight_lights_out_applied:
+      action: set
+      int: 0
+    ptb_dogfight_lights_out_active:
+      action: set
+      int: 0
+    ptb_dogfight_drains_until_next_penalty:
+      action: set
+      int: 5
 
   ##############################################
   ## PHASE 1: BUMPER RALLY SCORING
@@ -557,17 +610,17 @@ variable_player:
   ## Decrements only during rally steps (1, 3, 5)
   ## Shows how many pops still needed to light spike shots
   ##############################################
-  s_bumper_left_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5}:
+  s_bumper_left_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5 and current_player.ptb_step_locked==0}:
     ptb_rally_remaining:
       action: add
       int: -1
 
-  s_bumper_center_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5}:
+  s_bumper_center_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5 and current_player.ptb_step_locked==0}:
     ptb_rally_remaining:
       action: add
       int: -1
 
-  s_bumper_right_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5}:
+  s_bumper_right_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5 and current_player.ptb_step_locked==0}:
     ptb_rally_remaining:
       action: add
       int: -1
@@ -745,19 +798,19 @@ variable_player:
 
   # Spike 3 complete → Scoop shot
   # TO hit during spike — clear TL flag
-  s_orbit_lower_active{current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6}:
+  s_orbit_lower_active{current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6 and current_player.ptb_step_locked==0}:
     ptb_last_spike_tl:
       action: set
       int: 0
 
   # TL hit during spike — set TL flag so mig fires if it's the final shot
-  s_orbit_upper_active{current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6}:
+  s_orbit_upper_active{current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6 and current_player.ptb_step_locked==0}:
     ptb_last_spike_tl:
       action: set
       int: 1
 
   # LR hit during spike — clear TL flag
-  s_ramp_left_exit_active{current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6}:
+  s_ramp_left_exit_active{current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6 and current_player.ptb_step_locked==0}:
     ptb_last_spike_tl:
       action: set
       int: 0
@@ -797,6 +850,20 @@ variable_player:
   ##############################################
   ball_will_end{mode.hard_deck_playing_with_the_boys.active==True}:
     pilot_mode_drain_pending:
+      action: set
+      int: 1
+
+  # Lock all Phase 1 shot scoring the instant Phase 1 fails (timer expiry
+  # fires ptb_failed_timer_expired; drain fires ptb_failed). The mode stays
+  # "active" for the ended-video window, so without this flag any switch
+  # matching the current step still scores during that video.
+  ptb_failed:
+    ptb_step_locked:
+      action: set
+      int: 1
+
+  ptb_failed_timer_expired:
+    ptb_step_locked:
       action: set
       int: 1
 
@@ -851,10 +918,31 @@ variable_player:
   ## Each hit: add value × multiplier to the shot's team bank, increase value
   ##############################################
 
-  # --- RED TEAM SHOTS ---
+  # --- ROTATING TEAM SHOTS ---
+  # Each shot is RED in exactly 2 of the 4 variations and BLUE in the other 2
+  # (current_player.ptb_dogfight_light_variation: 0=Var1, 1=Var2, 2=Var3, 3=Var4)
+  # Variation index is set by the drain-count handler below and always matches
+  # whatever the light_player block currently has lit — see PENALTY SYSTEM.
+  #
+  #            Var1(0)  Var2(1)  Var3(2)  Var4(3)      RED when variation is:
+  #   LL         R        B        R        B          0 or 2
+  #   LR         R        B        B        R          0 or 3
+  #   CNT        R        B        R        B          0 or 2
+  #   TL         R        B        B        R          0 or 3
+  #   RR         R        B        R        B          0 or 2
+  #   ICE-I      R        B        B        R          0 or 3
+  #   ICE-C      R        B        R        B          0 or 2
+  #   ICE-E      R        B        B        R          0 or 3
+  #   LO         B        R        R        B          1 or 2
+  #   SP         B        R        B        R          1 or 3
+  #   TWR        B        R        R        B          1 or 2
+  #   TR         B        R        B        R          1 or 3
+  #   ICE-M      B        R        R        B          1 or 2
+  #   ICE-A      B        R        B        R          1 or 3
+  #   ICE-N      B        R        R        B          1 or 2
 
-  # LL (s_lane_left) — Red
-  s_lane_left_active{current_player.ptb_step==11}:
+  # LL (s_lane_left)
+  s_lane_left_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==0 or current_player.ptb_dogfight_light_variation==2)}:
     ptb_red_bank:
       action: add
       int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
@@ -864,95 +952,7 @@ variable_player:
     mode_points_scored:
       action: set
       int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
-
-  # LR (s_ramp_left_exit) — Red
-  s_ramp_left_exit_active{current_player.ptb_step==11}:
-    ptb_red_bank:
-      action: add
-      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
-    ptb_dogfight_shot_value:
-      action: add
-      int: 5000
-    mode_points_scored:
-      action: set
-      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
-
-  # CNT/Barrier (s_barrier_target) — Red
-  s_barrier_target_active{current_player.ptb_step==11}:
-    ptb_red_bank:
-      action: add
-      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
-    ptb_dogfight_shot_value:
-      action: add
-      int: 5000
-    mode_points_scored:
-      action: set
-      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
-
-  # TL (s_orbit_upper) — Red
-  s_orbit_upper_active{current_player.ptb_step==11}:
-    ptb_red_bank:
-      action: add
-      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
-    ptb_dogfight_shot_value:
-      action: add
-      int: 5000
-    mode_points_scored:
-      action: set
-      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
-
-  # RR (s_ramp_right_exit) — Red
-  s_ramp_right_exit_active{current_player.ptb_step==11}:
-    ptb_red_bank:
-      action: add
-      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
-    ptb_dogfight_shot_value:
-      action: add
-      int: 5000
-    mode_points_scored:
-      action: set
-      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
-
-  # ICEMAN I (s_i_iceman_target) — Red
-  s_i_iceman_target_active{current_player.ptb_step==11}:
-    ptb_red_bank:
-      action: add
-      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
-    ptb_dogfight_shot_value:
-      action: add
-      int: 5000
-    mode_points_scored:
-      action: set
-      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
-
-  # ICEMAN C (s_c_iceman_target) — Red
-  s_c_iceman_target_active{current_player.ptb_step==11}:
-    ptb_red_bank:
-      action: add
-      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
-    ptb_dogfight_shot_value:
-      action: add
-      int: 5000
-    mode_points_scored:
-      action: set
-      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
-
-  # ICEMAN E (s_e_iceman_target) — Red
-  s_e_iceman_target_active{current_player.ptb_step==11}:
-    ptb_red_bank:
-      action: add
-      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
-    ptb_dogfight_shot_value:
-      action: add
-      int: 5000
-    mode_points_scored:
-      action: set
-      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
-
-  # --- BLUE TEAM SHOTS ---
-
-  # LO (s_orbit_left) — Blue
-  s_orbit_left_active{current_player.ptb_step==11}:
+  s_lane_left_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==1 or current_player.ptb_dogfight_light_variation==3)}:
     ptb_blue_bank:
       action: add
       int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
@@ -963,8 +963,18 @@ variable_player:
       action: set
       int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
 
-  # SP (s_spinner) — Blue — uses cooldown timer
-  ptb_dogfight_spinner_scored:
+  # LR (s_ramp_left_exit)
+  s_ramp_left_exit_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==0 or current_player.ptb_dogfight_light_variation==3)}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+  s_ramp_left_exit_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==1 or current_player.ptb_dogfight_light_variation==2)}:
     ptb_blue_bank:
       action: add
       int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
@@ -975,8 +985,18 @@ variable_player:
       action: set
       int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
 
-  # TWR (s_ramp_tower_exit) — Blue
-  s_ramp_tower_exit_active{current_player.ptb_step==11}:
+  # CNT/Barrier (s_barrier_target)
+  s_barrier_target_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==0 or current_player.ptb_dogfight_light_variation==2)}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+  s_barrier_target_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==1 or current_player.ptb_dogfight_light_variation==3)}:
     ptb_blue_bank:
       action: add
       int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
@@ -987,8 +1007,18 @@ variable_player:
       action: set
       int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
 
-  # TR (s_ramp_inner_exit) — Blue
-  s_ramp_inner_exit_active{current_player.ptb_step==11}:
+  # TL (s_orbit_upper)
+  s_orbit_upper_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==0 or current_player.ptb_dogfight_light_variation==3)}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+  s_orbit_upper_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==1 or current_player.ptb_dogfight_light_variation==2)}:
     ptb_blue_bank:
       action: add
       int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
@@ -999,8 +1029,18 @@ variable_player:
       action: set
       int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
 
-  # ICEMAN M (s_m_iceman_target) — Blue
-  s_m_iceman_target_active{current_player.ptb_step==11}:
+  # RR (s_ramp_right_exit)
+  s_ramp_right_exit_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==0 or current_player.ptb_dogfight_light_variation==2)}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+  s_ramp_right_exit_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==1 or current_player.ptb_dogfight_light_variation==3)}:
     ptb_blue_bank:
       action: add
       int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
@@ -1011,8 +1051,18 @@ variable_player:
       action: set
       int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
 
-  # ICEMAN A (s_a_iceman_target) — Blue
-  s_a_iceman_target_active{current_player.ptb_step==11}:
+  # ICEMAN I (s_i_iceman_target)
+  s_i_iceman_target_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==0 or current_player.ptb_dogfight_light_variation==3)}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+  s_i_iceman_target_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==1 or current_player.ptb_dogfight_light_variation==2)}:
     ptb_blue_bank:
       action: add
       int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
@@ -1023,8 +1073,18 @@ variable_player:
       action: set
       int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
 
-  # ICEMAN N (s_n_iceman_target) — Blue
-  s_n_iceman_target_active{current_player.ptb_step==11}:
+  # ICEMAN C (s_c_iceman_target)
+  s_c_iceman_target_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==0 or current_player.ptb_dogfight_light_variation==2)}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+  s_c_iceman_target_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==1 or current_player.ptb_dogfight_light_variation==3)}:
     ptb_blue_bank:
       action: add
       int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
@@ -1034,6 +1094,223 @@ variable_player:
     mode_points_scored:
       action: set
       int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # ICEMAN E (s_e_iceman_target)
+  s_e_iceman_target_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==0 or current_player.ptb_dogfight_light_variation==3)}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+  s_e_iceman_target_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==1 or current_player.ptb_dogfight_light_variation==2)}:
+    ptb_blue_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # LO (s_orbit_left)
+  s_orbit_left_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==1 or current_player.ptb_dogfight_light_variation==2)}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+  s_orbit_left_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==0 or current_player.ptb_dogfight_light_variation==3)}:
+    ptb_blue_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # SP (s_spinner) — uses cooldown timer
+  ptb_dogfight_spinner_scored{current_player.ptb_dogfight_light_variation==1 or current_player.ptb_dogfight_light_variation==3}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+  ptb_dogfight_spinner_scored{current_player.ptb_dogfight_light_variation==0 or current_player.ptb_dogfight_light_variation==2}:
+    ptb_blue_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # TWR (s_ramp_tower_exit)
+  s_ramp_tower_exit_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==1 or current_player.ptb_dogfight_light_variation==2)}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+  s_ramp_tower_exit_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==0 or current_player.ptb_dogfight_light_variation==3)}:
+    ptb_blue_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # TR (s_ramp_inner_exit)
+  s_ramp_inner_exit_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==1 or current_player.ptb_dogfight_light_variation==3)}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+  s_ramp_inner_exit_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==0 or current_player.ptb_dogfight_light_variation==2)}:
+    ptb_blue_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # ICEMAN M (s_m_iceman_target)
+  s_m_iceman_target_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==1 or current_player.ptb_dogfight_light_variation==2)}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+  s_m_iceman_target_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==0 or current_player.ptb_dogfight_light_variation==3)}:
+    ptb_blue_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # ICEMAN A (s_a_iceman_target)
+  s_a_iceman_target_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==1 or current_player.ptb_dogfight_light_variation==3)}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+  s_a_iceman_target_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==0 or current_player.ptb_dogfight_light_variation==2)}:
+    ptb_blue_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  # ICEMAN N (s_n_iceman_target)
+  s_n_iceman_target_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==1 or current_player.ptb_dogfight_light_variation==2)}:
+    ptb_red_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+  s_n_iceman_target_active{current_player.ptb_step==11 and (current_player.ptb_dogfight_light_variation==0 or current_player.ptb_dogfight_light_variation==3)}:
+    ptb_blue_bank:
+      action: add
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+    ptb_dogfight_shot_value:
+      action: add
+      int: 5000
+    mode_points_scored:
+      action: set
+      int: current_player.ptb_dogfight_shot_value * current_player.total_scoring_multiplier
+
+  ##############################################
+  ## PHASE 2: DOGFIGHT — DRAIN PENALTY SYSTEM
+  ## Fires on ball_save's "saving_ball" event (the correct hook under
+  ## unlimited ball save — see ball_save.py: _ball_drain_while_active).
+  ## Sets drain_count + rotates light_variation (0-3, cycling) together,
+  ## then a 500ms-delayed ptb_dogfight_penalty_check applies threshold
+  ## penalties and triggers the light re-color (same race-avoidance
+  ## pattern as ptb_check_dogfight_result above).
+  ##############################################
+  ball_save_ptb_dogfight_ball_save_saving_ball:
+    ptb_dogfight_drain_count:
+      action: add
+      int: balls
+    ptb_dogfight_light_variation:
+      action: set
+      int: current_player.ptb_dogfight_drain_count % 4
+    ptb_dogfight_drains_until_next_penalty:
+      action: set
+      int: (5 - current_player.ptb_dogfight_drain_count) if current_player.ptb_dogfight_drain_count < 5 else ((10 - current_player.ptb_dogfight_drain_count) if current_player.ptb_dogfight_drain_count < 10 else ((15 - current_player.ptb_dogfight_drain_count) if current_player.ptb_dogfight_drain_count < 15 else 0))
+
+  # Tier 1: no-hold flippers at 5 drains (fires once)
+  ptb_dogfight_penalty_check{current_player.ptb_dogfight_drain_count>=5 and current_player.ptb_dogfight_no_hold_applied==0}:
+    ptb_dogfight_no_hold_applied:
+      action: set
+      int: 1
+
+  # Tier 2: reversed flippers added at 10 drains (fires once)
+  ptb_dogfight_penalty_check{current_player.ptb_dogfight_drain_count>=10 and current_player.ptb_dogfight_reverse_applied==0}:
+    ptb_dogfight_reverse_applied:
+      action: set
+      int: 1
+
+  # Tier 3: shot inserts go dark at 15 drains (fires once)
+  ptb_dogfight_penalty_check{current_player.ptb_dogfight_drain_count>=15 and current_player.ptb_dogfight_lights_out_applied==0}:
+    ptb_dogfight_lights_out_applied:
+      action: set
+      int: 1
+    ptb_dogfight_lights_out_active:
+      action: set
+      int: 1
 
   ##############################################
   ## PHASE 2: DOGFIGHT ENDING — SCORE RESULTS
@@ -1123,9 +1400,9 @@ event_player:
   mode_hard_deck_playing_with_the_boys_started:
     - ball_search_block
 
-  s_flipper_left_active{current_player.ptb_step==0 and device.timers.ptb_intro_delay.running}:
+  s_flipper_left_active{current_player.ptb_step==0 and device.timers.ptb_intro_delay.running and current_player.ptb_step_locked==0}:
     - ptb_check_skip_intro
-  s_flipper_right_active{current_player.ptb_step==0 and device.timers.ptb_intro_delay.running}:
+  s_flipper_right_active{current_player.ptb_step==0 and device.timers.ptb_intro_delay.running and current_player.ptb_step_locked==0}:
     - ptb_check_skip_intro
   ptb_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
     - ptb_skip_intro
@@ -1168,11 +1445,11 @@ event_player:
     - ptb_bumper_entered
 
   # Play rally slide on bumper entry (step-specific slides)
-  ptb_bumper_entered{current_player.ptb_step==1}:
+  ptb_bumper_entered{current_player.ptb_step==1 and current_player.ptb_step_locked==0}:
     - ptb_play_rally_1_slide
-  ptb_bumper_entered{current_player.ptb_step==3}:
+  ptb_bumper_entered{current_player.ptb_step==3 and current_player.ptb_step_locked==0}:
     - ptb_play_rally_2_slide
-  ptb_bumper_entered{current_player.ptb_step==5}:
+  ptb_bumper_entered{current_player.ptb_step==5 and current_player.ptb_step_locked==0}:
     - ptb_play_rally_3_slide
 
   # Bumper inactivity expired — ball left bumpers
@@ -1186,30 +1463,30 @@ event_player:
   ## Inactivity timer is just for rally slide timing, NOT for gating step change
   ##############################################
   # Rally 1: threshold = 5
-  player_ptb_rally_hits{value>=current_player.ptb_rally_target and current_player.ptb_step==1}:
+  player_ptb_rally_hits{value>=current_player.ptb_rally_target and current_player.ptb_step==1 and current_player.ptb_step_locked==0}:
     - ptb_step_1_complete
     - ptb_setup_step_2
   # Rally 2: threshold = 15
-  player_ptb_rally_hits{value>=current_player.ptb_rally_target and current_player.ptb_step==3}:
+  player_ptb_rally_hits{value>=current_player.ptb_rally_target and current_player.ptb_step==3 and current_player.ptb_step_locked==0}:
     - ptb_step_3_complete
     - ptb_setup_step_4
   # Rally 3: threshold = 25
-  player_ptb_rally_hits{value>=current_player.ptb_rally_target and current_player.ptb_step==5}:
+  player_ptb_rally_hits{value>=current_player.ptb_rally_target and current_player.ptb_step==5 and current_player.ptb_step_locked==0}:
     - ptb_step_5_complete
     - ptb_setup_step_6
 
   # Legacy: Also check on bumper_left (inactivity) in case threshold was ALREADY met
   # (step would already be 2/4/6 so these won't double-fire)
   # Rally 1: 5+ hits
-  ptb_bumper_left{current_player.ptb_step==1 and current_player.ptb_rally_hits>=5}:
+  ptb_bumper_left{current_player.ptb_step==1 and current_player.ptb_rally_hits>=5 and current_player.ptb_step_locked==0}:
     - ptb_step_1_complete
     - ptb_setup_step_2
   # Rally 2: 15+ hits (fallback — normally already handled by immediate check)
-  ptb_bumper_left{current_player.ptb_step==3 and current_player.ptb_rally_hits>=10}:
+  ptb_bumper_left{current_player.ptb_step==3 and current_player.ptb_rally_hits>=10 and current_player.ptb_step_locked==0}:
     - ptb_step_3_complete
     - ptb_setup_step_4
   # Rally 3: 25+ hits (fallback)
-  ptb_bumper_left{current_player.ptb_step==5 and current_player.ptb_rally_hits>=15}:
+  ptb_bumper_left{current_player.ptb_step==5 and current_player.ptb_rally_hits>=15 and current_player.ptb_step_locked==0}:
     - ptb_step_5_complete
     - ptb_setup_step_6
 
@@ -1224,33 +1501,33 @@ event_player:
   # Spike shot hits — Steps 2, 4, 6 (spike phases)
   # TO (s_orbit_lower — top ramp is UP during spike)
   # Cooldown prevents double-counting when ball hits two spike switches in quick succession
-  s_orbit_lower_active{(current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6) and device.timers.ptb_spike_cooldown.running==False}:
+  s_orbit_lower_active{(current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6) and device.timers.ptb_spike_cooldown.running==False and current_player.ptb_step_locked==0}:
     - ptb_spike_shot_scored
     - ptb_spike_shot_check_complete
 
   # TO hit during spike: temporarily release right orbit diverter so ball can complete
   # the orbit without getting stuck. Diverter re-enables on next playfield switch.
-  s_orbit_lower_active{current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6}:
+  s_orbit_lower_active{current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6 and current_player.ptb_step_locked==0}:
     - ptb_to_release_right_diverter
 
   # TL (s_orbit_upper)
-  s_orbit_upper_active{(current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6) and device.timers.ptb_spike_cooldown.running==False}:
+  s_orbit_upper_active{(current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6) and device.timers.ptb_spike_cooldown.running==False and current_player.ptb_step_locked==0}:
     - ptb_spike_shot_scored
     - ptb_spike_shot_check_complete
 
   # LR (s_ramp_left_exit)
-  s_ramp_left_exit_active{(current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6) and device.timers.ptb_spike_cooldown.running==False}:
+  s_ramp_left_exit_active{(current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6) and device.timers.ptb_spike_cooldown.running==False and current_player.ptb_step_locked==0}:
     - ptb_spike_shot_scored
     - ptb_spike_shot_check_complete
 
   # Check if enough spike shots hit to complete the step
-  ptb_spike_shot_check_complete{current_player.ptb_spike_shots_hit>=current_player.ptb_spike_shots_needed and current_player.ptb_step==2}:
+  ptb_spike_shot_check_complete{current_player.ptb_spike_shots_hit>=current_player.ptb_spike_shots_needed and current_player.ptb_step==2 and current_player.ptb_step_locked==0}:
     - ptb_step_2_complete
     - ptb_setup_step_3
-  ptb_spike_shot_check_complete{current_player.ptb_spike_shots_hit>=current_player.ptb_spike_shots_needed and current_player.ptb_step==4}:
+  ptb_spike_shot_check_complete{current_player.ptb_spike_shots_hit>=current_player.ptb_spike_shots_needed and current_player.ptb_step==4 and current_player.ptb_step_locked==0}:
     - ptb_step_4_complete
     - ptb_setup_step_5
-  ptb_spike_shot_check_complete{current_player.ptb_spike_shots_hit>=current_player.ptb_spike_shots_needed and current_player.ptb_step==6}:
+  ptb_spike_shot_check_complete{current_player.ptb_spike_shots_hit>=current_player.ptb_spike_shots_needed and current_player.ptb_step==6 and current_player.ptb_step_locked==0}:
     - ptb_step_6_complete
     - ptb_setup_step_7
 
@@ -1259,7 +1536,7 @@ event_player:
   ##############################################
   # Diverter release: s_lane_right re-enables immediately (ball cleared the orbit)
   # 2s timer fires as fallback if s_lane_right not hit
-  s_lane_right_active{current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6}:
+  s_lane_right_active{current_player.ptb_step==2 or current_player.ptb_step==4 or current_player.ptb_step==6 and current_player.ptb_step_locked==0}:
     - ptb_restore_right_diverter
 
   # Diverter release timer complete — re-enable right orbit diverter
@@ -1270,7 +1547,7 @@ event_player:
     - barrier_drop
     - right_ramp_down
 
-  s_mode_start_active{current_player.ptb_step==7}:
+  s_mode_start_active{current_player.ptb_step==7 and current_player.ptb_step_locked==0}:
     - ptb_step_7_scoop_entered
     - ptb_step_7_keep_music
     - ptb_play_ended_video
@@ -1286,9 +1563,9 @@ event_player:
   # Decision: Left flipper
   #   TGMB NOT qualified → end mode (back to base)
   #   TGMB qualified → end mode + start Top Gun Multiball
-  s_flipper_left_active{current_player.ptb_step==8 and device.timers.ptb_decision_timer.running and current_player.multiball_qualified==0}:
+  s_flipper_left_active{current_player.ptb_step==8 and device.timers.ptb_decision_timer.running and current_player.multiball_qualified==0 and current_player.ptb_step_locked==0}:
     - ptb_decision_end_mode
-  s_flipper_left_active{current_player.ptb_step==8 and device.timers.ptb_decision_timer.running and current_player.multiball_qualified==1}:
+  s_flipper_left_active{current_player.ptb_step==8 and device.timers.ptb_decision_timer.running and current_player.multiball_qualified==1 and current_player.ptb_step_locked==0}:
     - ptb_decision_start_tgmb
 
   # Timer expires:
@@ -1300,7 +1577,7 @@ event_player:
     - ptb_decision_dogfight
 
   # Decision: Right flipper = dogfight
-  s_flipper_right_active{current_player.ptb_step==8 and device.timers.ptb_decision_timer.running}:
+  s_flipper_right_active{current_player.ptb_step==8 and device.timers.ptb_decision_timer.running and current_player.ptb_step_locked==0}:
     - ptb_decision_dogfight
 
   # End mode path — drop barrier, then release ball after 500ms
@@ -1356,13 +1633,13 @@ event_player:
   ##############################################
   ptb_dogfight_activate:
     - barrier_drop
-    - disable_normal_flippers
-    - enable_no_hold_flippers
     - ptb_dogfight_release_ball|500ms
     - ptb_dogfight_ball_save_enable
     - ptb_dogfight_mb_start
     - ptb_dogfight_start_timer
     - ptb_dogfight_jump_timer|100ms
+    # NOTE: flippers stay NORMAL at dogfight start now — the drain penalty
+    # system below ramps them up (no-hold at 5 drains, +reversed at 10)
 
   ##############################################
   ## PHASE 2: DOGFIGHT — Spinner cooldown
@@ -1370,6 +1647,36 @@ event_player:
   ##############################################
   s_spinner_active{current_player.ptb_step==11 and device.timers.ptb_spinner_cooldown.running==False}:
     - ptb_dogfight_spinner_scored
+
+  ##############################################
+  ## PHASE 2: DOGFIGHT — DRAIN PENALTY SYSTEM
+  ## 500ms delay ensures ptb_dogfight_drain_count / light_variation
+  ## (set in variable_player on the raw ball-save event above) are
+  ## committed before we read them here — same pattern used by
+  ## ptb_check_dogfight_result elsewhere in this file.
+  ##############################################
+  ball_save_ptb_dogfight_ball_save_saving_ball:
+    - ptb_dogfight_penalty_check|500ms
+
+  # Re-light the 15 dogfight shots for whatever variation is now active
+  # (light_player below is gated off once lights-out has triggered)
+  ptb_dogfight_penalty_check:
+    - ptb_dogfight_shuffle_lights
+
+  # Tier 1 (5 drains): no-hold flippers
+  ptb_dogfight_penalty_check{current_player.ptb_dogfight_drain_count>=5 and current_player.ptb_dogfight_no_hold_applied==0}:
+    - disable_normal_flippers
+    - enable_no_hold_flippers
+    - ptb_dogfight_penalty_no_hold_announce
+
+  # Tier 2 (10 drains): reversed flippers ADDED (no-hold stays on too)
+  ptb_dogfight_penalty_check{current_player.ptb_dogfight_drain_count>=10 and current_player.ptb_dogfight_reverse_applied==0}:
+    - enable_reversed_flippers
+    - ptb_dogfight_penalty_reverse_announce
+
+  # Tier 3 (15 drains): shot inserts go dark
+  ptb_dogfight_penalty_check{current_player.ptb_dogfight_drain_count>=15 and current_player.ptb_dogfight_lights_out_applied==0}:
+    - ptb_dogfight_penalty_lights_out_announce
 
   ##############################################
   ## PHASE 2: DOGFIGHT — Suppress skillshot during end sequence
@@ -1393,6 +1700,7 @@ event_player:
 
   ptb_dogfight_time_up:
     - disable_no_hold_flippers
+    - disable_reversed_flippers
     - disable_autofires
     - ptb_check_dogfight_result|500ms
     - ptb_dogfight_end_sequence
@@ -1422,6 +1730,7 @@ event_player:
   timer_ptb_pre_plunge_delay_complete:
     - ptb_cleanup
     - disable_no_hold_flippers
+    - disable_reversed_flippers
     - enable_normal_flippers
     - enable_autofires
     - ptb_post_mode_plunge
@@ -1438,6 +1747,7 @@ event_player:
   ptb_emergency_resume:
     - ptb_cleanup
     - disable_no_hold_flippers
+    - disable_reversed_flippers
     - enable_normal_flippers
     - enable_autofires
     - ptb_dogfight_drain_cleanup_complete
@@ -1456,11 +1766,18 @@ event_player:
 
   ##############################################
   ## DRAIN HANDLING — Phase 1
+  ## ptb_cleanup fires IMMEDIATELY here too (mirrors the timer-expiry path
+  ## above) so ramps drop, barrier raises, and all shot inserts/flashing
+  ## shows turn off during the 5s drain delay — not after it. Previously
+  ## this only happened at timer_ptb_drain_delay_complete, leaving shots
+  ## lit/flashing for the full 5s window on a drain (this exact gap was
+  ## already fixed for the timer-expiry path above but missed here).
   ##############################################
   ptb_ball_ending_hold{current_player.ptb_step<8}:
     - ptb_failed
     - ptb_drain_detected
     - ptb_play_ended_video
+    - ptb_cleanup
 
   timer_ptb_drain_delay_complete:
     - ptb_drain_cleanup_complete
@@ -1476,6 +1793,7 @@ event_player:
 
   timer_ptb_dogfight_drain_delay_complete:
     - disable_no_hold_flippers
+    - disable_reversed_flippers
     - enable_normal_flippers
     - enable_autofires
     - ptb_dogfight_drain_cleanup_complete
@@ -1492,11 +1810,11 @@ event_player:
   ## ONLY active on rally steps (1,3,5). Spike steps (2,4,6) light LR/TL/TO
   ## instead — MIG posts would interfere with those shots.
   ##############################################
-  s_spinner_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5}:
+  s_spinner_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5 and current_player.ptb_step_locked==0}:
     - ptb_raise_left_mig
 
   # TL (s_orbit_upper) during rally → raise left MIG post 3s + 4 spotted pops + shaker
-  s_orbit_upper_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5}:
+  s_orbit_upper_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5 and current_player.ptb_step_locked==0}:
     - ptb_raise_left_mig
     - ptb_spot_4_pops
     - shaker_medium
@@ -1504,14 +1822,14 @@ event_player:
   # LO (s_orbit_left) during rally → raise right MIG post + 3 spotted pops + shaker
   # (Use raw switch, not composite left_orbit_shot_hit — MIG posts prevent the
   # ball from completing a full orbit so the composite event won't fire.)
-  s_orbit_left_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5}:
+  s_orbit_left_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5 and current_player.ptb_step_locked==0}:
     - ptb_raise_right_mig
     - ptb_spot_3_pops
     - shaker_medium
 
   # RO (s_orbit_right) during rally → raise left MIG post + 3 spotted pops + shaker
   # (Use raw switch, not composite right_orbit_shot_hit — same reason as LO.)
-  s_orbit_right_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5}:
+  s_orbit_right_active{current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5 and current_player.ptb_step_locked==0}:
     - ptb_raise_left_mig
     - ptb_spot_3_pops
     - shaker_medium
@@ -1532,7 +1850,7 @@ event_player:
   ##############################################
 
   # Spinner — 2 spotted pops, gated by 3s cooldown timer + shaker
-  spinner_shot_made{(current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5) and device.timers.ptb_spinner_spot_cooldown.running==False}:
+  spinner_shot_made{(current_player.ptb_step==1 or current_player.ptb_step==3 or current_player.ptb_step==5) and device.timers.ptb_spinner_spot_cooldown.running==False and current_player.ptb_step_locked==0}:
     - ptb_spot_2_pops
     - shaker_medium
 
@@ -1797,6 +2115,22 @@ sound_player:
   # Dogfight lost callout
   ptb_dogfight_lost_event:
     voice_hard_deck_dogfight_football_lost:
+      bus: voice
+      loops: 0
+
+  # Drain penalty callouts (Dogfight Football)
+  ptb_dogfight_penalty_no_hold_announce:
+    voice_dogfight_football_no_holds:
+      bus: voice
+      loops: 0
+
+  ptb_dogfight_penalty_reverse_announce:
+    voice_dogfight_football_reverse_flippers:
+      bus: voice
+      loops: 0
+
+  ptb_dogfight_penalty_lights_out_announce:
+    voice_dogfight_football_lights_out:
       bus: voice
       loops: 0
 
@@ -2454,6 +2788,102 @@ light_player:
     l_iceman_n: { color: 0000FF, fade: 0ms }
 
   ##############################################
+  ## PHASE 2: DOGFIGHT — SHOT SHUFFLE (drain penalty system)
+  ## Fires on ptb_dogfight_shuffle_lights (posted from ptb_dogfight_penalty_check
+  ## after every drain). Gated off once lights-out (tier 3, 15 drains) has hit —
+  ## scoring keeps rotating underneath, it's just dark.
+  ##############################################
+  # Variation 1 (index 0) — same layout as initial setup above
+  ptb_dogfight_shuffle_lights{current_player.ptb_dogfight_light_variation==0 and current_player.ptb_dogfight_lights_out_active==0}:
+    l_shot_left_lane: { color: FF0000, fade: 0ms }
+    l_shot_left_ramp: { color: FF0000, fade: 0ms }
+    l_shot_barrier: { color: FF0000, fade: 0ms }
+    l_shot_upper_orbit: { color: FF0000, fade: 0ms }
+    l_shot_right_orbit: { color: FF0000, fade: 0ms }
+    l_iceman_i: { color: FF0000, fade: 0ms }
+    l_iceman_c: { color: FF0000, fade: 0ms }
+    l_iceman_e: { color: FF0000, fade: 0ms }
+    l_shot_left_orbit: { color: 0000FF, fade: 0ms }
+    l_shot_spinner: { color: 0000FF, fade: 0ms }
+    l_shot_tower_ramp: { color: 0000FF, fade: 0ms }
+    l_shot_middle_ramp: { color: 0000FF, fade: 0ms }
+    l_iceman_m: { color: 0000FF, fade: 0ms }
+    l_iceman_a: { color: 0000FF, fade: 0ms }
+    l_iceman_n: { color: 0000FF, fade: 0ms }
+
+  # Variation 2 (index 1) — exact opposite of Variation 1
+  ptb_dogfight_shuffle_lights{current_player.ptb_dogfight_light_variation==1 and current_player.ptb_dogfight_lights_out_active==0}:
+    l_shot_left_orbit: { color: FF0000, fade: 0ms }
+    l_shot_spinner: { color: FF0000, fade: 0ms }
+    l_shot_tower_ramp: { color: FF0000, fade: 0ms }
+    l_shot_middle_ramp: { color: FF0000, fade: 0ms }
+    l_iceman_m: { color: FF0000, fade: 0ms }
+    l_iceman_a: { color: FF0000, fade: 0ms }
+    l_iceman_n: { color: FF0000, fade: 0ms }
+    l_shot_left_lane: { color: 0000FF, fade: 0ms }
+    l_shot_left_ramp: { color: 0000FF, fade: 0ms }
+    l_shot_barrier: { color: 0000FF, fade: 0ms }
+    l_shot_upper_orbit: { color: 0000FF, fade: 0ms }
+    l_shot_right_orbit: { color: 0000FF, fade: 0ms }
+    l_iceman_i: { color: 0000FF, fade: 0ms }
+    l_iceman_c: { color: 0000FF, fade: 0ms }
+    l_iceman_e: { color: 0000FF, fade: 0ms }
+
+  # Variation 3 (index 2) — alternating mix
+  ptb_dogfight_shuffle_lights{current_player.ptb_dogfight_light_variation==2 and current_player.ptb_dogfight_lights_out_active==0}:
+    l_shot_left_lane: { color: FF0000, fade: 0ms }
+    l_shot_barrier: { color: FF0000, fade: 0ms }
+    l_shot_right_orbit: { color: FF0000, fade: 0ms }
+    l_iceman_c: { color: FF0000, fade: 0ms }
+    l_shot_left_orbit: { color: FF0000, fade: 0ms }
+    l_shot_tower_ramp: { color: FF0000, fade: 0ms }
+    l_iceman_m: { color: FF0000, fade: 0ms }
+    l_iceman_n: { color: FF0000, fade: 0ms }
+    l_shot_left_ramp: { color: 0000FF, fade: 0ms }
+    l_shot_upper_orbit: { color: 0000FF, fade: 0ms }
+    l_iceman_i: { color: 0000FF, fade: 0ms }
+    l_iceman_e: { color: 0000FF, fade: 0ms }
+    l_shot_spinner: { color: 0000FF, fade: 0ms }
+    l_shot_middle_ramp: { color: 0000FF, fade: 0ms }
+    l_iceman_a: { color: 0000FF, fade: 0ms }
+
+  # Variation 4 (index 3) — exact opposite of Variation 3
+  ptb_dogfight_shuffle_lights{current_player.ptb_dogfight_light_variation==3 and current_player.ptb_dogfight_lights_out_active==0}:
+    l_shot_left_ramp: { color: FF0000, fade: 0ms }
+    l_shot_upper_orbit: { color: FF0000, fade: 0ms }
+    l_iceman_i: { color: FF0000, fade: 0ms }
+    l_iceman_e: { color: FF0000, fade: 0ms }
+    l_shot_spinner: { color: FF0000, fade: 0ms }
+    l_shot_middle_ramp: { color: FF0000, fade: 0ms }
+    l_iceman_a: { color: FF0000, fade: 0ms }
+    l_shot_left_lane: { color: 0000FF, fade: 0ms }
+    l_shot_barrier: { color: 0000FF, fade: 0ms }
+    l_shot_right_orbit: { color: 0000FF, fade: 0ms }
+    l_iceman_c: { color: 0000FF, fade: 0ms }
+    l_shot_left_orbit: { color: 0000FF, fade: 0ms }
+    l_shot_tower_ramp: { color: 0000FF, fade: 0ms }
+    l_iceman_m: { color: 0000FF, fade: 0ms }
+    l_iceman_n: { color: 0000FF, fade: 0ms }
+
+  # Tier 3 penalty (15 drains) — shot inserts go dark; scoring keeps rotating
+  ptb_dogfight_penalty_lights_out_announce:
+    l_shot_left_lane: { color: off, fade: 0ms }
+    l_shot_left_ramp: { color: off, fade: 0ms }
+    l_shot_barrier: { color: off, fade: 0ms }
+    l_shot_upper_orbit: { color: off, fade: 0ms }
+    l_shot_right_orbit: { color: off, fade: 0ms }
+    l_shot_left_orbit: { color: off, fade: 0ms }
+    l_shot_spinner: { color: off, fade: 0ms }
+    l_shot_tower_ramp: { color: off, fade: 0ms }
+    l_shot_middle_ramp: { color: off, fade: 0ms }
+    l_iceman_i: { color: off, fade: 0ms }
+    l_iceman_c: { color: off, fade: 0ms }
+    l_iceman_e: { color: off, fade: 0ms }
+    l_iceman_m: { color: off, fade: 0ms }
+    l_iceman_a: { color: off, fade: 0ms }
+    l_iceman_n: { color: off, fade: 0ms }
+
+  ##############################################
   ## CLEANUP — Turn off all shot inserts
   ##############################################
   ptb_cleanup:
@@ -2497,6 +2927,8 @@ coil_player:
       action: disable
     c_right_mig_up_post:
       action: disable
+    c_right_orbit_diverter:
+      action: enable
 
   # Post-mode plunge — fires plunger to launch saved ball after end video
   ptb_post_mode_plunge:
@@ -2518,6 +2950,19 @@ coil_player:
     c_right_orbit_diverter:
       action: enable
 
+  ##############################################
+  ## DOGFIGHT — Right orbit diverter must be OPEN whenever the barrier
+  ## target (CNT) shot is lit, or the ball can't reach it. CNT is lit for
+  ## nearly all of dogfight (goes dark only at the lights-out penalty tier),
+  ## so release the diverter directly here rather than via the phase-1
+  ## release/restore events above (those are tied to a 2s auto-restore
+  ## timer meant for the brief TO-shot window, which would re-engage the
+  ## diverter mid-dogfight if reused).
+  ##############################################
+  ptb_dogfight_lights_setup:
+    c_right_orbit_diverter:
+      action: disable
+
   # Left MIG post — raise on spinner/TL hit during rally, lower after 3s
   ptb_raise_left_mig:
     c_left_mig_up_post:
@@ -2534,12 +2979,17 @@ coil_player:
     c_right_mig_up_post:
       action: disable
 
-  # Cleanup — disable both MIG posts
+  # Cleanup — disable both MIG posts, restore right orbit diverter
+  # (diverter is NOT restored at the lights-out penalty tier — the barrier
+  # target shot keeps scoring even while dark, so it must stay reachable —
+  # only here, when dogfight/the mode is actually over)
   ptb_cleanup:
     c_left_mig_up_post:
       action: disable
     c_right_mig_up_post:
       action: disable
+    c_right_orbit_diverter:
+      action: enable
 
 ####################################################################################
 # SHOWS — Light animation patterns
@@ -2973,12 +3423,20 @@ shows:
 #   The variable is SET (not added) on each scoring event, so it reflects
 #   the most recent hit value. Display with a brief visibility timer in Godot.
 #
-# SOUNDS NEEDED (5):
+# SOUNDS NEEDED (8):
 #   voice_playing_with_the_boys_instructions   (intro callout)
 #   voice_dogfight_football_whats_your_plan    (decision callout — plays on decision slide)
 #   voice_dogfight_football_frenzy_instructions (dogfight instructions, plays during scoop hold)
 #   voice_hard_deck_dogfight_football_won      (player's team won)
 #   voice_hard_deck_dogfight_football_lost     (player's team lost)
+#   voice_dogfight_football_no_holds           (drain penalty tier 1 @ 5 drains)
+#   voice_dogfight_football_reverse_flippers   (drain penalty tier 2 @ 10 drains)
+#   voice_dogfight_football_lights_out         (drain penalty tier 3 @ 15 drains)
 #   hard_deck_playing_with_the_boys_music      (phase 1 music, defined in machine config)
+#
+# GODOT SLIDE VARIABLE — Drain penalty countdown:
+#   - Variable Name: ptb_dogfight_drains_until_next_penalty
+#   Counts down to the next tier (5 -> 0, then 10 -> 0, then 15 -> 0);
+#   reads 0 once all three tiers have been applied for the ball.
 #
 ####################################################################################

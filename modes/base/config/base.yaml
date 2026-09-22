@@ -153,6 +153,22 @@ timers:
       - event: right_lane_post_triggered
         action: restart
 
+  ##############################################
+  ## RESTART VIA HOLD - hold left flipper + start for 3s to end game
+  ##############################################
+  restart_hold_timer:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: restart_hold_started
+        action: start
+      - event: restart_hold_cancelled
+        action: stop
+      - event: restart_hold_cancelled
+        action: reset
+
 event_player:
   mode_base_started:
     - start_mode_bumpers
@@ -288,7 +304,36 @@ event_player:
   s_orbit_right_active:
     - plunger_eject_confirmed
 
+  ##############################################
+  ## RESTART VIA HOLD - hold left flipper + start for 3s to end game
+  ##############################################
+  s_flipper_left_active{device.switches.s_start.state}:
+    - restart_hold_started
+  s_start_active{device.switches.s_flipper_left.state}:
+    - restart_hold_started
+
+  s_flipper_left_inactive:
+    - restart_hold_cancelled
+  s_start_inactive:
+    - restart_hold_cancelled
+
+  timer_restart_hold_timer_complete{game}:
+    - restart_hold_confirmed
+
 variable_player:
+
+  ##############################################
+  ## RESTART VIA HOLD - flag so tilt.yaml can tell this apart from a real tilt
+  ##############################################
+  timer_restart_hold_timer_complete{game}:
+    restart_hold_active:
+      action: set
+      int: 1
+
+  game_started:
+    restart_hold_active:
+      action: set
+      int: 0
 
   ##############################################
   ## LEFT ORBIT SAFE RETURN — outlane save arm/resolve
@@ -414,6 +459,36 @@ variable_player:
       int: 0
     diverter_temporarily_disabled:
       action: set
+      int: 0
+
+  ##############################################
+  ## RAMP TRUE-STATE TRACKING (for ball search recovery)
+  ## Tracks what each ramp servo is actually supposed to be commanded to,
+  ## per the active mode/game logic. Gated on ball_search_active_flag==0
+  ## so ball_search_servos.yaml's own probe movements during a search
+  ## never overwrite this — it stays frozen at the pre-search value for
+  ## the whole search (including repeat cycles), and ball_search_servos.yaml
+  ## reads it on ball_search_stopped to restore the correct position instead
+  ## of blindly forcing both ramps down.
+  ##############################################
+  right_ramp_up{machine.ball_search_active_flag==0}:
+    right_ramp_true_state:
+      action: set_machine
+      int: 1
+
+  right_ramp_down{machine.ball_search_active_flag==0}:
+    right_ramp_true_state:
+      action: set_machine
+      int: 0
+
+  top_ramp_up{machine.ball_search_active_flag==0}:
+    top_ramp_true_state:
+      action: set_machine
+      int: 1
+
+  top_ramp_down{machine.ball_search_active_flag==0}:
+    top_ramp_true_state:
+      action: set_machine
       int: 0
 
   s_shooter_lane_active{current_player.right_orbit_diverter_requested==1}:

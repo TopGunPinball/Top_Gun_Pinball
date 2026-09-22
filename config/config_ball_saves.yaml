@@ -33,6 +33,7 @@ ball_saves:
     auto_launch: false             # Handled by 1s delay timer in ball_save.yaml
     balls_to_save: -1             # Unlimited saves for full 20s duration
     enable_events: ball_save_new_ball_enable
+    early_ball_save_events: s_outlane_left_active, s_outlane_right_active
     disable_events: ball_save_new_ball_disable
     timer_start_events: ball_save_new_ball_timer_start
     debug: true
@@ -52,6 +53,7 @@ ball_saves:
     auto_launch: false             # Handled by 1s delay timer in ball_save.yaml
     balls_to_save: -1             # UNLIMITED saves during active time
     enable_events: ball_save_mode_timer_start
+    early_ball_save_events: s_outlane_left_active, s_outlane_right_active
     disable_events: ball_save_mode_disable, timer_mode_ball_save_countdown_complete
     debug: true
 
@@ -74,6 +76,15 @@ ball_saves:
     # OR pilot_training_mission_inverted dropping to its last ball (gives the
     # player a window to get back to normal flippers without losing the ball).
     enable_events: balldevice_bd_mode_scoop_ejecting_ball, lock_goose_virtual_locked, lock_mav_virtual_locked, pilot_training_mission_inverted_last_ball_scoop_save
+    # Gated to stand down whenever mode_ball_save is also enabled — otherwise
+    # a single outlane drain satisfies BOTH devices' early_ball_save condition
+    # at once (they were both listening to the same raw switch), and each one
+    # independently commands the trough to eject a ball, kicking out two balls
+    # for one drain. mode_ball_save is "the real one" (see priority note in
+    # ball_save.yaml's SCOOP EJECT SAVE LIGHT FLASH section), so it wins.
+    early_ball_save_events: >
+      s_outlane_left_active{device.ball_saves.mode_ball_save.enabled==False},
+      s_outlane_right_active{device.ball_saves.mode_ball_save.enabled==False}
     debug: true
 
   ##############################################################################
@@ -93,6 +104,21 @@ ball_saves:
     grace_period: 0s
     auto_launch: true
     balls_to_save: 1
-    enable_events: right_lane_ball_save_hit
-    disable_events: right_lane_ball_save_cancel
+    # Enabled at ARM (post drop), not HIT (outlane switch) — enabling on the
+    # hit event is always one event too late to also catch that same switch
+    # as an early_ball_save_event. Arming here means the device is already
+    # listening by the time the outlane switch can possibly fire.
+    enable_events: right_lane_ball_save_watch_armed
+    # Fires the replacement immediately on the outlane hit instead of waiting
+    # for the ball to physically reach the trough. Gated to the armed window
+    # (matches base.yaml's own pending check) and stands down if new_ball_save
+    # or mode_ball_save are also currently enabled, so we don't stack a third
+    # independent early-save claim onto the same switch event.
+    early_ball_save_events: >
+      s_outlane_right_active{current_player.right_lane_ball_save_pending==1
+        and device.ball_saves.new_ball_save.enabled==False
+        and device.ball_saves.mode_ball_save.enabled==False}
+    # Custom disable_events overrides (doesn't merge with) the default list,
+    # so ball_will_end is added back explicitly as a safety net.
+    disable_events: right_lane_ball_save_cancel, ball_will_end
     debug: true

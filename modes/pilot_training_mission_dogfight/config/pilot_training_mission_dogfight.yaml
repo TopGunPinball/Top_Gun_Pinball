@@ -237,6 +237,11 @@ variable_player:
     letter_collection_paused: { action: set, int: 1 }
     dogfight_step: { action: set, int: 0 }
     dogfight_complete_flag: { action: set, int: 0 }
+    # Cleared at mode start; set the instant dogfight_failed fires so every
+    # step's shot switches stop scoring immediately, even though the mode
+    # stays "active" for the full lost-video delay (dogfight_lost_done only
+    # fires after timer_dogfight_lost_delay_complete or a both-flipper skip).
+    dogfight_step_locked: { action: set, int: 0 }
     dogfight_shots_remaining: { action: set, int: 12 }
     mode_points_scored: { action: set, int: 0 }
     dogfight_s2_hit: { action: set, int: 0 }
@@ -265,6 +270,12 @@ variable_player:
   ball_will_end{mode.pilot_training_mission_dogfight.active==True}:
     pilot_mode_drain_pending: { action: set, int: 1 }
 
+  # Lock all shot scoring the instant the mode fails (timer expiry or drain
+  # both route through this event). The mode stays "active" for the full
+  # lost-video delay, so without this flag any switch matching the current
+  # step (including the moving target at step 4 and the 9-11 shared-step
+  # shots) still scores during the lost video even though the shots/lights
+  # are already killed by dogfight_cleanup.
   # Penalty active flag (first-activation gating)
   dogfight_penalty_activate:
     dogfight_penalty_active: { action: set, int: 1 }
@@ -336,6 +347,13 @@ variable_player:
   # Lost video phase flags
   dogfight_failed:
     dogfight_lost_video_active: { action: set, int: 1 }
+    # Lock all shot scoring the instant the mode fails (timer expiry or drain
+    # both route through this event). The mode stays "active" for the full
+    # lost-video delay, so without this flag any switch matching the current
+    # step (including the moving target at step 4 and the 9-11 shared-step
+    # shots) still scores during the lost video even though the shots/lights
+    # are already killed by dogfight_cleanup.
+    dogfight_step_locked: { action: set, int: 1 }
   dogfight_lost_done:
     dogfight_lost_video_active: { action: set, int: 0 }
 
@@ -469,9 +487,9 @@ event_player:
   ##############################################
   ## SKIP INTRO - both flippers during intro window (phoenix-style)
   ##############################################
-  s_flipper_left_active{current_player.dogfight_step==0 and device.timers.dogfight_intro_video_delay.running}:
+  s_flipper_left_active{current_player.dogfight_step==0 and device.timers.dogfight_intro_video_delay.running and current_player.dogfight_step_locked==0}:
     - dogfight_check_skip_intro
-  s_flipper_right_active{current_player.dogfight_step==0 and device.timers.dogfight_intro_video_delay.running}:
+  s_flipper_right_active{current_player.dogfight_step==0 and device.timers.dogfight_intro_video_delay.running and current_player.dogfight_step_locked==0}:
     - dogfight_check_skip_intro
   dogfight_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
     - dogfight_skip_intro
@@ -533,11 +551,11 @@ event_player:
   ##############################################
   ## STEP 1: LR | RR  (hit either)
   ##############################################
-  s_ramp_left_exit_active{current_player.dogfight_step==0}:
+  s_ramp_left_exit_active{current_player.dogfight_step==0 and current_player.dogfight_step_locked==0}:
     - dogfight_step_1_complete
     - dogfight_step_1_shot_hit
     - dogfight_setup_step_2
-  s_ramp_right_exit_active{current_player.dogfight_step==0}:
+  s_ramp_right_exit_active{current_player.dogfight_step==0 and current_player.dogfight_step_locked==0}:
     - dogfight_step_1_complete
     - dogfight_step_1_shot_hit
     - dogfight_setup_step_2
@@ -547,23 +565,23 @@ event_player:
   ##############################################
   dogfight_setup_step_2:
     - orbit_left_safe_return_arm
-  left_orbit_shot_hit{current_player.dogfight_step==1}:
+  left_orbit_shot_hit{current_player.dogfight_step==1 and current_player.dogfight_step_locked==0}:
     - dogfight_step_2_complete
     - dogfight_s2_hit_lo
     - dogfight_step_2_shot_hit
     - dogfight_setup_step_3
     - orbit_left_safe_return_clear|700ms
-  s_ramp_left_exit_active{current_player.dogfight_step==1}:
+  s_ramp_left_exit_active{current_player.dogfight_step==1 and current_player.dogfight_step_locked==0}:
     - dogfight_step_2_complete
     - dogfight_s2_hit_lr
     - dogfight_step_2_shot_hit
     - dogfight_setup_step_3
-  s_ramp_tower_exit_active{current_player.dogfight_step==1}:
+  s_ramp_tower_exit_active{current_player.dogfight_step==1 and current_player.dogfight_step_locked==0}:
     - dogfight_step_2_complete
     - dogfight_s2_hit_twr
     - dogfight_step_2_shot_hit
     - dogfight_setup_step_3
-  s_ramp_right_exit_active{current_player.dogfight_step==1}:
+  s_ramp_right_exit_active{current_player.dogfight_step==1 and current_player.dogfight_step_locked==0}:
     - dogfight_step_2_complete
     - dogfight_s2_hit_rr
     - dogfight_step_2_shot_hit
@@ -577,30 +595,30 @@ event_player:
     - orbit_left_safe_return_arm
   dogfight_setup_step_3{current_player.dogfight_s2_hit==1}:
     - orbit_left_safe_return_clear
-  left_orbit_shot_hit{current_player.dogfight_step==2 and current_player.dogfight_s2_hit!=1}:
+  left_orbit_shot_hit{current_player.dogfight_step==2 and current_player.dogfight_s2_hit!=1 and current_player.dogfight_step_locked==0}:
     - dogfight_step_3_complete
     - dogfight_step_3_shot_hit
     - dogfight_setup_step_4
     - orbit_left_safe_return_clear|700ms
-  left_orbit_shot_hit{current_player.dogfight_step==2 and current_player.dogfight_s2_hit==1}:
+  left_orbit_shot_hit{current_player.dogfight_step==2 and current_player.dogfight_s2_hit==1 and current_player.dogfight_step_locked==0}:
     - dogfight_bad_shot_hit
-  s_ramp_left_exit_active{current_player.dogfight_step==2 and current_player.dogfight_s2_hit!=2}:
+  s_ramp_left_exit_active{current_player.dogfight_step==2 and current_player.dogfight_s2_hit!=2 and current_player.dogfight_step_locked==0}:
     - dogfight_step_3_complete
     - dogfight_step_3_shot_hit
     - dogfight_setup_step_4
-  s_ramp_left_exit_active{current_player.dogfight_step==2 and current_player.dogfight_s2_hit==2}:
+  s_ramp_left_exit_active{current_player.dogfight_step==2 and current_player.dogfight_s2_hit==2 and current_player.dogfight_step_locked==0}:
     - dogfight_bad_shot_hit
-  s_ramp_tower_exit_active{current_player.dogfight_step==2 and current_player.dogfight_s2_hit!=3}:
+  s_ramp_tower_exit_active{current_player.dogfight_step==2 and current_player.dogfight_s2_hit!=3 and current_player.dogfight_step_locked==0}:
     - dogfight_step_3_complete
     - dogfight_step_3_shot_hit
     - dogfight_setup_step_4
-  s_ramp_tower_exit_active{current_player.dogfight_step==2 and current_player.dogfight_s2_hit==3}:
+  s_ramp_tower_exit_active{current_player.dogfight_step==2 and current_player.dogfight_s2_hit==3 and current_player.dogfight_step_locked==0}:
     - dogfight_bad_shot_hit
-  s_ramp_right_exit_active{current_player.dogfight_step==2 and current_player.dogfight_s2_hit!=4}:
+  s_ramp_right_exit_active{current_player.dogfight_step==2 and current_player.dogfight_s2_hit!=4 and current_player.dogfight_step_locked==0}:
     - dogfight_step_3_complete
     - dogfight_step_3_shot_hit
     - dogfight_setup_step_4
-  s_ramp_right_exit_active{current_player.dogfight_step==2 and current_player.dogfight_s2_hit==4}:
+  s_ramp_right_exit_active{current_player.dogfight_step==2 and current_player.dogfight_s2_hit==4 and current_player.dogfight_step_locked==0}:
     - dogfight_bad_shot_hit
 
   ##############################################
@@ -627,36 +645,36 @@ event_player:
   dogfight_step4_advance{current_player.dogfight_step4_position==11}: [dogfight_step4_set_0,  dogfight_step4_alloff, dogfight_step4_lit_0]
 
   # Step 4 shot detection (current position OR 1s grace position)
-  spinner_shot_made{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==0 or current_player.dogfight_step4_position==8 or current_player.dogfight_step4_grace_pos==0 or current_player.dogfight_step4_grace_pos==8)}:
+  spinner_shot_made{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==0 or current_player.dogfight_step4_position==8 or current_player.dogfight_step4_grace_pos==0 or current_player.dogfight_step4_grace_pos==8) and current_player.dogfight_step_locked==0}:
     - dogfight_step_4_complete
     - dogfight_step_4_shot_hit
     - dogfight_setup_step_5
-  s_ramp_tower_exit_active{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==1 or current_player.dogfight_step4_position==7 or current_player.dogfight_step4_grace_pos==1 or current_player.dogfight_step4_grace_pos==7)}:
+  s_ramp_tower_exit_active{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==1 or current_player.dogfight_step4_position==7 or current_player.dogfight_step4_grace_pos==1 or current_player.dogfight_step4_grace_pos==7) and current_player.dogfight_step_locked==0}:
     - dogfight_step_4_complete
     - dogfight_step_4_shot_hit
     - dogfight_setup_step_5
-  s_orbit_upper_active{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==2 or current_player.dogfight_step4_position==6 or current_player.dogfight_step4_grace_pos==2 or current_player.dogfight_step4_grace_pos==6)}:
+  s_orbit_upper_active{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==2 or current_player.dogfight_step4_position==6 or current_player.dogfight_step4_grace_pos==2 or current_player.dogfight_step4_grace_pos==6) and current_player.dogfight_step_locked==0}:
     - dogfight_step_4_complete
     - dogfight_step_4_shot_hit
     - dogfight_setup_step_5
-  s_ramp_inner_exit_active{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==3 or current_player.dogfight_step4_position==5 or current_player.dogfight_step4_grace_pos==3 or current_player.dogfight_step4_grace_pos==5)}:
+  s_ramp_inner_exit_active{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==3 or current_player.dogfight_step4_position==5 or current_player.dogfight_step4_grace_pos==3 or current_player.dogfight_step4_grace_pos==5) and current_player.dogfight_step_locked==0}:
     - dogfight_step_4_complete
     - dogfight_step_4_shot_hit
     - dogfight_setup_step_5
-  s_ramp_right_exit_active{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==4 or current_player.dogfight_step4_grace_pos==4)}:
+  s_ramp_right_exit_active{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==4 or current_player.dogfight_step4_grace_pos==4) and current_player.dogfight_step_locked==0}:
     - dogfight_step_4_complete
     - dogfight_step_4_shot_hit
     - dogfight_setup_step_5
-  s_ramp_left_exit_active{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==9 or current_player.dogfight_step4_position==11 or current_player.dogfight_step4_grace_pos==9 or current_player.dogfight_step4_grace_pos==11)}:
+  s_ramp_left_exit_active{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==9 or current_player.dogfight_step4_position==11 or current_player.dogfight_step4_grace_pos==9 or current_player.dogfight_step4_grace_pos==11) and current_player.dogfight_step_locked==0}:
     - dogfight_step_4_complete
     - dogfight_step_4_shot_hit
     - dogfight_setup_step_5
   # Direct-arm (bypassing the flag) since this is a rapidly-changing moving
   # target position — same technique used for pilot_mission_qualifier's LO,
   # avoids racing base.yaml's own check on this same raw switch event.
-  s_orbit_left_active{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==10 or current_player.dogfight_step4_grace_pos==10)}:
+  s_orbit_left_active{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==10 or current_player.dogfight_step4_grace_pos==10) and current_player.dogfight_step_locked==0}:
     - right_lane_safe_return_armed
-  left_orbit_shot_hit{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==10 or current_player.dogfight_step4_grace_pos==10)}:
+  left_orbit_shot_hit{current_player.dogfight_step==3 and (current_player.dogfight_step4_position==10 or current_player.dogfight_step4_grace_pos==10) and current_player.dogfight_step_locked==0}:
     - dogfight_step_4_complete
     - dogfight_step_4_shot_hit
     - dogfight_setup_step_5
@@ -667,18 +685,18 @@ event_player:
   dogfight_setup_step_5:
     - right_ramp_up
     - orbit_left_safe_return_arm
-  left_orbit_shot_hit{current_player.dogfight_step==4}:
+  left_orbit_shot_hit{current_player.dogfight_step==4 and current_player.dogfight_step_locked==0}:
     - dogfight_step_5_complete
     - dogfight_s5_hit_lo
     - dogfight_step_5_shot_hit
     - dogfight_setup_step_6
     - orbit_left_safe_return_clear|700ms
-  spinner_shot_made{current_player.dogfight_step==4}:
+  spinner_shot_made{current_player.dogfight_step==4 and current_player.dogfight_step_locked==0}:
     - dogfight_step_5_complete
     - dogfight_s5_hit_sp
     - dogfight_step_5_shot_hit
     - dogfight_setup_step_6
-  right_orbit_shot_hit{current_player.dogfight_step==4}:
+  right_orbit_shot_hit{current_player.dogfight_step==4 and current_player.dogfight_step_locked==0}:
     - dogfight_step_5_complete
     - dogfight_s5_hit_ro
     - dogfight_step_5_shot_hit
@@ -692,24 +710,24 @@ event_player:
     - orbit_left_safe_return_arm
   dogfight_setup_step_6{current_player.dogfight_s5_hit==1}:
     - orbit_left_safe_return_clear
-  left_orbit_shot_hit{current_player.dogfight_step==5 and current_player.dogfight_s5_hit!=1}:
+  left_orbit_shot_hit{current_player.dogfight_step==5 and current_player.dogfight_s5_hit!=1 and current_player.dogfight_step_locked==0}:
     - dogfight_step_6_complete
     - dogfight_step_6_shot_hit
     - dogfight_setup_step_7
     - orbit_left_safe_return_clear|700ms
-  left_orbit_shot_hit{current_player.dogfight_step==5 and current_player.dogfight_s5_hit==1}:
+  left_orbit_shot_hit{current_player.dogfight_step==5 and current_player.dogfight_s5_hit==1 and current_player.dogfight_step_locked==0}:
     - dogfight_bad_shot_hit
-  spinner_shot_made{current_player.dogfight_step==5 and current_player.dogfight_s5_hit!=2}:
+  spinner_shot_made{current_player.dogfight_step==5 and current_player.dogfight_s5_hit!=2 and current_player.dogfight_step_locked==0}:
     - dogfight_step_6_complete
     - dogfight_step_6_shot_hit
     - dogfight_setup_step_7
-  spinner_shot_made{current_player.dogfight_step==5 and current_player.dogfight_s5_hit==2}:
+  spinner_shot_made{current_player.dogfight_step==5 and current_player.dogfight_s5_hit==2 and current_player.dogfight_step_locked==0}:
     - dogfight_bad_shot_hit
-  right_orbit_shot_hit{current_player.dogfight_step==5 and current_player.dogfight_s5_hit!=3}:
+  right_orbit_shot_hit{current_player.dogfight_step==5 and current_player.dogfight_s5_hit!=3 and current_player.dogfight_step_locked==0}:
     - dogfight_step_6_complete
     - dogfight_step_6_shot_hit
     - dogfight_setup_step_7
-  right_orbit_shot_hit{current_player.dogfight_step==5 and current_player.dogfight_s5_hit==3}:
+  right_orbit_shot_hit{current_player.dogfight_step==5 and current_player.dogfight_s5_hit==3 and current_player.dogfight_step_locked==0}:
     - dogfight_bad_shot_hit
 
   ##############################################
@@ -717,7 +735,7 @@ event_player:
   ##############################################
   dogfight_setup_step_7:
     - right_ramp_down
-  s_ramp_tower_exit_active{current_player.dogfight_step==6}:
+  s_ramp_tower_exit_active{current_player.dogfight_step==6 and current_player.dogfight_step_locked==0}:
     - dogfight_step_7_complete
     - dogfight_step_7_shot_hit
     - dogfight_setup_step_8
@@ -725,7 +743,7 @@ event_player:
   ##############################################
   ## STEP 8: CNT - barrier is already UP (held by qualifier the whole mode)
   ##############################################
-  s_barrier_target_active{current_player.dogfight_step==7}:
+  s_barrier_target_active{current_player.dogfight_step==7 and current_player.dogfight_step_locked==0}:
     - dogfight_step_8_complete
     - dogfight_step_8_shot_hit
     - dogfight_setup_step_9
@@ -803,15 +821,15 @@ event_player:
   dogfight_setup_step_12:
     - right_ramp_down
     - orbit_left_safe_return_clear
-  spinner_shot_made{current_player.dogfight_step==11}:
+  spinner_shot_made{current_player.dogfight_step==11 and current_player.dogfight_step_locked==0}:
     - dogfight_open_diverter
-  s_orbit_upper_active{current_player.dogfight_step==11}:
+  s_orbit_upper_active{current_player.dogfight_step==11 and current_player.dogfight_step_locked==0}:
     - dogfight_open_diverter
   dogfight_open_diverter:
     - left_orbit_diverter_open
   timer_dogfight_diverter_hold_complete:
     - left_orbit_diverter_closed
-  s_lane_left_active{current_player.dogfight_step==11}:
+  s_lane_left_active{current_player.dogfight_step==11 and current_player.dogfight_step_locked==0}:
     - dogfight_step_12_complete
     - dogfight_complete
 

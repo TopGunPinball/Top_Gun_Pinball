@@ -132,6 +132,21 @@ func _debug_mpf(exec: String, args: Array):
 	OS.execute(exec, args, output, true)
 	self.log.error("Unable to start MPF:\n%s" % "\n".join(output))
 
+## Fires as soon as a quit is requested (X button, Alt+F4, or Esc), while the
+## BCP connection to MPF is still fully alive. Ask MPF to shut down gracefully
+## over the existing connection - this triggers MPF's own 'shutdown' event,
+## which the config already uses to turn off every light and coil.
+func _notification(what):
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and mpf_pid:
+		self.mpf.server.send_event("shutdown", false)
+
 func _exit_tree():
 	if mpf_pid:
-		OS.execute("kill", [mpf_pid])
+		# Give MPF a brief moment to receive and act on the graceful shutdown
+		# request sent above before we force it closed below.
+		OS.delay_msec(300)
+		match OS.get_name():
+			"Windows":
+				OS.execute("taskkill", ["/PID", str(mpf_pid), "/F"])
+			_:
+				OS.execute("kill", [str(mpf_pid)])

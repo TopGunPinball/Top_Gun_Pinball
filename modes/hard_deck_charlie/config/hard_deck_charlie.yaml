@@ -335,6 +335,15 @@ variable_player:
     charlie_complete_flag:
       action: set
       int: 0
+    # Cleared at mode start; set the instant ANY stage fails (all 4 stage-failure
+    # handlers route through this). The mode stays "active" for that stage's
+    # lost-video delay, so without this flag any switch matching the current
+    # stage still scores during the lost video. charlie_complete_flag alone
+    # doesn't cover this — it's only set to 1 on full mode completion (stage 4),
+    # not on a per-stage failure.
+    charlie_stage_locked:
+      action: set
+      int: 0
     charlie_timer_ticks:
       action: set
       int: 150
@@ -429,6 +438,17 @@ variable_player:
   ##############################################
   ball_will_end{mode.hard_deck_charlie.active==True}:
     pilot_mode_drain_pending:
+      action: set
+      int: 1
+
+  # Lock all shot scoring the instant ANY stage fails (main timer expiry or
+  # drain both route through this event before being dispatched to the
+  # stage-specific handler above). The mode stays "active" for that stage's
+  # lost-video delay, so without this flag any switch matching the current
+  # stage still scores during the lost video even though the shots/lights
+  # are already killed by hard_deck_charlie_cleanup.
+  hard_deck_charlie_failed:
+    charlie_stage_locked:
       action: set
       int: 1
 
@@ -934,20 +954,20 @@ event_player:
   ## mode not complete.
   ##############################################
   # LO — composite event fired by pilot_mission_qualifier (s_orbit_left → s_orbit_right within 2s)
-  left_orbit_shot_hit{current_player.charlie_stage==1 and current_player.charlie_stage_1_lo_hit==0 and current_player.charlie_stage_1_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+  left_orbit_shot_hit{current_player.charlie_stage==1 and current_player.charlie_stage_1_lo_hit==0 and current_player.charlie_stage_1_final_shot_lit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_1_lo_hit
     - charlie_stage_1_shot_hit
     - orbit_left_safe_return_clear|700ms
 
-  s_ramp_left_exit_active{current_player.charlie_stage==1 and current_player.charlie_stage_1_lr_hit==0 and current_player.charlie_stage_1_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+  s_ramp_left_exit_active{current_player.charlie_stage==1 and current_player.charlie_stage_1_lr_hit==0 and current_player.charlie_stage_1_final_shot_lit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_1_lr_hit
     - charlie_stage_1_shot_hit
 
-  s_ramp_tower_exit_active{current_player.charlie_stage==1 and current_player.charlie_stage_1_twr_hit==0 and current_player.charlie_stage_1_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+  s_ramp_tower_exit_active{current_player.charlie_stage==1 and current_player.charlie_stage_1_twr_hit==0 and current_player.charlie_stage_1_final_shot_lit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_1_twr_hit
     - charlie_stage_1_shot_hit
 
-  s_ramp_right_exit_active{current_player.charlie_stage==1 and current_player.charlie_stage_1_rr_hit==0 and current_player.charlie_stage_1_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+  s_ramp_right_exit_active{current_player.charlie_stage==1 and current_player.charlie_stage_1_rr_hit==0 and current_player.charlie_stage_1_final_shot_lit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_1_rr_hit
     - charlie_stage_1_shot_hit
 
@@ -995,7 +1015,7 @@ event_player:
   ## Re-enable ball_holds capture (charlie_stage_1_final_shot_setup_hold).
   ## Then fire the win.
   ##############################################
-  s_mode_start_active{current_player.charlie_stage==1 and current_player.charlie_stage_1_final_shot_lit==1 and current_player.charlie_complete_flag==0}:
+  s_mode_start_active{current_player.charlie_stage==1 and current_player.charlie_stage_1_final_shot_lit==1 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_1_final_shot_setup_hold
     - charlie_stage_1_final_shot_hit
 
@@ -1063,7 +1083,7 @@ event_player:
   ## hard_deck_charlie_cleanup lowers the top ramp on any mode exit/fail.
   ##############################################
   # Spinner #1 — composite (3 spins). Active when spin_count==0
-  spinner_shot_made{current_player.charlie_stage==2 and current_player.charlie_stage_2_spin_count==0 and current_player.charlie_stage_2_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+  spinner_shot_made{current_player.charlie_stage==2 and current_player.charlie_stage_2_spin_count==0 and current_player.charlie_stage_2_final_shot_lit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_2_sp1_hit
     - charlie_stage_2_shot_hit
 
@@ -1073,7 +1093,7 @@ event_player:
 
   # TO — after SP1. Active when spin_count==1 and to not yet hit.
   # s_orbit_lower is the under-top-ramp switch; top_ramp must be UP for ball to reach it.
-  s_orbit_lower_active{current_player.charlie_stage==2 and current_player.charlie_stage_2_spin_count==1 and current_player.charlie_stage_2_to_hit==0 and current_player.charlie_stage_2_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+  s_orbit_lower_active{current_player.charlie_stage==2 and current_player.charlie_stage_2_spin_count==1 and current_player.charlie_stage_2_to_hit==0 and current_player.charlie_stage_2_final_shot_lit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_2_to_hit
     - charlie_stage_2_shot_hit
 
@@ -1082,14 +1102,14 @@ event_player:
     - top_ramp_down
 
   # Spinner #2 — after TO. Active when spin_count==1 and to_hit==1
-  spinner_shot_made{current_player.charlie_stage==2 and current_player.charlie_stage_2_spin_count==1 and current_player.charlie_stage_2_to_hit==1 and current_player.charlie_stage_2_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+  spinner_shot_made{current_player.charlie_stage==2 and current_player.charlie_stage_2_spin_count==1 and current_player.charlie_stage_2_to_hit==1 and current_player.charlie_stage_2_final_shot_lit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_2_sp2_hit
     - charlie_stage_2_shot_hit
 
   # RO (final/4th shot) — only hittable once spin_count==2 (all 3 non-finals done).
   # Use raw s_orbit_right_active because diverter sends ball to left lane,
   # so the right_orbit_shot_hit composite (which needs s_orbit_left after) won't fire.
-  s_orbit_right_active{current_player.charlie_stage==2 and current_player.charlie_stage_2_final_shot_lit==1 and current_player.charlie_stage_2_ro_hit==0 and current_player.charlie_complete_flag==0}:
+  s_orbit_right_active{current_player.charlie_stage==2 and current_player.charlie_stage_2_final_shot_lit==1 and current_player.charlie_stage_2_ro_hit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_2_ro_triggered
 
   charlie_stage_2_ro_triggered:
@@ -1132,7 +1152,7 @@ event_player:
   ## Diverter sent ball to left lane → s_lane_left fires.
   ## Capture ball at left lane post, fire shot_4 + final_shot_hit, close diverter.
   ##############################################
-  s_lane_left_active{current_player.charlie_stage==2 and current_player.charlie_stage_2_final_shot_lit==1 and current_player.charlie_stage_2_ro_hit==0 and current_player.charlie_complete_flag==0}:
+  s_lane_left_active{current_player.charlie_stage==2 and current_player.charlie_stage_2_final_shot_lit==1 and current_player.charlie_stage_2_ro_hit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_2_ro_captured
 
   charlie_stage_2_ro_captured:
@@ -1200,29 +1220,29 @@ event_player:
   ## prevents iceman_letters from firing, so progress is preserved.
   ##############################################
   # ICE group — any of I/C/E
-  s_i_iceman_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_ice_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+  s_i_iceman_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_ice_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_3_ice_hit
     - charlie_stage_3_shot_hit
-  s_c_iceman_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_ice_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+  s_c_iceman_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_ice_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_3_ice_hit
     - charlie_stage_3_shot_hit
-  s_e_iceman_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_ice_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+  s_e_iceman_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_ice_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_3_ice_hit
     - charlie_stage_3_shot_hit
 
   # MAN group — any of M/A/N
-  s_m_iceman_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_man_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+  s_m_iceman_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_man_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_3_man_hit
     - charlie_stage_3_shot_hit
-  s_a_iceman_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_man_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+  s_a_iceman_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_man_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_3_man_hit
     - charlie_stage_3_shot_hit
-  s_n_iceman_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_man_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+  s_n_iceman_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_man_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_3_man_hit
     - charlie_stage_3_shot_hit
 
   # Barrier target (s_barrier_target, barrier UP)
-  s_barrier_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_barrier_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+  s_barrier_target_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_barrier_hit==0 and current_player.charlie_stage_3_final_shot_lit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_3_barrier_hit
     - charlie_stage_3_shot_hit
 
@@ -1260,14 +1280,14 @@ event_player:
   ##############################################
   ## STAGE 3 RO HIT + BALL CAPTURE (same pattern as stage 2)
   ##############################################
-  s_orbit_right_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_final_shot_lit==1 and current_player.charlie_stage_3_ro_hit==0 and current_player.charlie_complete_flag==0}:
+  s_orbit_right_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_final_shot_lit==1 and current_player.charlie_stage_3_ro_hit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_3_ro_triggered
 
   charlie_stage_3_ro_triggered:
     - left_orbit_diverter_open
     - charlie_diverter_assist_trigger
 
-  s_lane_left_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_final_shot_lit==1 and current_player.charlie_stage_3_ro_hit==0 and current_player.charlie_complete_flag==0}:
+  s_lane_left_active{current_player.charlie_stage==3 and current_player.charlie_stage_3_final_shot_lit==1 and current_player.charlie_stage_3_ro_hit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_3_ro_captured
 
   charlie_stage_3_ro_captured:
@@ -1355,19 +1375,19 @@ event_player:
   ## Then scoop (s_mode_start) as final.
   ##############################################
   # TO — s_orbit_lower (top ramp UP)
-  s_orbit_lower_active{current_player.charlie_stage==4 and current_player.charlie_stage_4_to_hit==0 and current_player.charlie_stage_4_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+  s_orbit_lower_active{current_player.charlie_stage==4 and current_player.charlie_stage_4_to_hit==0 and current_player.charlie_stage_4_final_shot_lit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_4_to_hit
     - charlie_stage_4_shot_hit
 
-  s_ramp_tower_exit_active{current_player.charlie_stage==4 and current_player.charlie_stage_4_twr_hit==0 and current_player.charlie_stage_4_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+  s_ramp_tower_exit_active{current_player.charlie_stage==4 and current_player.charlie_stage_4_twr_hit==0 and current_player.charlie_stage_4_final_shot_lit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_4_twr_hit
     - charlie_stage_4_shot_hit
 
-  s_ramp_right_exit_active{current_player.charlie_stage==4 and current_player.charlie_stage_4_rr_hit==0 and current_player.charlie_stage_4_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+  s_ramp_right_exit_active{current_player.charlie_stage==4 and current_player.charlie_stage_4_rr_hit==0 and current_player.charlie_stage_4_final_shot_lit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_4_rr_hit
     - charlie_stage_4_shot_hit
 
-  s_ramp_left_exit_active{current_player.charlie_stage==4 and current_player.charlie_stage_4_lr_hit==0 and current_player.charlie_stage_4_final_shot_lit==0 and current_player.charlie_complete_flag==0}:
+  s_ramp_left_exit_active{current_player.charlie_stage==4 and current_player.charlie_stage_4_lr_hit==0 and current_player.charlie_stage_4_final_shot_lit==0 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_4_lr_hit
     - charlie_stage_4_shot_hit
 
@@ -1414,7 +1434,7 @@ event_player:
   ## Top ramp lowers AFTER ball captured.
   ## No decision — won video plays for stage_4_won_delay (6s), then ball auto-releases.
   ##############################################
-  s_mode_start_active{current_player.charlie_stage==4 and current_player.charlie_stage_4_final_shot_lit==1 and current_player.charlie_complete_flag==0}:
+  s_mode_start_active{current_player.charlie_stage==4 and current_player.charlie_stage_4_final_shot_lit==1 and current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - charlie_stage_4_final_shot_setup_hold
     - charlie_stage_4_final_shot_hit
 
@@ -1448,7 +1468,7 @@ event_player:
   hard_deck_charlie_ball_ending_hold:
     - hard_deck_charlie_failed
 
-  timer_hard_deck_charlie_timer_complete{current_player.charlie_complete_flag==0}:
+  timer_hard_deck_charlie_timer_complete{current_player.charlie_complete_flag==0 and current_player.charlie_stage_locked==0}:
     - hard_deck_charlie_failed
 
   # Route to stage-specific failure handler
