@@ -546,7 +546,14 @@ timers:
         value: 9999
       - event: lock_sequence_timer_pause
         action: pause
-      - event: lock_sequence_timer_resume
+      # Resume gated to this timer's live phase. MPF start() can't tell paused
+      # from stopped/never-started/completed, so an unconditional resume
+      # revives it out of phase (and re-fires _complete if it already finished).
+      - event: lock_sequence_timer_resume{current_player.canyon_run_complete_flag==0 and current_player.canyon_run_step_locked==0 and not device.timers.canyon_run_intro_video_delay.running and device.switches.s_mode_start.state==0}
+        action: start
+      - event: mode_timers_idle_pause
+        action: pause
+      - event: mode_timers_resume{current_player.canyon_run_complete_flag==0 and current_player.canyon_run_step_locked==0 and not device.timers.canyon_run_intro_video_delay.running and device.switches.s_mode_start.state==0}
         action: start
 
   # Intro video delay - 29 seconds, auto-starts on mode start
@@ -625,6 +632,13 @@ timers:
         action: start
       - event: canyon_run_step_8_complete
         action: stop
+      - event: mode_timers_idle_pause
+        action: pause
+      # Resume gated to this timer's live phase. MPF start() can't tell paused
+      # from stopped/never-started/completed, so an unconditional resume
+      # revives it out of phase (and re-fires _complete if it already finished).
+      - event: mode_timers_resume{current_player.canyon_run_step==7 and current_player.canyon_run_step_locked==0 and device.timers.canyon_run_step8_initial.ticks<7}
+        action: start
 
   # Step 8 - subsequent positions cycle every 5 seconds
   canyon_run_step8_cycle:
@@ -638,6 +652,13 @@ timers:
         action: restart
       - event: canyon_run_step_8_complete
         action: stop
+      - event: mode_timers_idle_pause
+        action: pause
+      # Resume gated to this timer's live phase. MPF start() can't tell paused
+      # from stopped/never-started/completed, so an unconditional resume
+      # revives it out of phase (and re-fires _complete if it already finished).
+      - event: mode_timers_resume{current_player.canyon_run_step==7 and current_player.canyon_run_step_locked==0 and device.timers.canyon_run_step8_initial.ticks>=7}
+        action: start
 
 ####################################################################################
 # EVENT PLAYER

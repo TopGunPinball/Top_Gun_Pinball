@@ -348,6 +348,31 @@ machine_vars:
     initial_value: 0
     value_type: int
     persist: false
+  # Set to 1 while ball search is actively running; 0 otherwise. Must default
+  # to 0 (not left undefined) so that variable_player conditions gating on
+  # {machine.ball_search_active_flag==0} work correctly from the very first
+  # ramp movement of the game, before any ball search has ever run. Without
+  # this explicit default the var is None until the first search fires it,
+  # and None==0 is false — silently breaking the ramp-position tracking below
+  # for the entire first search of a session.
+  ball_search_active_flag:
+    initial_value: 0
+    value_type: int
+    persist: false
+  # True commanded state of each ramp servo (1=up, 0=down), tracked in
+  # base.yaml and used by ball_search_servos.yaml to restore the correct
+  # position after a search instead of blindly forcing both ramps down.
+  # Same reasoning as above: must default to 0 rather than being undefined,
+  # or the restore-on-ball_search_stopped logic silently does nothing the
+  # first time it's needed.
+  right_ramp_true_state:
+    initial_value: 0
+    value_type: int
+    persist: false
+  top_ramp_true_state:
+    initial_value: 0
+    value_type: int
+    persist: false
 
   ##############################################################################
   # HIGH SCORE NAME ENTRY — machine vars for Godot carousel communication
@@ -387,7 +412,7 @@ playfields:
   playfield:
     default_source_device: bd_plunger
     enable_ball_search: true
-    ball_search_timeout: 25s
+    ball_search_timeout: 15s
     ball_search_wait_after_iteration: 10s
     ball_search_interval: 250ms
     ball_search_block_events: 

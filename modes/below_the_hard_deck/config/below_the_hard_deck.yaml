@@ -105,7 +105,14 @@ timers:
         value: 9999
       - event: lock_sequence_timer_pause
         action: pause
-      - event: lock_sequence_timer_resume
+      # Resume gated to this timer's live phase. MPF start() can't tell paused
+      # from stopped/never-started/completed, so an unconditional resume
+      # revives it out of phase (and re-fires _complete if it already finished).
+      - event: lock_sequence_timer_resume{current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0 and not device.timers.bthd_intro_video_delay.running and device.switches.s_mode_start.state==0}
+        action: start
+      - event: mode_timers_idle_pause
+        action: pause
+      - event: mode_timers_resume{current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0 and not device.timers.bthd_intro_video_delay.running and device.switches.s_mode_start.state==0}
         action: start
       - event: bthd_bad_shot_hit
         action: add
@@ -158,6 +165,13 @@ timers:
       - event: bthd_bad_shot_hit
         action: add
         value: -2
+      - event: mode_timers_idle_pause
+        action: pause
+      # Resume gated to this timer's live phase. MPF start() can't tell paused
+      # from stopped/never-started/completed, so an unconditional resume
+      # revives it out of phase (and re-fires _complete if it already finished).
+      - event: mode_timers_resume{current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0 and not device.timers.bthd_intro_video_delay.running and device.switches.s_mode_start.state==0 and current_player.bthd_last_shot_active==0}
+        action: start
 
   # Left orbit diverter hold when RO shot is lit (position 6)
   # Restarts each time s_orbit_right_active fires — handled in event_player

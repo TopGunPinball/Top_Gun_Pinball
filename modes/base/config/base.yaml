@@ -169,6 +169,39 @@ timers:
       - event: restart_hold_cancelled
         action: reset
 
+  ##############################################
+  ## SWITCH IDLE WATCHDOG
+  ## Runs continuously for the whole ball. Counts up from 0; any real
+  ## playfield switch (sw_playfield_active — already excludes flippers,
+  ## trough, lock, and shooter-lane per its own tag definition) restarts
+  ## it. If it ever reaches 8s with no such switch, the ball is presumed
+  ## stuck/idle and mode_timers_idle_pause fires (see event_player below).
+  ## 8s (not a shorter window) is deliberate: it needs to comfortably
+  ## outlast a skillful trap-and-aim for an intended shot, so only a
+  ## genuinely stuck/lost ball (or a deliberate long trap) ever triggers
+  ## it — legitimate cradling to line up a shot should resolve well
+  ## before this fires.
+  ## This does NOT by itself pause anything — each mode timer (including
+  ## moving-target/sub-phase timers) must opt in by adding
+  ## mode_timers_idle_pause / mode_timers_resume to its own control_events
+  ## (see project notes).
+  ## Do NOT add these to intro/drain/complete/failed video-delay timers —
+  ## the ball is held during those and no playfield switch will ever fire
+  ## to resume them, which would permanently freeze the video delay.
+  ##############################################
+  switch_idle_timer:
+    start_value: 0
+    end_value: 8
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: mode_base_started
+        action: start
+      - event: sw_playfield_active
+        action: restart
+      - event: mode_base_will_stop
+        action: stop
+
 event_player:
   mode_base_started:
     - start_mode_bumpers
@@ -289,6 +322,20 @@ event_player:
     - ball_search_reset
   s_flipper_right_active:
     - ball_search_reset
+
+  ##############################################
+  ## SWITCH IDLE WATCHDOG — pause/resume broadcast
+  ## 5s with no real playfield switch (see timer above) -> tell every
+  ## opted-in mode timer to pause. Resume is gated on the paused flag so
+  ## a stray switch during normal play never sends a spurious "start" to
+  ## a timer that hasn't reached its own start event yet (e.g. one still
+  ## waiting on xxx_ball_released during an intro video).
+  ##############################################
+  timer_switch_idle_timer_complete:
+    - mode_timers_idle_pause
+
+  sw_playfield_active{current_player.mode_timers_idle_paused==1}:
+    - mode_timers_resume
 
   ##############################################
   ## PLUNGER EJECT CONFIRMATION
@@ -436,6 +483,10 @@ variable_player:
     diverter_temporarily_disabled:
       action: set
       int: 0
+    # Switch idle watchdog — clear at start of every ball
+    mode_timers_idle_paused:
+      action: set
+      int: 0
     spinner_sound_toggle:
       action: set
       int: 0
@@ -489,6 +540,21 @@ variable_player:
   top_ramp_down{machine.ball_search_active_flag==0}:
     top_ramp_true_state:
       action: set_machine
+      int: 0
+
+  ##############################################
+  ## SWITCH IDLE WATCHDOG - paused flag
+  ## Gates the resume broadcast in event_player above so it only fires
+  ## after a real pause happened (see comment there for why).
+  ##############################################
+  timer_switch_idle_timer_complete:
+    mode_timers_idle_paused:
+      action: set
+      int: 1
+
+  mode_timers_resume:
+    mode_timers_idle_paused:
+      action: set
       int: 0
 
   s_shooter_lane_active{current_player.right_orbit_diverter_requested==1}:

@@ -115,7 +115,14 @@ timers:
         action: stop
       - event: lock_sequence_timer_pause
         action: pause
-      - event: lock_sequence_timer_resume
+      # Resume gated to this timer's live phase. MPF start() can't tell paused
+      # from stopped/never-started/completed, so an unconditional resume
+      # revives it out of phase (and re-fires _complete if it already finished).
+      - event: lock_sequence_timer_resume{current_player.missiles_complete_flag==0 and current_player.missiles_step_locked==0 and current_player.missiles_phase>=1 and not device.timers.missiles_intro_video_delay.running and device.switches.s_mode_start.state==0}
+        action: start
+      - event: mode_timers_idle_pause
+        action: pause
+      - event: mode_timers_resume{current_player.missiles_complete_flag==0 and current_player.missiles_step_locked==0 and current_player.missiles_phase>=1 and not device.timers.missiles_intro_video_delay.running and device.switches.s_mode_start.state==0}
         action: start
 
   missiles_intro_video_delay:
@@ -140,7 +147,8 @@ timers:
     control_events:
       - event: missiles_start_sweep_fast
         action: start
-      - event: missiles_sweep_advance
+      # Round-gated: an unconditional restart also STARTS this timer in rounds 3-4
+      - event: missiles_sweep_advance{current_player.missiles_round<=2}
         action: restart
       - event: missiles_sweep_hit
         action: stop
@@ -152,7 +160,14 @@ timers:
         action: stop
       - event: lock_sequence_timer_pause
         action: pause
-      - event: lock_sequence_timer_resume
+      # Resume gated to this timer's live phase. MPF start() can't tell paused
+      # from stopped/never-started/completed, so an unconditional resume
+      # revives it out of phase (and re-fires _complete if it already finished).
+      - event: lock_sequence_timer_resume{current_player.missiles_complete_flag==0 and current_player.missiles_step_locked==0 and current_player.missiles_phase==2 and current_player.missiles_round<=2}
+        action: start
+      - event: mode_timers_idle_pause
+        action: pause
+      - event: mode_timers_resume{current_player.missiles_complete_flag==0 and current_player.missiles_step_locked==0 and current_player.missiles_phase==2 and current_player.missiles_round<=2}
         action: start
 
   # Sweep tick — rounds 3-4 (1s/step)
@@ -165,7 +180,8 @@ timers:
     control_events:
       - event: missiles_start_sweep_slow
         action: start
-      - event: missiles_sweep_advance
+      # Round-gated: an unconditional restart also STARTS this timer in rounds 1-2
+      - event: missiles_sweep_advance{current_player.missiles_round>=3}
         action: restart
       - event: missiles_sweep_hit
         action: stop
@@ -177,7 +193,14 @@ timers:
         action: stop
       - event: lock_sequence_timer_pause
         action: pause
-      - event: lock_sequence_timer_resume
+      # Resume gated to this timer's live phase. MPF start() can't tell paused
+      # from stopped/never-started/completed, so an unconditional resume
+      # revives it out of phase (and re-fires _complete if it already finished).
+      - event: lock_sequence_timer_resume{current_player.missiles_complete_flag==0 and current_player.missiles_step_locked==0 and current_player.missiles_phase==2 and current_player.missiles_round>=3}
+        action: start
+      - event: mode_timers_idle_pause
+        action: pause
+      - event: mode_timers_resume{current_player.missiles_complete_flag==0 and current_player.missiles_step_locked==0 and current_player.missiles_phase==2 and current_player.missiles_round>=3}
         action: start
 
   # Bad-shot punishment — 5s, restarts on every additional bad shot,
@@ -217,6 +240,13 @@ timers:
         action: stop
       - event: missiles_drain_detected
         action: stop
+      - event: mode_timers_idle_pause
+        action: pause
+      # Resume gated to this timer's live phase. MPF start() can't tell paused
+      # from stopped/never-started/completed, so an unconditional resume
+      # revives it out of phase (and re-fires _complete if it already finished).
+      - event: mode_timers_resume{current_player.missiles_complete_flag==0 and current_player.missiles_step_locked==0 and current_player.missiles_phase==1 and device.timers.missiles_phase1_frustration_timer.ticks<30}
+        action: start
 
   # MISSILE FLYING DELAY — time before the explosion GI kicks in, matching
   # each destroy video's actual "missile in flight" runtime before impact.
@@ -344,7 +374,16 @@ timers:
 ####################################################################################
 
 variable_player:
+  # Mode failed - blocks timer resumes from re-firing _complete during lost video
+  missiles_failed:
+    missiles_step_locked:
+      action: set
+      int: 1
+
   mode_pilot_training_mission_missiles_started:
+    missiles_step_locked:
+      action: set
+      int: 0
     training_mission_active:
       action: set
       int: 1

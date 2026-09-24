@@ -632,7 +632,9 @@ timers:
     tick_interval: 1s
     start_running: false
     control_events:
-      - event: s_mode_start_inactive
+      # Start on ball release (delayed 400ms after barrier_drop).
+      # NOT s_mode_start_inactive - scoop bounce fires it (Pitfall #1).
+      - event: rescue_cougar_ball_released
         action: start
       - event: timer_rescue_cougar_complete_delay_start
         action: stop
@@ -640,14 +642,23 @@ timers:
         action: stop
       - event: s_lane_left_active
         action: pause
-      - event: s_lane_left_inactive
+      # Un-pause after the step 6 left lane post hold - gated so a lane pass
+      # after the win/fail (or during the intro) can't restart the timer
+      - event: s_lane_left_inactive{current_player.rescue_cougar_complete_flag==0 and current_player.rescue_cougar_step_locked==0 and not device.timers.rescue_cougar_intro_video_delay.running}
         action: start
       - event: afterburner_extend_rescue_cougar_timer
         action: jump
         value: 9999
       - event: lock_sequence_timer_pause
         action: pause
-      - event: lock_sequence_timer_resume
+      # Resume gated to this timer's live phase. MPF start() can't tell paused
+      # from stopped/never-started/completed, so an unconditional resume
+      # revives it out of phase (and re-fires _complete if it already finished).
+      - event: lock_sequence_timer_resume{current_player.rescue_cougar_complete_flag==0 and current_player.rescue_cougar_step_locked==0 and not device.timers.rescue_cougar_intro_video_delay.running and device.switches.s_mode_start.state==0 and device.switches.s_lane_left.state==0}
+        action: start
+      - event: mode_timers_idle_pause
+        action: pause
+      - event: mode_timers_resume{current_player.rescue_cougar_complete_flag==0 and current_player.rescue_cougar_step_locked==0 and not device.timers.rescue_cougar_intro_video_delay.running and device.switches.s_mode_start.state==0 and device.switches.s_lane_left.state==0}
         action: start
 
   # INTRO VIDEO TIMER - Match battle_jester pattern EXACTLY
@@ -845,14 +856,14 @@ event_player:
   # NORMAL PATH: Intro video delay completes → drop barrier, release ball, setup shots
   timer_rescue_cougar_intro_video_delay_complete:
     - barrier_drop
-    - rescue_cougar_ball_released
-    - rescue_cougar_setup_shots
+    - rescue_cougar_ball_released|400ms  # 400ms for barrier to drop (Pitfall #2)
+    - rescue_cougar_setup_shots|400ms
 
   # SKIP PATH: Both flippers pressed → drop barrier, release ball, setup shots
   rescue_cougar_skip_intro:
     - barrier_drop
-    - rescue_cougar_ball_released  # Release ball immediately
-    - rescue_cougar_setup_shots  # Setup shots immediately
+    - rescue_cougar_ball_released|400ms  # 400ms for barrier to drop (Pitfall #2)
+    - rescue_cougar_setup_shots|400ms
 
   # DEBOUNCE: Timer automatically starts barrier delay when complete
   # (configured in timer control_events)

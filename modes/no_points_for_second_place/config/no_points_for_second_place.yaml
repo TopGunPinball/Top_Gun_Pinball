@@ -88,8 +88,35 @@ queue_relay_player:
 ####################################################################################
 
 variable_player:
+  # Wave timer is live (ball in play) - gates idle resume
+  no_points_for_second_place_ball_released:
+    npfsp_timer_live:
+      action: set
+      int: 1
+
+  # Wave timer is live (ball in play) - gates idle resume
+  no_points_for_second_place_wave2_ball_released:
+    npfsp_timer_live:
+      action: set
+      int: 1
+
+  # Wave timer is live (ball in play) - gates idle resume
+  no_points_for_second_place_wave3_ball_released:
+    npfsp_timer_live:
+      action: set
+      int: 1
+
+  # Wave timer is live (ball in play) - gates idle resume
+  no_points_for_second_place_wave4_ball_released:
+    npfsp_timer_live:
+      action: set
+      int: 1
+
 
   mode_no_points_for_second_place_started:
+    npfsp_timer_live:
+      action: set
+      int: 0
     pilot_mode_active:
       action: set
       int: 1
@@ -237,6 +264,9 @@ variable_player:
   # Lock all shot scoring the instant the mode fails (main timer expiry or
   # drain both route through this event).
   no_points_for_second_place_failed:
+    npfsp_timer_live:
+      action: set
+      int: 0
     no_points_for_second_place_wave_locked:
       action: set
       int: 1
@@ -289,6 +319,9 @@ variable_player:
       int: -1
 
   no_points_for_second_place_wave1_final_shot_hit:
+    npfsp_timer_live:
+      action: set
+      int: 0
     no_points_for_second_place_points_bank:
       action: add
       int: 250000 * current_player.total_scoring_multiplier
@@ -377,6 +410,9 @@ variable_player:
       int: -1
 
   no_points_for_second_place_wave2_final_shot_hit:
+    npfsp_timer_live:
+      action: set
+      int: 0
     no_points_for_second_place_points_bank:
       action: add
       int: 500000 * current_player.total_scoring_multiplier
@@ -432,6 +468,9 @@ variable_player:
       int: -1
 
   no_points_for_second_place_wave3_final_shot_hit:
+    npfsp_timer_live:
+      action: set
+      int: 0
     no_points_for_second_place_points_bank:
       action: add
       int: 750000 * current_player.total_scoring_multiplier
@@ -552,6 +591,9 @@ variable_player:
 
   ## Wave 4 scoop capture bonus
   no_points_for_second_place_wave4_final_shot_hit:
+    npfsp_timer_live:
+      action: set
+      int: 0
     no_points_for_second_place_points_bank:
       action: add
       int: 1000000 * current_player.total_scoring_multiplier
@@ -909,19 +951,28 @@ timers:
         action: start
       - event: no_points_for_second_place_wave1_final_shot_hit
         action: stop
-      - event: no_points_for_second_place_wave2_ball_released  # Wave 2 restart
-        action: restart
+      # restart ignores 'value' (MPF resets to start_value) - jump then start
+      - event: no_points_for_second_place_wave2_ball_released
+        action: jump
         value: 90  # [WAVE2_TIMER]
+      - event: no_points_for_second_place_wave2_ball_released
+        action: start
       - event: no_points_for_second_place_wave2_final_shot_hit
         action: stop
-      - event: no_points_for_second_place_wave3_ball_released  # Wave 3 restart
-        action: restart
+      # restart ignores 'value' (MPF resets to start_value) - jump then start
+      - event: no_points_for_second_place_wave3_ball_released
+        action: jump
         value: 60  # [WAVE3_TIMER]
+      - event: no_points_for_second_place_wave3_ball_released
+        action: start
       - event: no_points_for_second_place_wave3_final_shot_hit
         action: stop
-      - event: no_points_for_second_place_wave4_ball_released  # Wave 4 restart
-        action: restart
+      # restart ignores 'value' (MPF resets to start_value) - jump then start
+      - event: no_points_for_second_place_wave4_ball_released
+        action: jump
         value: 60  # [WAVE4_TIMER]
+      - event: no_points_for_second_place_wave4_ball_released
+        action: start
       - event: no_points_for_second_place_wave4_final_shot_hit
         action: stop
       - event: timer_no_points_for_second_place_complete_delay_start
@@ -931,6 +982,13 @@ timers:
       - event: afterburner_extend_no_points_for_second_place_timer
         action: jump
         value: 9999
+      - event: mode_timers_idle_pause
+        action: pause
+      # Resume gated to this timer's live phase. MPF start() can't tell paused
+      # from stopped/never-started/completed, so an unconditional resume
+      # revives it out of phase (and re-fires _complete if it already finished).
+      - event: mode_timers_resume{current_player.npfsp_timer_live==1 and current_player.no_points_for_second_place_complete_flag==0}
+        action: start
 
   # Decision timer — shared across wave decisions
   no_points_for_second_place_decision_timer:

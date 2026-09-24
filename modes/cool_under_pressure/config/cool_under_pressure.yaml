@@ -173,7 +173,15 @@ timers:
       # Pause/resume for lock sequence
       - event: lock_sequence_timer_pause
         action: pause
-      - event: lock_sequence_timer_resume
+      # Resume gated to this timer's live phase. MPF start() can't tell paused
+      # from stopped/never-started/completed, so an unconditional resume
+      # revives it out of phase (and re-fires _complete if it already finished).
+      - event: lock_sequence_timer_resume{current_player.cup_step>=1 and current_player.cup_complete_flag==0 and current_player.cup_step_locked==0}
+        action: start
+      # Pause/resume for switch idle watchdog
+      - event: mode_timers_idle_pause
+        action: pause
+      - event: mode_timers_resume{current_player.cup_step>=1 and current_player.cup_complete_flag==0 and current_player.cup_step_locked==0}
         action: start
 
   # Intro video delay — 18 seconds
@@ -355,6 +363,10 @@ variable_player:
       action: set
       int: 3
     cup_complete_flag:
+      action: set
+      int: 0
+    # Reset lock from any previous failed play (was never cleared)
+    cup_step_locked:
       action: set
       int: 0
     cup_shots_remaining:

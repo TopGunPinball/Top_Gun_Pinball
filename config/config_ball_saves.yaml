@@ -34,7 +34,11 @@ ball_saves:
     balls_to_save: -1             # Unlimited saves for full 20s duration
     enable_events: ball_save_new_ball_enable
     early_ball_save_events: s_outlane_left_active, s_outlane_right_active
-    disable_events: ball_save_new_ball_disable
+    # s_mode_start_active: any scoop entry = player made a deliberate shot,
+    # so the new-ball "get it to a flipper" save is no longer needed.
+    # mode_ball_save takes over on the scoop kick-out.
+    # (Training missions end it from ball_save.yaml event_player.)
+    disable_events: ball_save_new_ball_disable, s_mode_start_active
     timer_start_events: ball_save_new_ball_timer_start
     debug: true
 
@@ -82,9 +86,18 @@ ball_saves:
     # independently commands the trough to eject a ball, kicking out two balls
     # for one drain. mode_ball_save is "the real one" (see priority note in
     # ball_save.yaml's SCOOP EJECT SAVE LIGHT FLASH section), so it wins.
-    early_ball_save_events: >
-      s_outlane_left_active{device.ball_saves.mode_ball_save.enabled==False},
-      s_outlane_right_active{device.ball_saves.mode_ball_save.enabled==False}
+    # Also stands down while new_ball_save is enabled — a virtual lock award
+    # (lock_goose/mav_virtual_locked) in the first 20s of a ball enables this
+    # device while new_ball_save is still armed, and one outlane hit would
+    # otherwise trigger BOTH early saves (two trough ejects, two videos).
+    #
+    # FORMAT WARNING: each conditional event MUST be a single-line YAML list
+    # item. MPF splits string event lists with a regex whose '.' does not
+    # match newlines, so a condition wrapped across lines (e.g. with '>')
+    # silently degrades into the BARE event with no condition at all.
+    early_ball_save_events:
+      - s_outlane_left_active{device.ball_saves.mode_ball_save.enabled==False and device.ball_saves.new_ball_save.enabled==False}
+      - s_outlane_right_active{device.ball_saves.mode_ball_save.enabled==False and device.ball_saves.new_ball_save.enabled==False}
     debug: true
 
   ##############################################################################
@@ -114,10 +127,9 @@ ball_saves:
     # (matches base.yaml's own pending check) and stands down if new_ball_save
     # or mode_ball_save are also currently enabled, so we don't stack a third
     # independent early-save claim onto the same switch event.
-    early_ball_save_events: >
-      s_outlane_right_active{current_player.right_lane_ball_save_pending==1
-        and device.ball_saves.new_ball_save.enabled==False
-        and device.ball_saves.mode_ball_save.enabled==False}
+    # Single-line list item on purpose — see FORMAT WARNING in scoop_eject_save.
+    early_ball_save_events:
+      - s_outlane_right_active{current_player.right_lane_ball_save_pending==1 and device.ball_saves.new_ball_save.enabled==False and device.ball_saves.mode_ball_save.enabled==False}
     # Custom disable_events overrides (doesn't merge with) the default list,
     # so ball_will_end is added back explicitly as a safety net.
     disable_events: right_lane_ball_save_cancel, ball_will_end

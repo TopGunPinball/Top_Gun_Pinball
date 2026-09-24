@@ -232,6 +232,13 @@ timers:
       - event: afterburner_extend_gbof_collection_timer
         action: jump
         value: 9999
+      - event: mode_timers_idle_pause
+        action: pause
+      # Resume gated to this timer's live phase. MPF start() can't tell paused
+      # from stopped/never-started/completed, so an unconditional resume
+      # revives it out of phase (and re-fires _complete if it already finished).
+      - event: mode_timers_resume{current_player.gbof_step==1}
+        action: start
 
   # Barrier delay: 2s after ball launches so barrier can raise safely.
   gbof_barrier_delay:

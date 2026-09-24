@@ -137,6 +137,37 @@ event_player:
   # ball_save_new_ball_save_timer_start (used by our light show timer)
   s_shooter_lane_inactive{device.ball_saves.new_ball_save.enabled==True}:
     - ball_save_new_ball_timer_start
+
+  ##############################################################################
+  # END NEW BALL SAVE WHEN A TRAINING MISSION STARTS
+  # Starting a mode is a deliberate game decision, so the new-ball save is no
+  # longer needed. Scoop entry (pilot missions) is handled directly in
+  # new_ball_save's disable_events (config_ball_saves.yaml). Training
+  # missions start from the left lane, so they're caught here instead.
+  #   - training_mission_active is set to 1 by every training mission; this
+  #     generic catch also covers any training missions added later.
+  #   - Explicit mode_started events are belt-and-braces for the current five.
+  # Disabling an already-disabled ball save is a no-op, so duplicates are safe.
+  ##############################################################################
+  player_training_mission_active{value==1}:
+    - ball_save_new_ball_disable
+  mode_pilot_training_mission_afterburner_started:
+    - ball_save_new_ball_disable
+  mode_pilot_training_mission_dogfight_started:
+    - ball_save_new_ball_disable
+  mode_pilot_training_mission_inverted_started:
+    - ball_save_new_ball_disable
+  mode_pilot_training_mission_missiles_started:
+    - ball_save_new_ball_disable
+  mode_pilot_training_mission_wingman_started:
+    - ball_save_new_ball_disable
+
+  # New ball save ended early (scoop hit / training mission start) — the
+  # ball_save_countdown timer is STOPPED (not completed) by the disable, so
+  # timer_ball_save_countdown_complete never fires to kill the flash.
+  # Stop it here unless mode_ball_save has already taken over the light.
+  ball_save_new_ball_save_disabled{device.ball_saves.mode_ball_save.enabled==False}:
+    - ball_save_flash_stop
   
   ##############################################################################
   # CONSECUTIVE BALL SAVE VIDEO ROUTING
@@ -246,27 +277,28 @@ event_player:
   # SCOOP EJECT SAVE LIGHT FLASH - 5 second duration
   # Starts medium, speeds up, grace period at end
   #
-  # PRIORITY: mode_ball_save always wins the shared flash display over
-  # scoop_eject_save when both are active (mode save is the "real" one the
+  # PRIORITY: mode_ball_save AND new_ball_save both win the shared flash
+  # display over scoop_eject_save when active (new_ball_save can overlap it
+  # via a virtual lock award early in the ball) (mode save is the "real" one the
   # player cares about; scoop save is just a silent safety net). Every rule
-  # below is gated with device.ball_saves.mode_ball_save.enabled==False so
+  # below is gated with mode_ball_save AND new_ball_save enabled==False so
   # scoop's ticks (including its own grace-period "off") never clobber a
-  # concurrently-running mode save's flash.
+  # concurrently-running mode or new-ball save's flash.
   ##############################################################################
   # 5-4 seconds: Medium flash
-  timer_scoop_save_countdown_tick{ticks>=4 and device.ball_saves.mode_ball_save.enabled==False}:
+  timer_scoop_save_countdown_tick{ticks>=4 and device.ball_saves.mode_ball_save.enabled==False and device.ball_saves.new_ball_save.enabled==False}:
     - ball_save_flash_medium
 
   # 3 seconds: Fast flash
-  timer_scoop_save_countdown_tick{ticks>=3 and ticks<4 and device.ball_saves.mode_ball_save.enabled==False}:
+  timer_scoop_save_countdown_tick{ticks>=3 and ticks<4 and device.ball_saves.mode_ball_save.enabled==False and device.ball_saves.new_ball_save.enabled==False}:
     - ball_save_flash_fast
 
   # 2-0 seconds: Light OFF (grace period)
-  timer_scoop_save_countdown_tick{ticks<3 and device.ball_saves.mode_ball_save.enabled==False}:
+  timer_scoop_save_countdown_tick{ticks<3 and device.ball_saves.mode_ball_save.enabled==False and device.ball_saves.new_ball_save.enabled==False}:
     - ball_save_flash_off
 
-  # Timer complete - stop light (only if mode save isn't still running)
-  timer_scoop_save_countdown_complete{device.ball_saves.mode_ball_save.enabled==False}:
+  # Timer complete - stop light (only if mode/new-ball save isn't still running)
+  timer_scoop_save_countdown_complete{device.ball_saves.mode_ball_save.enabled==False and device.ball_saves.new_ball_save.enabled==False}:
     - ball_save_flash_stop
 
 ##############################################################################
@@ -432,9 +464,9 @@ show_player:
         color: white
 
   # Initial flash when SCOOP EJECT save starts (medium - only 5 seconds)
-  # Suppressed if mode_ball_save is already running — mode save has priority
+  # Suppressed if mode_ball_save or new_ball_save is already running — they have priority
   # (see priority note in the SCOOP EJECT SAVE LIGHT FLASH section below)
-  ball_save_scoop_eject_save_timer_start{device.ball_saves.mode_ball_save.enabled==False}:
+  ball_save_scoop_eject_save_timer_start{device.ball_saves.mode_ball_save.enabled==False and device.ball_saves.new_ball_save.enabled==False}:
     ball_save_flash_show:
       key: ball_save_flash
       speed: 2                    # Start at medium (500ms cycle)
@@ -496,9 +528,9 @@ show_player:
       action: stop
   
   # Scoop eject save's own single-use net just caught a ball — stop the
-  # flash UNLESS mode_ball_save is still running concurrently, in which case
-  # mode save has priority and must keep its own flash going uninterrupted.
-  ball_save_scoop_eject_save_saving_ball{device.ball_saves.mode_ball_save.enabled==False}:
+  # flash UNLESS mode_ball_save or new_ball_save is still running concurrently,
+  # in which case that save has priority and keeps its own flash going.
+  ball_save_scoop_eject_save_saving_ball{device.ball_saves.mode_ball_save.enabled==False and device.ball_saves.new_ball_save.enabled==False}:
     ball_save_flash_show:
       key: ball_save_flash
       action: stop

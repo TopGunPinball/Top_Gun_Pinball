@@ -81,6 +81,13 @@ timers:
         action: stop
       - event: dogfight_failed
         action: stop
+      - event: mode_timers_idle_pause
+        action: pause
+      # Resume gated to this timer's live phase. MPF start() can't tell paused
+      # from stopped/never-started/completed, so an unconditional resume
+      # revives it out of phase (and re-fires _complete if it already finished).
+      - event: mode_timers_resume{current_player.dogfight_complete_flag==0 and current_player.dogfight_step_locked==0 and not device.timers.dogfight_intro_video_delay.running}
+        action: start
 
   # Intro video window (20s) - both-flipper skip stops it
   dogfight_intro_video_delay:
@@ -181,6 +188,13 @@ timers:
         action: stop
       - event: dogfight_cleanup
         action: stop
+      - event: mode_timers_idle_pause
+        action: pause
+      # Resume gated to this timer's live phase. MPF start() can't tell paused
+      # from stopped/never-started/completed, so an unconditional resume
+      # revives it out of phase (and re-fires _complete if it already finished).
+      - event: mode_timers_resume{current_player.dogfight_complete_flag==0 and current_player.dogfight_step_locked==0 and current_player.dogfight_step==3}
+        action: start
 
   # Step 4 grace - previous position stays scoreable 1s after light moves
   dogfight_step4_grace:
@@ -196,6 +210,13 @@ timers:
         action: stop
       - event: dogfight_cleanup
         action: stop
+      - event: mode_timers_idle_pause
+        action: pause
+      # Resume gated to this timer's live phase. MPF start() can't tell paused
+      # from stopped/never-started/completed, so an unconditional resume
+      # revives it out of phase (and re-fires _complete if it already finished).
+      - event: mode_timers_resume{current_player.dogfight_complete_flag==0 and current_player.dogfight_step_locked==0 and current_player.dogfight_step==3 and current_player.dogfight_step4_grace_pos!=99}
+        action: start
 
   # Step 12 left-orbit diverter hold (3s)
   dogfight_diverter_hold:

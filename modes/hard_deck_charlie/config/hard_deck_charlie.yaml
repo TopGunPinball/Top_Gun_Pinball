@@ -188,6 +188,14 @@ timers:
         action: stop
       - event: hard_deck_charlie_mode_end_complete
         action: stop
+      # Pause/resume for switch idle watchdog
+      - event: mode_timers_idle_pause
+        action: pause
+      # Resume gated to this timer's live phase. MPF start() can't tell paused
+      # from stopped/never-started/completed, so an unconditional resume
+      # revives it out of phase (and re-fires _complete if it already finished).
+      - event: mode_timers_resume{current_player.charlie_timer_live==1 and current_player.charlie_stage_locked==0 and current_player.charlie_complete_flag==0}
+        action: start
 
   ##############################################
   ## DECISION TIMERS - 10s each (left/timeout=continue, right=exit)
@@ -312,6 +320,30 @@ timers:
 # VARIABLE PLAYER
 ####################################################################################
 variable_player:
+  # Mode timer is live (ball in play) - gates idle/lock resume events
+  hard_deck_charlie_ball_released:
+    charlie_timer_live:
+      action: set
+      int: 1
+
+  # Mode timer is live (ball in play) - gates idle/lock resume events
+  hard_deck_charlie_stage_2_ball_released:
+    charlie_timer_live:
+      action: set
+      int: 1
+
+  # Mode timer is live (ball in play) - gates idle/lock resume events
+  hard_deck_charlie_stage_3_ball_released:
+    charlie_timer_live:
+      action: set
+      int: 1
+
+  # Mode timer is live (ball in play) - gates idle/lock resume events
+  hard_deck_charlie_stage_4_ball_released:
+    charlie_timer_live:
+      action: set
+      int: 1
+
   ##############################################
   ## LEFT ORBIT SAFE RETURN — arm/clear (Stage 1 only, before final shot lights)
   ##############################################
@@ -329,6 +361,9 @@ variable_player:
   ## MODE START - Initialize all state
   ##############################################
   mode_hard_deck_charlie_started:
+    charlie_timer_live:
+      action: set
+      int: 0
     charlie_stage:
       action: set
       int: 1
@@ -448,6 +483,9 @@ variable_player:
   # stage still scores during the lost video even though the shots/lights
   # are already killed by hard_deck_charlie_cleanup.
   hard_deck_charlie_failed:
+    charlie_timer_live:
+      action: set
+      int: 0
     charlie_stage_locked:
       action: set
       int: 1
@@ -811,6 +849,9 @@ variable_player:
   ##############################################
   # Stage 1 final (barrier scoop): 5M
   charlie_stage_1_final_shot_hit:
+    charlie_timer_live:
+      action: set
+      int: 0
     score:
       action: add
       int: 5000000 * current_player.total_scoring_multiplier
@@ -828,6 +869,9 @@ variable_player:
   # shot_4 already adds 1M score, decrements shots_remaining, sets mode_points_scored.
   # final_shot_hit handles ONLY the stage-specific perk (bonus_multiplier) + flag clear.
   charlie_stage_2_final_shot_hit:
+    charlie_timer_live:
+      action: set
+      int: 0
     charlie_stage_2_final_shot_lit:
       action: set
       int: 0
@@ -841,6 +885,9 @@ variable_player:
   # in the same event tick (the ==0 handler changes the variable, then the
   # ==1 handler evaluates against the new value and ALSO matches).
   charlie_stage_3_final_shot_hit:
+    charlie_timer_live:
+      action: set
+      int: 0
     charlie_stage_3_final_shot_lit:
       action: set
       int: 0
@@ -878,6 +925,9 @@ variable_player:
   # Orange l_extra_ball_lit light comes on at the next ball start via
   # extra_ball.yaml's mode_extra_ball_started{extra_ball_lit==1} handler.
   charlie_stage_4_final_shot_hit:
+    charlie_timer_live:
+      action: set
+      int: 0
     score:
       action: add
       int: 5000000 * current_player.total_scoring_multiplier

@@ -99,10 +99,14 @@ timers:
     control_events:
       - event: battle_jester_start_timer
         action: start
-      - event: s_mode_start_active
-        action: pause
-      - event: s_mode_start_inactive
+      # Main clock starts on ball release (intro skip / intro complete, both
+      # delayed 400ms) and resumes on the step 6 scoop release.
+      # NOT s_mode_start_inactive - scoop bounce fires it (Pitfall #1).
+      - event: battle_jester_ball_released
         action: start
+      # Pause only for the step 6 scoop capture
+      - event: s_mode_start_active{current_player.battle_jester_step==5}
+        action: pause
       - event: battle_jester_timer_add
         action: add
         value: 5
@@ -121,7 +125,14 @@ timers:
         value: 9999
       - event: lock_sequence_timer_pause
         action: pause
-      - event: lock_sequence_timer_resume
+      # Resume ONLY while the main clock phase is live. Timer start() can't tell
+      # paused from stopped/never-started, so an unconditional resume revives it
+      # during the intro, the step 6 scoop hold, or after the tower choice.
+      - event: lock_sequence_timer_resume{device.switches.s_mode_start.state==0 and current_player.battle_jester_tower_choice==0 and current_player.battle_jester_complete_flag==0 and current_player.battle_jester_step_locked==0}
+        action: start
+      - event: mode_timers_idle_pause
+        action: pause
+      - event: mode_timers_resume{device.switches.s_mode_start.state==0 and current_player.battle_jester_tower_choice==0 and current_player.battle_jester_complete_flag==0 and current_player.battle_jester_step_locked==0}
         action: start
 
   # Intro video delay timer - 5 seconds
@@ -228,7 +239,14 @@ timers:
         action: restart
       - event: lock_sequence_timer_pause
         action: pause
-      - event: lock_sequence_timer_resume
+      # Resume ONLY once the challenge has actually begun (flag set on
+      # battle_jester_tower_ball_released). Unconditional resume started this
+      # timer during step 3 and ended the mode via tower_lost.
+      - event: lock_sequence_timer_resume{current_player.battle_jester_tower_timer_live==1}
+        action: start
+      - event: mode_timers_idle_pause
+        action: pause
+      - event: mode_timers_resume{current_player.battle_jester_tower_timer_live==1}
         action: start
 
   # Shot color change timers (adjustable per step)
@@ -326,13 +344,19 @@ timers:
     direction: up
     tick_interval: 1s
     control_events:
-      - event: s_mode_start_inactive
+      # Start with step 1 setup (fires 400ms after ball release on both intro paths)
+      # NOT s_mode_start_inactive - scoop bounce fires it (Pitfall #1).
+      - event: battle_jester_setup_step_1
         action: start
       - event: battle_jester_step_1_complete
         action: stop
       - event: lock_sequence_timer_pause
         action: pause
-      - event: lock_sequence_timer_resume
+      - event: lock_sequence_timer_resume{current_player.battle_jester_step==0 and device.switches.s_mode_start.state==0 and current_player.battle_jester_step_locked==0}
+        action: start
+      - event: mode_timers_idle_pause
+        action: pause
+      - event: mode_timers_resume{current_player.battle_jester_step==0 and device.switches.s_mode_start.state==0 and current_player.battle_jester_step_locked==0}
         action: start
 
   # Step 2 shot timer (30 seconds - 3 shots turn off)
@@ -348,7 +372,11 @@ timers:
         action: stop
       - event: lock_sequence_timer_pause
         action: pause
-      - event: lock_sequence_timer_resume
+      - event: lock_sequence_timer_resume{current_player.battle_jester_step==1 and current_player.battle_jester_step_locked==0}
+        action: start
+      - event: mode_timers_idle_pause
+        action: pause
+      - event: mode_timers_resume{current_player.battle_jester_step==1 and current_player.battle_jester_step_locked==0}
         action: start
 
   # Step 3 shot timer (30 seconds - 3 shots turn off)
@@ -364,7 +392,11 @@ timers:
         action: stop
       - event: lock_sequence_timer_pause
         action: pause
-      - event: lock_sequence_timer_resume
+      - event: lock_sequence_timer_resume{current_player.battle_jester_step==2 and current_player.battle_jester_step_locked==0}
+        action: start
+      - event: mode_timers_idle_pause
+        action: pause
+      - event: mode_timers_resume{current_player.battle_jester_step==2 and current_player.battle_jester_step_locked==0}
         action: start
 
   # Step 4 shot timer (20 seconds - 2 shots turn off)
@@ -380,7 +412,11 @@ timers:
         action: stop
       - event: lock_sequence_timer_pause
         action: pause
-      - event: lock_sequence_timer_resume
+      - event: lock_sequence_timer_resume{current_player.battle_jester_step==3 and current_player.battle_jester_step_locked==0}
+        action: start
+      - event: mode_timers_idle_pause
+        action: pause
+      - event: mode_timers_resume{current_player.battle_jester_step==3 and current_player.battle_jester_step_locked==0}
         action: start
 
   # Step 5 shot timer (20 seconds - 2 shots turn off)
@@ -396,7 +432,11 @@ timers:
         action: stop
       - event: lock_sequence_timer_pause
         action: pause
-      - event: lock_sequence_timer_resume
+      - event: lock_sequence_timer_resume{current_player.battle_jester_step==4 and current_player.battle_jester_step_locked==0}
+        action: start
+      - event: mode_timers_idle_pause
+        action: pause
+      - event: mode_timers_resume{current_player.battle_jester_step==4 and current_player.battle_jester_step_locked==0}
         action: start
 
   # Servo stagger delays - prevent power contention when moving 2 servos
@@ -544,6 +584,17 @@ variable_player:
     battle_jester_tower_challenge_timer_tick:
       action: set
       int: 20
+    # 1 only while the tower challenge timer is legitimately running
+    # (gates mode_timers_resume / lock_sequence_timer_resume)
+    battle_jester_tower_timer_live:
+      action: set
+      int: 0
+
+  # Tower challenge actually begins - allow resume events to restart its timer
+  battle_jester_tower_ball_released:
+    battle_jester_tower_timer_live:
+      action: set
+      int: 1
 
   # Update tower challenge timer display on each tick
   timer_battle_jester_tower_challenge_timer_tick:
@@ -768,6 +819,9 @@ variable_player:
 
   # Tower challenge WON - 150% payout
   battle_jester_tower_won:
+    battle_jester_tower_timer_live:
+      action: set
+      int: 0
     score:
       action: add
       int: current_player.battle_jester_points_bank * 1.5
@@ -787,6 +841,9 @@ variable_player:
 
   # Tower challenge LOST - 50% payout
   battle_jester_tower_lost:
+    battle_jester_tower_timer_live:
+      action: set
+      int: 0
     score:
       action: add
       int: current_player.battle_jester_points_bank * 0.5
@@ -1008,10 +1065,10 @@ event_player:
   timer_battle_jester_step_1_timer_complete{current_player.battle_jester_step==0 and current_player.battle_jester_step_locked==0}:
     - battle_jester_step_1_tick_30
 
-  # Mode start - setup step 1 when ball leaves scoop
-  s_mode_start_inactive{current_player.battle_jester_step==0 and current_player.battle_jester_step_locked==0}:
-    - battle_jester_setup_step_1
-    
+  # Step 1 setup is fired by BOTH intro paths below (skip + timer complete).
+  # Removed the s_mode_start_inactive{step==0} trigger: scoop bounce fires it
+  # (Pitfall #1) and it double-posted battle_jester_setup_step_1.
+
   # Skip intro video with both flippers
   s_flipper_left_active{current_player.battle_jester_step==0 and device.timers.battle_jester_intro_video_delay.running and current_player.battle_jester_step_locked==0}:
     - battle_jester_check_skip_intro
@@ -1021,16 +1078,18 @@ event_player:
   battle_jester_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
     - battle_jester_skip_intro
     
+  # 400ms after barrier_drop so the barrier is physically down before the
+  # ball hold ejects (Pitfall #2)
   battle_jester_skip_intro:
     - barrier_drop
-    - battle_jester_ball_released
-    - battle_jester_setup_step_1
+    - battle_jester_ball_released|400ms
+    - battle_jester_setup_step_1|400ms
   
   # Intro video timer complete - release ball automatically
   timer_battle_jester_intro_video_delay_complete:
     - barrier_drop
-    - battle_jester_ball_released
-    - battle_jester_setup_step_1
+    - battle_jester_ball_released|400ms
+    - battle_jester_setup_step_1|400ms
 
   ##############################################
   ## SKIP END VIDEOS (won/lost/drain) — both flippers held
