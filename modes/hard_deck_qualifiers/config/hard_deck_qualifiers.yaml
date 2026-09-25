@@ -10,26 +10,26 @@
 # PRIORITY: 200 (same as pilot_mission_qualifier and locks - base game layer)
 #
 # HARD DECK MODES:
-#   1 = charlie (pink)    - Beat pilot + training + super jackpot
-#   2 = playing_with_the_boys (yellow) - 50 pop bumper hits
+#   1 = charlie (pink)    - Play 3 pilot missions + win 1 pilot mission
+#   2 = playing_with_the_boys (yellow) - 40 pop bumper hits
 #   3 = maverick_and_penny (purple)    - Play hard deck + hit all switches 2x
-#   4 = honoring_iceman (ice blue)     - ICEMAN completed 10 times
+#   4 = honoring_iceman (ice blue)     - ICEMAN completed 5 times
 #
 # QUALIFICATION CRITERIA:
 #   Mode 1 (charlie):
-#     - Win (not just play) at least 1 pilot mission
-#     - Win (not just play) at least 1 training mission
-#     - Collect at least 1 super jackpot in Top Gun Multiball
+#     - Play at least 3 pilot missions (pilot_missions_played >= 3)
+#     - Win at least 1 pilot mission (pilot_missions_won >= 1)
+#     - Order does not matter - qualifies the moment both are met
 #
 #   Mode 2 (playing_with_the_boys):
-#     - 50 total pop bumper hits (s_bumper_left + s_bumper_center + s_bumper_right)
+#     - 40 total pop bumper hits (s_bumper_left + s_bumper_center + s_bumper_right)
 #
 #   Mode 3 (maverick_and_penny):
 #     - Play any hard deck mission (hard_deck_missions_played >= 1)
 #     - Hit all 31 tracked playfield switches at least 2 times each
 #
 #   Mode 4 (honoring_iceman):
-#     - ICEMAN completed 10 times total (base game + multiball completions)
+#     - ICEMAN completed 5 times total (base game + multiball completions)
 #
 # ROTATION: Slingshot hits rotate forward through qualified (and unplayed) modes
 # START: Left lane (s_lane_left) with c_left_lane_up_post ball hold
@@ -702,7 +702,7 @@ event_player:
   light_goose_mode:
     - hd_qualify_goose_hard_deck
 
-  player_pop_bumper_hits_total{value==25 and current_player.hd_ptb_qualified==0 and current_player.hd_ptb_played==0}:
+  player_pop_bumper_hits_total{value==40 and current_player.hd_ptb_qualified==0 and current_player.hd_ptb_played==0}:
     - hd_qualify_playing_with_the_boys
 
   # --- MAVERICK AND PENNY (mode 3) ---
@@ -714,7 +714,6 @@ event_player:
   #   - hd_qualify_maverick_and_penny
 
   # --- HONORING ICEMAN (mode 4) ---
-  # TESTING: value==2 — change to value==5 for PROD release
   player_iceman_total_completions{value==5 and current_player.hd_hi_qualified==0 and current_player.hd_hi_played==0}:
     - hd_qualify_honoring_iceman
 

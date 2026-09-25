@@ -286,10 +286,13 @@ timers:
       - event: ptb_dogfight_instructions_start
         action: start
 
-  # Dogfight end delay — 12 seconds for end slide + results + voice
+  # Dogfight end delay — 9 seconds for end slide + results + voice
+  # End slide (ptb_show_dogfight_end, expire 8s) posts 0.9-1.1s after time_up,
+  # so it is gone at ~T+9s. Was 12s, which left ~6s of dead air with the
+  # saved ball sitting in the shooter lane after the video ended.
   ptb_dogfight_end_delay:
     start_value: 0
-    end_value: 12
+    end_value: 9
     direction: up
     tick_interval: 1s
     control_events:
@@ -413,11 +416,11 @@ timers:
       - event: mode_hard_deck_playing_with_the_boys_will_stop
         action: stop
 
-  # Pre-plunge delay — 3 seconds between "ball returning" and plunge
-  # Gives player warning before ball comes back into play
+  # Pre-plunge delay — 1 second between "ball returning" and plunge
+  # (was 3s; nothing is shown/played on ptb_ball_returning, so it was dead time)
   ptb_pre_plunge_delay:
     start_value: 0
-    end_value: 3
+    end_value: 1
     direction: up
     tick_interval: 1s
     control_events:

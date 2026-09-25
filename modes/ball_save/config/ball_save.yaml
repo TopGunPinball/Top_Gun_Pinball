@@ -63,8 +63,17 @@ timers:
     direction: down
     tick_interval: 1s
     control_events:
-      - event: ball_save_mode_timer_start
+      # Guarded so a standard request never SHORTENS a longer save that is
+      # already running (e.g. Mystery Award's 30s). If less than start_value
+      # remains (or the timer isn't running), it restarts exactly as before.
+      - event: ball_save_mode_timer_start{device.timers.mode_ball_save_countdown.running==False or device.timers.mode_ball_save_countdown.ticks<device.timers.mode_ball_save_countdown.start_value}
         action: restart             # Resets to start_value above. No 'value:' override.
+      # MYSTERY AWARD 30s SAVE: posted 100ms after ball_save_mode_timer_start
+      # (which enables mode_ball_save, starts this timer and the flash), then
+      # jumps the remaining time up to 30. Change the 30 here to adjust.
+      - event: ball_save_mystery_extend
+        action: jump
+        value: 30
       - event: ball_save_mode_ball_save_disabled
         action: stop
 
@@ -198,6 +207,20 @@ event_player:
   ##############################################################################
   # Mode ball save is enabled automatically when ball_save_mode_timer_start event is posted
   # (see ball_saves config - enable_events: ball_save_mode_timer_start)
+
+  ##############################################################################
+  # MYSTERY AWARD - 30 SECOND BALL SAVE
+  # mystery_award.yaml sets mystery_ball_save_pending=1 when this award is
+  # picked. It can't start the save itself on mode_mystery_award_stopped:
+  # a mode's own config players are removed before its *_stopped event is
+  # posted, so that handler never fired. ball_save runs all ball, so it
+  # catches the event here once the ball is back on the playfield.
+  # Reuses mode_ball_save (not a new device) so every existing gate on
+  # mode_ball_save.enabled keeps preventing double-ejects with the other saves.
+  ##############################################################################
+  mode_mystery_award_stopped{current_player.mystery_ball_save_pending==1}:
+    - ball_save_mode_timer_start
+    - ball_save_mystery_extend|100ms
 
   # When mode ball save catches a drain, play the same ball_saved / _2 / _3
   # scene routing as new_ball_save, sharing the same consecutive-save counter
@@ -338,6 +361,14 @@ variable_player:
   # (without restarting the 20s window timer)
   consecutive_save_reset:
     consecutive_ball_saves:
+      action: set
+      int: 0
+
+  # Mystery Award save consumed — clear the pending flag. Cleared on the
+  # delayed extend event (not mode_mystery_award_stopped itself) so it can't
+  # race the event_player condition that reads it on that same event.
+  ball_save_mystery_extend:
+    mystery_ball_save_pending:
       action: set
       int: 0
 

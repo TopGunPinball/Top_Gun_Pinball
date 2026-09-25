@@ -18,11 +18,12 @@
 ##   5. mystery_eject_debounce (150ms, 1ms tick) — cancelled if ball bounces back
 ##   6. mystery_barrier_delay (750ms, 1ms tick)
 ##   7. barrier_raise + mystery_eject_confirmed → mode stops
+##      (EXCEPT Light Pilot Mission award: barrier stays DOWN, only mystery_eject_confirmed)
 ##
 ## BARRIER BEHAVIOR:
 ##   UP during entire animation (prevents other traffic reaching scoop)
 ##   DOWN before eject (ball must exit through scoop path)
-##   UP again after ball confirmed clear
+##   UP again after ball confirmed clear (stays DOWN if award was Light Pilot Mission)
 ##
 ## ANIMATION TIMELINE (total ~9s from mystery_award_selected):
 ##   0.0 - 3.0s:  Base slide holds (full pilot image, no movement)
@@ -371,11 +372,10 @@ variable_player:
       action: set
       int: 13
 
-  ## Clear pending flag when mode stops (whether ball save was awarded or not)
-  mode_mystery_award_stopped:
-    mystery_ball_save_pending:
-      action: set
-      int: 0
+  ## mystery_ball_save_pending is cleared in ball_save.yaml (on
+  ## ball_save_mystery_extend). A handler here on mode_mystery_award_stopped
+  ## never fires: this mode's config players are gone by the time its own
+  ## *_stopped event is posted. mode_mystery_award_started also resets it.
 
 ##############################################################################
 ## EVENT PLAYER - Route Awards & Control Flow
@@ -400,9 +400,9 @@ event_player:
 
   mystery_award_ball_save:
     - mystery_award_selected
-    # ball_save_mode_timer_start deferred — fires on mode_mystery_award_stopped via
-    # mystery_ball_save_pending flag. This ensures the 30s window starts when ball
-    # is live on the playfield, not while it's still sitting in the scoop.
+    # The 30s save is started by ball_save.yaml when it sees
+    # mode_mystery_award_stopped with mystery_ball_save_pending==1, so the
+    # window starts once the ball is live on the playfield, not in the scoop.
 
   ##--- EJECT SEQUENCE ────────────────────────────────────────────────────##
   ## Step 1: Raise barrier at mode start (UP during entire animation)
@@ -428,7 +428,12 @@ event_player:
   ##             (handled entirely by timer control_events on s_mode_start_inactive)
 
   ## Step 7 — NORMAL PATH: barrier_delay complete → raise barrier, stop mode
-  timer_mystery_barrier_delay_complete: [barrier_raise, mystery_eject_confirmed]
+  timer_mystery_barrier_delay_complete{current_player.mystery_just_lit_pilot==0}: [barrier_raise, mystery_eject_confirmed]
+  ## Step 7 — JUST-LIT-PILOT PATH: mystery itself just lit the pilot mission.
+  ##          Barrier must STAY DOWN so the player can shoot the scoop to start it.
+  ##          (Previously barrier_raise fired unconditionally here and nothing
+  ##          dropped it again → scoop blocked with a mission lit.)
+  timer_mystery_barrier_delay_complete{current_player.mystery_just_lit_pilot==1}: [mystery_eject_confirmed]
 
   ## Step 7 — HANDOFF PATH: Ball fired into wall. Stop mystery 150ms after ball leaves
   ##          the scoop switch. Ball physically cannot return in 150ms, so
@@ -444,9 +449,9 @@ event_player:
   tilt: [mystery_safe_release]
   game_ending: [mystery_safe_release]
 
-  ## BALL SAVE — start 30s window when mode stops (ball is live on playfield by then)
-  mode_mystery_award_stopped{current_player.mystery_ball_save_pending==1}:
-    - ball_save_mode_timer_start
+  ## BALL SAVE — the 30s window is started from ball_save.yaml (MYSTERY AWARD
+  ## section). It can't live here: this mode's handlers are removed before its
+  ## own mode_mystery_award_stopped event is posted, so it never fired.
 
 ##############################################################################
 ## SOUND PLAYER
@@ -600,9 +605,10 @@ light_player:
 ## 7. ball_save.yaml — Verify mode ball save compatibility:
 ## ============================================================
 ##
-##   The "30 Seconds Ball Save" award posts ball_save_mode_timer_start.
-##   Verify ball_save.yaml has a ball_saves device with:
-##     enable_events: ball_save_mode_timer_start
+##   The "30 Seconds Ball Save" award sets mystery_ball_save_pending=1.
+##   ball_save.yaml catches mode_mystery_award_stopped, posts
+##   ball_save_mode_timer_start (enables mode_ball_save) and then
+##   ball_save_mystery_extend|100ms (jumps the countdown to 30s).
 ##
 ## ============================================================
 ## 8. Player variables (auto-created by MPF with default 0):

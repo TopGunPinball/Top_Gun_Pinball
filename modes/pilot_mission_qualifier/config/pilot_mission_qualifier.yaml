@@ -219,6 +219,32 @@ timers:
       - event: topgun_ll_window_start
         action: start
 
+  # 1-second "same shot" windows for the ejection seat video skip.
+  # The TOPGUN video is only skipped for an eject qualification when the eject
+  # and TOPGUN qualify on the same shot (either order). Previously
+  # eject_mode_qualified_event set topgun_skip_video directly, and the flag
+  # lingered until the NEXT TOPGUN qualification - e.g. a skillshot qualifies
+  # eject + gives letters 4-5, then an LO shot 8s later finishes TOPGUN and
+  # its video was wrongly skipped.
+  eject_video_skip_window:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: eject_mode_qualified_event
+        action: restart
+  topgun_video_skip_window:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: topgun_qualified
+        action: restart
+
 
 slide_player:
   # Show initial slide when mode starts - ONLY if not qualified
@@ -302,7 +328,7 @@ slide_player:
       priority: 200
   
   # Play completion video based on modes_completed_count
-  # 2 second delay applied via event_player (topgun_show_complete_N events)
+  # 250ms delay (5s after a skillshot) applied via event_player (topgun_show_complete_N events)
   topgun_show_complete_1:
     topgun_letters_complete_1:
       action: play
@@ -326,7 +352,7 @@ slide_player:
   # For 5th+ qualification, random videos are triggered via event_player -> random_event_player
   # See event_player and random_event_player sections below
   
-  # Random video player entries (triggered by random_event_player, 2s delay applied upstream)
+  # Random video player entries (triggered by random_event_player, 250ms delay applied upstream)
   play_topgun_complete_random_1:
     topgun_letters_complete_1:
       action: play
@@ -1085,6 +1111,8 @@ variable_player:
   # Left Lane (LL) letter collection
   # Missions 1-2 (played 0-1)
   s_lane_left_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played<=1}:
+    topgun_letter_slide_source: { action: set, int: 0 }
+    topgun_bonus_slide_source: { action: set, int: 0 }
     topgun_shots_collected:
       action: add
       int: 1
@@ -1106,6 +1134,8 @@ variable_player:
   # Left Orbit (LO) letter collection
   # Missions 1-5 (played 0-4)
   left_orbit_shot_hit{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played<=4}:
+    topgun_letter_slide_source: { action: set, int: 1 }
+    topgun_bonus_slide_source: { action: set, int: 1 }
     topgun_shots_collected:
       action: add
       int: 1
@@ -1115,6 +1145,8 @@ variable_player:
   # Left Ramp (LR) letter collection
   # All missions (always lit)
   s_ramp_left_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
+    topgun_letter_slide_source: { action: set, int: 1 }
+    topgun_bonus_slide_source: { action: set, int: 1 }
     topgun_shots_collected:
       action: add
       int: 1
@@ -1122,6 +1154,8 @@ variable_player:
   # Spinner (SP) letter collection - lock gate removed
   # 3 spinner switch hits = 1 spinner_shot_made = 1 TOPGUN letter
   spinner_shot_made{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played<=3}:
+    topgun_letter_slide_source: { action: set, int: 1 }
+    topgun_bonus_slide_source: { action: set, int: 1 }
     topgun_shots_collected:
       action: add
       int: 1
@@ -1169,6 +1203,8 @@ variable_player:
   # Tower Ramp (TWR) letter collection
   # Missions 1-5 (played 0-4)
   s_ramp_tower_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0 and current_player.pilot_missions_played<=4}:
+    topgun_letter_slide_source: { action: set, int: 1 }
+    topgun_bonus_slide_source: { action: set, int: 1 }
     topgun_shots_collected:
       action: add
       int: 1
@@ -1176,6 +1212,8 @@ variable_player:
   # Top Loop (TL) letter collection
   # All missions (always lit)
   s_orbit_upper_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
+    topgun_letter_slide_source: { action: set, int: 1 }
+    topgun_bonus_slide_source: { action: set, int: 1 }
     topgun_shots_collected:
       action: add
       int: 1
@@ -1183,6 +1221,8 @@ variable_player:
   # Top Ramp (TR) letter collection
   # All missions (always lit, lock gate removed)
   s_ramp_inner_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
+    topgun_letter_slide_source: { action: set, int: 1 }
+    topgun_bonus_slide_source: { action: set, int: 1 }
     topgun_shots_collected:
       action: add
       int: 1
@@ -1190,6 +1230,8 @@ variable_player:
   # Right Ramp (RR) letter collection
   # All missions (always lit)
   s_ramp_right_exit_active{current_player.pilot_qualifier_paused==0 and current_player.letter_collection_paused==0 and current_player.qualified_mode_number==0}:
+    topgun_letter_slide_source: { action: set, int: 1 }
+    topgun_bonus_slide_source: { action: set, int: 1 }
     topgun_shots_collected:
       action: add
       int: 1
@@ -1266,6 +1308,7 @@ variable_player:
   
   # Also reset on ball start
   ball_started:
+    topgun_letters_slide_ok: { action: set, int: 0 }
     left_orbit_diverter_active:
       action: set
       int: 0
@@ -1789,13 +1832,54 @@ variable_player:
       int: 0
   
   ##############################################
+  ## TOPGUN LETTERS COMPLETE SLIDE — SOURCE GATING
+  ## The topgun_letters_complete video only plays when the 6th letter came
+  ## from LO, LR, SP, TWR, TL, TR or RR (or an Inverted perk bonus letter
+  ## triggered by one of those shots). LL, skillshot grants, spotted letters
+  ## and mystery still qualify the mission, but skip the video so it doesn't
+  ## collide with those callouts.
+  ##
+  ##   topgun_letter_slide_source — set by each letter source in the SAME
+  ##     variable_player block, BEFORE the topgun_shots_collected add, so it
+  ##     always describes the letter just collected.
+  ##   topgun_bonus_slide_source — remembers the last lit shot's eligibility
+  ##     for the delayed (500ms) Inverted bonus letter.
+  ##   topgun_letters_slide_ok — snapshot taken when the 6th letter lands;
+  ##     checked by topgun_queue_show_N (event_player).
+  ##
+  ## Default-deny: any letter source not listed (e.g. a mystery award that
+  ## adds letters directly) leaves slide_source at 0 because it is cleared
+  ## after every non-final letter. A qualification that never reaches 6
+  ## letters never takes the snapshot, so slide_ok stays 0.
+  ##############################################
+  player_topgun_shots_collected{value==6}:
+    topgun_letters_slide_ok: { action: set, int: current_player.topgun_letter_slide_source }
+    topgun_letter_slide_source: { action: set, int: 0 }
+  player_topgun_shots_collected{value<6}:
+    topgun_letter_slide_source: { action: set, int: 0 }
+  # Clear the snapshot when the qualified mission starts (qualified_mode_number
+  # only returns to 0 on mode start). Deliberately NOT cleared on
+  # topgun_queue_show_N — clearing on the same event event_player checks
+  # would race with that check.
+  player_qualified_mode_number{value==0}:
+    topgun_letters_slide_ok: { action: set, int: 0 }
+
+  ##############################################
   ## TOPGUN VIDEO SKIP FLAG — set by eject qualification or LL-window mode start
   ## Cleared when the queue show event fires (video decision made then, not at topgun_qualified)
   ##############################################
 
-  # When ejection seat qualifies, flag to skip the pilot mission video
-  # (both fire on the same shot; flag is set before topgun_qualified fires)
-  eject_mode_qualified_event:
+  # Ejection seat and TOPGUN qualified on the same shot → skip the TOPGUN video.
+  # Checked both ways via 1s windows (see timers). Safe to set on
+  # topgun_qualified: the video decision (topgun_queue_show_N) happens 2-5s
+  # later, not on this event.
+  # Eject first, TOPGUN within 1s:
+  topgun_qualified{device.timers.eject_video_skip_window.running}:
+    topgun_skip_video:
+      action: set
+      int: 1
+  # TOPGUN first, eject within 1s:
+  eject_mode_qualified_event{device.timers.topgun_video_skip_window.running}:
     topgun_skip_video:
       action: set
       int: 1
@@ -1902,6 +1986,8 @@ variable_player:
   ## Cap at <6 to prevent overshooting the qualification trigger
   ##############################################
   inverted_bonus_topgun_letter{current_player.qualified_mode_number==0 and current_player.topgun_shots_collected<6}:
+    # Option A: bonus letter inherits the slide eligibility of the shot that triggered it
+    topgun_letter_slide_source: { action: set, int: current_player.topgun_bonus_slide_source }
     topgun_shots_collected:
       action: add
       int: 1
@@ -1915,6 +2001,7 @@ variable_player:
   ## Cap at <6 — no carry-over past qualification.
   ##############################################
   skillshot_add_topgun_letter{current_player.qualified_mode_number==0 and current_player.topgun_shots_collected<6}:
+    topgun_letter_slide_source: { action: set, int: 0 }
     topgun_shots_collected:
       action: add
       int: 1
@@ -1927,6 +2014,7 @@ variable_player:
   ## Same cap as skillshot: won't overshoot qualification
   ##############################################
   spot_topgun_letter{current_player.qualified_mode_number==0 and current_player.topgun_shots_collected<6}:
+    topgun_letter_slide_source: { action: set, int: 0 }
     topgun_shots_collected:
       action: add
       int: 1
@@ -2256,50 +2344,52 @@ event_player:
   ## PILOT MISSION QUALIFIED VIDEO - two-stage dispatch
   ##
   ## Stage 1 (topgun_qualified): schedule the queue show event.
-  ##   - Normal:    2s delay
+  ##   - Normal:    250ms delay
   ##   - Skillshot: 5s delay (video still playing)
   ##
   ## Stage 2 (topgun_queue_show_N): check skip flag at delivery time.
   ##   - topgun_skip_video==0 → play video
-  ##   - topgun_skip_video==1 → skip (set by eject qualification or LL-window mode start)
+  ##   - topgun_skip_video==1 → skip (eject qualified on the same shot, or LL-window mode start)
+  ##   - topgun_letters_slide_ok==0 → skip (6th letter not from LO/LR/SP/TWR/TL/TR/RR —
+  ##     see TOPGUN LETTERS COMPLETE SLIDE — SOURCE GATING in variable_player)
   ##############################################
 
-  # Stage 1: schedule queue show (skillshot path = 5s, normal = 2s)
+  # Stage 1: schedule queue show (skillshot path = 5s, normal = 250ms)
   topgun_qualified{current_player.modes_completed_count==0 and device.timers.skillshot_video_running.running==True}:
     - topgun_queue_show_1|5000ms
   topgun_qualified{current_player.modes_completed_count==0 and not device.timers.skillshot_video_running.running}:
-    - topgun_queue_show_1|2000ms
+    - topgun_queue_show_1|250ms
 
   topgun_qualified{current_player.modes_completed_count==1 and device.timers.skillshot_video_running.running==True}:
     - topgun_queue_show_2|5000ms
   topgun_qualified{current_player.modes_completed_count==1 and not device.timers.skillshot_video_running.running}:
-    - topgun_queue_show_2|2000ms
+    - topgun_queue_show_2|250ms
 
   topgun_qualified{current_player.modes_completed_count==2 and device.timers.skillshot_video_running.running==True}:
     - topgun_queue_show_3|5000ms
   topgun_qualified{current_player.modes_completed_count==2 and not device.timers.skillshot_video_running.running}:
-    - topgun_queue_show_3|2000ms
+    - topgun_queue_show_3|250ms
 
   topgun_qualified{current_player.modes_completed_count==3 and device.timers.skillshot_video_running.running==True}:
     - topgun_queue_show_4|5000ms
   topgun_qualified{current_player.modes_completed_count==3 and not device.timers.skillshot_video_running.running}:
-    - topgun_queue_show_4|2000ms
+    - topgun_queue_show_4|250ms
 
   topgun_qualified{current_player.modes_completed_count>=4 and device.timers.skillshot_video_running.running==True}:
     - topgun_queue_show_random|5000ms
   topgun_qualified{current_player.modes_completed_count>=4 and not device.timers.skillshot_video_running.running}:
-    - topgun_queue_show_random|2000ms
+    - topgun_queue_show_random|250ms
 
   # Stage 2: gate on skip flag — if clear, play video; if set, silently skip
-  topgun_queue_show_1{current_player.topgun_skip_video==0}:
+  topgun_queue_show_1{current_player.topgun_skip_video==0 and current_player.topgun_letters_slide_ok==1}:
     - topgun_show_complete_1
-  topgun_queue_show_2{current_player.topgun_skip_video==0}:
+  topgun_queue_show_2{current_player.topgun_skip_video==0 and current_player.topgun_letters_slide_ok==1}:
     - topgun_show_complete_2
-  topgun_queue_show_3{current_player.topgun_skip_video==0}:
+  topgun_queue_show_3{current_player.topgun_skip_video==0 and current_player.topgun_letters_slide_ok==1}:
     - topgun_show_complete_3
-  topgun_queue_show_4{current_player.topgun_skip_video==0}:
+  topgun_queue_show_4{current_player.topgun_skip_video==0 and current_player.topgun_letters_slide_ok==1}:
     - topgun_show_complete_4
-  topgun_queue_show_random{current_player.topgun_skip_video==0}:
+  topgun_queue_show_random{current_player.topgun_skip_video==0 and current_player.topgun_letters_slide_ok==1}:
     - play_random_topgun_complete
 
   # Start 2s window when LL was the last TOPGUN letter collected

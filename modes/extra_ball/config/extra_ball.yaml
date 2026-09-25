@@ -8,7 +8,7 @@
 #        - goose milestone (goose_letters.yaml)
 #        - mystery award (mystery_award.yaml)
 #        - 3 pilot missions won (this file — eb_pilot_missions_lit gate)
-#        - all 4 training missions played (this file — eb_training_missions_lit gate)
+#        - any 3 of the 5 training missions played (this file — eb_training_missions_lit gate)
 #      → MPF extra_balls device registers as "lit"
 #      → l_extra_ball_lit turns orange (goose_letters handles light)
 #      → extra_ball_lit_video slide plays (goose_letters handles slide)
@@ -117,21 +117,11 @@ variable_player:
       action: set
       int: 1
 
-  # EB #3 — Set flag when the 4th training _complete flips to 1
-  # (four parallel handlers — fires from whichever training completes last)
-  player_training_inverted_complete{value==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1 and current_player.eb_training_missions_lit==0}:
-    eb_training_missions_lit:
-      action: set
-      int: 1
-  player_training_missles_complete{value==1 and current_player.training_inverted_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1 and current_player.eb_training_missions_lit==0}:
-    eb_training_missions_lit:
-      action: set
-      int: 1
-  player_training_afterburner_complete{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_wingman_complete==1 and current_player.eb_training_missions_lit==0}:
-    eb_training_missions_lit:
-      action: set
-      int: 1
-  player_training_wingman_complete{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.eb_training_missions_lit==0}:
+  # EB #3 — Set flag on the dedicated qualify event (posted by event_player
+  # below). Setting it here on the SAME player_training_xxx_complete events
+  # as the event_player check would race: if variable_player ran first, the
+  # ==0 guard would fail and light_extra_ball would never post.
+  eb_training_qualified:
     eb_training_missions_lit:
       action: set
       int: 1
@@ -173,17 +163,23 @@ event_player:
     - light_extra_ball
 
   ##############################################################################
-  ## EB QUALIFIER #3 — Play all 4 training missions (one-shot per game)
-  ## Fires from whichever training _complete flips to 1 last.
+  ## EB QUALIFIER #3 — Play any 3 of the 5 training missions (one-shot per game)
+  ## (Inverted, Missiles, Afterburner, Wingman, Dogfight)
+  ## _complete flags are set on mode start, so "played" = started.
+  ## Fires from whichever training _complete flip brings the total to 3.
   ## "missles" typo preserved to match existing variable name.
   ##############################################################################
-  player_training_inverted_complete{value==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1 and current_player.eb_training_missions_lit==0}:
-    - light_extra_ball
-  player_training_missles_complete{value==1 and current_player.training_inverted_complete==1 and current_player.training_afterburner_complete==1 and current_player.training_wingman_complete==1 and current_player.eb_training_missions_lit==0}:
-    - light_extra_ball
-  player_training_afterburner_complete{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_wingman_complete==1 and current_player.eb_training_missions_lit==0}:
-    - light_extra_ball
-  player_training_wingman_complete{value==1 and current_player.training_inverted_complete==1 and current_player.training_missles_complete==1 and current_player.training_afterburner_complete==1 and current_player.eb_training_missions_lit==0}:
+  player_training_inverted_complete{value==1 and (current_player.training_inverted_complete + current_player.training_missles_complete + current_player.training_afterburner_complete + current_player.training_wingman_complete + current_player.training_dogfight_complete)>=3 and current_player.eb_training_missions_lit==0}:
+    - eb_training_qualified
+  player_training_missles_complete{value==1 and (current_player.training_inverted_complete + current_player.training_missles_complete + current_player.training_afterburner_complete + current_player.training_wingman_complete + current_player.training_dogfight_complete)>=3 and current_player.eb_training_missions_lit==0}:
+    - eb_training_qualified
+  player_training_afterburner_complete{value==1 and (current_player.training_inverted_complete + current_player.training_missles_complete + current_player.training_afterburner_complete + current_player.training_wingman_complete + current_player.training_dogfight_complete)>=3 and current_player.eb_training_missions_lit==0}:
+    - eb_training_qualified
+  player_training_wingman_complete{value==1 and (current_player.training_inverted_complete + current_player.training_missles_complete + current_player.training_afterburner_complete + current_player.training_wingman_complete + current_player.training_dogfight_complete)>=3 and current_player.eb_training_missions_lit==0}:
+    - eb_training_qualified
+  player_training_dogfight_complete{value==1 and (current_player.training_inverted_complete + current_player.training_missles_complete + current_player.training_afterburner_complete + current_player.training_wingman_complete + current_player.training_dogfight_complete)>=3 and current_player.eb_training_missions_lit==0}:
+    - eb_training_qualified
+  eb_training_qualified:
     - light_extra_ball
 
   ##############################################################################

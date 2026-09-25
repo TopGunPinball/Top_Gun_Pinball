@@ -202,11 +202,99 @@ timers:
       - event: mode_base_will_stop
         action: stop
 
+  ##############################################
+  ## RAMP ELEVATOR SOUND ARBITRATION TIMERS
+  ## See event_player "RAMP ELEVATOR SOUNDS" for the full logic.
+  ## 100ms ticks because these windows are sub-second.
+  ##############################################
+  # Up sound just played: suppresses any down sound and repeat up sounds
+  # for 1s so an up+down or up+up pair plays elevator_up once
+  ramp_snd_up_lockout:
+    start_value: 0
+    end_value: 10
+    direction: up
+    tick_interval: 100ms
+    start_running: false
+    control_events:
+      - event: ramp_snd_play_up
+        action: restart
+      - event: mode_base_will_stop
+        action: stop
+
+  # Down move detected: hold the down sound 700ms to see if an up follows
+  # (pairs are staggered 500ms). An up cancels it; otherwise it plays.
+  ramp_snd_down_pending:
+    start_value: 0
+    end_value: 7
+    direction: up
+    tick_interval: 100ms
+    start_running: false
+    control_events:
+      - event: ramp_snd_down_pending_start
+        action: restart
+      - event: ramp_snd_up_move
+        action: stop
+      - event: mode_base_will_stop
+        action: stop
+
+  # Down sound just played: suppresses a second down sound for 1s
+  ramp_snd_down_lockout:
+    start_value: 0
+    end_value: 10
+    direction: up
+    tick_interval: 100ms
+    start_running: false
+    control_events:
+      - event: ramp_snd_play_down
+        action: restart
+      - event: mode_base_will_stop
+        action: stop
+
 event_player:
   mode_base_started:
     - start_mode_bumpers
     - right_ramp_down
     - top_ramp_down|500ms
+
+  ##############################################
+  ## RAMP ELEVATOR SOUNDS
+  ## 1) Only real movement counts: a servo command is a "move" only if the
+  ##    ramp's tracked state (ramp_snd_*_state, 0=down 1=up) differs.
+  ##    State is updated in the derived *_moved_* events (variable_player),
+  ##    never on the servo event itself, so there's no same-event race.
+  ## 2) Ignored during ball search (probe movements stay silent; state
+  ##    stays frozen at the pre-search value, matching the restore).
+  ## 3) Arbitration:
+  ##    - Up move: play elevator_up unless one played <1s ago; cancel any
+  ##      pending down sound.
+  ##    - Down move: ignored if an up played <1s ago or a down is already
+  ##      pending/just played; otherwise wait 700ms, then play elevator_down.
+  ##    Result: mixed pair = up only; same-direction pair = one sound.
+  ##############################################
+  right_ramp_up{machine.ball_search_active_flag==0 and machine.ramp_snd_right_state==0}:
+    - ramp_snd_right_moved_up
+  right_ramp_down{machine.ball_search_active_flag==0 and machine.ramp_snd_right_state==1}:
+    - ramp_snd_right_moved_down
+  top_ramp_up{machine.ball_search_active_flag==0 and machine.ramp_snd_top_state==0}:
+    - ramp_snd_top_moved_up
+  top_ramp_down{machine.ball_search_active_flag==0 and machine.ramp_snd_top_state==1}:
+    - ramp_snd_top_moved_down
+
+  ramp_snd_right_moved_up:
+    - ramp_snd_up_move
+  ramp_snd_top_moved_up:
+    - ramp_snd_up_move
+  ramp_snd_right_moved_down:
+    - ramp_snd_down_move
+  ramp_snd_top_moved_down:
+    - ramp_snd_down_move
+
+  ramp_snd_up_move{device.timers.ramp_snd_up_lockout.running==False}:
+    - ramp_snd_play_up
+  ramp_snd_down_move{device.timers.ramp_snd_up_lockout.running==False and device.timers.ramp_snd_down_pending.running==False and device.timers.ramp_snd_down_lockout.running==False}:
+    - ramp_snd_down_pending_start
+  timer_ramp_snd_down_pending_complete:
+    - ramp_snd_play_down
 
   ##############################################
   ## COMPOSITE SHOT EVENTS
@@ -448,6 +536,15 @@ variable_player:
   # ALSO initialize when base mode starts (this is the key fix!)
   # Reset per-ball bonus counters AND bonus multiplier
   mode_base_started:
+    # Ramp elevator sound tracking: base's own mode_base_started lowers
+    # both ramps, so sync to down here (those queued down commands then
+    # see state 0 and stay silent)
+    ramp_snd_right_state:
+      action: set_machine
+      int: 0
+    ramp_snd_top_state:
+      action: set_machine
+      int: 0
     # Defensive reset — a mode should always clear this itself, but don't
     # let it carry over between balls if one forgets
     orbit_left_shot_armed:
@@ -539,6 +636,26 @@ variable_player:
 
   top_ramp_down{machine.ball_search_active_flag==0}:
     top_ramp_true_state:
+      action: set_machine
+      int: 0
+
+  ##############################################
+  ## RAMP ELEVATOR SOUND STATE (see event_player RAMP ELEVATOR SOUNDS)
+  ##############################################
+  ramp_snd_right_moved_up:
+    ramp_snd_right_state:
+      action: set_machine
+      int: 1
+  ramp_snd_right_moved_down:
+    ramp_snd_right_state:
+      action: set_machine
+      int: 0
+  ramp_snd_top_moved_up:
+    ramp_snd_top_state:
+      action: set_machine
+      int: 1
+  ramp_snd_top_moved_down:
+    ramp_snd_top_state:
       action: set_machine
       int: 0
 
@@ -1669,6 +1786,19 @@ sound_player:
     music_danger_zone:
       bus: music
       loops: -1
+
+  ##############################################################################
+  ## RAMP ELEVATOR SOUNDS (arbitrated in event_player - see RAMP ELEVATOR SOUNDS)
+  ## Dedicated 'mech' bus: no compressor, so voice callouts never duck these
+  ##############################################################################
+  ramp_snd_play_up:
+    elevator_up:
+      bus: mech
+      loops: 0
+  ramp_snd_play_down:
+    elevator_down:
+      bus: mech
+      loops: 0
 
 #################################################################################### 
   # Skillshot Collected Sounds

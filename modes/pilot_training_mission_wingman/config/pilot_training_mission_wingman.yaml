@@ -204,7 +204,8 @@ timers:
 
   # Auto-plunger delay - 500ms after ball settles on shooter lane switch
   # Handles multiball start, add-a-balls, and saved balls returning
-  # GUARD: Only restarts when mode_active==1 (disabled during win/loss drain phase)
+  # GUARD: Only restarts during tug-of-war (mode_active==1) or victory mode
+  # (victory_active==1) - disabled during loss drain phase and intro hold
   # CHANGED: was 1s (tick_interval: 1s, end_value: 1). Now 500ms via 1ms ticks
   # x 500 to keep balls moving quickly during multiball saves.
   wingman_auto_plunger_delay:
@@ -213,12 +214,13 @@ timers:
     direction: up
     tick_interval: 1ms
     control_events:
-      - event: s_shooter_lane_active{current_player.wingman_mode_active==1}
+      - event: s_shooter_lane_active{(current_player.wingman_mode_active==1 or current_player.wingman_victory_active==1)}
         action: restart
       - event: s_shooter_lane_inactive
         action: stop
-      - event: wingman_won_trigger
-        action: stop
+      # NOTE: wingman_won_trigger stop REMOVED - multiball (and add-a-ball /
+      # ball saves) keep running through victory mode, so the auto-plunger
+      # must keep working too.
       - event: wingman_lost_bad_shots
         action: stop
       - event: mode_pilot_training_mission_wingman_will_stop
@@ -766,33 +768,36 @@ variable_player:
   ##############################################
   ## ICEMAN LETTER COLLECTION
   ##############################################
+  # Guard allows collection during tug-of-war (mode_active==1) AND
+  # victory mode (victory_active==1). wingman_won_trigger sets
+  # mode_active=0, so a mode_active-only guard killed ICEMAN in victory.
   
-  s_i_iceman_target_active{current_player.wingman_iceman_i==0 and current_player.wingman_mode_active==1}:
+  s_i_iceman_target_active{current_player.wingman_iceman_i==0 and (current_player.wingman_mode_active==1 or current_player.wingman_victory_active==1)}:
     wingman_iceman_i:
       action: set
       int: 1
 
-  s_c_iceman_target_active{current_player.wingman_iceman_c==0 and current_player.wingman_mode_active==1}:
+  s_c_iceman_target_active{current_player.wingman_iceman_c==0 and (current_player.wingman_mode_active==1 or current_player.wingman_victory_active==1)}:
     wingman_iceman_c:
       action: set
       int: 1
 
-  s_e_iceman_target_active{current_player.wingman_iceman_e==0 and current_player.wingman_mode_active==1}:
+  s_e_iceman_target_active{current_player.wingman_iceman_e==0 and (current_player.wingman_mode_active==1 or current_player.wingman_victory_active==1)}:
     wingman_iceman_e:
       action: set
       int: 1
 
-  s_m_iceman_target_active{current_player.wingman_iceman_m==0 and current_player.wingman_mode_active==1}:
+  s_m_iceman_target_active{current_player.wingman_iceman_m==0 and (current_player.wingman_mode_active==1 or current_player.wingman_victory_active==1)}:
     wingman_iceman_m:
       action: set
       int: 1
 
-  s_a_iceman_target_active{current_player.wingman_iceman_a==0 and current_player.wingman_mode_active==1}:
+  s_a_iceman_target_active{current_player.wingman_iceman_a==0 and (current_player.wingman_mode_active==1 or current_player.wingman_victory_active==1)}:
     wingman_iceman_a:
       action: set
       int: 1
 
-  s_n_iceman_target_active{current_player.wingman_iceman_n==0 and current_player.wingman_mode_active==1}:
+  s_n_iceman_target_active{current_player.wingman_iceman_n==0 and (current_player.wingman_mode_active==1 or current_player.wingman_victory_active==1)}:
     wingman_iceman_n:
       action: set
       int: 1
@@ -1158,7 +1163,7 @@ event_player:
   ## ORBIT LOCKOUT ON PLUNGE
   ## Prevents false shots when ball auto-launches through orbit
   ##############################################
-  s_shooter_lane_active{current_player.wingman_mode_active==1}:
+  s_shooter_lane_active{(current_player.wingman_mode_active==1 or current_player.wingman_victory_active==1)}:
     - wingman_start_plunge_lockout
 
   ##############################################
@@ -1478,17 +1483,17 @@ event_player:
   ##############################################
   
   # Check for ICEMAN completion after any letter hit
-  s_i_iceman_target_active{current_player.wingman_iceman_i==0 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==1 and current_player.wingman_mode_active==1}:
+  s_i_iceman_target_active{current_player.wingman_iceman_i==0 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==1 and (current_player.wingman_mode_active==1 or current_player.wingman_victory_active==1)}:
     - wingman_iceman_complete
-  s_c_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==0 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==1 and current_player.wingman_mode_active==1}:
+  s_c_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==0 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==1 and (current_player.wingman_mode_active==1 or current_player.wingman_victory_active==1)}:
     - wingman_iceman_complete
-  s_e_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==0 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==1 and current_player.wingman_mode_active==1}:
+  s_e_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==0 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==1 and (current_player.wingman_mode_active==1 or current_player.wingman_victory_active==1)}:
     - wingman_iceman_complete
-  s_m_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==0 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==1 and current_player.wingman_mode_active==1}:
+  s_m_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==0 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==1 and (current_player.wingman_mode_active==1 or current_player.wingman_victory_active==1)}:
     - wingman_iceman_complete
-  s_a_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==0 and current_player.wingman_iceman_n==1 and current_player.wingman_mode_active==1}:
+  s_a_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==0 and current_player.wingman_iceman_n==1 and (current_player.wingman_mode_active==1 or current_player.wingman_victory_active==1)}:
     - wingman_iceman_complete
-  s_n_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==0 and current_player.wingman_mode_active==1}:
+  s_n_iceman_target_active{current_player.wingman_iceman_i==1 and current_player.wingman_iceman_c==1 and current_player.wingman_iceman_e==1 and current_player.wingman_iceman_m==1 and current_player.wingman_iceman_a==1 and current_player.wingman_iceman_n==0 and (current_player.wingman_mode_active==1 or current_player.wingman_victory_active==1)}:
     - wingman_iceman_complete
 
   # Add-a-ball fires directly on 1st ICEMAN completion (max 3 balls) —
@@ -1501,11 +1506,11 @@ event_player:
   ##############################################
   
   # Pop bumper hits - cyan flash
-  s_bumper_left_active{current_player.wingman_mode_active==1}:
+  s_bumper_left_active{(current_player.wingman_mode_active==1 or current_player.wingman_victory_active==1)}:
     - wingman_pop_bumper_flash
-  s_bumper_center_active{current_player.wingman_mode_active==1}:
+  s_bumper_center_active{(current_player.wingman_mode_active==1 or current_player.wingman_victory_active==1)}:
     - wingman_pop_bumper_flash
-  s_bumper_right_active{current_player.wingman_mode_active==1}:
+  s_bumper_right_active{(current_player.wingman_mode_active==1 or current_player.wingman_victory_active==1)}:
     - wingman_pop_bumper_flash
 
   ##############################################

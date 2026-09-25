@@ -27,6 +27,11 @@
 # 8(LR): LO,SP  9(SP): LR,TWR  10(LR): LO,SP   11(RR): TWR,CNT
 # All other shots are OFF (not lit, not bad)
 #
+# GRACE PERIOD (2s, bthd_grace_timer end_value):
+# When the shot moves because the move timer RAN OUT, the shot it just left
+# still counts as GOOD for 2 seconds (covers a ball already on its way).
+# Not applied when the shot moved because of a good hit (no double-collect).
+#
 # SCORING (direct, multiplier applied, total = 7,500,000):
 # Shot 1: 400,000  | Shot 4: 750,000  | Shot 7: 900,000
 # Shot 2: 550,000  | Shot 5: 825,000  | Shot 8: 925,000
@@ -172,6 +177,29 @@ timers:
       # revives it out of phase (and re-fires _complete if it already finished).
       - event: mode_timers_resume{current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0 and not device.timers.bthd_intro_video_delay.running and device.switches.s_mode_start.state==0 and current_player.bthd_last_shot_active==0}
         action: start
+
+  # Grace period — 2s after a TIMED move, the previous position's shot still
+  # counts as good (see GRACE PERIOD handlers in event_player). Started only
+  # by the move timer running out, never by a good-shot move. Ends early on
+  # any good shot so it can't double-collect.
+  bthd_grace_timer:
+    start_value: 0
+    end_value: 2                   # <-- grace length in seconds
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: timer_bthd_move_timer_complete
+        action: restart
+      - event: bthd_good_shot_hit
+        action: stop
+      - event: bthd_last_shot_setup
+        action: stop
+      - event: bthd_complete
+        action: stop
+      - event: bthd_failed
+        action: stop
+      - event: bthd_drain_detected
+        action: stop
 
   # Left orbit diverter hold when RO shot is lit (position 6)
   # Restarts each time s_orbit_right_active fires — handled in event_player
@@ -368,6 +396,14 @@ variable_player:
     bthd_shot_value:
       action: set
       int: 350000
+
+  # GRACE PERIOD — remember the position the shot is leaving. Safe to read
+  # bthd_position here: the advance happens in events queued AFTER this one
+  # (timer complete -> bthd_move_shot -> bthd_advance_position).
+  timer_bthd_move_timer_complete:
+    bthd_grace_position:
+      action: set
+      int: current_player.bthd_position
 
   bthd_shot_value_grow:
     bthd_shot_value:
@@ -828,7 +864,7 @@ event_player:
   # Bad shots at position 2: LR, TWR
   s_ramp_left_exit_active{current_player.bthd_position==2 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
-  s_ramp_tower_exit_active{current_player.bthd_position==2 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
+  s_ramp_tower_exit_active{current_player.bthd_position==2 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0 and not (device.timers.bthd_grace_timer.running and current_player.bthd_grace_position==1)}:
     - bthd_bad_shot_hit
 
   ##############################################
@@ -895,7 +931,7 @@ event_player:
   # Bad shots at position 6: TWR, CNT
   s_ramp_tower_exit_active{current_player.bthd_position==6 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
-  s_barrier_target_active{current_player.bthd_position==6 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
+  s_barrier_target_active{current_player.bthd_position==6 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0 and not (device.timers.bthd_grace_timer.running and current_player.bthd_grace_position==5)}:
     - bthd_bad_shot_hit
 
   ##############################################
@@ -926,7 +962,7 @@ event_player:
   spinner_shot_made{current_player.bthd_position==9 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_good_shot_hit
 
-  s_ramp_left_exit_active{current_player.bthd_position==9 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
+  s_ramp_left_exit_active{current_player.bthd_position==9 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0 and not (device.timers.bthd_grace_timer.running and current_player.bthd_grace_position==8)}:
     - bthd_bad_shot_hit
   s_ramp_tower_exit_active{current_player.bthd_position==9 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
@@ -939,7 +975,7 @@ event_player:
 
   left_orbit_shot_hit{current_player.bthd_position==10 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
-  spinner_shot_made{current_player.bthd_position==10 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
+  spinner_shot_made{current_player.bthd_position==10 and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0 and not (device.timers.bthd_grace_timer.running and current_player.bthd_grace_position==9)}:
     - bthd_bad_shot_hit
 
   ##############################################
@@ -952,6 +988,32 @@ event_player:
     - bthd_bad_shot_hit
   s_barrier_target_active{current_player.bthd_position==11 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
     - bthd_bad_shot_hit
+
+  ##############################################
+  ## GRACE PERIOD — previous shot still good for 2s after a TIMED move
+  ## bthd_grace_timer runs only after the move timer runs out. Adjacent
+  ## positions never share a shot, so these never collide with the current
+  ## position's good handler. The 4 cases where the previous shot is a BAD
+  ## shot at the new position (TWR@2, CNT@6, LR@9, SP@10) have that bad
+  ## handler gated off above while grace is running.
+  ## RO (pos 6) is included for completeness, but the right ramp drops on
+  ## entering pos 7, so a late RO attempt usually can't complete physically.
+  ##############################################
+  left_orbit_shot_hit{device.timers.bthd_grace_timer.running and current_player.bthd_grace_position==0 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
+    - bthd_good_shot_hit
+    - orbit_left_safe_return_clear|700ms
+  s_ramp_tower_exit_active{device.timers.bthd_grace_timer.running and (current_player.bthd_grace_position==1 or current_player.bthd_grace_position==7) and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
+    - bthd_good_shot_hit
+  spinner_shot_made{device.timers.bthd_grace_timer.running and (current_player.bthd_grace_position==2 or current_player.bthd_grace_position==9) and current_player.spinner_shot_locked==0 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
+    - bthd_good_shot_hit
+  s_ramp_right_exit_active{device.timers.bthd_grace_timer.running and (current_player.bthd_grace_position==3 or current_player.bthd_grace_position==11) and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
+    - bthd_good_shot_hit
+  s_ramp_left_exit_active{device.timers.bthd_grace_timer.running and (current_player.bthd_grace_position==4 or current_player.bthd_grace_position==8 or current_player.bthd_grace_position==10) and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
+    - bthd_good_shot_hit
+  s_barrier_target_active{device.timers.bthd_grace_timer.running and current_player.bthd_grace_position==5 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
+    - bthd_good_shot_hit
+  right_orbit_shot_hit{device.timers.bthd_grace_timer.running and current_player.bthd_grace_position==6 and current_player.bthd_complete_flag==0 and current_player.bthd_step_locked==0}:
+    - bthd_good_shot_hit
 
 
 ####################################################################################
@@ -1181,6 +1243,15 @@ sound_player:
       bus: voice
       loops: 0
 
+  # Bad shot callout. Voice bus is sequential, so if another callout is
+  # already talking this waits its turn — max_queue_time drops it if it
+  # can't start within 2s, so a stale "missed" never plays long after.
+  bthd_bad_shot_hit:
+    below_the_hard_deck_shot_missed:
+      bus: voice
+      loops: 0
+      max_queue_time: 2s
+
 
 ####################################################################################
 # COIL PLAYER — Left lane post holds ball for won video
@@ -1230,6 +1301,7 @@ show_player:
     bthd_gi_mode:
       show: bthd_gi_off
       key: bthd_gi_key
+      priority: 1000    # bad-shot flash above 2X GI fade (1250); bthd_set_gi_red (priority 0) hands back
       loops: 0
 
   # Bad shot GI flash "on" pulse — true bright red, distinct from the mode's
@@ -1238,6 +1310,7 @@ show_player:
     bthd_gi_mode:
       show: bthd_gi_flash_red
       key: bthd_gi_key
+      priority: 1000    # bad-shot flash above 2X GI fade (1250)
       loops: 0
 
   ##############################################
@@ -1254,6 +1327,7 @@ show_player:
       show: bthd_miss
       speed: 30
       loops: 0
+      priority: 1000    # red bad-shot flash above 2X GI fade (1250)
 
   ##############################################
   ## POSITION 0 — LO yellow, LL+LR red, rest off
