@@ -1859,7 +1859,43 @@ sound_player:
       bus: music
       loops: -1
 
-  mode_mystery_award_stopped:
+  # Skip when mystery is handing the ball to a pending mission / multiball
+  # (their own music starts on ball release). Still restart when nothing is
+  # pending, or when mystery itself just lit the mission (player must re-shoot).
+  mode_mystery_award_stopped{(current_player.qualified_mode_number==0 and current_player.multiball_qualified==0) or current_player.mystery_just_lit_pilot==1}:
+    music_danger_zone:
+      bus: music
+      loops: -1
+
+####################################################################################
+  # Carrier Landing Video Mode Music Handler
+  # Music is already silenced by the scoop-entry silence handler above when the
+  # ball enters the scoop. Danger Zone restarts when the video mode stops.
+####################################################################################
+
+  # Safety net: always silent during the landing, however the mode was started
+  mode_carrier_landing_started:
+    silence:
+      bus: music
+      loops: 0
+
+  # Carrier landing music plays from the start of the approach (after the
+  # intro countdown) through the landing and result.
+  landing_sfx_engine_start:
+    music_carrier_landing:
+      bus: music
+      loops: -1
+
+  # Stop it when the video mode ends (Danger Zone / the next mode's music
+  # take over from the handlers below and in the next mode).
+  mode_carrier_landing_will_stop:
+    silence:
+      bus: music
+      loops: 0
+
+  # When mystery started the video mode, mystery is still running here and
+  # restarts Danger Zone itself when it stops.
+  mode_carrier_landing_stopped{mode.mystery_award.active==False and current_player.qualified_mode_number==0 and current_player.multiball_qualified==0}:
     music_danger_zone:
       bus: music
       loops: -1

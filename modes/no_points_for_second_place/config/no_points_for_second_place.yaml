@@ -654,6 +654,10 @@ variable_player:
     no_points_for_second_place_complete_flag:
       action: set
       int: 1
+    # Read by status_mode.yaml (was never set, so status always showed "lost")
+    mode_no_points_for_second_place_won:
+      action: set
+      int: 1
     pilot_missions_won:
       action: add
       int: 1
@@ -1029,9 +1033,9 @@ timers:
   # Scoop eject debounce
   no_points_for_second_place_eject_debounce:
     start_value: 0
-    end_value: 150  # [EJECT_DEBOUNCE]
+    end_value: 1
     direction: up
-    tick_interval: 1ms
+    tick_interval: 150ms    # single tick (was 1ms x 150) - same timing, 1 event instead of 150
     start_running: false
     control_events:
       - event: s_mode_start_inactive
@@ -1042,9 +1046,9 @@ timers:
   # Barrier raise delay
   no_points_for_second_place_barrier_delay:
     start_value: 0
-    end_value: 750  # [BARRIER_DELAY]
+    end_value: 1
     direction: up
-    tick_interval: 1ms
+    tick_interval: 750ms    # single tick (was 1ms x 750) - same timing, 1 event instead of 750
     start_running: false
     control_events:
       - event: timer_no_points_for_second_place_eject_debounce_complete
@@ -1053,9 +1057,9 @@ timers:
   # Wave 2 diverter assist — 3s open window, restarts on each trigger
   no_points_for_second_place_diverter_assist:
     start_value: 0
-    end_value: 3000  # [DIVERTER_ASSIST]
+    end_value: 1
     direction: up
-    tick_interval: 1ms
+    tick_interval: 3000ms    # single tick (was 1ms x 3000) - same timing, 1 event instead of 3000
     start_running: false
     control_events:
       - event: no_points_for_second_place_diverter_assist_trigger

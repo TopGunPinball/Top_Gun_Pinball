@@ -1,0 +1,369 @@
+#config_version=6
+
+##############################################################################
+## CARRIER LANDING VIDEO MODE
+##############################################################################
+##
+## QUALIFY:  video_mode_lit = 1   (set in pilot_mission_qualifier.yaml)
+##           - 1st, 4th and 7th mission won (pilot + training wins combined)
+##           - TEST: one left slingshot hit lights it (remove after testing)
+## LIGHT:    l_mystery_lit orange (blue = mystery, fade = both lit)
+## START:    center scoop (s_mode_start). Order: MYSTERY -> VIDEO -> PILOT/TGMB
+##             - Scoop hit with video lit        -> qualifier starts this mode
+##             - Mystery lit too                 -> mystery first, then this mode
+##                                                  captures the returning ball
+## LEVELS:   video_mode_level 0/1/2 = Level 1/2/3. Advances only after a
+##           successful trap (any wire). Stays at Level 3 after that.
+##
+## BALL FLOW:
+##   Ball held in bd_mode_scoop the whole time. Flippers + autofires disabled
+##   so the flipper buttons only steer. Godot posts landing_done when the
+##   result screen finishes, then:
+##
+##   NORMAL PATH (nothing else waiting at the scoop):
+##     flippers on -> barrier_drop -> 500ms -> release ball
+##     -> ball leaves (150ms debounce) -> 750ms -> barrier_raise -> mode stops
+##
+##   FROM MYSTERY (mystery and video mode both lit):
+##     Mystery keeps holding the ball and starts this mode on top of itself.
+##     At landing_done this mode posts carrier_landing_return_to_mystery and
+##     stops; mystery then runs its normal eject.
+##
+##   HANDOFF PATH (pilot mission and/or TGMB lit - same trick mystery uses):
+##     flippers on -> barrier stays UP -> 500ms -> release ball into barrier
+##     -> mode stops 150ms after ball leaves -> qualifier / locks start the
+##     pending mode, whose ball_hold captures the returning ball.
+##
+## PRIORITY 600 (same as pilot missions, above bonus 500)
+##
+## NOT IN THIS FILE (per project rules):
+##   - Music (base.yaml: scoop-entry silence + Danger Zone on mode stop)
+##   - Clearing carrier_landing_active / carrier_landing_ejecting
+##     (pilot_mission_qualifier.yaml on mode_carrier_landing_stopped)
+##
+## Scores awarded here match the Godot result screen:
+##   3-wire 5M | 2/4-wire 3M | 1-wire 1.5M | bolter 500K | crash / splash 0
+##   x1 / x1.5 / x2 for Level 1 / 2 / 3
+##############################################################################
+
+mode:
+  start_events: start_mode_carrier_landing
+  stop_events:
+    - carrier_landing_eject_confirmed
+    - carrier_landing_return_to_mystery   # started by mystery: mystery ejects the ball
+  priority: 600
+  game_mode: true
+  use_wait_queue: true
+
+##############################################################################
+## BALL HOLD
+##############################################################################
+
+ball_holds:
+  carrier_landing_scoop_hold:
+    balls_to_hold: 1
+    hold_devices: bd_mode_scoop
+    enable_events: [mode_carrier_landing_started]
+    release_one_events: [carrier_landing_ball_release]
+    release_all_events: [carrier_landing_safe_release]
+
+##############################################################################
+## TIMERS
+##############################################################################
+
+timers:
+  # Failsafe: if Godot never reports back, finish the mode anyway.
+  carrier_landing_safety:
+    start_value: 0
+    end_value: 75
+    direction: up
+    tick_interval: 1s
+    control_events:
+      - event: mode_carrier_landing_started
+        action: start
+      - event: landing_done
+        action: stop
+
+  # 400ms for the barrier to physically drop before the scoop kicks.
+  carrier_landing_eject_wait:
+    start_value: 0
+    end_value: 1
+    tick_interval: 400ms
+    direction: up
+    start_running: false
+    control_events:
+      - event: carrier_landing_eject_start
+        action: restart
+
+  # 150ms debounce confirming the ball really left the scoop (normal path).
+  # Only armed after the ball is released (see carrier_landing_ejecting),
+  # so the settle bounce at mode start can't trigger it.
+  carrier_landing_eject_debounce:
+    start_value: 0
+    end_value: 1
+    tick_interval: 150ms
+    direction: up
+    start_running: false
+    control_events:
+      - event: carrier_landing_ball_left
+        action: restart
+      - event: carrier_landing_ball_back
+        action: stop
+
+  # 750ms after the ball clears before raising the barrier (normal path).
+  carrier_landing_barrier_delay:
+    start_value: 0
+    end_value: 1
+    tick_interval: 750ms
+    direction: up
+    start_running: false
+    control_events:
+      - event: timer_carrier_landing_eject_debounce_complete
+        action: restart
+
+##############################################################################
+## VARIABLE PLAYER
+##############################################################################
+
+variable_player:
+  mode_carrier_landing_started:
+    video_mode_lit:
+      action: set
+      int: 0
+    carrier_landing_active:
+      action: set
+      int: 1
+    carrier_landing_ejecting:
+      action: set
+      int: 0
+    video_mode_trapped:
+      action: set
+      int: 0
+    video_modes_played:
+      action: add
+      int: 1
+
+  # Use up one banked mission qualifier (see pilot_mission_qualifier.yaml)
+  mode_carrier_landing_started{current_player.video_mode_credits>0}:
+    video_mode_credits:
+      action: add
+      int: -1
+
+  # Scores: base award + 50% per level above 1 (x1 / x1.5 / x2)
+  landing_result_wire_3:
+    score:
+      action: add
+      int: 5000000 + current_player.video_mode_level * 2500000
+    video_mode_trapped:
+      action: set
+      int: 1
+  landing_result_wire_2:
+    score:
+      action: add
+      int: 3000000 + current_player.video_mode_level * 1500000
+    video_mode_trapped:
+      action: set
+      int: 1
+  landing_result_wire_4:
+    score:
+      action: add
+      int: 3000000 + current_player.video_mode_level * 1500000
+    video_mode_trapped:
+      action: set
+      int: 1
+  landing_result_wire_1:
+    score:
+      action: add
+      int: 1500000 + current_player.video_mode_level * 750000
+    video_mode_trapped:
+      action: set
+      int: 1
+  landing_result_bolter:
+    score:
+      action: add
+      int: 500000 + current_player.video_mode_level * 250000
+  landing_result_waveoff:
+    score:
+      action: add
+      int: 250000 + current_player.video_mode_level * 125000
+
+  # Advance to the next level only after a successful trap (any wire).
+  # Done on landing_done (after scoring) so the score uses the level just played.
+  landing_done{current_player.video_mode_trapped==1 and current_player.video_mode_level<2}:
+    video_mode_level:
+      action: add
+      int: 1
+
+  carrier_landing_ball_release:
+    carrier_landing_ejecting:
+      action: set
+      int: 1
+
+##############################################################################
+## EVENT PLAYER
+##############################################################################
+
+event_player:
+  # Barrier UP while the ball sits in the scoop; flippers become controls only.
+  # landing_begin tells Godot to start; the 1.5s delay lets the slide load
+  # and register its handlers first. Level 1-3 comes from video_mode_level 0-2.
+  mode_carrier_landing_started:
+    barrier_raise: {}
+    disable_normal_flippers: {}
+    disable_autofires: {}
+    landing_begin|1500ms:
+      level:
+        value: current_player.video_mode_level + 1
+        type: int
+
+  # Failsafe finish
+  timer_carrier_landing_safety_complete:
+    - landing_done
+
+  # ── END OF LANDING ──────────────────────────────────────────────────────
+  landing_done{mode.mystery_award.active==False}:
+    - enable_normal_flippers
+    - enable_autofires
+    - carrier_landing_eject_start
+
+  # FROM MYSTERY: mystery is still holding the ball -> hand control back to it
+  landing_done{mode.mystery_award.active==True}:
+    - enable_normal_flippers
+    - enable_autofires
+    - carrier_landing_return_to_mystery
+
+  # NORMAL PATH: nothing waiting -> drop barrier so the ball exits
+  landing_done{current_player.qualified_mode_number==0 and current_player.multiball_qualified==0 and mode.mystery_award.active==False}:
+    - barrier_drop
+
+  # Both paths: release the ball 500ms later
+  timer_carrier_landing_eject_wait_complete:
+    - carrier_landing_ball_release
+
+  # Ball movement after release (armed only once the ball has been released)
+  s_mode_start_inactive{current_player.carrier_landing_ejecting==1}:
+    - carrier_landing_ball_left
+  s_mode_start_active{current_player.carrier_landing_ejecting==1}:
+    - carrier_landing_ball_back
+
+  # NORMAL PATH: ball clear -> raise barrier -> stop
+  timer_carrier_landing_barrier_delay_complete{current_player.qualified_mode_number==0 and current_player.multiball_qualified==0}:
+    - barrier_raise
+    - carrier_landing_eject_confirmed
+
+  # HANDOFF PATH: ball fired into the raised barrier. Stop 150ms after it
+  # leaves the switch so this hold is gone before the ball bounces back.
+  carrier_landing_ball_left{current_player.qualified_mode_number>0 or current_player.multiball_qualified==1}:
+    - carrier_landing_eject_confirmed|150ms
+
+  # Safety releases
+  tilt:
+    - carrier_landing_safe_release
+  game_ending:
+    - carrier_landing_safe_release
+  mode_carrier_landing_will_stop{current_player.qualified_mode_number==0 and current_player.multiball_qualified==0 and mode.mystery_award.active==False}:
+    - carrier_landing_safe_release
+
+##############################################################################
+## SLIDE PLAYER
+##############################################################################
+
+slide_player:
+  mode_carrier_landing_started:
+    carrier_landing:
+      action: play
+      priority: 1000
+  mode_carrier_landing_will_stop:
+    carrier_landing:
+      action: remove
+
+##############################################################################
+## LIGHT PLAYER
+##############################################################################
+
+light_player:
+  mode_carrier_landing_started:
+    l_mystery_lit: off
+
+##############################################################################
+## SOUND PLAYER (effects only - music lives in base.yaml)
+##############################################################################
+
+sound_player:
+  landing_sfx_engine_start:
+    landing_engine_loop:
+      bus: effects
+      loops: -1
+
+  landing_result_wire_1:
+    landing_engine_loop:
+      action: stop
+  landing_result_wire_2:
+    landing_engine_loop:
+      action: stop
+  landing_result_wire_3:
+    landing_engine_loop:
+      action: stop
+  landing_result_wire_4:
+    landing_engine_loop:
+      action: stop
+  landing_result_crash:
+    landing_engine_loop:
+      action: stop
+  landing_result_bolter:
+    landing_engine_loop:
+      action: stop
+  landing_result_waveoff:
+    landing_engine_loop:
+      action: stop
+  landing_result_splash:
+    landing_engine_loop:
+      action: stop
+  mode_carrier_landing_will_stop:
+    landing_engine_loop:
+      action: stop
+
+  landing_sfx_warning:
+    landing_warning:
+      bus: effects
+      loops: 0
+  landing_sfx_call_ball:
+    landing_call_ball:
+      bus: effects
+      loops: 0
+  # "Call the ball" voice, 3s before the hook window. Music drops to half
+  # volume while it plays so the player can hear it.
+  landing_sfx_call_ball_voice:
+    voice_call_the_ball:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.5
+        attack: 200ms
+        release: 500ms
+        release_point: 0
+  landing_sfx_hook:
+    landing_hook:
+      bus: effects
+      loops: 0
+  landing_sfx_trap:
+    landing_trap:
+      bus: effects
+      loops: 0
+  landing_sfx_perfect:
+    landing_perfect:
+      bus: effects
+      loops: 0
+  landing_sfx_bolter:
+    landing_bolter:
+      bus: effects
+      loops: 0
+  landing_sfx_crash:
+    landing_crash:
+      bus: effects
+      loops: 0
+  landing_sfx_splash:
+    landing_splash:
+      bus: effects
+      loops: 0

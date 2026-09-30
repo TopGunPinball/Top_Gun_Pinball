@@ -6,16 +6,26 @@
 #
 # ENTRY:  Both flippers held 10 seconds — entry timer in base.yaml fires status_mode_enter
 # STAY:   At least one flipper held; inactivity timer resets on any flipper press/release
-# PAGES:  Right flipper tap (press while left held) = next page (wraps 1→5→1)
-#         Left flipper tap (press while right held) = prev page (wraps 1→5→1)
-# EXIT:   Both flippers released simultaneously OR 10s inactivity
+# PAGES:  Tap EITHER flipper (while the other is held) = next page, wraps 1→7→1.
+#         (The player can't choose which flipper is holding the ball, so both
+#          flippers page the same direction.)
+#         Page 6 = Pilot Awards - Unique Combos
+#         Page 7 = Pilot Awards - Objective Awards
+#         (Collected / Not Collected, from pilot_awards.yaml)
+# EXIT:   Both flippers released (immediately), OR 20s with a flipper held
+#         and no flipper taps/releases (status_inactivity), OR any playfield
+#         switch
 #
 # VARIABLE NAMING NOTES (confirmed from source files):
 #   "missles" typo preserved in training_missles_complete (matches missiles mode code)
 #   inverted perk:  training_mission_inverted_perk_active  (longer name than others)
 #   inverted won:   pilot_training_mission_inverted_won    (full mode name prefix)
 #   PTB played:     hd_ptb_played                          (set in hard_deck_qualifiers)
-#   PTB won:        hard_deck_missions_won >= 1             (only PTB coded currently)
+#   PTB won:        ptb_complete_flag == 1                  (hard_deck_missions_won is shared
+#                                                            with Honoring Iceman - not PTB-only)
+#   Charlie:        hd_mc_played / hd_mc_qualified / charlie_complete_flag
+#   Hon. Iceman:    hd_hi_played / hd_hi_qualified / mode_hard_deck_honoring_iceman_won
+#   Dogfight:       training_dogfight_complete (set on start) / training_dogfight_won
 #   PTB qualified:  hd_ptb_qualified == 1                  (persists after mode played)
 #   Super jackpot:  super_jackpots_collected               (int, increments per collect)
 ##############################################################################
@@ -36,7 +46,7 @@ timers:
 
   status_inactivity:
     start_value: 0
-    end_value: 10
+    end_value: 20    # doubled from 10s
     direction: up
     tick_interval: 1s
     start_running: false
@@ -97,14 +107,6 @@ variable_player:
     status_mode_page:
       action: set
       int: 1
-  status_mode_page_retreat:
-    status_mode_page:
-      action: add
-      int: -1
-  status_mode_page_wrap_back:
-    status_mode_page:
-      action: set
-      int: 5
 
   ##############################################
   ## PAGE 1: Goose computed remaining responses
@@ -150,10 +152,6 @@ variable_player:
       action: set
       string: Won
 
-  status_set_balls_of_fire_not_coded:
-    status_balls_of_fire:
-      action: set
-      string: Not Coded Yet
   status_set_balls_of_fire_not_played:
     status_balls_of_fire:
       action: set
@@ -167,10 +165,6 @@ variable_player:
       action: set
       string: Won
 
-  status_set_cool_under_pressure_not_coded:
-    status_cool_under_pressure:
-      action: set
-      string: Not Coded Yet
   status_set_cool_under_pressure_not_played:
     status_cool_under_pressure:
       action: set
@@ -184,10 +178,6 @@ variable_player:
       action: set
       string: Won
 
-  status_set_no_points_not_coded:
-    status_no_points_for_second_place:
-      action: set
-      string: Not Coded Yet
   status_set_no_points_not_played:
     status_no_points_for_second_place:
       action: set
@@ -201,10 +191,6 @@ variable_player:
       action: set
       string: Won
 
-  status_set_edge_of_space_not_coded:
-    status_edge_of_space:
-      action: set
-      string: Not Coded Yet
   status_set_edge_of_space_not_played:
     status_edge_of_space:
       action: set
@@ -218,10 +204,6 @@ variable_player:
       action: set
       string: Won
 
-  status_set_below_the_hard_deck_not_coded:
-    status_below_the_hard_deck:
-      action: set
-      string: Not Coded Yet
   status_set_below_the_hard_deck_not_played:
     status_below_the_hard_deck:
       action: set
@@ -235,10 +217,6 @@ variable_player:
       action: set
       string: Won
 
-  status_set_canyon_run_not_coded:
-    status_canyon_run:
-      action: set
-      string: Not Coded Yet
   status_set_canyon_run_not_played:
     status_canyon_run:
       action: set
@@ -252,10 +230,6 @@ variable_player:
       action: set
       string: Won
 
-  status_set_no_margin_not_coded:
-    status_no_margin_for_error:
-      action: set
-      string: Not Coded Yet
   status_set_no_margin_not_played:
     status_no_margin_for_error:
       action: set
@@ -351,13 +325,7 @@ variable_player:
       action: set
       string: Won
 
-  status_set_dogfight_not_coded:
-    status_dogfight:
-      action: set
-      string: Not Coded Yet
-    status_final_dogfight:    # Page 5 mirrors Page 3 - set both from one event
-      action: set
-      string: Not Coded Yet
+  # Page 5 mirrors Page 3 - each setter sets both
   status_set_dogfight_not_played:
     status_dogfight:
       action: set
@@ -420,11 +388,21 @@ variable_player:
       action: set
       string: Not Active
 
+  # Dog Fight: award is a one-time choice (not an ongoing perk)
+  status_set_dogfight_perk_awarded:
+    status_dogfight_perk:
+      action: set
+      string: Awarded
+  status_set_dogfight_perk_not_awarded:
+    status_dogfight_perk:
+      action: set
+      string: Not Awarded
+
   ##############################################
   ## PAGE 4: Hard deck mode string setters
   ##############################################
 
-  # PTB (only coded hard deck mode)
+  # Playing With The Boys (CODED)
   status_set_ptb_not_qualified:
     status_ptb:
       action: set
@@ -442,27 +420,45 @@ variable_player:
       action: set
       string: Won
 
-  # Remembering ICEMAN (not coded)
-  status_set_iceman_hd_not_coded:
+  # Remembering ICEMAN (hard_deck_honoring_iceman - CODED)
+  status_set_iceman_hd_not_qualified:
     status_iceman_hd:
       action: set
-      string: Not Coded Yet
+      string: Not Qualified
+  status_set_iceman_hd_qualified:
+    status_iceman_hd:
+      action: set
+      string: Qualified!
+  status_set_iceman_hd_lost:
+    status_iceman_hd:
+      action: set
+      string: Lost
+  status_set_iceman_hd_won:
+    status_iceman_hd:
+      action: set
+      string: Won
 
-  # Charlie (not coded)
-  status_set_charlie_hd_not_coded:
+  # Maverick & Charlie (hard_deck_charlie - CODED)
+  status_set_charlie_hd_not_qualified:
     status_charlie_hd:
       action: set
-      string: Not Coded Yet
+      string: Not Qualified
+  status_set_charlie_hd_qualified:
+    status_charlie_hd:
+      action: set
+      string: Qualified!
+  status_set_charlie_hd_lost:
+    status_charlie_hd:
+      action: set
+      string: Lost
+  status_set_charlie_hd_won:
+    status_charlie_hd:
+      action: set
+      string: Won
 
-  # Penny (not coded)
+  # Maverick & Penny (not coded yet - no mode)
   status_set_penny_hd_not_coded:
     status_penny_hd:
-      action: set
-      string: Not Coded Yet
-
-  # Goose Hard Deck (not coded)
-  status_set_goose_hd_not_coded:
-    status_goose_hd:
       action: set
       string: Not Coded Yet
 
@@ -492,6 +488,125 @@ variable_player:
       string: Remembering ICEMAN
 
   ##############################################
+  ## PAGES 6 + 7: Pilot Awards - Collected / Not Collected
+  ## (Page 6 = Unique Combos, Page 7 = Objective Awards - same variables)
+  ## pilot_<name>_collected comes from pilot_awards.yaml (created at 0 every
+  ## ball). Set here on mode start; the slide plays 200ms later.
+  ##############################################
+  mode_status_mode_started{current_player.pilot_goose_collected==1}:
+    status_pilot_goose:
+      action: set
+      string: Collected
+  mode_status_mode_started{current_player.pilot_goose_collected==0}:
+    status_pilot_goose:
+      action: set
+      string: Not Collected
+  mode_status_mode_started{current_player.pilot_hollywood_collected==1}:
+    status_pilot_hollywood:
+      action: set
+      string: Collected
+  mode_status_mode_started{current_player.pilot_hollywood_collected==0}:
+    status_pilot_hollywood:
+      action: set
+      string: Not Collected
+  mode_status_mode_started{current_player.pilot_iceman_collected==1}:
+    status_pilot_iceman:
+      action: set
+      string: Collected
+  mode_status_mode_started{current_player.pilot_iceman_collected==0}:
+    status_pilot_iceman:
+      action: set
+      string: Not Collected
+  mode_status_mode_started{current_player.pilot_maverick_collected==1}:
+    status_pilot_maverick:
+      action: set
+      string: Collected
+  mode_status_mode_started{current_player.pilot_maverick_collected==0}:
+    status_pilot_maverick:
+      action: set
+      string: Not Collected
+  mode_status_mode_started{current_player.pilot_slider_collected==1}:
+    status_pilot_slider:
+      action: set
+      string: Collected
+  mode_status_mode_started{current_player.pilot_slider_collected==0}:
+    status_pilot_slider:
+      action: set
+      string: Not Collected
+  mode_status_mode_started{current_player.pilot_viper_collected==1}:
+    status_pilot_viper:
+      action: set
+      string: Collected
+  mode_status_mode_started{current_player.pilot_viper_collected==0}:
+    status_pilot_viper:
+      action: set
+      string: Not Collected
+  mode_status_mode_started{current_player.pilot_wolfman_collected==1}:
+    status_pilot_wolfman:
+      action: set
+      string: Collected
+  mode_status_mode_started{current_player.pilot_wolfman_collected==0}:
+    status_pilot_wolfman:
+      action: set
+      string: Not Collected
+  mode_status_mode_started{current_player.pilot_bob_collected==1}:
+    status_pilot_bob:
+      action: set
+      string: Collected
+  mode_status_mode_started{current_player.pilot_bob_collected==0}:
+    status_pilot_bob:
+      action: set
+      string: Not Collected
+  mode_status_mode_started{current_player.pilot_coyote_collected==1}:
+    status_pilot_coyote:
+      action: set
+      string: Collected
+  mode_status_mode_started{current_player.pilot_coyote_collected==0}:
+    status_pilot_coyote:
+      action: set
+      string: Not Collected
+  mode_status_mode_started{current_player.pilot_fanboy_collected==1}:
+    status_pilot_fanboy:
+      action: set
+      string: Collected
+  mode_status_mode_started{current_player.pilot_fanboy_collected==0}:
+    status_pilot_fanboy:
+      action: set
+      string: Not Collected
+  mode_status_mode_started{current_player.pilot_hangman_collected==1}:
+    status_pilot_hangman:
+      action: set
+      string: Collected
+  mode_status_mode_started{current_player.pilot_hangman_collected==0}:
+    status_pilot_hangman:
+      action: set
+      string: Not Collected
+  mode_status_mode_started{current_player.pilot_hondo_collected==1}:
+    status_pilot_hondo:
+      action: set
+      string: Collected
+  mode_status_mode_started{current_player.pilot_hondo_collected==0}:
+    status_pilot_hondo:
+      action: set
+      string: Not Collected
+  mode_status_mode_started{current_player.pilot_phoenix_collected==1}:
+    status_pilot_phoenix:
+      action: set
+      string: Collected
+  mode_status_mode_started{current_player.pilot_phoenix_collected==0}:
+    status_pilot_phoenix:
+      action: set
+      string: Not Collected
+  mode_status_mode_started{current_player.pilot_rooster_collected==1}:
+    status_pilot_rooster:
+      action: set
+      string: Collected
+  mode_status_mode_started{current_player.pilot_rooster_collected==0}:
+    status_pilot_rooster:
+      action: set
+      string: Not Collected
+
+  ##############################################
   ## PAGE 5: Final battle string setters
   ##############################################
 
@@ -517,17 +632,18 @@ event_player:
   mode_status_mode_started:
     - status_mode_slide_ready|200ms
 
-  s_flipper_right_active{mode.status_mode.active==True and device.switches.s_flipper_left.state==1 and current_player.status_mode_page < 5}:
+  # Either flipper tapped while the other is held → next page (7 wraps to 1)
+  s_flipper_right_active{mode.status_mode.active==True and device.switches.s_flipper_left.state==1 and current_player.status_mode_page < 7}:
     - status_mode_page_advance
     - status_mode_both_held
-  s_flipper_right_active{mode.status_mode.active==True and device.switches.s_flipper_left.state==1 and current_player.status_mode_page == 5}:
+  s_flipper_right_active{mode.status_mode.active==True and device.switches.s_flipper_left.state==1 and current_player.status_mode_page == 7}:
     - status_mode_page_wrap_forward
     - status_mode_both_held
-  s_flipper_left_active{mode.status_mode.active==True and device.switches.s_flipper_right.state==1 and current_player.status_mode_page > 1}:
-    - status_mode_page_retreat
+  s_flipper_left_active{mode.status_mode.active==True and device.switches.s_flipper_right.state==1 and current_player.status_mode_page < 7}:
+    - status_mode_page_advance
     - status_mode_both_held
-  s_flipper_left_active{mode.status_mode.active==True and device.switches.s_flipper_right.state==1 and current_player.status_mode_page == 1}:
-    - status_mode_page_wrap_back
+  s_flipper_left_active{mode.status_mode.active==True and device.switches.s_flipper_right.state==1 and current_player.status_mode_page == 7}:
+    - status_mode_page_wrap_forward
     - status_mode_both_held
 
   # Exit — both flippers released simultaneously
@@ -566,9 +682,7 @@ event_player:
 
   ##############################################
   ## PAGE 2: Pilot missions — compute on mode start
-  ## Coded missions check played/won directly.
-  ## Unimplemented missions use _actually_played guard (never set = always 0).
-  ## When coding a new mission: add mode_<n>_actually_played: set: 1 to its mode_started.
+  ## All 10 pilot missions are coded and check played/won directly.
   ##############################################
 
   # Rescue Cougar (CODED)
@@ -690,14 +804,12 @@ event_player:
   mode_status_mode_started{current_player.training_afterburner_complete==1 and current_player.training_afterburner_won==1}:
     - status_set_afterburner_won
 
-  # Dog Fight (NOT CODED)
-  mode_status_mode_started{current_player.training_dogfight_actually_played==0}:
-    - status_set_dogfight_not_coded
-  mode_status_mode_started{current_player.training_dogfight_actually_played==1 and current_player.training_dogfight_complete==0}:
+  # Dog Fight (CODED)
+  mode_status_mode_started{current_player.training_dogfight_complete==0}:
     - status_set_dogfight_not_played
-  mode_status_mode_started{current_player.training_dogfight_actually_played==1 and current_player.training_dogfight_complete==1 and current_player.training_dogfight_won==0}:
+  mode_status_mode_started{current_player.training_dogfight_complete==1 and current_player.training_dogfight_won==0}:
     - status_set_dogfight_lost
-  mode_status_mode_started{current_player.training_dogfight_actually_played==1 and current_player.training_dogfight_complete==1 and current_player.training_dogfight_won==1}:
+  mode_status_mode_started{current_player.training_dogfight_complete==1 and current_player.training_dogfight_won==1}:
     - status_set_dogfight_won
 
   ##############################################
@@ -720,42 +832,54 @@ event_player:
     - status_set_afterburner_perk_active
   mode_status_mode_started{current_player.afterburner_perk_active==0}:
     - status_set_afterburner_perk_inactive
+  mode_status_mode_started{current_player.training_dogfight_won==1}:
+    - status_set_dogfight_perk_awarded
+  mode_status_mode_started{current_player.training_dogfight_won==0}:
+    - status_set_dogfight_perk_not_awarded
 
   ##############################################
   ## PAGE 4: Hard deck modes — compute on mode start
-  ## PTB is the only coded hard deck mode.
+  ## Coded: Playing With The Boys, Maverick & Charlie, Remembering ICEMAN.
   ## State priority: Won > Played+Lost > Qualified > Not Qualified
-  ## hd_ptb_played set in hard_deck_qualifiers on mode_hard_deck_playing_with_the_boys_started
-  ## hard_deck_missions_won increments on ptb_step_7_scoop_entered (PTB only mode coded)
-  ## hd_ptb_qualified set in hard_deck_qualifiers, persists after mode plays
-  ## Other 3 modes: use _actually_played guard (never set = always 0) → Not Coded Yet
+  ## hd_*_played / hd_*_qualified are set in hard_deck_qualifiers (persist).
+  ## Each mode's OWN won flag is used (hard_deck_missions_won is shared by
+  ## PTB and Honoring Iceman, so it can't tell them apart).
+  ## Penny: no mode yet → Not Coded Yet
   ##############################################
 
   # Playing With The Boys
-  mode_status_mode_started{current_player.hd_ptb_played==1 and current_player.hard_deck_missions_won>=1}:
+  mode_status_mode_started{current_player.hd_ptb_played==1 and current_player.ptb_complete_flag==1}:
     - status_set_ptb_won
-  mode_status_mode_started{current_player.hd_ptb_played==1 and current_player.hard_deck_missions_won==0}:
+  mode_status_mode_started{current_player.hd_ptb_played==1 and current_player.ptb_complete_flag==0}:
     - status_set_ptb_played_lost
   mode_status_mode_started{current_player.hd_ptb_played==0 and current_player.hd_ptb_qualified==1}:
     - status_set_ptb_qualified
   mode_status_mode_started{current_player.hd_ptb_played==0 and current_player.hd_ptb_qualified==0}:
     - status_set_ptb_not_qualified
 
-  # Remembering ICEMAN (NOT CODED)
-  mode_status_mode_started{current_player.hd_iceman_actually_played==0}:
-    - status_set_iceman_hd_not_coded
+  # Remembering ICEMAN (CODED)
+  mode_status_mode_started{current_player.hd_hi_played==1 and current_player.mode_hard_deck_honoring_iceman_won==1}:
+    - status_set_iceman_hd_won
+  mode_status_mode_started{current_player.hd_hi_played==1 and current_player.mode_hard_deck_honoring_iceman_won==0}:
+    - status_set_iceman_hd_lost
+  mode_status_mode_started{current_player.hd_hi_played==0 and current_player.hd_hi_qualified==1}:
+    - status_set_iceman_hd_qualified
+  mode_status_mode_started{current_player.hd_hi_played==0 and current_player.hd_hi_qualified==0}:
+    - status_set_iceman_hd_not_qualified
 
-  # Charlie (NOT CODED)
-  mode_status_mode_started{current_player.hd_charlie_actually_played==0}:
-    - status_set_charlie_hd_not_coded
+  # Maverick & Charlie (CODED)
+  mode_status_mode_started{current_player.hd_mc_played==1 and current_player.charlie_complete_flag==1}:
+    - status_set_charlie_hd_won
+  mode_status_mode_started{current_player.hd_mc_played==1 and current_player.charlie_complete_flag==0}:
+    - status_set_charlie_hd_lost
+  mode_status_mode_started{current_player.hd_mc_played==0 and current_player.hd_mc_qualified==1}:
+    - status_set_charlie_hd_qualified
+  mode_status_mode_started{current_player.hd_mc_played==0 and current_player.hd_mc_qualified==0}:
+    - status_set_charlie_hd_not_qualified
 
   # Penny (NOT CODED)
   mode_status_mode_started{current_player.hd_penny_actually_played==0}:
     - status_set_penny_hd_not_coded
-
-  # Goose Hard Deck (NOT CODED)
-  mode_status_mode_started{current_player.hd_goose_actually_played==0}:
-    - status_set_goose_hd_not_coded
 
   # Current hard deck lit (hard_deck_qualified_mode: 0=none, 1=Charlie, 2=PTB, 3=Penny, 4=ICEMAN)
   mode_status_mode_started{current_player.hard_deck_qualified_mode==0}:
@@ -772,7 +896,7 @@ event_player:
   ##############################################
   ## PAGE 5: Final battle — compute on mode start
   ## All conditions needed to unlock the Final Battle wizard mode.
-  ## Dog Fight: not coded yet → Not Coded Yet
+  ## Dog Fight: from the shared dogfight setters (Not Yet / Yes!)
   ## Super jackpot: super_jackpots_collected tracks total collected (int, no reset)
   ##############################################
 

@@ -534,6 +534,52 @@ slide_player:
 
 variable_player:
   ##############################################
+  ## VIDEO MODE (CARRIER LANDING) - Qualify + State
+  ## Qualifies on the 1st, 4th and 7th MISSION WON (pilot + training wins
+  ## combined). No more after the 7th. A qualifier earned while the video
+  ## mode is already lit is banked in video_mode_credits and relights it
+  ## after the current one is played.
+  ## TEST QUALIFIER: one left slingshot hit lights the video mode.
+  ## (Remove the s_slingshot_left_active entry after testing.)
+  ##############################################
+  player_pilot_missions_won{change>0 and ((value + current_player.training_missions_won)==1 or (value + current_player.training_missions_won)==4 or (value + current_player.training_missions_won)==7)}:
+    video_mode_credits:
+      action: add
+      int: 1
+    video_mode_lit:
+      action: set
+      int: 1
+
+  player_training_missions_won{change>0 and ((value + current_player.pilot_missions_won)==1 or (value + current_player.pilot_missions_won)==4 or (value + current_player.pilot_missions_won)==7)}:
+    video_mode_credits:
+      action: add
+      int: 1
+    video_mode_lit:
+      action: set
+      int: 1
+
+  # Relight for a banked qualifier once the video mode finishes
+  mode_carrier_landing_stopped{current_player.video_mode_credits>0}:
+    video_mode_lit:
+      action: set
+      int: 1
+
+  s_slingshot_left_active{current_player.video_mode_lit==0 and current_player.carrier_landing_active==0}:
+    video_mode_lit:
+      action: set
+      int: 1
+
+  # Clear the running flags on stop (a mode can't act on its own *_stopped
+  # event - its config players are already gone).
+  mode_carrier_landing_stopped:
+    carrier_landing_active:
+      action: set
+      int: 0
+    carrier_landing_ejecting:
+      action: set
+      int: 0
+
+  ##############################################
   ## GLOBAL SCOOP RELEASE TRACKING
   ##############################################
   scoop_ball_release:
@@ -1634,6 +1680,8 @@ variable_player:
   ##############################################
 
   # Mark mode as PLAYED and WON when completed
+  # NOTE: modes_completed_count is added in rise_of_phoenix.yaml (same event).
+  # It used to be added here too, which counted every RoP win twice.
   rise_of_phoenix_complete:
     mode_rise_of_phoenix_played:
       action: set
@@ -1643,9 +1691,6 @@ variable_player:
       int: 1
     mode_rise_of_phoenix_complete:
       action: set
-      int: 1
-    modes_completed_count:
-      action: add
       int: 1
   
   # Mark mode as PLAYED (but not won) when failed
@@ -1660,15 +1705,6 @@ variable_player:
       action: set
       int: 0
 
-  # Mark mode as complete when the mode is WON (use balls_of_fire_complete event when mode exists)
-  # balls_of_fire_complete:
-  #   mode_balls_of_fire_complete:
-  #     action: set
-  #     int: 1
-  #   modes_completed_count:
-  #     action: add
-  #     int: 1
-  
   # Clear qualified number when mode starts
   mode_great_balls_of_fire_started:
     qualified_mode_number:
@@ -1760,77 +1796,48 @@ variable_player:
       action: set
       int: 1
 
-  # Mark mode as complete when the mode is WON (use edge_of_space_complete event when mode exists)
-  # edge_of_space_complete:
-  #   mode_edge_of_space_complete:
-  #     action: set
-  #     int: 1
-  #   modes_completed_count:
-  #     action: add
-  #     int: 1
-  
   # Clear qualified number when mode starts
   mode_edge_of_space_started:
     qualified_mode_number:
       action: set
       int: 0
 
-  # Mark mode as complete when the mode is WON (use below_the_hard_deck_complete event when mode exists)
-  # below_the_hard_deck_complete:
-  #   mode_below_the_hard_deck_complete:
-  #     action: set
-  #     int: 1
-  #   modes_completed_count:
-  #     action: add
-  #     int: 1
-  
   # Clear qualified number when mode starts
   mode_below_the_hard_deck_started:
     qualified_mode_number:
       action: set
       int: 0
 
-  # Mark mode as complete when the mode is WON (use canyon_run_complete event when mode exists)
-  # canyon_run_complete:
-  #   mode_canyon_run_complete:
-  #     action: set
-  #     int: 1
-  #   modes_completed_count:
-  #     action: add
-  #     int: 1
-  
   # Clear qualified number when mode starts
   mode_canyon_run_started:
     qualified_mode_number:
       action: set
       int: 0
 
-  # Mark mode as complete when the mode is WON (use rise_of_phoenix_complete event when mode exists)
-  # rise_of_phoenix_complete:
-  #   mode_rise_of_phoenix_complete:
-  #     action: set
-  #     int: 1
-  #   modes_completed_count:
-  #     action: add
-  #     int: 1
-  
-  # Clear qualified number when mode starts
-
-  # Mark mode as complete when the mode is WON (use no_margin_for_error_complete event when mode exists)
-  # no_margin_for_error_complete:
-  #   mode_no_margin_for_error_complete:
-  #     action: set
-  #     int: 1
-  #   modes_completed_count:
-  #     action: add
-  #     int: 1
-  
   # Clear qualified number when mode starts
   mode_no_margin_for_error_started:
     qualified_mode_number:
       action: set
       int: 0
   
+  ##############################################
+  ## TOPGUN LETTERS COMPLETE VIDEO SEQUENCE
+  ## Count each letters-complete video that actually plays. Stage 1 in
+  ## event_player picks the next video from this count. Incremented on the
+  ## play events themselves (posted by stage 2 only when the video is not
+  ## skipped), so a skipped video doesn't advance the sequence.
+  ##############################################
+  topgun_show_complete_1:
+    topgun_videos_shown: { action: add, int: 1 }
+  topgun_show_complete_2:
+    topgun_videos_shown: { action: add, int: 1 }
+  topgun_show_complete_3:
+    topgun_videos_shown: { action: add, int: 1 }
+  topgun_show_complete_4:
+    topgun_videos_shown: { action: add, int: 1 }
+  play_random_topgun_complete:
+    topgun_videos_shown: { action: add, int: 1 }
+
   ##############################################
   ## TOPGUN LETTERS COMPLETE SLIDE — SOURCE GATING
   ## The topgun_letters_complete video only plays when the 6th letter came
@@ -2214,7 +2221,11 @@ event_player:
   # for a qualified-but-not-yet-started multiball was getting stomped back
   # up ~1s later by this handler. Fixed to match the guard pattern used
   # everywhere else in this file (e.g. the mystery-award barrier restores).
-  timer_global_scoop_eject_delay_complete{current_player.qualified_mode_number==0 and current_player.multiball_qualified==0}:
+  # VIDEO MODE: also leave the barrier DOWN when the carrier landing video mode
+  # is lit, so the player can shoot the scoop to start it - but ONLY when no
+  # mode is running. Mid-mission (e.g. the mission's own scoop_ball_release)
+  # the barrier must still go back UP even if the video mode got lit.
+  timer_global_scoop_eject_delay_complete{current_player.qualified_mode_number==0 and current_player.multiball_qualified==0 and (current_player.video_mode_lit==0 or current_player.pilot_mode_active==1 or current_player.training_mission_active==1 or current_player.hard_deck_active==1 or current_player.multiball_active==1)}:
     - barrier_raise
   ## eject_coil removed from bd_plunger so it never auto-fires.
   ## Ball save already sets ball_just_saved=1 (in ball_save.yaml)
@@ -2239,7 +2250,9 @@ event_player:
   ## the mode_xxx_played flags are set BEFORE lights evaluate.
   ##############################################
   mode_pilot_mission_qualifier_started:
+    - refresh_scoop_light
     - set_uncoded_mode_lights|200ms
+    - refresh_mystery_light
     - check_all_pilot_modes_played
     - update_training_qual_lights
 
@@ -2355,29 +2368,33 @@ event_player:
   ##############################################
 
   # Stage 1: schedule queue show (skillshot path = 5s, normal = 250ms)
-  topgun_qualified{current_player.modes_completed_count==0 and device.timers.skillshot_video_running.running==True}:
+  # Video number comes from topgun_videos_shown (how many letters-complete
+  # videos this player has actually seen): 0→video 1, 1→2, 2→3, 3→4, 4+→random.
+  # Previously used modes_completed_count, which only rises on mission WINS,
+  # so a player who lost missions saw video 1 every time.
+  topgun_qualified{current_player.topgun_videos_shown==0 and device.timers.skillshot_video_running.running==True}:
     - topgun_queue_show_1|5000ms
-  topgun_qualified{current_player.modes_completed_count==0 and not device.timers.skillshot_video_running.running}:
+  topgun_qualified{current_player.topgun_videos_shown==0 and not device.timers.skillshot_video_running.running}:
     - topgun_queue_show_1|250ms
 
-  topgun_qualified{current_player.modes_completed_count==1 and device.timers.skillshot_video_running.running==True}:
+  topgun_qualified{current_player.topgun_videos_shown==1 and device.timers.skillshot_video_running.running==True}:
     - topgun_queue_show_2|5000ms
-  topgun_qualified{current_player.modes_completed_count==1 and not device.timers.skillshot_video_running.running}:
+  topgun_qualified{current_player.topgun_videos_shown==1 and not device.timers.skillshot_video_running.running}:
     - topgun_queue_show_2|250ms
 
-  topgun_qualified{current_player.modes_completed_count==2 and device.timers.skillshot_video_running.running==True}:
+  topgun_qualified{current_player.topgun_videos_shown==2 and device.timers.skillshot_video_running.running==True}:
     - topgun_queue_show_3|5000ms
-  topgun_qualified{current_player.modes_completed_count==2 and not device.timers.skillshot_video_running.running}:
+  topgun_qualified{current_player.topgun_videos_shown==2 and not device.timers.skillshot_video_running.running}:
     - topgun_queue_show_3|250ms
 
-  topgun_qualified{current_player.modes_completed_count==3 and device.timers.skillshot_video_running.running==True}:
+  topgun_qualified{current_player.topgun_videos_shown==3 and device.timers.skillshot_video_running.running==True}:
     - topgun_queue_show_4|5000ms
-  topgun_qualified{current_player.modes_completed_count==3 and not device.timers.skillshot_video_running.running}:
+  topgun_qualified{current_player.topgun_videos_shown==3 and not device.timers.skillshot_video_running.running}:
     - topgun_queue_show_4|250ms
 
-  topgun_qualified{current_player.modes_completed_count>=4 and device.timers.skillshot_video_running.running==True}:
+  topgun_qualified{current_player.topgun_videos_shown>=4 and device.timers.skillshot_video_running.running==True}:
     - topgun_queue_show_random|5000ms
-  topgun_qualified{current_player.modes_completed_count>=4 and not device.timers.skillshot_video_running.running}:
+  topgun_qualified{current_player.topgun_videos_shown>=4 and not device.timers.skillshot_video_running.running}:
     - topgun_queue_show_random|250ms
 
   # Stage 2: gate on skip flag — if clear, play video; if set, silently skip
@@ -2403,6 +2420,7 @@ event_player:
 
   # Mode rotation changes qualified_mode_number — re-evaluate LL/TL
   player_qualified_mode_number:
+    - refresh_scoop_light
     - update_training_qual_lights
 
   ##############################################
@@ -2617,25 +2635,39 @@ event_player:
   # If the randomly-selected mode was already played, rotate to next available.
   # The rotate_qualified_mode chain from each slot already skips all played modes
   # in one call and lands on the first unplayed one.
+  # stop_all_mode_pulse_shows MUST fire first: topgun_start_xxx already posted
+  # qualify_xxx, which started that (already played) mode's pulse show. Without
+  # the stop, the old pulse keeps running after rotation and the played mode
+  # light flashes instead of showing solid white. Same pattern as spinner/gear rotation.
   topgun_qualified{current_player.qualified_mode_number==1 and current_player.mode_rescue_cougar_played==1}:
+    - stop_all_mode_pulse_shows
     - rotate_qualified_mode
   topgun_qualified{current_player.qualified_mode_number==2 and current_player.mode_balls_of_fire_played==1}:
+    - stop_all_mode_pulse_shows
     - rotate_qualified_mode
   topgun_qualified{current_player.qualified_mode_number==3 and current_player.mode_cool_under_pressure_played==1}:
+    - stop_all_mode_pulse_shows
     - rotate_qualified_mode
   topgun_qualified{current_player.qualified_mode_number==4 and current_player.mode_battle_jester_played==1}:
+    - stop_all_mode_pulse_shows
     - rotate_qualified_mode
   topgun_qualified{current_player.qualified_mode_number==5 and current_player.mode_no_points_for_second_place_played==1}:
+    - stop_all_mode_pulse_shows
     - rotate_qualified_mode
   topgun_qualified{current_player.qualified_mode_number==10 and current_player.mode_edge_of_space_played==1}:
+    - stop_all_mode_pulse_shows
     - rotate_qualified_mode
   topgun_qualified{current_player.qualified_mode_number==9 and current_player.mode_below_the_hard_deck_played==1}:
+    - stop_all_mode_pulse_shows
     - rotate_qualified_mode
   topgun_qualified{current_player.qualified_mode_number==8 and current_player.mode_canyon_run_played==1}:
+    - stop_all_mode_pulse_shows
     - rotate_qualified_mode
   topgun_qualified{current_player.qualified_mode_number==7 and current_player.mode_rise_of_phoenix_played==1}:
+    - stop_all_mode_pulse_shows
     - rotate_qualified_mode
   topgun_qualified{current_player.qualified_mode_number==6 and current_player.mode_no_margin_for_error_played==1}:
+    - stop_all_mode_pulse_shows
     - rotate_qualified_mode
 
   # Restore qualified mode light on ball start (each ball)
@@ -3239,34 +3271,34 @@ event_player:
   # Mode selection based on qualified mode when scoop is hit
   # Training mission must not be active
   # multiball_qualified must be 0 (if both qualified, choice system handles it)
-  s_mode_start_active{current_player.qualified_mode_number==1 and current_player.mode_rescue_cougar_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==1 and current_player.mode_rescue_cougar_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
     - start_mode_rescue_cougar
   
-  s_mode_start_active{current_player.qualified_mode_number==2 and current_player.mode_balls_of_fire_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==2 and current_player.mode_balls_of_fire_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
     - start_mode_balls_of_fire
   
-  s_mode_start_active{current_player.qualified_mode_number==3 and current_player.mode_cool_under_pressure_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==3 and current_player.mode_cool_under_pressure_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
     - start_mode_cool_under_pressure
   
-  s_mode_start_active{current_player.qualified_mode_number==4 and current_player.mode_battle_jester_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==4 and current_player.mode_battle_jester_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
     - start_mode_battle_jester
   
-  s_mode_start_active{current_player.qualified_mode_number==5 and current_player.mode_no_points_for_second_place_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==5 and current_player.mode_no_points_for_second_place_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
     - start_mode_no_points_for_second_place
   
-  s_mode_start_active{current_player.qualified_mode_number==6 and current_player.mode_no_margin_for_error_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==6 and current_player.mode_no_margin_for_error_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
     - start_mode_no_margin_for_error
   
-  s_mode_start_active{current_player.qualified_mode_number==7 and current_player.mode_rise_of_phoenix_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==7 and current_player.mode_rise_of_phoenix_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
     - start_mode_rise_of_phoenix
   
-  s_mode_start_active{current_player.qualified_mode_number==8 and current_player.mode_canyon_run_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==8 and current_player.mode_canyon_run_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
     - start_mode_canyon_run
   
-  s_mode_start_active{current_player.qualified_mode_number==9 and current_player.mode_below_the_hard_deck_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==9 and current_player.mode_below_the_hard_deck_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
     - start_mode_below_the_hard_deck
   
-  s_mode_start_active{current_player.qualified_mode_number==10 and current_player.mode_edge_of_space_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0}:
+  s_mode_start_active{current_player.qualified_mode_number==10 and current_player.mode_edge_of_space_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
     - start_mode_edge_of_space
 
   ##############################################
@@ -3303,32 +3335,107 @@ event_player:
   ##############################################
 
   ## Pilot only — barrier already UP, just start the mode
-  mode_mystery_award_stopped{current_player.qualified_mode_number==1 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0}:
+  mode_mystery_award_stopped{current_player.qualified_mode_number==1 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0 and current_player.video_mode_lit==0}:
     - start_mode_rescue_cougar
-  mode_mystery_award_stopped{current_player.qualified_mode_number==2 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0}:
+  mode_mystery_award_stopped{current_player.qualified_mode_number==2 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0 and current_player.video_mode_lit==0}:
     - start_mode_balls_of_fire
-  mode_mystery_award_stopped{current_player.qualified_mode_number==3 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0}:
+  mode_mystery_award_stopped{current_player.qualified_mode_number==3 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0 and current_player.video_mode_lit==0}:
     - start_mode_cool_under_pressure
-  mode_mystery_award_stopped{current_player.qualified_mode_number==4 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0}:
+  mode_mystery_award_stopped{current_player.qualified_mode_number==4 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0 and current_player.video_mode_lit==0}:
     - start_mode_battle_jester
-  mode_mystery_award_stopped{current_player.qualified_mode_number==5 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0}:
+  mode_mystery_award_stopped{current_player.qualified_mode_number==5 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0 and current_player.video_mode_lit==0}:
     - start_mode_no_points_for_second_place
-  mode_mystery_award_stopped{current_player.qualified_mode_number==6 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0}:
+  mode_mystery_award_stopped{current_player.qualified_mode_number==6 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0 and current_player.video_mode_lit==0}:
     - start_mode_no_margin_for_error
-  mode_mystery_award_stopped{current_player.qualified_mode_number==7 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0}:
+  mode_mystery_award_stopped{current_player.qualified_mode_number==7 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0 and current_player.video_mode_lit==0}:
     - start_mode_rise_of_phoenix
-  mode_mystery_award_stopped{current_player.qualified_mode_number==8 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0}:
+  mode_mystery_award_stopped{current_player.qualified_mode_number==8 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0 and current_player.video_mode_lit==0}:
     - start_mode_canyon_run
-  mode_mystery_award_stopped{current_player.qualified_mode_number==9 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0}:
+  mode_mystery_award_stopped{current_player.qualified_mode_number==9 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0 and current_player.video_mode_lit==0}:
     - start_mode_below_the_hard_deck
-  mode_mystery_award_stopped{current_player.qualified_mode_number==10 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0}:
+  mode_mystery_award_stopped{current_player.qualified_mode_number==10 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0 and current_player.video_mode_lit==0}:
     - start_mode_edge_of_space
 
   ## Both pilot mode AND TGMB qualified → choice screen.
   ## Normal eject path: barrier dropped + raised by mystery, so drop it again for scoop access.
-  mode_mystery_award_stopped{current_player.qualified_mode_number>0 and current_player.multiball_qualified==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0}:
+  mode_mystery_award_stopped{current_player.qualified_mode_number>0 and current_player.multiball_qualified==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.video_mode_lit==0}:
     - barrier_drop
     - mb_mode_choice_start
+
+
+  ##############################################
+  ## VIDEO MODE (CARRIER LANDING) - Scoop Routing
+  ## Order at the scoop: MYSTERY -> VIDEO MODE -> PILOT MISSION / TGMB.
+  ##   - Mystery lit: mystery starts (above), keeps the ball, and starts the
+  ##     video mode itself (see mystery_award.yaml Step 3b).
+  ##   - Video lit, no mystery: video mode starts here.
+  ##   - Pilot / TGMB scoop entries all require video_mode_lit==0.
+  ##############################################
+  s_mode_start_active{current_player.video_mode_lit==1 and current_player.mystery_qualified==0 and current_player.carrier_landing_active==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
+    - start_mode_carrier_landing
+
+  ##############################################
+  ## VIDEO MODE - Auto-start pending pilot mission after video mode stops
+  ## Same handoff as mystery: carrier_landing kept the barrier UP and fired the
+  ## ball into it; the pilot mode's ball_hold captures the returning ball.
+  ## NOT when mystery started the video mode - mystery is still holding the
+  ## ball then, and its own mode_mystery_award_stopped handlers start the
+  ## pending mission after it ejects.
+  ## TGMB-only is handled in top_gun_multiball_locks.yaml.
+  ##############################################
+  mode_carrier_landing_stopped{current_player.qualified_mode_number==1 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and mode.mystery_award.active==False}:
+    - start_mode_rescue_cougar
+  mode_carrier_landing_stopped{current_player.qualified_mode_number==2 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and mode.mystery_award.active==False}:
+    - start_mode_balls_of_fire
+  mode_carrier_landing_stopped{current_player.qualified_mode_number==3 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and mode.mystery_award.active==False}:
+    - start_mode_cool_under_pressure
+  mode_carrier_landing_stopped{current_player.qualified_mode_number==4 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and mode.mystery_award.active==False}:
+    - start_mode_battle_jester
+  mode_carrier_landing_stopped{current_player.qualified_mode_number==5 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and mode.mystery_award.active==False}:
+    - start_mode_no_points_for_second_place
+  mode_carrier_landing_stopped{current_player.qualified_mode_number==6 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and mode.mystery_award.active==False}:
+    - start_mode_no_margin_for_error
+  mode_carrier_landing_stopped{current_player.qualified_mode_number==7 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and mode.mystery_award.active==False}:
+    - start_mode_rise_of_phoenix
+  mode_carrier_landing_stopped{current_player.qualified_mode_number==8 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and mode.mystery_award.active==False}:
+    - start_mode_canyon_run
+  mode_carrier_landing_stopped{current_player.qualified_mode_number==9 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and mode.mystery_award.active==False}:
+    - start_mode_below_the_hard_deck
+  mode_carrier_landing_stopped{current_player.qualified_mode_number==10 and current_player.multiball_qualified==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and mode.mystery_award.active==False}:
+    - start_mode_edge_of_space
+
+  ## Both pilot mode AND TGMB qualified -> choice screen
+  mode_carrier_landing_stopped{current_player.qualified_mode_number>0 and current_player.multiball_qualified==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and mode.mystery_award.active==False}:
+    - barrier_drop
+    - mb_mode_choice_start
+
+  ##############################################
+  ## VIDEO MODE - Barrier Control (keep scoop open while video mode is lit)
+  ##############################################
+  player_video_mode_lit{value==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
+    - barrier_drop
+
+  mode_pilot_mission_qualifier_started{current_player.video_mode_lit==1}:
+    - barrier_drop
+
+  player_pilot_mode_active{value==0 and current_player.video_mode_lit==1 and current_player.training_mission_active==0 and current_player.hard_deck_active==0}:
+    - barrier_drop
+
+  player_training_mission_active{value==0 and current_player.video_mode_lit==1 and current_player.pilot_mode_active==0 and current_player.hard_deck_active==0}:
+    - barrier_drop
+
+  player_hard_deck_active{value==0 and current_player.video_mode_lit==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0}:
+    - barrier_drop
+
+  mode_top_gun_multiball_stopped{current_player.video_mode_lit==1}:
+    - restore_qualified_mode_light
+
+  ##############################################
+  ## MYSTERY / VIDEO MODE LIGHT - refresh on any change
+  ##############################################
+  player_mystery_qualified: [refresh_mystery_light, refresh_scoop_light]
+  player_video_mode_lit: [refresh_mystery_light, refresh_scoop_light]
+  mode_carrier_landing_stopped: [refresh_mystery_light, refresh_scoop_light]
 
   ##############################################
   ## MYSTERY AWARD - Barrier Control
@@ -3617,7 +3724,249 @@ event_player:
 ## Show Player
 ##############################################
 
+
+  ##############################################
+  ## SCOOP INSERT COLOR CYCLE - re-evaluate l_shot_barrier on any change
+  ## (see show_player SCOOP INSERT COLOR CYCLE)
+  ##############################################
+  player_multiball_qualified: [refresh_scoop_light]
+  player_pilot_mode_active: [refresh_scoop_light]
+  player_training_mission_active: [refresh_scoop_light]
+  player_hard_deck_active: [refresh_scoop_light]
+  player_multiball_active: [refresh_scoop_light]
+  mode_mystery_award_started: [refresh_scoop_light]
+  mode_mystery_award_stopped: [refresh_scoop_light]
+  mode_carrier_landing_started: [refresh_scoop_light]
+  restore_qualified_mode_light: [refresh_scoop_light]
+  stop_all_mode_pulse_shows: [refresh_scoop_light]
+
 show_player:
+  ##############################################
+  ## SCOOP INSERT COLOR CYCLE (l_shot_barrier)
+  ## Flashes while something is LIT and waiting at the scoop, cycling through
+  ## the colors of everything lit:
+  ##   White  = pilot mission (add final battle's flag to white when built)
+  ##   Green  = Top Gun Multiball
+  ##   Blue   = Mystery
+  ##   Orange = Video mode
+  ## Off while mystery, the video mode, a pilot/training mission, a hard deck
+  ## mode or a multiball is PLAYING. One show key, so each state replaces the
+  ## previous one. Replaces the old white barrier_qualified_flash.
+  ##############################################
+  # white
+  refresh_scoop_light{current_player.qualified_mode_number>0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and mode.mystery_award.active==False and mode.carrier_landing.active==False}:
+    sync_flash_mode:
+      key: scoop_lit_cycle
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        color: FFFFFF
+  # green
+  refresh_scoop_light{current_player.qualified_mode_number==0 and current_player.multiball_qualified==1 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and mode.mystery_award.active==False and mode.carrier_landing.active==False}:
+    sync_flash_mode:
+      key: scoop_lit_cycle
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        color: 00FF00
+  # white + green
+  refresh_scoop_light{current_player.qualified_mode_number>0 and current_player.multiball_qualified==1 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and mode.mystery_award.active==False and mode.carrier_landing.active==False}:
+    scoop_cycle_2:
+      key: scoop_lit_cycle
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        c1: FFFFFF
+        c2: 00FF00
+  # blue
+  refresh_scoop_light{current_player.qualified_mode_number==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==1 and current_player.video_mode_lit==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and mode.mystery_award.active==False and mode.carrier_landing.active==False}:
+    sync_flash_mode:
+      key: scoop_lit_cycle
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        color: 0000FF
+  # white + blue
+  refresh_scoop_light{current_player.qualified_mode_number>0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==1 and current_player.video_mode_lit==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and mode.mystery_award.active==False and mode.carrier_landing.active==False}:
+    scoop_cycle_2:
+      key: scoop_lit_cycle
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        c1: FFFFFF
+        c2: 0000FF
+  # green + blue
+  refresh_scoop_light{current_player.qualified_mode_number==0 and current_player.multiball_qualified==1 and current_player.mystery_qualified==1 and current_player.video_mode_lit==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and mode.mystery_award.active==False and mode.carrier_landing.active==False}:
+    scoop_cycle_2:
+      key: scoop_lit_cycle
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        c1: 00FF00
+        c2: 0000FF
+  # white + green + blue
+  refresh_scoop_light{current_player.qualified_mode_number>0 and current_player.multiball_qualified==1 and current_player.mystery_qualified==1 and current_player.video_mode_lit==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and mode.mystery_award.active==False and mode.carrier_landing.active==False}:
+    scoop_cycle_3:
+      key: scoop_lit_cycle
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        c1: FFFFFF
+        c2: 00FF00
+        c3: 0000FF
+  # orange
+  refresh_scoop_light{current_player.qualified_mode_number==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and mode.mystery_award.active==False and mode.carrier_landing.active==False}:
+    sync_flash_mode:
+      key: scoop_lit_cycle
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        color: FF5000
+  # white + orange
+  refresh_scoop_light{current_player.qualified_mode_number>0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and mode.mystery_award.active==False and mode.carrier_landing.active==False}:
+    scoop_cycle_2:
+      key: scoop_lit_cycle
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        c1: FFFFFF
+        c2: FF5000
+  # green + orange
+  refresh_scoop_light{current_player.qualified_mode_number==0 and current_player.multiball_qualified==1 and current_player.mystery_qualified==0 and current_player.video_mode_lit==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and mode.mystery_award.active==False and mode.carrier_landing.active==False}:
+    scoop_cycle_2:
+      key: scoop_lit_cycle
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        c1: 00FF00
+        c2: FF5000
+  # white + green + orange
+  refresh_scoop_light{current_player.qualified_mode_number>0 and current_player.multiball_qualified==1 and current_player.mystery_qualified==0 and current_player.video_mode_lit==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and mode.mystery_award.active==False and mode.carrier_landing.active==False}:
+    scoop_cycle_3:
+      key: scoop_lit_cycle
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        c1: FFFFFF
+        c2: 00FF00
+        c3: FF5000
+  # blue + orange
+  refresh_scoop_light{current_player.qualified_mode_number==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==1 and current_player.video_mode_lit==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and mode.mystery_award.active==False and mode.carrier_landing.active==False}:
+    scoop_cycle_2:
+      key: scoop_lit_cycle
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        c1: 0000FF
+        c2: FF5000
+  # white + blue + orange
+  refresh_scoop_light{current_player.qualified_mode_number>0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==1 and current_player.video_mode_lit==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and mode.mystery_award.active==False and mode.carrier_landing.active==False}:
+    scoop_cycle_3:
+      key: scoop_lit_cycle
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        c1: FFFFFF
+        c2: 0000FF
+        c3: FF5000
+  # green + blue + orange
+  refresh_scoop_light{current_player.qualified_mode_number==0 and current_player.multiball_qualified==1 and current_player.mystery_qualified==1 and current_player.video_mode_lit==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and mode.mystery_award.active==False and mode.carrier_landing.active==False}:
+    scoop_cycle_3:
+      key: scoop_lit_cycle
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        c1: 00FF00
+        c2: 0000FF
+        c3: FF5000
+  # white + green + blue + orange
+  refresh_scoop_light{current_player.qualified_mode_number>0 and current_player.multiball_qualified==1 and current_player.mystery_qualified==1 and current_player.video_mode_lit==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and mode.mystery_award.active==False and mode.carrier_landing.active==False}:
+    scoop_cycle_4:
+      key: scoop_lit_cycle
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        c1: FFFFFF
+        c2: 00FF00
+        c3: 0000FF
+        c4: FF5000
+  # Nothing lit, or something is playing -> off
+  refresh_scoop_light{current_player.qualified_mode_number==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
+    sync_flash_mode:
+      key: scoop_lit_cycle
+      action: stop
+  refresh_scoop_light{current_player.pilot_mode_active==1}:
+    sync_flash_mode:
+      key: scoop_lit_cycle
+      action: stop
+  refresh_scoop_light{current_player.training_mission_active==1}:
+    sync_flash_mode:
+      key: scoop_lit_cycle
+      action: stop
+  refresh_scoop_light{current_player.hard_deck_active==1}:
+    sync_flash_mode:
+      key: scoop_lit_cycle
+      action: stop
+  refresh_scoop_light{current_player.multiball_active==1}:
+    sync_flash_mode:
+      key: scoop_lit_cycle
+      action: stop
+  refresh_scoop_light{mode.mystery_award.active==True}:
+    sync_flash_mode:
+      key: scoop_lit_cycle
+      action: stop
+  refresh_scoop_light{mode.carrier_landing.active==True}:
+    sync_flash_mode:
+      key: scoop_lit_cycle
+      action: stop
+
+  ##############################################
+  ## MYSTERY / VIDEO MODE LIGHT
+  ##   Mystery only     -> blue
+  ##   Video mode only  -> orange
+  ##   Both lit         -> fades blue <-> orange
+  ## One show key, so each state replaces the previous one.
+  ##############################################
+  refresh_mystery_light{current_player.mystery_qualified==1 and current_player.video_mode_lit==0}:
+    mystery_light_solid:
+      key: mystery_video_light
+      loops: -1
+      show_tokens:
+        led: l_mystery_lit
+        color: 0000FF
+  refresh_mystery_light{current_player.mystery_qualified==0 and current_player.video_mode_lit==1}:
+    mystery_light_solid:
+      key: mystery_video_light
+      loops: -1
+      show_tokens:
+        led: l_mystery_lit
+        color: FF5000
+  refresh_mystery_light{current_player.mystery_qualified==1 and current_player.video_mode_lit==1}:
+    mystery_video_fade:
+      key: mystery_video_light
+      loops: -1
+      show_tokens:
+        led: l_mystery_lit
+  refresh_mystery_light{current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
+    mystery_light_solid:
+      key: mystery_video_light
+      action: stop
+
   ##############################################
   ## QUALIFYING SHOT INSERT SHOWS (Tiered)
   ## Each lit shot runs its own sync_flash_mode instance with a unique key.
@@ -4201,13 +4550,6 @@ show_player:
         led: l_mode_rescue_cougar
         color: white
       key: rescue_cougar_pulse
-    sync_flash_mode:
-      loops: -1
-      sync_ms: 1000
-      key: barrier_qualified_flash
-      show_tokens:
-        led: l_shot_barrier
-        color: white
   
   qualify_balls_of_fire:
     sync_pulse_mode:
@@ -4218,13 +4560,6 @@ show_player:
         led: l_mode_balls_of_fire
         color: white
       key: balls_of_fire_pulse
-    sync_flash_mode:
-      loops: -1
-      sync_ms: 1000
-      key: barrier_qualified_flash
-      show_tokens:
-        led: l_shot_barrier
-        color: white
   
   qualify_cool_under_pressure:
     pulse_mode_light:
@@ -4234,13 +4569,6 @@ show_player:
         led: l_mode_cool_under_pressure
         color: white
       key: cool_under_pressure_pulse
-    sync_flash_mode:
-      loops: -1
-      sync_ms: 1000
-      key: barrier_qualified_flash
-      show_tokens:
-        led: l_shot_barrier
-        color: white
   
   qualify_battle_jester:
     pulse_mode_light:
@@ -4250,13 +4578,6 @@ show_player:
         led: l_mode_battle_jester
         color: white
       key: battle_jester_pulse
-    sync_flash_mode:
-      loops: -1
-      sync_ms: 1000
-      key: barrier_qualified_flash
-      show_tokens:
-        led: l_shot_barrier
-        color: white
   
   qualify_no_points_for_second_place:
     pulse_mode_light:
@@ -4266,13 +4587,6 @@ show_player:
         led: l_mode_no_points_for_second_place
         color: white
       key: no_points_pulse
-    sync_flash_mode:
-      loops: -1
-      sync_ms: 1000
-      key: barrier_qualified_flash
-      show_tokens:
-        led: l_shot_barrier
-        color: white
   
   qualify_edge_of_space:
     pulse_mode_light:
@@ -4282,13 +4596,6 @@ show_player:
         led: l_mode_edge_of_space
         color: white
       key: edge_of_space_pulse
-    sync_flash_mode:
-      loops: -1
-      sync_ms: 1000
-      key: barrier_qualified_flash
-      show_tokens:
-        led: l_shot_barrier
-        color: white
   
   qualify_below_the_hard_deck:
     pulse_mode_light:
@@ -4298,13 +4605,6 @@ show_player:
         led: l_mode_below_the_hard_deck
         color: white
       key: below_hard_deck_pulse
-    sync_flash_mode:
-      loops: -1
-      sync_ms: 1000
-      key: barrier_qualified_flash
-      show_tokens:
-        led: l_shot_barrier
-        color: white
   
   qualify_canyon_run:
     pulse_mode_light:
@@ -4314,13 +4614,6 @@ show_player:
         led: l_mode_canyon_run
         color: white
       key: canyon_run_pulse
-    sync_flash_mode:
-      loops: -1
-      sync_ms: 1000
-      key: barrier_qualified_flash
-      show_tokens:
-        led: l_shot_barrier
-        color: white
   
   qualify_rise_of_phoenix:
     pulse_mode_light:
@@ -4330,13 +4623,6 @@ show_player:
         led: l_mode_rise_of_phoenix
         color: white
       key: rise_of_phoenix_pulse
-    sync_flash_mode:
-      loops: -1
-      sync_ms: 1000
-      key: barrier_qualified_flash
-      show_tokens:
-        led: l_shot_barrier
-        color: white
   
   qualify_no_margin_for_error:
     pulse_mode_light:
@@ -4346,13 +4632,6 @@ show_player:
         led: l_mode_no_margin_for_error
         color: white
       key: no_margin_pulse
-    sync_flash_mode:
-      loops: -1
-      sync_ms: 1000
-      key: barrier_qualified_flash
-      show_tokens:
-        led: l_shot_barrier
-        color: white
   
   # Stop pulsing when modes start (will be solid white from light_player)
   mode_rescue_cougar_started:
@@ -4507,21 +4786,132 @@ show_player:
         color: white
       key: edge_of_space_pulse
 
-  # Restore barrier flash on ball start if any mode is qualified
-  restore_qualified_mode_light{current_player.qualified_mode_number>0}:
-    sync_flash_mode:
-      loops: -1
-      sync_ms: 1000
-      key: barrier_qualified_flash
-      show_tokens:
-        led: l_shot_barrier
-        color: white
 
 ##############################################
 ## Shows
 ##############################################
 
 shows:
+  ##############################################
+  ## SCOOP INSERT COLOR CYCLE (l_shot_barrier)
+  ## Same rhythm as sync_flash_mode (500ms on / 500ms off, 1s sync); each
+  ## "on" flash is the next lit color. 1 color uses sync_flash_mode itself.
+  ##############################################
+  scoop_cycle_2:
+    - duration: 500ms
+      lights:
+        (led):
+          color: (c1)
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: off
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: (c2)
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: off
+          fade: 0ms
+  scoop_cycle_3:
+    - duration: 500ms
+      lights:
+        (led):
+          color: (c1)
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: off
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: (c2)
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: off
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: (c3)
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: off
+          fade: 0ms
+  scoop_cycle_4:
+    - duration: 500ms
+      lights:
+        (led):
+          color: (c1)
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: off
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: (c2)
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: off
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: (c3)
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: off
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: (c4)
+          fade: 0ms
+    - duration: 500ms
+      lights:
+        (led):
+          color: off
+          fade: 0ms
+
+  ##############################################
+  ## MYSTERY / VIDEO MODE LIGHT (l_mystery_lit)
+  ##############################################
+  mystery_light_solid:
+    - duration: -1
+      lights:
+        (led):
+          color: (color)
+          fade: 200ms
+  mystery_video_fade:
+    - duration: 800ms
+      lights:
+        (led):
+          color: 0000FF
+          fade: 800ms
+    - duration: 800ms
+      lights:
+        (led):
+          color: FF5000
+          fade: 800ms
+
   ##############################################
   ## QUAL_COMBINED — white/blue alternating for LL and TL
   ## Used when both pilot mission qualifier AND training/HD are lit on the same insert.
@@ -4562,17 +4952,9 @@ light_player:
       fade: 0ms
   ##############################################
   ## MYSTERY AWARD - Light Control
-  ## Turn on l_mystery_lit when qualified, off when consumed.
+  ## Now handled by show_player (MYSTERY / VIDEO MODE LIGHT) so blue,
+  ## orange and the blue<->orange fade share one show key.
   ##############################################
-  player_mystery_qualified{value==1}:
-    l_mystery_lit:
-      color: green
-      fade: 0ms
-
-  player_mystery_qualified{value==0}:
-    l_mystery_lit:
-      color: off
-      fade: 0ms
 
   # Turn on pilot mission lit indicator AND turn off all shot lights when qualified
   topgun_qualified:

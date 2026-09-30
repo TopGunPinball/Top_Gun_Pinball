@@ -645,7 +645,13 @@ event_player:
     - right_ramp_down
 
   # Step 6: Lower Orbit (ball goes through raised top ramp, exits via lower orbit)
+  # The right diverter is closed the instant TO registers (before either ramp
+  # moves). If TO is made within 2s of RO, the right ramp's delayed lowering
+  # hasn't happened yet, and waiting for it left the diverter open long enough
+  # to trap the ball under the right ramp. Ramp lowering is unchanged: top ramp
+  # now, right ramp when timer_rise_of_phoenix_right_ramp_delay completes.
   s_orbit_lower_active{current_player.rise_of_phoenix_step==5 and device.timers.shot_lockout.running==False and current_player.rise_of_phoenix_step_locked==0}:
+    - rise_of_phoenix_close_right_diverter
     - rise_of_phoenix_step_6_complete
     - rise_of_phoenix_step_6_shot_hit
     - timer_shot_lockout_start
@@ -732,6 +738,7 @@ event_player:
     # right_ramp_down fires automatically via timer triggered by step_5_complete
 
   missiles_perk_complete_shot{current_player.rise_of_phoenix_step==5 and current_player.rise_of_phoenix_complete_flag==0 and current_player.rise_of_phoenix_step_locked==0}:
+    - rise_of_phoenix_close_right_diverter
     - rise_of_phoenix_step_6_complete
     - rise_of_phoenix_step_6_shot_hit
     - rise_of_phoenix_setup_step_7
@@ -1646,5 +1653,11 @@ coil_player:
   # Barrier is controlled via standardized events (barrier_drop/barrier_raise)
   # handled centrally by pilot_mission_qualifier.yaml
 
-  # No coils needed for this mode - all mechanical actions use servos or barrier events
+  # Other mechanical actions use servos or barrier events.
+
+  # TO (step 6) made: close the right orbit diverter immediately instead of
+  # waiting for right_ramp_down (base.yaml closes it then too - harmless repeat).
+  rise_of_phoenix_close_right_diverter:
+    c_right_orbit_diverter:
+      action: disable
   mode_rise_of_phoenix_started: {}

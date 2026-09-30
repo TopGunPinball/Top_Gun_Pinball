@@ -1,0 +1,365 @@
+#config_version=6
+
+##############################################################################
+## BUZZ THE TOWER HURRY-UP
+## "Negative, Ghostrider, the pattern is full."
+##
+## FILE NAME: must be modes/buzz_the_tower_hurryup/config/buzz_the_tower_hurryup.yaml
+##   (MPF only loads config/<folder name>.yaml). Add buzz_the_tower_hurryup to
+##   the modes: list in your machine config.
+##
+## QUALIFY (base play only):
+##   Tower ramp shots (s_ramp_tower_exit) count only when NO pilot mission,
+##   training mission, hard deck mode or multiball is running
+##   (pilot_mode_active / training_mission_active / hard_deck_active /
+##   multiball_active all 0) and the hurry-up isn't already running.
+##   - Goal: 5 shots, then 10, 15, 20, 25, 30, then 30 every time after.
+##   - Each goal counts FRESH shots (the count resets when the hurry-up starts).
+##   - The goal only goes up when the hurry-up is COLLECTED (any value counts).
+##     If it times out or the ball drains, the next one uses the same goal.
+##   - Shot count carries from ball to ball (per player).
+##   - Tower shots while the hurry-up is running don't count toward the next.
+##
+## RUNNING:
+##   - Value = goal x 1,000,000 x total_scoring_multiplier (2X + Mach).
+##   - Holds full value for 10s (time to get the ball back to a flipper), then
+##     counts down evenly to 0 at 30s. At 30s the hurry-up fails.
+##   - buzz_tower_value (player var) = points awarded if made right now,
+##     updated every 250ms. Shown on the buzz_tower_point_countdown slide.
+##   - buzz_tower_pct (player var, 0-100) = how much of the value is left.
+##     100 during the 10s hold, then drains evenly to 0 at 30s. Drives the
+##     segmented gauge and the pulse/blink urgency on the countdown slide.
+##   - Keeps running if a mode or multiball starts; ends only when made or on
+##     ball drain. The made shot still counts for everything else (TOPGUN
+##     letters, mode shots, etc.) - nothing here blocks the switch.
+##   - Countdown PAUSES while the ball is held:
+##       * scoop (ball sits on s_mode_start)
+##       * left lane hold (no switch under the ball, so it pauses on
+##         s_lane_left and resumes on the next playfield switch)
+##     plus the base switch-idle watchdog (mode_timers_idle_pause/resume).
+##   - Tower insert flashes green rapidly, above mode lighting.
+##   - "shoot_the_tower" callout 15s after it starts (if not yet made).
+##
+## SLIDES:
+##   - buzz_tower_activated (12s) on start, buzz_tower_made (6.5s) on made.
+##     Both sit below all mode slides and are removed the moment a pilot
+##     mission, training mission, hard deck mode or multiball starts.
+##   - buzz_tower_point_countdown shows the whole time it runs, above mode
+##     slides (steps aside while the status screen is open).
+##   - mode_points_scored popup on made.
+##   - Failed: no slide, no callout.
+##
+## TIMER MATH: countdown timer ticks every 250ms, 0 → 120 (30s).
+##   ticks 0-40   (0-10s):  goal x 1,000,000 x mult
+##   ticks 41-119 (10-30s): goal x 12,500 x (120 - ticks) x mult
+##   (12,500 x 80 steps = 1,000,000 - whole-number steps, reaches 0 at 30s)
+##############################################################################
+
+mode:
+  start_events: mode_base_started
+  stop_events: mode_base_stopped
+  priority: 260
+  game_mode: true
+
+##############################################################################
+## TIMERS
+##############################################################################
+
+timers:
+  # Main hurry-up clock: 120 x 250ms = 30s
+  buzz_tower_countdown:
+    start_value: 0
+    end_value: 120
+    direction: up
+    tick_interval: 250ms
+    start_running: false
+    control_events:
+      - event: buzz_tower_start
+        action: restart
+      - event: buzz_tower_made
+        action: stop
+      - event: ball_will_end
+        action: stop
+      # Ball held (scoop / left lane) and switch-idle watchdog
+      - event: buzz_tower_hold_pause
+        action: pause
+      - event: buzz_tower_hold_resume
+        action: start
+      - event: buzz_tower_idle_pause
+        action: pause
+      - event: buzz_tower_idle_resume
+        action: start
+
+  # "shoot_the_tower" callout 15s after start
+  buzz_tower_callout_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 15s
+    start_running: false
+    control_events:
+      - event: buzz_tower_start
+        action: restart
+      - event: buzz_tower_made
+        action: stop
+      - event: buzz_tower_failed
+        action: stop
+      - event: ball_will_end
+        action: stop
+
+##############################################################################
+## VARIABLE PLAYER
+##############################################################################
+
+variable_player:
+  # First ball of the game for this player: goal starts at 5.
+  # (Goal and shot count are player vars, so they carry from ball to ball.)
+  mode_buzz_the_tower_hurryup_started{current_player.buzz_tower_shots_needed==0}:
+    buzz_tower_shots_needed: { action: set, int: 5 }
+
+  # Every ball: nothing running yet. "add 0" makes sure buzz_tower_value and
+  # buzz_tower_hits EXIST before any slide binds to them (a never-set player
+  # var leaves a Godot label blank - same issue we fixed in 2X).
+  mode_buzz_the_tower_hurryup_started:
+    buzz_tower_running: { action: set, int: 0 }
+    buzz_tower_held: { action: set, int: 0 }
+    buzz_tower_value: { action: add, int: 0 }
+    buzz_tower_hits: { action: add, int: 0 }
+    buzz_tower_pct: { action: add, int: 0 }
+
+  # Count tower shots toward the next hurry-up (base play only, not running)
+  s_ramp_tower_exit_active{current_player.buzz_tower_running==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
+    buzz_tower_hits: { action: add, int: 1 }
+
+  # Hurry-up started
+  buzz_tower_start:
+    buzz_tower_running: { action: set, int: 1 }
+    buzz_tower_held: { action: set, int: 0 }
+    buzz_tower_hits: { action: set, int: 0 }
+    buzz_tower_value: { action: set, int: current_player.buzz_tower_shots_needed * 1000000 * current_player.total_scoring_multiplier }
+    buzz_tower_pct: { action: set, int: 100 }
+
+  # Value update every 250ms (also picks up 2X / Mach changes mid-hurry-up)
+  # buzz_tower_pct: 100 during the hold, then (120 - ticks) / 80 as a percent
+  timer_buzz_tower_countdown_tick{ticks<=40}:
+    buzz_tower_value: { action: set, int: current_player.buzz_tower_shots_needed * 1000000 * current_player.total_scoring_multiplier }
+    buzz_tower_pct: { action: set, int: 100 }
+  timer_buzz_tower_countdown_tick{ticks>40}:
+    buzz_tower_value: { action: set, int: current_player.buzz_tower_shots_needed * 12500 * (120 - device.timers.buzz_tower_countdown.ticks) * current_player.total_scoring_multiplier }
+    buzz_tower_pct: { action: set, int: (120 - device.timers.buzz_tower_countdown.ticks) * 5 / 4 }
+
+  # Made: award exactly what the countdown slide is showing
+  buzz_tower_made:
+    score: { action: add, int: current_player.buzz_tower_value }
+    mode_points_scored: { action: set, int: current_player.buzz_tower_value }
+    buzz_tower_running: { action: set, int: 0 }
+    buzz_tower_held: { action: set, int: 0 }
+  # Collected → next goal is 5 more (max 30)
+  buzz_tower_made{current_player.buzz_tower_shots_needed<30}:
+    buzz_tower_shots_needed: { action: add, int: 5 }
+
+  # Failed (timer ran out): goal stays the same
+  buzz_tower_failed:
+    buzz_tower_running: { action: set, int: 0 }
+    buzz_tower_held: { action: set, int: 0 }
+    buzz_tower_value: { action: set, int: 0 }
+    buzz_tower_pct: { action: set, int: 0 }
+
+  # Ball drained while running: ends (never carries to the next ball), goal
+  # stays the same. Shot count is untouched so it carries over.
+  ball_will_end{current_player.buzz_tower_running==1}:
+    buzz_tower_running: { action: set, int: 0 }
+    buzz_tower_held: { action: set, int: 0 }
+    buzz_tower_value: { action: set, int: 0 }
+    buzz_tower_pct: { action: set, int: 0 }
+
+  # Ball-held pause tracking
+  buzz_tower_hold_pause:
+    buzz_tower_held: { action: set, int: 1 }
+  buzz_tower_hold_resume:
+    buzz_tower_held: { action: set, int: 0 }
+
+##############################################################################
+## EVENT PLAYER
+##############################################################################
+
+event_player:
+  # Goal reached → start. Safe on the qualifying shot: buzz_tower_running only
+  # flips to 1 on the queued buzz_tower_start, after the "made" check below has
+  # already been evaluated for this switch hit.
+  player_buzz_tower_hits{current_player.buzz_tower_shots_needed>0 and value>=current_player.buzz_tower_shots_needed and current_player.buzz_tower_running==0}:
+    - buzz_tower_start
+
+  # Slides/lights start from a follow-up event so buzz_tower_value is already
+  # set when the countdown slide appears.
+  buzz_tower_start:
+    - buzz_tower_started
+
+  # Made
+  s_ramp_tower_exit_active{current_player.buzz_tower_running==1}:
+    - buzz_tower_made
+
+  # Points popup from a follow-up event so mode_points_scored is already set
+  buzz_tower_made:
+    - buzz_tower_show_points
+
+  # Time ran out
+  timer_buzz_tower_countdown_complete:
+    - buzz_tower_failed
+
+  # --- Ball held: pause ---
+  s_mode_start_active{current_player.buzz_tower_running==1}:
+    - buzz_tower_hold_pause
+  s_lane_left_active{current_player.buzz_tower_running==1}:
+    - buzz_tower_hold_pause
+  # Resume on the next playfield switch once the ball is out of the scoop and
+  # off the left lane switch. (The switch that caused the pause is itself a
+  # playfield switch, but it's still active at that moment, so it can't
+  # immediately resume.) If a ball merely rolls through the left lane, the
+  # next switch it hits resumes the clock almost instantly.
+  sw_playfield_active{current_player.buzz_tower_running==1 and current_player.buzz_tower_held==1 and device.switches.s_mode_start.state==0 and device.switches.s_lane_left.state==0}:
+    - buzz_tower_hold_resume
+
+  # --- Switch-idle watchdog (base.yaml) ---
+  # Relayed so a resume can never START the timer when no hurry-up is running,
+  # and never un-pause it while the ball is still held.
+  mode_timers_idle_pause{current_player.buzz_tower_running==1}:
+    - buzz_tower_idle_pause
+  mode_timers_resume{current_player.buzz_tower_running==1 and current_player.buzz_tower_held==0}:
+    - buzz_tower_idle_resume
+
+##############################################################################
+## SLIDE PLAYER
+## Mode priority 260, so slide priority = 260 + the value below.
+##   activated / made:  260   (below every mode slide - lowest is 900)
+##   mode_points_scored: 940  (same as base's popups: 100 + 840)
+##   countdown:         1650  (above all mode slides - highest is 1600)
+##############################################################################
+
+slide_player:
+  buzz_tower_started:
+    buzz_tower_activated:
+      action: play
+      expire: 12s
+    buzz_tower_point_countdown:
+      action: play
+      priority: 1390
+
+  buzz_tower_made:
+    buzz_tower_point_countdown:
+      action: remove
+    buzz_tower_activated:
+      action: remove
+    buzz_tower_made:
+      action: play
+      expire: 6.5s
+
+  buzz_tower_show_points:
+    mode_points_scored:
+      action: play
+      priority: 680
+      expire: 2s
+
+  # Failed: no slide - just clear ours
+  buzz_tower_failed:
+    buzz_tower_point_countdown:
+      action: remove
+    buzz_tower_activated:
+      action: remove
+
+  ball_will_end:
+    buzz_tower_point_countdown:
+      action: remove
+    buzz_tower_activated:
+      action: remove
+    buzz_tower_made:
+      action: remove
+
+  # A mode/multiball starts → get out of its way immediately
+  player_pilot_mode_active{value==1}:
+    buzz_tower_activated:
+      action: remove
+    buzz_tower_made:
+      action: remove
+  player_training_mission_active{value==1}:
+    buzz_tower_activated:
+      action: remove
+    buzz_tower_made:
+      action: remove
+  player_hard_deck_active{value==1}:
+    buzz_tower_activated:
+      action: remove
+    buzz_tower_made:
+      action: remove
+  player_multiball_active{value==1}:
+    buzz_tower_activated:
+      action: remove
+    buzz_tower_made:
+      action: remove
+
+  # Status screen (1600) is open: step aside, come back when it closes
+  mode_status_mode_started:
+    buzz_tower_point_countdown:
+      action: remove
+  mode_status_mode_stopped{current_player.buzz_tower_running==1}:
+    buzz_tower_point_countdown:
+      action: play
+      priority: 1390
+
+##############################################################################
+## SHOW PLAYER - Tower insert rapid green flash
+## priority 1000 → 1260, above mode lighting on l_shot_tower_ramp. Mode tower
+## colors reappear automatically when the hurry-up ends.
+##############################################################################
+
+show_player:
+  buzz_tower_started:
+    buzz_tower_flash:
+      show: buzz_tower_flash
+      key: buzz_tower_flash
+      priority: 1000
+      loops: -1
+      show_tokens:
+        led: l_shot_tower_ramp
+
+  buzz_tower_made:
+    buzz_tower_flash_stop:
+      show: buzz_tower_flash
+      action: stop
+      key: buzz_tower_flash
+  buzz_tower_failed:
+    buzz_tower_flash_stop:
+      show: buzz_tower_flash
+      action: stop
+      key: buzz_tower_flash
+  ball_will_end:
+    buzz_tower_flash_stop:
+      show: buzz_tower_flash
+      action: stop
+      key: buzz_tower_flash
+
+##############################################################################
+## SOUND PLAYER
+##############################################################################
+
+sound_player:
+  # 15s after start, only if still running (not made / failed / drained)
+  timer_buzz_tower_callout_delay_complete{current_player.buzz_tower_running==1}:
+    shoot_the_tower:
+      bus: voice
+      loops: 0
+
+##############################################################################
+## SHOWS
+##############################################################################
+
+shows:
+  # Rapid green flash (5 flashes/sec). Colors quoted - see 2X notes on
+  # MPF's YAML loader and all-digit hex values.
+  buzz_tower_flash:
+    - duration: 100ms
+      lights:
+        (led): { color: '00FF40', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: 'off', fade: 0ms }

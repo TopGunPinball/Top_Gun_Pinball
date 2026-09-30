@@ -313,14 +313,30 @@ slide_player:
       action: remove
 
 ##############################################
+## Sound Player
+## Callout plays once when 2X starts running (target hit while qualified).
+## Dogfight award while running only adds time - no replay.
+##############################################
+
+sound_player:
+  x2_playfield_start:
+    2x_playfield_activated:
+      bus: voice
+      loops: 0
+
+##############################################
 ## Light Player - Qualified insert (solid)
 ##############################################
 
 light_player:
+  # Not qualified / stopped: REMOVE this mode's entry ("stop") instead of
+  # setting "off". An "off" entry at 250 covered anything lower, which hid the
+  # pilot awards bank flash (blue, priority 240). With the entry removed, the
+  # bank flash shows while 2X is idle; 2X's green still covers it when
+  # qualified or running. Base (100) still holds the insert off underneath.
   mode_2x_playfield_started{current_player.x2_qualified==0}:
     l_shot_pilot_gear:
-      color: off
-      fade: 0ms
+      color: stop
 
   mode_2x_playfield_started{current_player.x2_qualified==1}:
     l_shot_pilot_gear:
@@ -339,8 +355,7 @@ light_player:
 
   x2_playfield_stop:
     l_shot_pilot_gear:
-      color: off
-      fade: 0ms
+      color: stop
 
 ##############################################
 ## Show Player - Running insert + GI fade

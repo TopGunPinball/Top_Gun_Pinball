@@ -1,0 +1,860 @@
+[gd_scene load_steps=10 format=3 uid="uid://dfyog4x8r57hh"]
+
+[ext_resource type="Script" uid="uid://dru3usokwlhd3" path="res://addons/mpf-gmc/classes/mpf_slide.gd" id="1_pmlmu"]
+[ext_resource type="Texture2D" uid="uid://gm7t2e4cc2sk" path="res://addons/artwork/images/pilot awards/wings.png" id="3_bi0l1"]
+[ext_resource type="Texture2D" uid="uid://blwtf62oda21i" path="res://addons/artwork/images/scoreboard_background_with_video.png" id="4_n0ssq"]
+[ext_resource type="Script" uid="uid://g50gvmnepohu" path="res://addons/mpf-gmc/classes/mpf_conditional.gd" id="5_cond"]
+[ext_resource type="FontFile" uid="uid://b3j64eo5p2bds" path="res://fonts/Anton.ttf" id="6_font"]
+[ext_resource type="Texture2D" uid="uid://bfofms2ob8u1y" path="res://addons/artwork/images/pilot awards/pilot_badge_collected.png" id="7_on"]
+[ext_resource type="Texture2D" uid="uid://eylra7nolgsd" path="res://addons/artwork/images/pilot awards/pilot_badge_uncollected.png" id="8_off"]
+
+[sub_resource type="LabelSettings" id="ls_silver"]
+font = ExtResource("6_font")
+font_size = 44
+font_color = Color(0.6902, 0.7137, 0.7529, 1)
+outline_size = 8
+outline_color = Color(0.1098, 0.1255, 0.1569, 1)
+shadow_size = 8
+shadow_color = Color(0, 0, 0, 0.6)
+shadow_offset = Vector2(3, 3)
+
+[sub_resource type="LabelSettings" id="ls_gold"]
+font = ExtResource("6_font")
+font_size = 44
+font_color = Color(1, 0.7804, 0.1725, 1)
+outline_size = 8
+outline_color = Color(0.2902, 0.1725, 0, 1)
+shadow_size = 8
+shadow_color = Color(0, 0, 0, 0.6)
+shadow_offset = Vector2(3, 3)
+
+[node name="pilots_awarded" type="Control"]
+process_priority = 200
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_pmlmu")
+
+[node name="background_video_opening" type="Sprite2D" parent="."]
+visible = false
+z_index = 48
+texture = ExtResource("4_n0ssq")
+centered = false
+
+[node name="Pilot list" type="Sprite2D" parent="."]
+z_index = 47
+position = Vector2(43.999996, 104.00001)
+scale = Vector2(0.64607555, 0.5898437)
+texture = ExtResource("3_bi0l1")
+centered = false
+
+[node name="goose_off" type="Control" parent="Pilot list"]
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_goose_collected"
+condition_type = 1
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/goose_off"]
+layout_mode = 0
+offset_left = 161.0
+offset_top = 127.0
+offset_right = 277.0
+offset_bottom = 189.0
+mouse_filter = 2
+texture = ExtResource("8_off")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/goose_off"]
+layout_mode = 0
+offset_left = 294.0
+offset_top = 124.0
+offset_right = 644.0
+offset_bottom = 192.0
+text = "GOOSE"
+label_settings = SubResource("ls_silver")
+vertical_alignment = 1
+
+[node name="goose_on" type="Control" parent="Pilot list"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_goose_collected"
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/goose_on"]
+layout_mode = 0
+offset_left = 161.0
+offset_top = 127.0
+offset_right = 277.0
+offset_bottom = 189.0
+mouse_filter = 2
+texture = ExtResource("7_on")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/goose_on"]
+layout_mode = 0
+offset_left = 294.0
+offset_top = 124.0
+offset_right = 644.0
+offset_bottom = 192.0
+text = "GOOSE"
+label_settings = SubResource("ls_gold")
+vertical_alignment = 1
+
+[node name="hollywood_off" type="Control" parent="Pilot list"]
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_hollywood_collected"
+condition_type = 1
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/hollywood_off"]
+layout_mode = 0
+offset_left = 161.0
+offset_top = 209.0
+offset_right = 277.0
+offset_bottom = 271.0
+mouse_filter = 2
+texture = ExtResource("8_off")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/hollywood_off"]
+layout_mode = 0
+offset_left = 294.0
+offset_top = 206.0
+offset_right = 644.0
+offset_bottom = 274.0
+text = "HOLLYWOOD"
+label_settings = SubResource("ls_silver")
+vertical_alignment = 1
+
+[node name="hollywood_on" type="Control" parent="Pilot list"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_hollywood_collected"
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/hollywood_on"]
+layout_mode = 0
+offset_left = 161.0
+offset_top = 209.0
+offset_right = 277.0
+offset_bottom = 271.0
+mouse_filter = 2
+texture = ExtResource("7_on")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/hollywood_on"]
+layout_mode = 0
+offset_left = 294.0
+offset_top = 206.0
+offset_right = 644.0
+offset_bottom = 274.0
+text = "HOLLYWOOD"
+label_settings = SubResource("ls_gold")
+vertical_alignment = 1
+
+[node name="iceman_off" type="Control" parent="Pilot list"]
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_iceman_collected"
+condition_type = 1
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/iceman_off"]
+layout_mode = 0
+offset_left = 161.0
+offset_top = 284.0
+offset_right = 277.0
+offset_bottom = 346.0
+mouse_filter = 2
+texture = ExtResource("8_off")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/iceman_off"]
+layout_mode = 0
+offset_left = 294.0
+offset_top = 281.0
+offset_right = 644.0
+offset_bottom = 349.0
+text = "ICEMAN"
+label_settings = SubResource("ls_silver")
+vertical_alignment = 1
+
+[node name="iceman_on" type="Control" parent="Pilot list"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_iceman_collected"
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/iceman_on"]
+layout_mode = 0
+offset_left = 161.0
+offset_top = 284.0
+offset_right = 277.0
+offset_bottom = 346.0
+mouse_filter = 2
+texture = ExtResource("7_on")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/iceman_on"]
+layout_mode = 0
+offset_left = 294.0
+offset_top = 281.0
+offset_right = 644.0
+offset_bottom = 349.0
+text = "ICEMAN"
+label_settings = SubResource("ls_gold")
+vertical_alignment = 1
+
+[node name="maverick_off" type="Control" parent="Pilot list"]
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_maverick_collected"
+condition_type = 1
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/maverick_off"]
+layout_mode = 0
+offset_left = 161.0
+offset_top = 371.0
+offset_right = 277.0
+offset_bottom = 433.0
+mouse_filter = 2
+texture = ExtResource("8_off")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/maverick_off"]
+layout_mode = 0
+offset_left = 294.0
+offset_top = 368.0
+offset_right = 644.0
+offset_bottom = 436.0
+text = "MAVERICK"
+label_settings = SubResource("ls_silver")
+vertical_alignment = 1
+
+[node name="maverick_on" type="Control" parent="Pilot list"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_maverick_collected"
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/maverick_on"]
+layout_mode = 0
+offset_left = 161.0
+offset_top = 371.0
+offset_right = 277.0
+offset_bottom = 433.0
+mouse_filter = 2
+texture = ExtResource("7_on")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/maverick_on"]
+layout_mode = 0
+offset_left = 294.0
+offset_top = 368.0
+offset_right = 644.0
+offset_bottom = 436.0
+text = "MAVERICK"
+label_settings = SubResource("ls_gold")
+vertical_alignment = 1
+
+[node name="slider_off" type="Control" parent="Pilot list"]
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_slider_collected"
+condition_type = 1
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/slider_off"]
+layout_mode = 0
+offset_left = 161.0
+offset_top = 462.0
+offset_right = 277.0
+offset_bottom = 524.0
+mouse_filter = 2
+texture = ExtResource("8_off")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/slider_off"]
+layout_mode = 0
+offset_left = 294.0
+offset_top = 459.0
+offset_right = 644.0
+offset_bottom = 527.0
+text = "SLIDER"
+label_settings = SubResource("ls_silver")
+vertical_alignment = 1
+
+[node name="slider_on" type="Control" parent="Pilot list"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_slider_collected"
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/slider_on"]
+layout_mode = 0
+offset_left = 161.0
+offset_top = 462.0
+offset_right = 277.0
+offset_bottom = 524.0
+mouse_filter = 2
+texture = ExtResource("7_on")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/slider_on"]
+layout_mode = 0
+offset_left = 294.0
+offset_top = 459.0
+offset_right = 644.0
+offset_bottom = 527.0
+text = "SLIDER"
+label_settings = SubResource("ls_gold")
+vertical_alignment = 1
+
+[node name="viper_off" type="Control" parent="Pilot list"]
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_viper_collected"
+condition_type = 1
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/viper_off"]
+layout_mode = 0
+offset_left = 161.0
+offset_top = 554.0
+offset_right = 277.0
+offset_bottom = 616.0
+mouse_filter = 2
+texture = ExtResource("8_off")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/viper_off"]
+layout_mode = 0
+offset_left = 294.0
+offset_top = 551.0
+offset_right = 644.0
+offset_bottom = 619.0
+text = "VIPER"
+label_settings = SubResource("ls_silver")
+vertical_alignment = 1
+
+[node name="viper_on" type="Control" parent="Pilot list"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_viper_collected"
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/viper_on"]
+layout_mode = 0
+offset_left = 161.0
+offset_top = 554.0
+offset_right = 277.0
+offset_bottom = 616.0
+mouse_filter = 2
+texture = ExtResource("7_on")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/viper_on"]
+layout_mode = 0
+offset_left = 294.0
+offset_top = 551.0
+offset_right = 644.0
+offset_bottom = 619.0
+text = "VIPER"
+label_settings = SubResource("ls_gold")
+vertical_alignment = 1
+
+[node name="wolfman_off" type="Control" parent="Pilot list"]
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_wolfman_collected"
+condition_type = 1
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/wolfman_off"]
+layout_mode = 0
+offset_left = 161.0
+offset_top = 646.0
+offset_right = 277.0
+offset_bottom = 708.0
+mouse_filter = 2
+texture = ExtResource("8_off")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/wolfman_off"]
+layout_mode = 0
+offset_left = 294.0
+offset_top = 643.0
+offset_right = 644.0
+offset_bottom = 711.0
+text = "WOLFMAN"
+label_settings = SubResource("ls_silver")
+vertical_alignment = 1
+
+[node name="wolfman_on" type="Control" parent="Pilot list"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_wolfman_collected"
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/wolfman_on"]
+layout_mode = 0
+offset_left = 161.0
+offset_top = 646.0
+offset_right = 277.0
+offset_bottom = 708.0
+mouse_filter = 2
+texture = ExtResource("7_on")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/wolfman_on"]
+layout_mode = 0
+offset_left = 294.0
+offset_top = 643.0
+offset_right = 644.0
+offset_bottom = 711.0
+text = "WOLFMAN"
+label_settings = SubResource("ls_gold")
+vertical_alignment = 1
+
+[node name="bob_off" type="Control" parent="Pilot list"]
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_bob_collected"
+condition_type = 1
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/bob_off"]
+layout_mode = 0
+offset_left = 731.0
+offset_top = 127.0
+offset_right = 847.0
+offset_bottom = 189.0
+mouse_filter = 2
+texture = ExtResource("8_off")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/bob_off"]
+layout_mode = 0
+offset_left = 864.0
+offset_top = 124.0
+offset_right = 1214.0
+offset_bottom = 192.0
+text = "BOB"
+label_settings = SubResource("ls_silver")
+vertical_alignment = 1
+
+[node name="bob_on" type="Control" parent="Pilot list"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_bob_collected"
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/bob_on"]
+layout_mode = 0
+offset_left = 731.0
+offset_top = 127.0
+offset_right = 847.0
+offset_bottom = 189.0
+mouse_filter = 2
+texture = ExtResource("7_on")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/bob_on"]
+layout_mode = 0
+offset_left = 864.0
+offset_top = 124.0
+offset_right = 1214.0
+offset_bottom = 192.0
+text = "BOB"
+label_settings = SubResource("ls_gold")
+vertical_alignment = 1
+
+[node name="coyote_off" type="Control" parent="Pilot list"]
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_coyote_collected"
+condition_type = 1
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/coyote_off"]
+layout_mode = 0
+offset_left = 731.0
+offset_top = 201.0
+offset_right = 847.0
+offset_bottom = 263.0
+mouse_filter = 2
+texture = ExtResource("8_off")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/coyote_off"]
+layout_mode = 0
+offset_left = 864.0
+offset_top = 198.0
+offset_right = 1214.0
+offset_bottom = 266.0
+text = "COYOTE"
+label_settings = SubResource("ls_silver")
+vertical_alignment = 1
+
+[node name="coyote_on" type="Control" parent="Pilot list"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_coyote_collected"
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/coyote_on"]
+layout_mode = 0
+offset_left = 731.0
+offset_top = 201.0
+offset_right = 847.0
+offset_bottom = 263.0
+mouse_filter = 2
+texture = ExtResource("7_on")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/coyote_on"]
+layout_mode = 0
+offset_left = 864.0
+offset_top = 198.0
+offset_right = 1214.0
+offset_bottom = 266.0
+text = "COYOTE"
+label_settings = SubResource("ls_gold")
+vertical_alignment = 1
+
+[node name="fanboy_off" type="Control" parent="Pilot list"]
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_fanboy_collected"
+condition_type = 1
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/fanboy_off"]
+layout_mode = 0
+offset_left = 731.0
+offset_top = 280.0
+offset_right = 847.0
+offset_bottom = 342.0
+mouse_filter = 2
+texture = ExtResource("8_off")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/fanboy_off"]
+layout_mode = 0
+offset_left = 864.0
+offset_top = 277.0
+offset_right = 1214.0
+offset_bottom = 345.0
+text = "FANBOY/PAYBACK"
+label_settings = SubResource("ls_silver")
+vertical_alignment = 1
+
+[node name="fanboy_on" type="Control" parent="Pilot list"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_fanboy_collected"
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/fanboy_on"]
+layout_mode = 0
+offset_left = 731.0
+offset_top = 280.0
+offset_right = 847.0
+offset_bottom = 342.0
+mouse_filter = 2
+texture = ExtResource("7_on")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/fanboy_on"]
+layout_mode = 0
+offset_left = 864.0
+offset_top = 277.0
+offset_right = 1214.0
+offset_bottom = 345.0
+text = "FANBOY/PAYBACK"
+label_settings = SubResource("ls_gold")
+vertical_alignment = 1
+
+[node name="hangman_off" type="Control" parent="Pilot list"]
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_hangman_collected"
+condition_type = 1
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/hangman_off"]
+layout_mode = 0
+offset_left = 731.0
+offset_top = 371.0
+offset_right = 847.0
+offset_bottom = 433.0
+mouse_filter = 2
+texture = ExtResource("8_off")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/hangman_off"]
+layout_mode = 0
+offset_left = 864.0
+offset_top = 368.0
+offset_right = 1214.0
+offset_bottom = 436.0
+text = "HANGMAN"
+label_settings = SubResource("ls_silver")
+vertical_alignment = 1
+
+[node name="hangman_on" type="Control" parent="Pilot list"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_hangman_collected"
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/hangman_on"]
+layout_mode = 0
+offset_left = 731.0
+offset_top = 371.0
+offset_right = 847.0
+offset_bottom = 433.0
+mouse_filter = 2
+texture = ExtResource("7_on")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/hangman_on"]
+layout_mode = 0
+offset_left = 864.0
+offset_top = 368.0
+offset_right = 1214.0
+offset_bottom = 436.0
+text = "HANGMAN"
+label_settings = SubResource("ls_gold")
+vertical_alignment = 1
+
+[node name="hondo_off" type="Control" parent="Pilot list"]
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_hondo_collected"
+condition_type = 1
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/hondo_off"]
+layout_mode = 0
+offset_left = 731.0
+offset_top = 462.0
+offset_right = 847.0
+offset_bottom = 524.0
+mouse_filter = 2
+texture = ExtResource("8_off")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/hondo_off"]
+layout_mode = 0
+offset_left = 864.0
+offset_top = 459.0
+offset_right = 1214.0
+offset_bottom = 527.0
+text = "HONDO"
+label_settings = SubResource("ls_silver")
+vertical_alignment = 1
+
+[node name="hondo_on" type="Control" parent="Pilot list"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_hondo_collected"
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/hondo_on"]
+layout_mode = 0
+offset_left = 731.0
+offset_top = 462.0
+offset_right = 847.0
+offset_bottom = 524.0
+mouse_filter = 2
+texture = ExtResource("7_on")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/hondo_on"]
+layout_mode = 0
+offset_left = 864.0
+offset_top = 459.0
+offset_right = 1214.0
+offset_bottom = 527.0
+text = "HONDO"
+label_settings = SubResource("ls_gold")
+vertical_alignment = 1
+
+[node name="phoenix_off" type="Control" parent="Pilot list"]
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_phoenix_collected"
+condition_type = 1
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/phoenix_off"]
+layout_mode = 0
+offset_left = 731.0
+offset_top = 554.0
+offset_right = 847.0
+offset_bottom = 616.0
+mouse_filter = 2
+texture = ExtResource("8_off")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/phoenix_off"]
+layout_mode = 0
+offset_left = 864.0
+offset_top = 551.0
+offset_right = 1214.0
+offset_bottom = 619.0
+text = "PHOENIX"
+label_settings = SubResource("ls_silver")
+vertical_alignment = 1
+
+[node name="phoenix_on" type="Control" parent="Pilot list"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_phoenix_collected"
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/phoenix_on"]
+layout_mode = 0
+offset_left = 731.0
+offset_top = 554.0
+offset_right = 847.0
+offset_bottom = 616.0
+mouse_filter = 2
+texture = ExtResource("7_on")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/phoenix_on"]
+layout_mode = 0
+offset_left = 864.0
+offset_top = 551.0
+offset_right = 1214.0
+offset_bottom = 619.0
+text = "PHOENIX"
+label_settings = SubResource("ls_gold")
+vertical_alignment = 1
+
+[node name="rooster_off" type="Control" parent="Pilot list"]
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_rooster_collected"
+condition_type = 1
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/rooster_off"]
+layout_mode = 0
+offset_left = 731.0
+offset_top = 646.0
+offset_right = 847.0
+offset_bottom = 708.0
+mouse_filter = 2
+texture = ExtResource("8_off")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/rooster_off"]
+layout_mode = 0
+offset_left = 864.0
+offset_top = 643.0
+offset_right = 1214.0
+offset_bottom = 711.0
+text = "ROOSTER"
+label_settings = SubResource("ls_silver")
+vertical_alignment = 1
+
+[node name="rooster_on" type="Control" parent="Pilot list"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("5_cond")
+variable_name = "pilot_rooster_collected"
+condition_value = "1"
+
+[node name="badge" type="TextureRect" parent="Pilot list/rooster_on"]
+layout_mode = 0
+offset_left = 731.0
+offset_top = 646.0
+offset_right = 847.0
+offset_bottom = 708.0
+mouse_filter = 2
+texture = ExtResource("7_on")
+expand_mode = 1
+
+[node name="name" type="Label" parent="Pilot list/rooster_on"]
+layout_mode = 0
+offset_left = 864.0
+offset_top = 643.0
+offset_right = 1214.0
+offset_bottom = 711.0
+text = "ROOSTER"
+label_settings = SubResource("ls_gold")
+vertical_alignment = 1

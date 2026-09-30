@@ -108,12 +108,12 @@ timers:
   # Uses 1ms tick for precision (matches rescue_cougar pattern).
   mystery_barrier_eject_wait:
     start_value: 0
-    end_value: 500
-    tick_interval: 1ms
+    end_value: 1
+    tick_interval: 500ms    # single tick (was 1ms x 500) - same timing, 1 event instead of 500
     direction: up
     start_running: false
     control_events:
-      - event: timer_mystery_display_delay_complete
+      - event: mystery_eject_begin
         action: restart
 
   # ── EJECT DEBOUNCE ───────────────────────────────────────────────────────
@@ -123,8 +123,8 @@ timers:
   # Matches rescue_cougar_eject_debounce exactly.
   mystery_eject_debounce:
     start_value: 0
-    end_value: 150
-    tick_interval: 1ms
+    end_value: 1
+    tick_interval: 150ms    # single tick (was 1ms x 150) - same timing, 1 event instead of 150
     direction: up
     start_running: false
     control_events:
@@ -139,8 +139,8 @@ timers:
   # Matches rescue_cougar_barrier_delay exactly.
   mystery_barrier_delay:
     start_value: 0
-    end_value: 750
-    tick_interval: 1ms
+    end_value: 1
+    tick_interval: 750ms    # single tick (was 1ms x 750) - same timing, 1 event instead of 750
     direction: up
     start_running: false
     control_events:
@@ -395,7 +395,9 @@ event_player:
   mystery_award_perk_inverted: [mystery_award_selected]
   mystery_award_remove_danger: [mystery_award_selected]
 
-  mystery_award_light_training: [mystery_award_selected, qualify_training_mission]
+  # training_pick_start is what actually picks + lights a training mission
+  # (same event ICEMAN completion uses; it also plays the qualify callout).
+  mystery_award_light_training: [mystery_award_selected, training_pick_start]
   mystery_award_light_lock: [mystery_award_selected, lock_complete, lock_servo_to_held]
 
   mystery_award_ball_save:
@@ -414,11 +416,30 @@ event_player:
   ## Step 3 — NORMAL PATH: no pilot mode or TGMB pending → drop barrier, eject normally.
   ## Step 3 — HANDOFF PATH: mode/MB pending → barrier stays UP. Ball ejects into wall,
   ##          bounces back into scoop. Pilot mode/TGMB captures returning ball.
-  timer_mystery_display_delay_complete{current_player.qualified_mode_number==0 and current_player.multiball_qualified==0}:
+  timer_mystery_display_delay_complete{current_player.qualified_mode_number==0 and current_player.multiball_qualified==0 and current_player.video_mode_lit==0}:
     - barrier_drop
   # Also drop barrier normally when mystery itself just lit the pilot mission
   # (qualified_mode_number is now > 0 due to letters being set, but there was no pre-existing mode)
-  timer_mystery_display_delay_complete{current_player.mystery_just_lit_pilot==1 and current_player.multiball_qualified==0}:
+  timer_mystery_display_delay_complete{current_player.mystery_just_lit_pilot==1 and current_player.multiball_qualified==0 and current_player.video_mode_lit==0}:
+    - barrier_drop
+
+  ## Step 3b — VIDEO MODE: if the carrier landing video mode is lit, mystery KEEPS
+  ##           the ball (never ejects it) and starts the video mode on top of itself.
+  ##           When the landing ends, carrier_landing posts
+  ##           carrier_landing_return_to_mystery and this mode continues its normal
+  ##           eject from here. (A ball hold can't take over a ball that's already
+  ##           in the scoop, so passing it by wall-bounce was unreliable.)
+  timer_mystery_display_delay_complete{current_player.video_mode_lit==0}:
+    - mystery_eject_begin
+  timer_mystery_display_delay_complete{current_player.video_mode_lit==1}:
+    - start_mode_carrier_landing
+  carrier_landing_return_to_mystery:
+    - mystery_eject_begin
+    - mystery_resume_barrier
+  # Same barrier rules as Step 3, evaluated when the video mode hands back
+  mystery_resume_barrier{current_player.qualified_mode_number==0 and current_player.multiball_qualified==0}:
+    - barrier_drop
+  mystery_resume_barrier{current_player.mystery_just_lit_pilot==1 and current_player.multiball_qualified==0}:
     - barrier_drop
 
   ## Step 4: 500ms after display_delay → release ball (both paths — wall-bounce or normal eject)
@@ -444,7 +465,7 @@ event_player:
     - mystery_eject_confirmed|150ms
 
   ## SAFE RELEASE — normal path only (mode/MB pending path: ball already ejected on stop)
-  mode_mystery_award_will_stop{current_player.qualified_mode_number==0 and current_player.multiball_qualified==0}:
+  mode_mystery_award_will_stop{current_player.qualified_mode_number==0 and current_player.multiball_qualified==0 and current_player.video_mode_lit==0}:
     - mystery_safe_release
   tilt: [mystery_safe_release]
   game_ending: [mystery_safe_release]
@@ -480,25 +501,11 @@ slide_player:
       action: remove
 
 ##############################################################################
-## SHOW PLAYER - Light Effects During Award Display
+## SHOW PLAYER - removed
+## The barrier insert no longer flashes WHILE mystery plays. It flashes when
+## mystery is lit and waiting to be collected (pilot_mission_qualifier.yaml,
+## SCOOP INSERT COLOR CYCLE).
 ##############################################################################
-
-show_player:
-  mode_mystery_award_started:
-    mystery_scoop_flash:
-      show: sync_flash_mode
-      key: mystery_l_shot_barrier
-      sync_ms: 500
-      loops: -1
-      show_tokens:
-        led: l_shot_barrier
-        color: 00FF00
-
-  mode_mystery_award_will_stop:
-    mystery_scoop_stop:
-      show: sync_flash_mode
-      action: stop
-      key: mystery_l_shot_barrier
 
 ##############################################################################
 ## LIGHT PLAYER

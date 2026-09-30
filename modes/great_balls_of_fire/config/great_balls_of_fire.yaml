@@ -296,9 +296,9 @@ timers:
   # Covers both Phase 1 and Phase 2 shots.
   gbof_shot_lockout:
     start_value: 0
-    end_value: 1500
+    end_value: 1
     direction: up
-    tick_interval: 1ms
+    tick_interval: 1500ms    # single tick (was 1ms x 1500) - same timing, 1 event instead of 1500
     start_running: false
     control_events:
       - event: gbof_lo_hit
@@ -340,9 +340,9 @@ timers:
   # Phase 2: auto-plunger — fires 300ms after ball lands on shooter lane
   gbof_auto_plunger_delay:
     start_value: 0
-    end_value: 300
+    end_value: 1
     direction: up
-    tick_interval: 1ms
+    tick_interval: 300ms    # single tick (was 1ms x 300) - same timing, 1 event instead of 300
     start_running: false
     control_events:
       - event: s_shooter_lane_active
@@ -372,9 +372,9 @@ timers:
   # Phase 2: 400ms after super JP ball exits → raise barrier
   gbof_mb_barrier_delay:
     start_value: 0
-    end_value: 400
+    end_value: 1
     direction: up
-    tick_interval: 1ms
+    tick_interval: 400ms    # single tick (was 1ms x 400) - same timing, 1 event instead of 400
     start_running: false
     control_events:
       - event: gbof_super_jp_release
@@ -922,7 +922,9 @@ variable_player:
     gbof_complete_flag:
       action: set
       int: 1
-    mode_great_balls_of_fire_won:
+    # Named mode_balls_of_fire_* to match mode_balls_of_fire_played and
+    # status_mode.yaml (was mode_great_balls_of_fire_won, which nothing read)
+    mode_balls_of_fire_won:
       action: set
       int: 1
     pilot_missions_won:

@@ -1,0 +1,971 @@
+#config_version=6
+
+##############################################################################
+## PILOT AWARDS - combos + achievements ("do this to collect this")
+##
+## FILE NAME: modes/pilot_awards/config/pilot_awards.yaml
+##   Add pilot_awards to the modes: list in your machine config.
+##
+## 14 pilots, each collectable ONCE per game (pilot_<name>_collected = 1).
+## Combos and achievements run during modes and multiball, except Goose and
+## Bob (not collectable in multiball).
+##
+## COLLECTING A PILOT:
+##   - pilot_<name>_collected = 1 immediately (roster slide / status screen)
+##   - adds its value to the BANK and +1 to the bank MULTIPLIER
+##   - after its delay: roster slide pilot_award_base for 3s (low priority,
+##     under all mode slides) + its voice callout
+##
+## BANK (cashed at the pilot gear target, s_flight_gear_target):
+##   pilot_bank_value      - sum of banked pilot values
+##   pilot_bank_multiplier - number of pilots banked since the last cash-in
+##   pilot_bank_payout     - what the target pays right now:
+##                           value x multiplier x (1 + x2_multiplier)
+##                           (2X doubles it if already running; Mach does NOT apply)
+##   - Uses the values from BEFORE the hit (a hit that also starts 2X doesn't
+##     double this collect).
+##   - LOST on drain.
+##   - Slide pilot_bank on while multiplier > 0.
+##
+## PILOT GEAR INSERT (shared with 2X):
+##   bank empty                      -> 2X controls it (solid green when
+##                                      qualified, green fade when running)
+##   bank waiting, 2X idle           -> solid blue
+##   bank waiting, 2X qualified/on   -> fade green <-> blue
+##   Pilot awards drives the two bank states at priority 260 (above 2X's 250),
+##   so while something is banked it overrides 2X's own insert lighting.
+##
+## COMBO RULES:
+##   - Shots out of order are ignored.
+##   - A combo resets if its timer (restarts each completed shot) runs out,
+##     or it sees its switch limit of other playfield switches since the last
+##     completed shot. Flipper EOS switches aren't playfield switches.
+##   - Individual spinner spins never count toward the switch limit. For
+##     combos with a spinner step (Maverick, Hangman) the spinner is ignored
+##     entirely; for the others a completed spinner shot counts as ONE switch.
+##   - A combo's OWN shot switches never count toward its limit (so the
+##     switch that completes a shot, or a combo shot hit out of order,
+##     doesn't use up the allowance). Slider's TR is one of its own
+##     switches, which is why a TR shot doesn't break it.
+##   - Progress resets on drain.
+##
+##   Maverick  Tower, LR, RR, Spinner, TR, TL                10s, 5 switches
+##   Iceman    Tower, LR, RR, any I/C/E target               10s, 5 switches
+##   Rooster   RO, TL, TR or TO                               7s, 5 switches
+##   Slider    5 TL shots in a row (TR doesn't break it)      7s, 5 switches
+##   Hangman   Tower, Spinner, TL, TR                        10s, 3 switches
+##   Phoenix   3 LO shots in a row                           10s, no switch limit
+##
+## ACHIEVEMENTS:
+##   Goose      Finish GOOSE within 30 flips of the first letter (flipper
+##              buttons s_flipper_left + s_flipper_right). Not in multiball.
+##              After a miss, GOOSE must be finished to try again.
+##   Bob        Hit all 4 LOCK targets within 30s of the first. Repeats don't
+##              count. Not in multiball. After a miss, all 4 must be hit to
+##              try again.
+##   Fanboy     5 skillshots in a game (Fanboy/Payback)
+##   Hollywood  3 Ejection Seat awards in a game (ejection_success)
+##   Viper      3 pilot missions won + 1 training mission won
+##   Hondo      Edge of Space won + Mach 3 reached (any time, any order)
+##   Coyote     25 ramp shots in a game (LR, RR, TR, Tower)
+##   Wolfman    150 spinner spins in one ball
+##
+## ANNOUNCE DELAYS (so the slide/callout don't collide with mode videos):
+##   combos: immediate | Goose 3s | Bob 5s | Fanboy 10s | Hollywood 10s
+##   Viper 15s | Hondo 20s if Edge of Space finished it, 3s if Mach 3 did
+##   Coyote 3s | Wolfman 3s
+##   (If the ball drains during a delay, the pilot still counts - only the
+##    announcement is skipped.)
+##
+## POINT VALUES: every pilot banks 1,000,000 (PLACEHOLDER - set real values later
+##   in the pilot_<name>_awarded blocks).
+##############################################################################
+
+mode:
+  start_events: mode_base_started
+  stop_events: mode_base_stopped
+  priority: 240
+  game_mode: true
+
+##############################################################################
+## TIMERS
+##############################################################################
+
+timers:
+  # Maverick: time allowed between shots
+  pilot_maverick_combo_timer:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 10s
+    start_running: false
+    control_events:
+      - event: pilot_maverick_step_made
+        action: restart
+      - event: pilot_maverick_reset
+        action: stop
+      - event: pilot_maverick_awarded
+        action: stop
+      - event: ball_will_end
+        action: stop
+  # Iceman: time allowed between shots
+  pilot_iceman_combo_timer:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 10s
+    start_running: false
+    control_events:
+      - event: pilot_iceman_step_made
+        action: restart
+      - event: pilot_iceman_reset
+        action: stop
+      - event: pilot_iceman_awarded
+        action: stop
+      - event: ball_will_end
+        action: stop
+  # Rooster: time allowed between shots
+  pilot_rooster_combo_timer:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 7s
+    start_running: false
+    control_events:
+      - event: pilot_rooster_step_made
+        action: restart
+      - event: pilot_rooster_reset
+        action: stop
+      - event: pilot_rooster_awarded
+        action: stop
+      - event: ball_will_end
+        action: stop
+  # Slider: time allowed between shots
+  pilot_slider_combo_timer:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 7s
+    start_running: false
+    control_events:
+      - event: pilot_slider_step_made
+        action: restart
+      - event: pilot_slider_reset
+        action: stop
+      - event: pilot_slider_awarded
+        action: stop
+      - event: ball_will_end
+        action: stop
+  # Hangman: time allowed between shots
+  pilot_hangman_combo_timer:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 10s
+    start_running: false
+    control_events:
+      - event: pilot_hangman_step_made
+        action: restart
+      - event: pilot_hangman_reset
+        action: stop
+      - event: pilot_hangman_awarded
+        action: stop
+      - event: ball_will_end
+        action: stop
+  # Phoenix: time allowed between shots
+  pilot_phoenix_combo_timer:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 10s
+    start_running: false
+    control_events:
+      - event: pilot_phoenix_step_made
+        action: restart
+      - event: pilot_phoenix_reset
+        action: stop
+      - event: pilot_phoenix_awarded
+        action: stop
+      - event: ball_will_end
+        action: stop
+  # Bob: 30s to hit all 4 LOCK targets
+  pilot_bob_timer:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 30s
+    start_running: false
+    control_events:
+      - event: pilot_bob_start
+        action: restart
+      - event: pilot_bob_awarded
+        action: stop
+      - event: pilot_bob_reset
+        action: stop
+      - event: ball_will_end
+        action: stop
+
+##############################################################################
+## VARIABLE PLAYER
+##############################################################################
+
+variable_player:
+
+  ##############################################
+  ## BALL START
+  ##############################################
+  # 'add 0' makes sure every variable EXISTS before a slide reads it. GMC's
+  # conditional treats a missing variable as a match, which would show an
+  # uncollected pilot as collected. Game-long values are left untouched.
+  mode_pilot_awards_started:
+    pilot_goose_collected: { action: add, int: 0 }
+    pilot_hollywood_collected: { action: add, int: 0 }
+    pilot_iceman_collected: { action: add, int: 0 }
+    pilot_maverick_collected: { action: add, int: 0 }
+    pilot_slider_collected: { action: add, int: 0 }
+    pilot_viper_collected: { action: add, int: 0 }
+    pilot_wolfman_collected: { action: add, int: 0 }
+    pilot_bob_collected: { action: add, int: 0 }
+    pilot_coyote_collected: { action: add, int: 0 }
+    pilot_fanboy_collected: { action: add, int: 0 }
+    pilot_hangman_collected: { action: add, int: 0 }
+    pilot_hondo_collected: { action: add, int: 0 }
+    pilot_phoenix_collected: { action: add, int: 0 }
+    pilot_rooster_collected: { action: add, int: 0 }
+    pilot_bank_value: { action: add, int: 0 }
+    pilot_bank_multiplier: { action: add, int: 0 }
+    pilot_bank_payout: { action: add, int: 0 }
+    pilot_jackpots_collected: { action: add, int: 0 }
+    # Per-ball progress resets
+    pilot_maverick_step: { action: set, int: 0 }
+    pilot_maverick_switches: { action: set, int: 0 }
+    pilot_iceman_step: { action: set, int: 0 }
+    pilot_iceman_switches: { action: set, int: 0 }
+    pilot_rooster_step: { action: set, int: 0 }
+    pilot_rooster_switches: { action: set, int: 0 }
+    pilot_slider_step: { action: set, int: 0 }
+    pilot_slider_switches: { action: set, int: 0 }
+    pilot_hangman_step: { action: set, int: 0 }
+    pilot_hangman_switches: { action: set, int: 0 }
+    pilot_phoenix_step: { action: set, int: 0 }
+    pilot_phoenix_switches: { action: set, int: 0 }
+    pilot_goose_flips: { action: set, int: 0 }
+    pilot_bob_l: { action: set, int: 0 }
+    pilot_bob_o: { action: set, int: 0 }
+    pilot_bob_c: { action: set, int: 0 }
+    pilot_bob_k: { action: set, int: 0 }
+    pilot_bob_count: { action: set, int: 0 }
+    pilot_bob_state: { action: set, int: 0 }
+    pilot_wolfman_spins: { action: set, int: 0 }
+  # Goose: can only start fresh from an empty GOOSE. If letters carried over
+  # from the last ball, finish GOOSE first (state 2 = wait for completion).
+  mode_pilot_awards_started{(current_player.goose_letter_g + current_player.goose_letter_o_left + current_player.goose_letter_e + current_player.goose_letter_o_right + current_player.goose_letter_s)==0}:
+    pilot_goose_state: { action: set, int: 0 }
+  mode_pilot_awards_started{(current_player.goose_letter_g + current_player.goose_letter_o_left + current_player.goose_letter_e + current_player.goose_letter_o_right + current_player.goose_letter_s)>0}:
+    pilot_goose_state: { action: set, int: 2 }
+
+  ##############################################
+  ## COMBOS - shot tracking
+  ##############################################
+  # Maverick: Tower, LR, RR, Spinner, TR, TL
+  s_ramp_tower_exit_active{current_player.pilot_maverick_step==0 and current_player.pilot_maverick_collected==0}:
+    pilot_maverick_step: { action: set, int: 1 }
+  s_ramp_left_exit_active{current_player.pilot_maverick_step==1 and current_player.pilot_maverick_collected==0}:
+    pilot_maverick_step: { action: set, int: 2 }
+  s_ramp_right_exit_active{current_player.pilot_maverick_step==2 and current_player.pilot_maverick_collected==0}:
+    pilot_maverick_step: { action: set, int: 3 }
+  spinner_shot_made{current_player.pilot_maverick_step==3 and current_player.pilot_maverick_collected==0}:
+    pilot_maverick_step: { action: set, int: 4 }
+  s_ramp_inner_exit_active{current_player.pilot_maverick_step==4 and current_player.pilot_maverick_collected==0}:
+    pilot_maverick_step: { action: set, int: 5 }
+  s_orbit_upper_active{current_player.pilot_maverick_step==5 and current_player.pilot_maverick_collected==0}:
+    pilot_maverick_step: { action: set, int: 6 }
+  sw_playfield_active{current_player.pilot_maverick_step>0 and current_player.pilot_maverick_collected==0 and device.switches.s_spinner.state==0 and device.switches.s_ramp_tower_exit.state==0 and device.switches.s_ramp_left_exit.state==0 and device.switches.s_ramp_right_exit.state==0 and device.switches.s_ramp_inner_exit.state==0 and device.switches.s_orbit_upper.state==0}:
+    pilot_maverick_switches: { action: add, int: 1 }
+  pilot_maverick_step_made:
+    pilot_maverick_switches: { action: set, int: 0 }
+  pilot_maverick_reset:
+    pilot_maverick_step: { action: set, int: 0 }
+    pilot_maverick_switches: { action: set, int: 0 }
+
+  # Iceman: Tower, LR, RR, any I/C/E target
+  s_ramp_tower_exit_active{current_player.pilot_iceman_step==0 and current_player.pilot_iceman_collected==0}:
+    pilot_iceman_step: { action: set, int: 1 }
+  s_ramp_left_exit_active{current_player.pilot_iceman_step==1 and current_player.pilot_iceman_collected==0}:
+    pilot_iceman_step: { action: set, int: 2 }
+  s_ramp_right_exit_active{current_player.pilot_iceman_step==2 and current_player.pilot_iceman_collected==0}:
+    pilot_iceman_step: { action: set, int: 3 }
+  s_i_iceman_target_active{current_player.pilot_iceman_step==3 and current_player.pilot_iceman_collected==0}:
+    pilot_iceman_step: { action: set, int: 4 }
+  s_c_iceman_target_active{current_player.pilot_iceman_step==3 and current_player.pilot_iceman_collected==0}:
+    pilot_iceman_step: { action: set, int: 4 }
+  s_e_iceman_target_active{current_player.pilot_iceman_step==3 and current_player.pilot_iceman_collected==0}:
+    pilot_iceman_step: { action: set, int: 4 }
+  sw_playfield_active{current_player.pilot_iceman_step>0 and current_player.pilot_iceman_collected==0 and device.switches.s_spinner.state==0 and device.switches.s_ramp_tower_exit.state==0 and device.switches.s_ramp_left_exit.state==0 and device.switches.s_ramp_right_exit.state==0 and device.switches.s_i_iceman_target.state==0 and device.switches.s_c_iceman_target.state==0 and device.switches.s_e_iceman_target.state==0}:
+    pilot_iceman_switches: { action: add, int: 1 }
+  spinner_shot_made{current_player.pilot_iceman_step>0 and current_player.pilot_iceman_collected==0}:
+    pilot_iceman_switches: { action: add, int: 1 }
+  pilot_iceman_step_made:
+    pilot_iceman_switches: { action: set, int: 0 }
+  pilot_iceman_reset:
+    pilot_iceman_step: { action: set, int: 0 }
+    pilot_iceman_switches: { action: set, int: 0 }
+
+  # Rooster: RO, TL, TR or TO
+  right_orbit_shot_hit{current_player.pilot_rooster_step==0 and current_player.pilot_rooster_collected==0}:
+    pilot_rooster_step: { action: set, int: 1 }
+  s_orbit_upper_active{current_player.pilot_rooster_step==1 and current_player.pilot_rooster_collected==0}:
+    pilot_rooster_step: { action: set, int: 2 }
+  s_ramp_inner_exit_active{current_player.pilot_rooster_step==2 and current_player.pilot_rooster_collected==0}:
+    pilot_rooster_step: { action: set, int: 3 }
+  s_orbit_lower_active{current_player.pilot_rooster_step==2 and current_player.pilot_rooster_collected==0}:
+    pilot_rooster_step: { action: set, int: 3 }
+  sw_playfield_active{current_player.pilot_rooster_step>0 and current_player.pilot_rooster_collected==0 and device.switches.s_spinner.state==0 and device.switches.s_orbit_right.state==0 and device.switches.s_orbit_left.state==0 and device.switches.s_orbit_upper.state==0 and device.switches.s_ramp_inner_exit.state==0 and device.switches.s_orbit_lower.state==0}:
+    pilot_rooster_switches: { action: add, int: 1 }
+  spinner_shot_made{current_player.pilot_rooster_step>0 and current_player.pilot_rooster_collected==0}:
+    pilot_rooster_switches: { action: add, int: 1 }
+  pilot_rooster_step_made:
+    pilot_rooster_switches: { action: set, int: 0 }
+  pilot_rooster_reset:
+    pilot_rooster_step: { action: set, int: 0 }
+    pilot_rooster_switches: { action: set, int: 0 }
+
+  # Slider: 5 TL shots in a row (TR doesn't break it)
+  s_orbit_upper_active{current_player.pilot_slider_step<5 and current_player.pilot_slider_collected==0}:
+    pilot_slider_step: { action: add, int: 1 }
+  sw_playfield_active{current_player.pilot_slider_step>0 and current_player.pilot_slider_collected==0 and device.switches.s_spinner.state==0 and device.switches.s_orbit_upper.state==0 and device.switches.s_ramp_inner_exit.state==0}:
+    pilot_slider_switches: { action: add, int: 1 }
+  spinner_shot_made{current_player.pilot_slider_step>0 and current_player.pilot_slider_collected==0}:
+    pilot_slider_switches: { action: add, int: 1 }
+  pilot_slider_step_made:
+    pilot_slider_switches: { action: set, int: 0 }
+  pilot_slider_reset:
+    pilot_slider_step: { action: set, int: 0 }
+    pilot_slider_switches: { action: set, int: 0 }
+
+  # Hangman: Tower, Spinner, TL, TR
+  s_ramp_tower_exit_active{current_player.pilot_hangman_step==0 and current_player.pilot_hangman_collected==0}:
+    pilot_hangman_step: { action: set, int: 1 }
+  spinner_shot_made{current_player.pilot_hangman_step==1 and current_player.pilot_hangman_collected==0}:
+    pilot_hangman_step: { action: set, int: 2 }
+  s_orbit_upper_active{current_player.pilot_hangman_step==2 and current_player.pilot_hangman_collected==0}:
+    pilot_hangman_step: { action: set, int: 3 }
+  s_ramp_inner_exit_active{current_player.pilot_hangman_step==3 and current_player.pilot_hangman_collected==0}:
+    pilot_hangman_step: { action: set, int: 4 }
+  sw_playfield_active{current_player.pilot_hangman_step>0 and current_player.pilot_hangman_collected==0 and device.switches.s_spinner.state==0 and device.switches.s_ramp_tower_exit.state==0 and device.switches.s_orbit_upper.state==0 and device.switches.s_ramp_inner_exit.state==0}:
+    pilot_hangman_switches: { action: add, int: 1 }
+  pilot_hangman_step_made:
+    pilot_hangman_switches: { action: set, int: 0 }
+  pilot_hangman_reset:
+    pilot_hangman_step: { action: set, int: 0 }
+    pilot_hangman_switches: { action: set, int: 0 }
+
+  # Phoenix: 3 LO shots in a row
+  left_orbit_shot_hit{current_player.pilot_phoenix_step<3 and current_player.pilot_phoenix_collected==0}:
+    pilot_phoenix_step: { action: add, int: 1 }
+  pilot_phoenix_step_made:
+    pilot_phoenix_switches: { action: set, int: 0 }
+  pilot_phoenix_reset:
+    pilot_phoenix_step: { action: set, int: 0 }
+    pilot_phoenix_switches: { action: set, int: 0 }
+
+
+  ##############################################
+  ## ACHIEVEMENTS - tracking
+  ##############################################
+  # --- Goose: first letter starts the flip count ---
+  pilot_goose_start:
+    pilot_goose_state: { action: set, int: 1 }
+    pilot_goose_flips: { action: set, int: 0 }
+  s_flipper_left_active{current_player.pilot_goose_state==1}:
+    pilot_goose_flips: { action: add, int: 1 }
+  s_flipper_right_active{current_player.pilot_goose_state==1}:
+    pilot_goose_flips: { action: add, int: 1 }
+  # 31st flip = missed; finish GOOSE to try again
+  player_pilot_goose_flips{value>30 and current_player.pilot_goose_state==1}:
+    pilot_goose_state: { action: set, int: 2 }
+  # Multiball started mid-attempt: attempt void
+  player_multiball_active{value==1 and current_player.pilot_goose_state==1}:
+    pilot_goose_state: { action: set, int: 2 }
+  # GOOSE letters reset after a completion: ready for a new attempt.
+  # (Reset here, not on goose_complete, so the award check on goose_complete
+  #  still sees state 1.)
+  goose_reset_letters:
+    pilot_goose_state: { action: set, int: 0 }
+    pilot_goose_flips: { action: set, int: 0 }
+
+  # --- Bob: each LOCK target counts once ---
+  # Tracked while an attempt runs (1), while waiting to reset after a miss (2),
+  # or to start a new attempt (0, single ball only).
+  s_l_lock_target_active{current_player.pilot_bob_l==0 and current_player.pilot_bob_collected==0 and (current_player.pilot_bob_state>0 or current_player.multiball_active==0)}:
+    pilot_bob_l: { action: set, int: 1 }
+    pilot_bob_count: { action: add, int: 1 }
+  s_o_lock_target_active{current_player.pilot_bob_o==0 and current_player.pilot_bob_collected==0 and (current_player.pilot_bob_state>0 or current_player.multiball_active==0)}:
+    pilot_bob_o: { action: set, int: 1 }
+    pilot_bob_count: { action: add, int: 1 }
+  s_c_lock_target_active{current_player.pilot_bob_c==0 and current_player.pilot_bob_collected==0 and (current_player.pilot_bob_state>0 or current_player.multiball_active==0)}:
+    pilot_bob_c: { action: set, int: 1 }
+    pilot_bob_count: { action: add, int: 1 }
+  s_k_lock_target_active{current_player.pilot_bob_k==0 and current_player.pilot_bob_collected==0 and (current_player.pilot_bob_state>0 or current_player.multiball_active==0)}:
+    pilot_bob_k: { action: set, int: 1 }
+    pilot_bob_count: { action: add, int: 1 }
+  pilot_bob_start:
+    pilot_bob_state: { action: set, int: 1 }
+  timer_pilot_bob_timer_complete{current_player.pilot_bob_state==1}:
+    pilot_bob_state: { action: set, int: 2 }
+  player_multiball_active{value==1 and current_player.pilot_bob_state==1}:
+    pilot_bob_state: { action: set, int: 2 }
+  pilot_bob_reset:
+    pilot_bob_l: { action: set, int: 0 }
+    pilot_bob_o: { action: set, int: 0 }
+    pilot_bob_c: { action: set, int: 0 }
+    pilot_bob_k: { action: set, int: 0 }
+    pilot_bob_count: { action: set, int: 0 }
+    pilot_bob_state: { action: set, int: 0 }
+
+  # --- Game-long counters ---
+  skillshot_show_points{current_player.pilot_fanboy_collected==0}:
+    pilot_fanboy_skillshots: { action: add, int: 1 }
+  ejection_success{current_player.pilot_hollywood_collected==0}:
+    pilot_hollywood_ejects: { action: add, int: 1 }
+  s_ramp_left_exit_active{current_player.pilot_coyote_collected==0}:
+    pilot_coyote_ramps: { action: add, int: 1 }
+  s_ramp_right_exit_active{current_player.pilot_coyote_collected==0}:
+    pilot_coyote_ramps: { action: add, int: 1 }
+  s_ramp_inner_exit_active{current_player.pilot_coyote_collected==0}:
+    pilot_coyote_ramps: { action: add, int: 1 }
+  s_ramp_tower_exit_active{current_player.pilot_coyote_collected==0}:
+    pilot_coyote_ramps: { action: add, int: 1 }
+  # Wolfman: per ball (reset at ball start)
+  s_spinner_active{current_player.pilot_wolfman_collected==0}:
+    pilot_wolfman_spins: { action: add, int: 1 }
+  # Hondo: remember each half for the rest of the game
+  player_mach_level{value>=3}:
+    pilot_hondo_mach3: { action: set, int: 1 }
+  player_mode_edge_of_space_won{value==1}:
+    pilot_hondo_eos: { action: set, int: 1 }
+
+  ##############################################
+  ## PILOT COLLECTED → bank it
+  ##############################################
+  pilot_goose_awarded:
+    pilot_goose_collected: { action: set, int: 1 }
+    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_multiplier: { action: add, int: 1 }
+  pilot_hollywood_awarded:
+    pilot_hollywood_collected: { action: set, int: 1 }
+    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_multiplier: { action: add, int: 1 }
+  pilot_iceman_awarded:
+    pilot_iceman_collected: { action: set, int: 1 }
+    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_multiplier: { action: add, int: 1 }
+    pilot_iceman_step: { action: set, int: 0 }
+    pilot_iceman_switches: { action: set, int: 0 }
+  pilot_maverick_awarded:
+    pilot_maverick_collected: { action: set, int: 1 }
+    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_multiplier: { action: add, int: 1 }
+    pilot_maverick_step: { action: set, int: 0 }
+    pilot_maverick_switches: { action: set, int: 0 }
+  pilot_slider_awarded:
+    pilot_slider_collected: { action: set, int: 1 }
+    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_multiplier: { action: add, int: 1 }
+    pilot_slider_step: { action: set, int: 0 }
+    pilot_slider_switches: { action: set, int: 0 }
+  pilot_viper_awarded:
+    pilot_viper_collected: { action: set, int: 1 }
+    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_multiplier: { action: add, int: 1 }
+  pilot_wolfman_awarded:
+    pilot_wolfman_collected: { action: set, int: 1 }
+    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_multiplier: { action: add, int: 1 }
+  pilot_bob_awarded:
+    pilot_bob_collected: { action: set, int: 1 }
+    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_multiplier: { action: add, int: 1 }
+  pilot_coyote_awarded:
+    pilot_coyote_collected: { action: set, int: 1 }
+    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_multiplier: { action: add, int: 1 }
+  pilot_fanboy_awarded:
+    pilot_fanboy_collected: { action: set, int: 1 }
+    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_multiplier: { action: add, int: 1 }
+  pilot_hangman_awarded:
+    pilot_hangman_collected: { action: set, int: 1 }
+    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_multiplier: { action: add, int: 1 }
+    pilot_hangman_step: { action: set, int: 0 }
+    pilot_hangman_switches: { action: set, int: 0 }
+  pilot_hondo_awarded:
+    pilot_hondo_collected: { action: set, int: 1 }
+    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_multiplier: { action: add, int: 1 }
+  pilot_phoenix_awarded:
+    pilot_phoenix_collected: { action: set, int: 1 }
+    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_multiplier: { action: add, int: 1 }
+    pilot_phoenix_step: { action: set, int: 0 }
+    pilot_phoenix_switches: { action: set, int: 0 }
+  pilot_rooster_awarded:
+    pilot_rooster_collected: { action: set, int: 1 }
+    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_multiplier: { action: add, int: 1 }
+    pilot_rooster_step: { action: set, int: 0 }
+    pilot_rooster_switches: { action: set, int: 0 }
+
+  ##############################################
+  ## BANK
+  ##############################################
+  # Keep the payout current for the pilot_bank slide
+  player_pilot_bank_value:
+    pilot_bank_payout: { action: set, int: current_player.pilot_bank_value * current_player.pilot_bank_multiplier * (1 + current_player.x2_multiplier) }
+  player_pilot_bank_multiplier:
+    pilot_bank_payout: { action: set, int: current_player.pilot_bank_value * current_player.pilot_bank_multiplier * (1 + current_player.x2_multiplier) }
+  player_x2_multiplier:
+    pilot_bank_payout: { action: set, int: current_player.pilot_bank_value * current_player.pilot_bank_multiplier * (1 + current_player.x2_multiplier) }
+  # Cash in at the pilot gear target. Runs on the switch itself, so it uses
+  # the payout from BEFORE this hit (a hit that also starts 2X posts that
+  # start as a later event). pilot_bank_payout is only recalculated after
+  # this block, so the order of the lines below doesn't matter.
+  s_flight_gear_target_active{current_player.pilot_bank_multiplier>0}:
+    score: { action: add, int: current_player.pilot_bank_payout }
+    mode_points_scored: { action: set, int: current_player.pilot_bank_payout }
+    pilot_jackpots_collected: { action: add, int: 1 }
+    pilot_bank_value: { action: set, int: 0 }
+    pilot_bank_multiplier: { action: set, int: 0 }
+  # Drain: bank is lost
+  ball_will_end:
+    pilot_bank_value: { action: set, int: 0 }
+    pilot_bank_multiplier: { action: set, int: 0 }
+
+##############################################################################
+## EVENT PLAYER
+##############################################################################
+
+event_player:
+
+  ##############################################
+  ## COMBOS - step made / reset / collected
+  ##############################################
+  # Maverick
+  player_pilot_maverick_step{value>0 and value<6}:
+    - pilot_maverick_step_made
+  player_pilot_maverick_step{value==6 and current_player.pilot_maverick_collected==0}:
+    - pilot_maverick_awarded
+  timer_pilot_maverick_combo_timer_complete:
+    - pilot_maverick_reset
+  player_pilot_maverick_switches{value>=5 and current_player.pilot_maverick_step>0}:
+    - pilot_maverick_reset
+  # Iceman
+  player_pilot_iceman_step{value>0 and value<4}:
+    - pilot_iceman_step_made
+  player_pilot_iceman_step{value==4 and current_player.pilot_iceman_collected==0}:
+    - pilot_iceman_awarded
+  timer_pilot_iceman_combo_timer_complete:
+    - pilot_iceman_reset
+  player_pilot_iceman_switches{value>=5 and current_player.pilot_iceman_step>0}:
+    - pilot_iceman_reset
+  # Rooster
+  player_pilot_rooster_step{value>0 and value<3}:
+    - pilot_rooster_step_made
+  player_pilot_rooster_step{value==3 and current_player.pilot_rooster_collected==0}:
+    - pilot_rooster_awarded
+  timer_pilot_rooster_combo_timer_complete:
+    - pilot_rooster_reset
+  player_pilot_rooster_switches{value>=5 and current_player.pilot_rooster_step>0}:
+    - pilot_rooster_reset
+  # Slider
+  player_pilot_slider_step{value>0 and value<5}:
+    - pilot_slider_step_made
+  player_pilot_slider_step{value==5 and current_player.pilot_slider_collected==0}:
+    - pilot_slider_awarded
+  timer_pilot_slider_combo_timer_complete:
+    - pilot_slider_reset
+  player_pilot_slider_switches{value>=5 and current_player.pilot_slider_step>0}:
+    - pilot_slider_reset
+  # Hangman
+  player_pilot_hangman_step{value>0 and value<4}:
+    - pilot_hangman_step_made
+  player_pilot_hangman_step{value==4 and current_player.pilot_hangman_collected==0}:
+    - pilot_hangman_awarded
+  timer_pilot_hangman_combo_timer_complete:
+    - pilot_hangman_reset
+  player_pilot_hangman_switches{value>=3 and current_player.pilot_hangman_step>0}:
+    - pilot_hangman_reset
+  # Phoenix
+  player_pilot_phoenix_step{value>0 and value<3}:
+    - pilot_phoenix_step_made
+  player_pilot_phoenix_step{value==3 and current_player.pilot_phoenix_collected==0}:
+    - pilot_phoenix_awarded
+  timer_pilot_phoenix_combo_timer_complete:
+    - pilot_phoenix_reset
+
+  ##############################################
+  ## GOOSE - start / collected
+  ##############################################
+  # s_outlane_left collects goose_letter_g. First letter = the other four are unlit (true whether
+  # or not goose_letters has lit this one yet - handler order doesn't matter).
+  s_outlane_left_active{(current_player.goose_letter_o_left + current_player.goose_letter_e + current_player.goose_letter_o_right + current_player.goose_letter_s)==0 and current_player.goose_completing==0 and current_player.npfsp_wave4_active!=1 and current_player.pilot_goose_state==0 and current_player.multiball_active==0 and current_player.pilot_goose_collected==0}:
+    - pilot_goose_start
+  # s_inlane_left collects goose_letter_o_left
+  s_inlane_left_active{(current_player.goose_letter_g + current_player.goose_letter_e + current_player.goose_letter_o_right + current_player.goose_letter_s)==0 and current_player.goose_completing==0 and current_player.npfsp_wave4_active!=1 and current_player.pilot_goose_state==0 and current_player.multiball_active==0 and current_player.pilot_goose_collected==0}:
+    - pilot_goose_start
+  # s_outlane_right collects goose_letter_e
+  s_outlane_right_active{(current_player.goose_letter_g + current_player.goose_letter_o_left + current_player.goose_letter_o_right + current_player.goose_letter_s)==0 and current_player.goose_completing==0 and current_player.npfsp_wave4_active!=1 and current_player.pilot_goose_state==0 and current_player.multiball_active==0 and current_player.pilot_goose_collected==0}:
+    - pilot_goose_start
+  # s_inner_inlane_right collects goose_letter_o_right
+  s_inner_inlane_right_active{(current_player.goose_letter_g + current_player.goose_letter_o_left + current_player.goose_letter_e + current_player.goose_letter_s)==0 and current_player.goose_completing==0 and current_player.npfsp_wave4_active!=1 and current_player.pilot_goose_state==0 and current_player.multiball_active==0 and current_player.pilot_goose_collected==0}:
+    - pilot_goose_start
+  # s_outer_inlane_right collects goose_letter_s
+  s_outer_inlane_right_active{(current_player.goose_letter_g + current_player.goose_letter_o_left + current_player.goose_letter_e + current_player.goose_letter_o_right)==0 and current_player.goose_completing==0 and current_player.npfsp_wave4_active!=1 and current_player.pilot_goose_state==0 and current_player.multiball_active==0 and current_player.pilot_goose_collected==0}:
+    - pilot_goose_start
+  goose_complete{current_player.pilot_goose_state==1 and current_player.multiball_active==0 and current_player.pilot_goose_collected==0}:
+    - pilot_goose_awarded
+
+  ##############################################
+  ## BOB - start / collected / reset after a miss
+  ##############################################
+  s_l_lock_target_active{current_player.pilot_bob_state==0 and current_player.multiball_active==0 and current_player.pilot_bob_collected==0}:
+    - pilot_bob_start
+  s_o_lock_target_active{current_player.pilot_bob_state==0 and current_player.multiball_active==0 and current_player.pilot_bob_collected==0}:
+    - pilot_bob_start
+  s_c_lock_target_active{current_player.pilot_bob_state==0 and current_player.multiball_active==0 and current_player.pilot_bob_collected==0}:
+    - pilot_bob_start
+  s_k_lock_target_active{current_player.pilot_bob_state==0 and current_player.multiball_active==0 and current_player.pilot_bob_collected==0}:
+    - pilot_bob_start
+  player_pilot_bob_count{value>=4 and current_player.pilot_bob_state==1 and current_player.multiball_active==0 and current_player.pilot_bob_collected==0}:
+    - pilot_bob_awarded
+  player_pilot_bob_count{value>=4 and current_player.pilot_bob_state==2}:
+    - pilot_bob_reset
+
+  ##############################################
+  ## OTHER ACHIEVEMENTS - collected
+  ##############################################
+  player_pilot_fanboy_skillshots{value>=5 and current_player.pilot_fanboy_collected==0}:
+    - pilot_fanboy_awarded
+  player_pilot_hollywood_ejects{value>=3 and current_player.pilot_hollywood_collected==0}:
+    - pilot_hollywood_awarded
+  player_pilot_missions_won{value>=3 and current_player.training_missions_won>=1 and current_player.pilot_viper_collected==0}:
+    - pilot_viper_awarded
+  player_training_missions_won{value>=1 and current_player.pilot_missions_won>=3 and current_player.pilot_viper_collected==0}:
+    - pilot_viper_awarded
+  player_pilot_coyote_ramps{value>=25 and current_player.pilot_coyote_collected==0}:
+    - pilot_coyote_awarded
+  player_pilot_wolfman_spins{value>=150 and current_player.pilot_wolfman_collected==0}:
+    - pilot_wolfman_awarded
+  # Hondo: whichever half comes second awards it, with its own delay
+  player_mode_edge_of_space_won{value==1 and current_player.pilot_hondo_mach3==1 and current_player.pilot_hondo_collected==0}:
+    - pilot_hondo_awarded
+    - pilot_hondo_announce|20s
+  player_mach_level{value>=3 and current_player.pilot_hondo_eos==1 and current_player.pilot_hondo_collected==0}:
+    - pilot_hondo_awarded
+    - pilot_hondo_announce|3s
+
+  ##############################################
+  ## PILOT GEAR INSERT - re-evaluate when the bank or 2X state changes
+  ##############################################
+  player_pilot_bank_multiplier:
+    - pilot_insert_update
+  player_x2_qualified:
+    - pilot_insert_update
+  player_x2_active:
+    - pilot_insert_update
+
+  ##############################################
+  ## ANNOUNCE (slide + callout) after each pilot's delay
+  ##############################################
+  pilot_goose_awarded:
+    - pilot_goose_announce|3s
+  pilot_hollywood_awarded:
+    - pilot_hollywood_announce|10s
+  pilot_iceman_awarded:
+    - pilot_iceman_announce
+  pilot_maverick_awarded:
+    - pilot_maverick_announce
+  pilot_slider_awarded:
+    - pilot_slider_announce
+  pilot_viper_awarded:
+    - pilot_viper_announce|15s
+  pilot_wolfman_awarded:
+    - pilot_wolfman_announce|3s
+  pilot_bob_awarded:
+    - pilot_bob_announce|5s
+  pilot_coyote_awarded:
+    - pilot_coyote_announce|3s
+  pilot_fanboy_awarded:
+    - pilot_fanboy_announce|10s
+  pilot_hangman_awarded:
+    - pilot_hangman_announce
+  pilot_phoenix_awarded:
+    - pilot_phoenix_announce
+  pilot_rooster_awarded:
+    - pilot_rooster_announce
+
+##############################################################################
+## SLIDE PLAYER (mode priority 240 + value below)
+##   pilot_award_base: 240   - under every mode slide
+##   mode_points_scored: 940 - same as the other points popups
+##   pilot_bank:        1640 - overlay above mode slides
+##############################################################################
+
+slide_player:
+  pilot_goose_announce:
+    pilot_award_base:
+      action: play
+      expire: 3s
+  pilot_hollywood_announce:
+    pilot_award_base:
+      action: play
+      expire: 3s
+  pilot_iceman_announce:
+    pilot_award_base:
+      action: play
+      expire: 3s
+  pilot_maverick_announce:
+    pilot_award_base:
+      action: play
+      expire: 3s
+  pilot_slider_announce:
+    pilot_award_base:
+      action: play
+      expire: 3s
+  pilot_viper_announce:
+    pilot_award_base:
+      action: play
+      expire: 3s
+  pilot_wolfman_announce:
+    pilot_award_base:
+      action: play
+      expire: 3s
+  pilot_bob_announce:
+    pilot_award_base:
+      action: play
+      expire: 3s
+  pilot_coyote_announce:
+    pilot_award_base:
+      action: play
+      expire: 3s
+  pilot_fanboy_announce:
+    pilot_award_base:
+      action: play
+      expire: 3s
+  pilot_hangman_announce:
+    pilot_award_base:
+      action: play
+      expire: 3s
+  pilot_hondo_announce:
+    pilot_award_base:
+      action: play
+      expire: 3s
+  pilot_phoenix_announce:
+    pilot_award_base:
+      action: play
+      expire: 3s
+  pilot_rooster_announce:
+    pilot_award_base:
+      action: play
+      expire: 3s
+  # Bank slide: on when the first pilot is banked, off when it's emptied
+  player_pilot_bank_multiplier{value>0 and prev_value==0}:
+    pilot_bank:
+      action: play
+      priority: 1400
+  player_pilot_bank_multiplier{value==0}:
+    pilot_bank:
+      action: remove
+  # Status screen (1600) open: step aside, come back when it closes
+  mode_status_mode_started:
+    pilot_bank:
+      action: remove
+  mode_status_mode_stopped{current_player.pilot_bank_multiplier>0}:
+    pilot_bank:
+      action: play
+      priority: 1400
+  player_pilot_jackpots_collected{value>0}:
+    mode_points_scored:
+      action: play
+      priority: 700
+      expire: 2s
+
+##############################################################################
+## PILOT GEAR INSERT - shared with 2X (see header)
+## Any change to the bank count, x2_qualified or x2_active posts
+## pilot_insert_update (a follow-up event, so all three are settled), and the
+## handlers below pick the look. Priority +20 -> 260, above 2X (250).
+##############################################################################
+
+show_player:
+  pilot_insert_update{current_player.pilot_bank_multiplier>0 and (current_player.x2_qualified==1 or current_player.x2_active==1)}:
+    pilot_insert_fade:
+      show: pilot_insert_green_blue
+      key: pilot_insert_fade
+      priority: 20
+      sync_ms: 2000
+      loops: -1
+      show_tokens:
+        led: l_shot_pilot_gear
+  pilot_insert_update{current_player.pilot_bank_multiplier>0 and current_player.x2_qualified==0 and current_player.x2_active==0}:
+    pilot_insert_fade_stop:
+      show: pilot_insert_green_blue
+      action: stop
+      key: pilot_insert_fade
+  pilot_insert_update{current_player.pilot_bank_multiplier==0}:
+    pilot_insert_fade_stop:
+      show: pilot_insert_green_blue
+      action: stop
+      key: pilot_insert_fade
+
+light_player:
+  # Bank waiting, 2X idle: solid blue
+  pilot_insert_update{current_player.pilot_bank_multiplier>0 and current_player.x2_qualified==0 and current_player.x2_active==0}:
+    l_shot_pilot_gear:
+      color: '0000FF'
+      fade: 0ms
+      priority: 20
+  # Fade takes over (or bank empty): remove the solid entry
+  pilot_insert_update{current_player.pilot_bank_multiplier>0 and (current_player.x2_qualified==1 or current_player.x2_active==1)}:
+    l_shot_pilot_gear:
+      color: stop
+  pilot_insert_update{current_player.pilot_bank_multiplier==0}:
+    l_shot_pilot_gear:
+      color: stop
+
+##############################################################################
+## SOUND PLAYER
+##############################################################################
+
+sound_player:
+  pilot_goose_announce:
+    voice_goose_achievement:
+      bus: voice
+      loops: 0
+  pilot_hollywood_announce:
+    voice_hollywood_achievement:
+      bus: voice
+      loops: 0
+  pilot_iceman_announce:
+    voice_iceman_combo_collected:
+      bus: voice
+      loops: 0
+  pilot_maverick_announce:
+    voice_maverick_combo_collected:
+      bus: voice
+      loops: 0
+  pilot_slider_announce:
+    voice_slider_combo_collected:
+      bus: voice
+      loops: 0
+  pilot_viper_announce:
+    voice_viper_achievement:
+      bus: voice
+      loops: 0
+  pilot_wolfman_announce:
+    voice_wolfman_achievement:
+      bus: voice
+      loops: 0
+  pilot_bob_announce:
+    voice_bob_achievement:
+      bus: voice
+      loops: 0
+  pilot_coyote_announce:
+    voice_coyote_achievement:
+      bus: voice
+      loops: 0
+  pilot_fanboy_announce:
+    voice_fanboy_achievement:
+      bus: voice
+      loops: 0
+  pilot_hangman_announce:
+    voice_hangman_combo_collected:
+      bus: voice
+      loops: 0
+  pilot_hondo_announce:
+    voice_hondo_achievement:
+      bus: voice
+      loops: 0
+  pilot_phoenix_announce:
+    voice_phoenix_combo_collected:
+      bus: voice
+      loops: 0
+  pilot_rooster_announce:
+    voice_rooster_combo_collected:
+      bus: voice
+      loops: 0
+  player_pilot_jackpots_collected{value>0}:
+    voice_pilot_jackpot_collected:
+      bus: voice
+      loops: 0
+
+##############################################################################
+## SHOWS
+##############################################################################
+
+shows:
+  # Green (00FF40) <-> blue (0000FF), stepped 20 x 100ms = 2s cycle,
+  # fade: 0ms per step (no hardware fades - see config_lights.yaml note).
+  # Colors quoted: MPF's YAML loader reads all-digit hex as a number.
+  pilot_insert_green_blue:
+    - duration: 100ms
+      lights:
+        (led): { color: '00FF40', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: '00E653', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: '00CC66', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: '00B279', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: '00998C', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: '0080A0', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: '0066B3', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: '004CC6', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: '0033D9', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: '001AEC', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: '0000FF', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: '001AEC', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: '0033D9', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: '004CC6', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: '0066B3', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: '0080A0', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: '00998C', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: '00B279', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: '00CC66', fade: 0ms }
+    - duration: 100ms
+      lights:
+        (led): { color: '00E653', fade: 0ms }
