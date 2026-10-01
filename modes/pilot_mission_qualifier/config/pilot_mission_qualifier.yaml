@@ -34,6 +34,8 @@ timers:
     control_events:
       - action: restart
         event: s_spinner_active
+      - action: stop          # FIXED: timer_spinner_shot_timeout_stop was posted but never wired
+        event: timer_spinner_shot_timeout_stop
   
   # Spinner lockout - prevents rapid re-triggering after shot fires
   spinner_shot_lockout:
@@ -62,6 +64,8 @@ timers:
     control_events:
       - action: restart
         event: s_orbit_left_active
+      - action: stop          # FIXED: timer_left_orbit_shot_timeout_stop was posted but never wired
+        event: timer_left_orbit_shot_timeout_stop
   
   right_orbit_shot_timeout:
     start_value: 0
@@ -71,6 +75,8 @@ timers:
     control_events:
       - action: restart
         event: s_orbit_right_active
+      - action: stop          # FIXED: timer_right_orbit_shot_timeout_stop was posted but never wired
+        event: timer_right_orbit_shot_timeout_stop
 
   ##############################################
   ## INVERTED PERK: Delay bonus TOPGUN letter by 500ms
@@ -217,7 +223,7 @@ timers:
     start_running: false
     control_events:
       - event: topgun_ll_window_start
-        action: start
+        action: restart   # FIXED: 'start' on a finished timer completes instantly (window reused within a ball)
 
   # 1-second "same shot" windows for the ejection seat video skip.
   # The TOPGUN video is only skipped for an eject qualification when the eject
@@ -3271,34 +3277,34 @@ event_player:
   # Mode selection based on qualified mode when scoop is hit
   # Training mission must not be active
   # multiball_qualified must be 0 (if both qualified, choice system handles it)
-  s_mode_start_active{current_player.qualified_mode_number==1 and current_player.mode_rescue_cougar_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
+  s_mode_start_active{current_player.qualified_mode_number==1 and current_player.mode_rescue_cougar_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0 and mode.carrier_landing.active==False}:
     - start_mode_rescue_cougar
   
-  s_mode_start_active{current_player.qualified_mode_number==2 and current_player.mode_balls_of_fire_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
+  s_mode_start_active{current_player.qualified_mode_number==2 and current_player.mode_balls_of_fire_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0 and mode.carrier_landing.active==False}:
     - start_mode_balls_of_fire
   
-  s_mode_start_active{current_player.qualified_mode_number==3 and current_player.mode_cool_under_pressure_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
+  s_mode_start_active{current_player.qualified_mode_number==3 and current_player.mode_cool_under_pressure_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0 and mode.carrier_landing.active==False}:
     - start_mode_cool_under_pressure
   
-  s_mode_start_active{current_player.qualified_mode_number==4 and current_player.mode_battle_jester_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
+  s_mode_start_active{current_player.qualified_mode_number==4 and current_player.mode_battle_jester_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0 and mode.carrier_landing.active==False}:
     - start_mode_battle_jester
   
-  s_mode_start_active{current_player.qualified_mode_number==5 and current_player.mode_no_points_for_second_place_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
+  s_mode_start_active{current_player.qualified_mode_number==5 and current_player.mode_no_points_for_second_place_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0 and mode.carrier_landing.active==False}:
     - start_mode_no_points_for_second_place
   
-  s_mode_start_active{current_player.qualified_mode_number==6 and current_player.mode_no_margin_for_error_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
+  s_mode_start_active{current_player.qualified_mode_number==6 and current_player.mode_no_margin_for_error_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0 and mode.carrier_landing.active==False}:
     - start_mode_no_margin_for_error
   
-  s_mode_start_active{current_player.qualified_mode_number==7 and current_player.mode_rise_of_phoenix_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
+  s_mode_start_active{current_player.qualified_mode_number==7 and current_player.mode_rise_of_phoenix_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0 and mode.carrier_landing.active==False}:
     - start_mode_rise_of_phoenix
   
-  s_mode_start_active{current_player.qualified_mode_number==8 and current_player.mode_canyon_run_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
+  s_mode_start_active{current_player.qualified_mode_number==8 and current_player.mode_canyon_run_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0 and mode.carrier_landing.active==False}:
     - start_mode_canyon_run
   
-  s_mode_start_active{current_player.qualified_mode_number==9 and current_player.mode_below_the_hard_deck_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
+  s_mode_start_active{current_player.qualified_mode_number==9 and current_player.mode_below_the_hard_deck_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0 and mode.carrier_landing.active==False}:
     - start_mode_below_the_hard_deck
   
-  s_mode_start_active{current_player.qualified_mode_number==10 and current_player.mode_edge_of_space_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0}:
+  s_mode_start_active{current_player.qualified_mode_number==10 and current_player.mode_edge_of_space_played==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_qualified==0 and current_player.mystery_qualified==0 and current_player.video_mode_lit==0 and mode.carrier_landing.active==False}:
     - start_mode_edge_of_space
 
   ##############################################
@@ -3308,7 +3314,7 @@ event_player:
   ## cannot fire when mystery is pending. After mystery stops, the
   ## mode_mystery_award_stopped handlers below restart whatever was waiting.
   ##############################################
-  s_mode_start_active{current_player.mystery_qualified==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
+  s_mode_start_active{current_player.mystery_qualified==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and mode.carrier_landing.active==False}:
     - start_mode_mystery_award
 
   ##############################################

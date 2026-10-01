@@ -329,19 +329,10 @@ event_player:
 ##############################################################################
 variable_player:
   # Track ball save state for debugging/display
-  player_added:
-    ball_save_active:
-      action: set
-      int: 0
-    ball_save_time_remaining:
-      action: set
-      int: 0
-    ball_just_saved:
-      action: set
-      int: 0
-    consecutive_ball_saves:
-      action: set
-      int: 0
+  # player_added block REMOVED: player_added fires for players 2-4 joining
+  # mid-ball-1 while THIS mode is running, and variable_player writes to the
+  # CURRENT player (Player 1), wiping P1's live progress. All these vars
+  # default to 0 or are initialized on mode/ball start instead.
   
   # Reset consecutive save counter at the start of every ball
   # (timer dies when mode stops on ball_ending; counter would otherwise persist)

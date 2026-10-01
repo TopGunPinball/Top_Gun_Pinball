@@ -494,44 +494,10 @@ variable_player:
   ##############################################
 
   # Initialize on player added (in case base mode already running)
-  player_added:
-    total_scoring_multiplier:
-      action: set
-      float: 1.0
-    bonus_switches_count:
-      action: set
-      int: 0
-    bonus_ramps_count:
-      action: set
-      int: 0
-    bonus_highest_mach:
-      action: set
-      int: 0
-    # Initialize mode-active tracking variables (used for music control)
-    # These are set to 1 by respective modes when they start
-    training_mission_active:
-      action: set
-      int: 0
-    hard_deck_active:
-      action: set
-      int: 0
-    wingman_post_win_plunge:
-      action: set
-      int: 0
-    ##########################################################################
-    # NOTE: Multiball, lock, MIG, evasion, and video tracking variables have
-    # been REMOVED from player_added. They are initialized by their respective
-    # modes (top_gun_multiball, top_gun_multiball_locks) on mode_started.
-    #
-    # REASON: player_added fires when ANY player joins, including mid-game.
-    # If Player 2 joins during Player 1's multiball, these resets would
-    # overwrite Player 1's live game state (e.g., multiball_super_lit=0
-    # kills the super jackpot, lock_collection_paused=0 re-enables
-    # qualifying lights during multiball).
-    #
-    # MPF auto-creates player variables with default 0 when first set,
-    # so no explicit initialization in player_added is needed.
-    ##########################################################################
+  # player_added block REMOVED: player_added fires for players 2-4 joining
+  # mid-ball-1 while THIS mode is running, and variable_player writes to the
+  # CURRENT player (Player 1), wiping P1's live progress. All these vars
+  # default to 0 or are initialized on mode/ball start instead.
 
   # ALSO initialize when base mode starts (this is the key fix!)
   # Reset per-ball bonus counters AND bonus multiplier

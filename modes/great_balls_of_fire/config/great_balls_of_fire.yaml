@@ -1172,10 +1172,12 @@ event_player:
   # After gbof_ball_forged fires, variable_player sets mb_ball_count = balls_collected+1.
   # gbof_ball_forged fires as a queued event, so by the time its handlers run,
   # gbof_balls_collected is already updated. Check if count needs capping.
-  gbof_ball_forged{current_player.gbof_mb_ball_count > 4 and device.switches.s_lock_goose.state and device.switches.s_lock_mav.state}:
+  # NOTE: event_player runs BEFORE variable_player on the same event, so
+  # gbof_mb_ball_count is still the OLD value here. Use gbof_balls_collected
+  # (already updated by the *_forged event). 4 forged = 5-ball MB -> clamp to 4
+  # when both lock balls are occupied. (Max is 5, so no >5 clamp needed.)
+  gbof_ball_forged{current_player.gbof_balls_collected >= 4 and device.switches.s_lock_goose.state and device.switches.s_lock_mav.state}:
     - gbof_clamp_mb_to_4
-  gbof_ball_forged{current_player.gbof_mb_ball_count > 5}:
-    - gbof_clamp_mb_to_5
 
   # ── COLLECTION TIMER EXPIRED ────────────────────────────────────────────────────
   timer_gbof_collection_timer_complete{current_player.gbof_balls_collected==0}:

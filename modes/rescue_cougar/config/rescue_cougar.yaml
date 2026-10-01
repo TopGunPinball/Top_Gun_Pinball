@@ -710,7 +710,7 @@ timers:
     start_running: false
     control_events:
       - event: rescue_cougar_activate_left_mig_post
-        action: start
+        action: restart   # FIXED: 'start' on a finished timer completes instantly (same post used on steps 1 and 2)
 
   rescue_cougar_right_mig_post_timer:
     start_value: 3
@@ -720,7 +720,7 @@ timers:
     start_running: false
     control_events:
       - event: rescue_cougar_activate_right_mig_post
-        action: start
+        action: restart   # FIXED: 'start' on a finished timer completes instantly (same post used on steps 1 and 2)
 
   # Left lane post timer (2 second hold)
   rescue_cougar_left_lane_post_timer:
@@ -732,6 +732,8 @@ timers:
     control_events:
       - event: rescue_cougar_activate_left_lane_post
         action: start
+      - event: timer_rescue_cougar_left_lane_post_timer_stop   # FIXED: flipper skip now actually stops it
+        action: stop
 
   # Shot lockout timers (prevent repeated hits during post activation)
   rescue_cougar_left_orbit_lockout:
@@ -740,6 +742,9 @@ timers:
     direction: down
     tick_interval: 1s
     start_running: false
+    control_events:          # FIXED: was never started (no auto timer_xxx_start in MPF)
+      - event: timer_rescue_cougar_left_orbit_lockout_start
+        action: restart
 
   rescue_cougar_right_orbit_lockout:
     start_value: 2
@@ -747,6 +752,9 @@ timers:
     direction: down
     tick_interval: 1s
     start_running: false
+    control_events:          # FIXED: was never started (no auto timer_xxx_start in MPF)
+      - event: timer_rescue_cougar_right_orbit_lockout_start
+        action: restart
 
   rescue_cougar_left_lane_lockout:
     start_value: 7
@@ -754,6 +762,9 @@ timers:
     direction: down
     tick_interval: 1s
     start_running: false
+    control_events:          # FIXED: was never started (no auto timer_xxx_start in MPF)
+      - event: timer_rescue_cougar_left_lane_lockout_start
+        action: restart
   
   # End video delay timers
   rescue_cougar_complete_delay:
@@ -1192,7 +1203,7 @@ event_player:
   # Mode cleanup - ensure ramps are lowered and ball search is re-enabled
   rescue_cougar_cleanup:
     - right_ramp_down
-    - top_ramp_down
+    - top_ramp_down|500ms          # SERVO stagger (Pitfall #6)
     - ball_search_unblock  # Re-enable ball search in case it was disabled
 
 ####################################################################################

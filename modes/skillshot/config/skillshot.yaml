@@ -10,6 +10,7 @@ mode:
   start_events: s_shooter_lane_active{current_player.ball_just_saved==0 and current_player.multiball_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and mode.ejection_seat.active==False and mode.great_balls_of_fire.active==False}
   priority: 300  # Higher than mig_letters (200) to ensure skillshot lights show
   stop_events:
+    stop_mode_skillshot: 0s  # Posted by base/hard_deck_qualifiers/GBOF to suppress skillshot (MPF does NOT auto-create stop_mode_xxx)
     timer_skillshot_complete: 0s
     mig_lane_left_skill_lit_hit: 0s  # Stop immediately when hit
     mig_lane_right_skill_lit_hit: 0s  # Stop immediately when hit
@@ -198,7 +199,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 1000
   mig_lane_left_skill_lit_hit{current_player.skillshot_count==3}:
     score: 300000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -208,7 +208,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 900
   mig_lane_left_skill_lit_hit{current_player.skillshot_count==2}:
     score: 250000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -218,7 +217,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 800
   mig_lane_left_skill_lit_hit{current_player.skillshot_count==1}:
     score: 200000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -228,7 +226,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 700
   mig_lane_left_skill_lit_hit{current_player.skillshot_count==0}:
     score: 150000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -238,7 +235,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 600
 
   mig_lane_right_skill_lit_hit{current_player.skillshot_count>=4}:
     score: 350000 * (current_player.pilot_missions_played + 1)
@@ -249,7 +245,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 1000
   mig_lane_right_skill_lit_hit{current_player.skillshot_count==3}:
     score: 300000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -259,7 +254,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 900
   mig_lane_right_skill_lit_hit{current_player.skillshot_count==2}:
     score: 250000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -269,7 +263,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 800
   mig_lane_right_skill_lit_hit{current_player.skillshot_count==1}:
     score: 200000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -279,7 +272,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 700
   mig_lane_right_skill_lit_hit{current_player.skillshot_count==0}:
     score: 150000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -289,7 +281,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 600
 
   spinner_skill_lit_hit{current_player.skillshot_count>=4}:
     score: 500000 * (current_player.pilot_missions_played + 1)
@@ -300,7 +291,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 1000
   spinner_skill_lit_hit{current_player.skillshot_count==3}:
     score: 425000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -310,7 +300,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 900
   spinner_skill_lit_hit{current_player.skillshot_count==2}:
     score: 350000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -320,7 +309,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 800
   spinner_skill_lit_hit{current_player.skillshot_count==1}:
     score: 275000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -330,7 +318,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 700
   spinner_skill_lit_hit{current_player.skillshot_count==0}:
     score: 200000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -340,7 +327,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 600
 
   ramp_inner_skill_lit_hit{current_player.skillshot_count>=4}:
     score: 750000 * (current_player.pilot_missions_played + 1)
@@ -351,7 +337,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 1000
   ramp_inner_skill_lit_hit{current_player.skillshot_count==3}:
     score: 650000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -361,7 +346,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 900
   ramp_inner_skill_lit_hit{current_player.skillshot_count==2}:
     score: 550000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -371,7 +355,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 800
   ramp_inner_skill_lit_hit{current_player.skillshot_count==1}:
     score: 450000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -381,7 +364,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 700
   ramp_inner_skill_lit_hit{current_player.skillshot_count==0}:
     score: 350000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -391,7 +373,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 600
 
   orbit_upper_skill_lit_hit{current_player.skillshot_count>=4}:
     score: 1000000 * (current_player.pilot_missions_played + 1)
@@ -402,7 +383,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 1000
   orbit_upper_skill_lit_hit{current_player.skillshot_count==3}:
     score: 900000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -412,7 +392,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 900
   orbit_upper_skill_lit_hit{current_player.skillshot_count==2}:
     score: 750000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -422,7 +401,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 800
   orbit_upper_skill_lit_hit{current_player.skillshot_count==1}:
     score: 600000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -432,7 +410,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 700
   orbit_upper_skill_lit_hit{current_player.skillshot_count==0}:
     score: 450000 * (current_player.pilot_missions_played + 1)
     mode_points_scored:
@@ -442,7 +419,6 @@ variable_player:
       action: add
       int: 1
       block: true
-    priority: 600
 
 
 event_player:

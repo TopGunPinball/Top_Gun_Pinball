@@ -226,6 +226,8 @@ timers:
     control_events:
       - event: edge_of_space_open_diverter
         action: restart
+      - event: timer_edge_of_space_diverter_timer_restart   # FIXED: retry path posted this but it was never wired, so the diverter stayed open
+        action: restart
       - event: edge_of_space_step4_hold_start
         action: stop
       - event: edge_of_space_victory_hold_start
@@ -325,7 +327,7 @@ timers:
     start_running: false
     control_events:
       - event: edge_of_space_combo_sp_hit
-        action: start
+        action: restart   # FIXED: 'start' on a finished timer completes instantly or resumes a stopped partial count
       - event: edge_of_space_combo_3x_payout
         action: stop
       - event: edge_of_space_end_combo
@@ -658,6 +660,9 @@ variable_player:
     edge_of_space_step:
       action: set
       int: 12
+    edge_of_space_decision_made:     # reset decision guard
+      action: set
+      int: 0
 
   # step=13 = combo phase
   edge_of_space_combo_start:
@@ -722,8 +727,17 @@ variable_player:
       action: set
       int: 1
 
+  # Decision guard flag (see flipper handlers in event_player)
+  edge_of_space_choice_yes:
+    edge_of_space_decision_made:
+      action: set
+      int: 1
+
   # Choice: take 1x bank payout
   edge_of_space_choice_no:
+    edge_of_space_decision_made:
+      action: set
+      int: 1
     score:
       action: add
       int: current_player.edge_of_space_points_bank
@@ -1097,13 +1111,16 @@ event_player:
   ## Left flipper = NO (1x bank), Right flipper = YES (combo)
   ## Decision timer expiry = NO
   ##############################################
-  s_flipper_left_active{current_player.edge_of_space_step==12 and not device.timers.edge_of_space_no_hold_delay.running and current_player.edge_of_space_step_locked==0}:
+  # FIXED: decision_made guard — after a choice, further flipper presses (e.g. both
+  # flippers to skip the video) no longer fire a second choice. Previously the
+  # skip fired choice_yes (combo callout) AND a second choice_no (bank paid twice).
+  s_flipper_left_active{current_player.edge_of_space_step==12 and not device.timers.edge_of_space_no_hold_delay.running and current_player.edge_of_space_step_locked==0 and current_player.edge_of_space_decision_made==0}:
     - edge_of_space_choice_no
 
-  s_flipper_right_active{current_player.edge_of_space_step==12 and current_player.edge_of_space_step_locked==0}:
+  s_flipper_right_active{current_player.edge_of_space_step==12 and not device.timers.edge_of_space_no_hold_delay.running and current_player.edge_of_space_step_locked==0 and current_player.edge_of_space_decision_made==0}:
     - edge_of_space_choice_yes
 
-  timer_edge_of_space_decision_countdown_complete:
+  timer_edge_of_space_decision_countdown_complete{current_player.edge_of_space_decision_made==0}:
     - edge_of_space_choice_no
 
   edge_of_space_choice_no:

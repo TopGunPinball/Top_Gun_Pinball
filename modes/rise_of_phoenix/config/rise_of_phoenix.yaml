@@ -429,13 +429,20 @@ timers:
       - event: mode_timers_resume{current_player.rise_of_phoenix_complete_flag==0 and current_player.rise_of_phoenix_step_locked==0 and not device.timers.rise_of_phoenix_intro_video_delay.running and device.switches.s_mode_start.state==0}
         action: start
 
-  # Shot lockout (prevent rapid-fire hits)
+  # Shot lockout (prevent rapid-fire hits) — 1.5s
+  # FIXED: had no control_events (MPF has no automatic timer_xxx_start event, so
+  # it never ran) and start_value 1500 with 1s ticks would have been 25 minutes.
   shot_lockout:
-    start_value: 1500
+    start_value: 1
     end_value: 0
     direction: down
-    tick_interval: 1s
+    tick_interval: 1500ms
     start_running: false
+    control_events:
+      - event: timer_shot_lockout_start
+        action: restart
+      - event: mode_rise_of_phoenix_will_stop
+        action: stop
 
   # End video delay timers
   rise_of_phoenix_complete_delay:

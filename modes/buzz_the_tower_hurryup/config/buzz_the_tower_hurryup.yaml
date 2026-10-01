@@ -38,10 +38,11 @@
 ##         s_lane_left and resumes on the next playfield switch)
 ##     plus the base switch-idle watchdog (mode_timers_idle_pause/resume).
 ##   - Tower insert flashes green rapidly, above mode lighting.
-##   - "shoot_the_tower" callout 15s after it starts (if not yet made).
+##   - "shoot_the_tower" callout 2.5s after it starts (when the activated
+##     slide ends), and again as a reminder 15s after start (if not yet made).
 ##
 ## SLIDES:
-##   - buzz_tower_activated (12s) on start, buzz_tower_made (6.5s) on made.
+##   - buzz_tower_activated (2.5s) on start, buzz_tower_made (6.5s) on made.
 ##     Both sit below all mode slides and are removed the moment a pilot
 ##     mission, training mission, hard deck mode or multiball starts.
 ##   - buzz_tower_point_countdown shows the whole time it runs, above mode
@@ -194,6 +195,7 @@ event_player:
   # set when the countdown slide appears.
   buzz_tower_start:
     - buzz_tower_started
+    - buzz_tower_intro_callout|3000ms   # callout as the 2.5s activated slide ends
 
   # Made
   s_ramp_tower_exit_active{current_player.buzz_tower_running==1}:
@@ -240,7 +242,7 @@ slide_player:
   buzz_tower_started:
     buzz_tower_activated:
       action: play
-      expire: 12s
+      expire: 3s
     buzz_tower_point_countdown:
       action: play
       priority: 1390
@@ -343,6 +345,12 @@ show_player:
 ##############################################################################
 
 sound_player:
+  # Right after the 2.5s activated slide ends (only if not already made/drained)
+  buzz_tower_intro_callout{current_player.buzz_tower_running==1}:
+    shoot_the_tower:
+      bus: voice
+      loops: 0
+
   # 15s after start, only if still running (not made / failed / drained)
   timer_buzz_tower_callout_delay_complete{current_player.buzz_tower_running==1}:
     shoot_the_tower:

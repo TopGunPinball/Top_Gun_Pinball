@@ -42,83 +42,10 @@ variable_player:
       action: set
       int: 5
 
-  player_added:
-    # Individual letter states (0=off, 1=lit) - reset each ball
-    goose_letter_g:
-      action: set
-      int: 0
-    goose_letter_o_left:
-      action: set
-      int: 0
-    goose_letter_e:
-      action: set
-      int: 0
-    goose_letter_o_right:
-      action: set
-      int: 0
-    goose_letter_s:
-      action: set
-      int: 0
-    # Total GOOSE completions - persists across balls
-    goose_completions:
-      action: set
-      int: 0
-    # Eject mode qualified flag - persists across balls
-    eject_mode_qualified:
-      action: set
-      int: 0
-    # Flag to block lane hits during completion
-    goose_completing:
-      action: set
-      int: 0
-    # Track which letter was last collected (1=G, 2=O_left, 3=E, 4=O_right, 5=S)
-    goose_last_letter_collected:
-      action: set
-      int: 0
-    # Missile Perk System - loaded when pilot mode starts with perk active
-    missile_pos_g:
-      action: set
-      int: 0
-    missile_pos_o_left:
-      action: set
-      int: 0
-    missile_pos_e:
-      action: set
-      int: 0
-    missile_pos_o_right:
-      action: set
-      int: 0
-    missile_pos_s:
-      action: set
-      int: 0
-    missiles_remaining:
-      action: set
-      int: 0
-    missile_firing:
-      action: set
-      int: 0
-    missile_temp_g:
-      action: set
-      int: 0
-    missile_temp_o_left:
-      action: set
-      int: 0
-    missile_temp_e:
-      action: set
-      int: 0
-    missile_temp_o_right:
-      action: set
-      int: 0
-    missile_temp_s:
-      action: set
-      int: 0
-    # First skillshot flag — qualifies ejection seat once per game; persists across balls
-    first_skillshot_made:
-      action: set
-      int: 0
-    missiles_perk_blocked:
-      action: set
-      int: 0
+  # player_added block REMOVED: player_added fires for players 2-4 joining
+  # mid-ball-1 while THIS mode is running, and variable_player writes to the
+  # CURRENT player (Player 1), wiping P1's live progress. All these vars
+  # default to 0 or are initialized on mode/ball start instead.
 
   # First skillshot made — set flag so eject qualification only fires once
   mig_lane_left_skill_lit_hit{current_player.first_skillshot_made==0}:
