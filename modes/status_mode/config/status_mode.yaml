@@ -9,6 +9,7 @@
 # PAGES:  Tap EITHER flipper (while the other is held) = next page, wraps 1→7→1.
 #         (The player can't choose which flipper is holding the ball, so both
 #          flippers page the same direction.)
+#         Page 5 = Navy Rank (rank, merit, how to earn merit, rank thresholds)
 #         Page 6 = Pilot Awards - Unique Combos
 #         Page 7 = Pilot Awards - Objective Awards
 #         (Collected / Not Collected, from pilot_awards.yaml)
@@ -86,10 +87,8 @@ variable_player:
     status_tilt_remaining:
       action: set
       int: 2 - current_player.tilt_warnings
-    # PAGE 1: Bonus preview (matches bonus.yaml formula × multiplier)
-    status_bonus_preview:
-      action: set
-      int: ((current_player.bonus_switches_count * 350) + (current_player.bonus_ramps_count * 2500) + (current_player.bonus_highest_mach * 10000) + (current_player.hard_deck_awards_count * 35000) + (current_player.training_missions_played * 50000) + (current_player.pilot_missions_won * 75000)) * current_player.bonus_multiplier
+    # PAGE 1: Bonus preview is computed on status_bonus_preview_compute
+    # (further down), once the Navy Rank points for it have been set.
     # PAGE 1: Next Award completions — handle test EB at completion 1 vs milestone for completions > 0
     goose_award_completions_needed:
       action: set
@@ -143,6 +142,10 @@ variable_player:
     status_rescue_cougar:
       action: set
       string: Not Played
+  status_set_rescue_cougar_retry:
+    status_rescue_cougar:
+      action: set
+      string: Retry
   status_set_rescue_cougar_lost:
     status_rescue_cougar:
       action: set
@@ -156,6 +159,10 @@ variable_player:
     status_balls_of_fire:
       action: set
       string: Not Played
+  status_set_balls_of_fire_retry:
+    status_balls_of_fire:
+      action: set
+      string: Retry
   status_set_balls_of_fire_lost:
     status_balls_of_fire:
       action: set
@@ -169,6 +176,10 @@ variable_player:
     status_cool_under_pressure:
       action: set
       string: Not Played
+  status_set_cool_under_pressure_retry:
+    status_cool_under_pressure:
+      action: set
+      string: Retry
   status_set_cool_under_pressure_lost:
     status_cool_under_pressure:
       action: set
@@ -182,6 +193,10 @@ variable_player:
     status_no_points_for_second_place:
       action: set
       string: Not Played
+  status_set_no_points_retry:
+    status_no_points_for_second_place:
+      action: set
+      string: Retry
   status_set_no_points_lost:
     status_no_points_for_second_place:
       action: set
@@ -195,6 +210,10 @@ variable_player:
     status_edge_of_space:
       action: set
       string: Not Played
+  status_set_edge_of_space_retry:
+    status_edge_of_space:
+      action: set
+      string: Retry
   status_set_edge_of_space_lost:
     status_edge_of_space:
       action: set
@@ -208,6 +227,10 @@ variable_player:
     status_below_the_hard_deck:
       action: set
       string: Not Played
+  status_set_below_the_hard_deck_retry:
+    status_below_the_hard_deck:
+      action: set
+      string: Retry
   status_set_below_the_hard_deck_lost:
     status_below_the_hard_deck:
       action: set
@@ -221,6 +244,10 @@ variable_player:
     status_canyon_run:
       action: set
       string: Not Played
+  status_set_canyon_run_retry:
+    status_canyon_run:
+      action: set
+      string: Retry
   status_set_canyon_run_lost:
     status_canyon_run:
       action: set
@@ -234,6 +261,10 @@ variable_player:
     status_no_margin_for_error:
       action: set
       string: Not Played
+  status_set_no_margin_retry:
+    status_no_margin_for_error:
+      action: set
+      string: Retry
   status_set_no_margin_lost:
     status_no_margin_for_error:
       action: set
@@ -247,6 +278,10 @@ variable_player:
     status_rise_of_phoenix:
       action: set
       string: Not Played
+  status_set_rise_of_phoenix_retry:
+    status_rise_of_phoenix:
+      action: set
+      string: Retry
   status_set_rise_of_phoenix_lost:
     status_rise_of_phoenix:
       action: set
@@ -260,6 +295,10 @@ variable_player:
     status_battle_jester:
       action: set
       string: Not Played
+  status_set_battle_jester_retry:
+    status_battle_jester:
+      action: set
+      string: Retry
   status_set_battle_jester_lost:
     status_battle_jester:
       action: set
@@ -607,17 +646,165 @@ variable_player:
       string: Not Collected
 
   ##############################################
-  ## PAGE 5: Final battle string setters
+  ## PAGE 1: Bonus preview - same formula as bonus.yaml, x bonus multiplier
+  ## (Navy Rank points must match bonus.yaml's rank_bonus_points values)
   ##############################################
+  # (status_rank_bonus_preview is set per rank in the PAGE 5 rank blocks below)
+  status_bonus_preview_compute:
+    status_bonus_preview:
+      action: set
+      int: ((current_player.bonus_switches_count * 500) + (current_player.bonus_ramps_count * 25000) + (current_player.bonus_highest_mach * 150000) + (current_player.hard_deck_awards_count * 200000) + ((current_player.pilot_bob_collected + current_player.pilot_coyote_collected + current_player.pilot_fanboy_collected + current_player.pilot_goose_collected + current_player.pilot_hangman_collected + current_player.pilot_hollywood_collected + current_player.pilot_hondo_collected + current_player.pilot_iceman_collected + current_player.pilot_maverick_collected + current_player.pilot_phoenix_collected + current_player.pilot_rooster_collected + current_player.pilot_slider_collected + current_player.pilot_viper_collected + current_player.pilot_wolfman_collected) * 200000) + (current_player.training_missions_played * 250000) + (current_player.pilot_missions_won * 500000) + current_player.status_rank_bonus_preview) * current_player.bonus_multiplier
 
-  status_set_final_super_jackpot_no:
-    status_final_super_jackpot:
+  ##############################################
+  ## PAGE 5: Navy Rank
+  ## CURRENT RANK = rank_name, CURRENT MERIT = rank_merit (rank_promotions)
+  ## Rank chart thresholds read machine vars rank_threshold_1..5 directly.
+  ## Merit chart values: the amount, or "Collected" once it can't be earned
+  ## again (numbers here must match rank_promotions.yaml).
+  ## NOTE: the "18" mission counts become 19 when Penny is added.
+  ##############################################
+  mode_status_mode_started{current_player.rank_level==0}:
+    status_rank_next:
       action: set
-      string: Not Yet
-  status_set_final_super_jackpot_yes:
-    status_final_super_jackpot:
+      string: "LIEUTENANT JG"
+    status_rank_bonus_preview:      # Page 1 bonus preview (bonus.yaml value)
       action: set
-      string: Yes!
+      int: 0
+  mode_status_mode_started{current_player.rank_level==1}:
+    status_rank_next:
+      action: set
+      string: "LIEUTENANT"
+    status_rank_bonus_preview:      # Page 1 bonus preview (bonus.yaml value)
+      action: set
+      int: 750000
+  mode_status_mode_started{current_player.rank_level==2}:
+    status_rank_next:
+      action: set
+      string: "LT COMMANDER"
+    status_rank_bonus_preview:      # Page 1 bonus preview (bonus.yaml value)
+      action: set
+      int: 1500000
+  mode_status_mode_started{current_player.rank_level==3}:
+    status_rank_next:
+      action: set
+      string: "COMMANDER"
+    status_rank_bonus_preview:      # Page 1 bonus preview (bonus.yaml value)
+      action: set
+      int: 2000000
+  mode_status_mode_started{current_player.rank_level==4}:
+    status_rank_next:
+      action: set
+      string: "CAPTAIN"
+    status_rank_bonus_preview:      # Page 1 bonus preview (bonus.yaml value)
+      action: set
+      int: 3500000
+  mode_status_mode_started{current_player.rank_level==5}:
+    status_rank_next:
+      action: set
+      string: "MAXIMUM RANK"
+    status_rank_bonus_preview:      # Page 1 bonus preview (bonus.yaml value)
+      action: set
+      int: 5000000
+    status_merit_remaining:
+      action: set
+      int: 0
+  mode_status_mode_started{current_player.rank_level<5 and current_player.rank_merit<current_player.rank_next_threshold}:
+    status_merit_remaining:
+      action: set
+      int: current_player.rank_next_threshold - current_player.rank_merit
+  mode_status_mode_started{current_player.rank_level<5 and current_player.rank_merit>=current_player.rank_next_threshold}:
+    status_merit_remaining:
+      action: set
+      int: 0
+  mode_status_mode_started{(current_player.rank_played_rescue_cougar + current_player.rank_played_balls_of_fire + current_player.rank_played_cool_under_pressure + current_player.rank_played_battle_jester + current_player.rank_played_no_points_for_second_place + current_player.rank_played_no_margin_for_error + current_player.rank_played_rise_of_phoenix + current_player.rank_played_canyon_run + current_player.rank_played_below_the_hard_deck + current_player.rank_played_edge_of_space + current_player.rank_played_inverted + current_player.rank_played_missiles + current_player.rank_played_wingman + current_player.rank_played_afterburner + current_player.rank_played_dogfight + current_player.rank_played_charlie + current_player.rank_played_ptb + current_player.rank_played_iceman)<18}:
+    status_merit_played:
+      action: set
+      string: "2 each"
+  mode_status_mode_started{(current_player.rank_played_rescue_cougar + current_player.rank_played_balls_of_fire + current_player.rank_played_cool_under_pressure + current_player.rank_played_battle_jester + current_player.rank_played_no_points_for_second_place + current_player.rank_played_no_margin_for_error + current_player.rank_played_rise_of_phoenix + current_player.rank_played_canyon_run + current_player.rank_played_below_the_hard_deck + current_player.rank_played_edge_of_space + current_player.rank_played_inverted + current_player.rank_played_missiles + current_player.rank_played_wingman + current_player.rank_played_afterburner + current_player.rank_played_dogfight + current_player.rank_played_charlie + current_player.rank_played_ptb + current_player.rank_played_iceman)>=18}:
+    status_merit_played:
+      action: set
+      string: "Collected"
+  mode_status_mode_started{current_player.rank_modes_beaten<18}:
+    status_merit_beaten:
+      action: set
+      string: "5 each"
+  mode_status_mode_started{current_player.rank_modes_beaten>=18}:
+    status_merit_beaten:
+      action: set
+      string: "Collected"
+  mode_status_mode_started{current_player.super_jackpots_collected==0}:
+    status_merit_sj:
+      action: set
+      string: "8"
+  mode_status_mode_started{current_player.super_jackpots_collected>=1}:
+    status_merit_sj:
+      action: set
+      string: "Collected"
+  mode_status_mode_started{(current_player.pilot_bob_collected + current_player.pilot_coyote_collected + current_player.pilot_fanboy_collected + current_player.pilot_goose_collected + current_player.pilot_hangman_collected + current_player.pilot_hollywood_collected + current_player.pilot_hondo_collected + current_player.pilot_iceman_collected + current_player.pilot_maverick_collected + current_player.pilot_phoenix_collected + current_player.pilot_rooster_collected + current_player.pilot_slider_collected + current_player.pilot_viper_collected + current_player.pilot_wolfman_collected)<14}:
+    status_merit_pilot:
+      action: set
+      string: "3 each"
+  mode_status_mode_started{(current_player.pilot_bob_collected + current_player.pilot_coyote_collected + current_player.pilot_fanboy_collected + current_player.pilot_goose_collected + current_player.pilot_hangman_collected + current_player.pilot_hollywood_collected + current_player.pilot_hondo_collected + current_player.pilot_iceman_collected + current_player.pilot_maverick_collected + current_player.pilot_phoenix_collected + current_player.pilot_rooster_collected + current_player.pilot_slider_collected + current_player.pilot_viper_collected + current_player.pilot_wolfman_collected)>=14}:
+    status_merit_pilot:
+      action: set
+      string: "Collected"
+  mode_status_mode_started{current_player.rank_mach2_done==0}:
+    status_merit_mach2:
+      action: set
+      string: "2"
+  mode_status_mode_started{current_player.rank_mach2_done==1}:
+    status_merit_mach2:
+      action: set
+      string: "Collected"
+  mode_status_mode_started{current_player.rank_mach3_done==0}:
+    status_merit_mach3:
+      action: set
+      string: "2"
+  mode_status_mode_started{current_player.rank_mach3_done==1}:
+    status_merit_mach3:
+      action: set
+      string: "Collected"
+  mode_status_mode_started{current_player.rank_eject_merits<3}:
+    status_merit_eject:
+      action: set
+      string: "2"
+  mode_status_mode_started{current_player.rank_eject_merits>=3}:
+    status_merit_eject:
+      action: set
+      string: "Collected"
+  mode_status_mode_started{current_player.rank_x2_merits<3}:
+    status_merit_x2:
+      action: set
+      string: "1"
+  mode_status_mode_started{current_player.rank_x2_merits>=3}:
+    status_merit_x2:
+      action: set
+      string: "Collected"
+  mode_status_mode_started{current_player.rank_skillshot_merits<5}:
+    status_merit_skill:
+      action: set
+      string: "1"
+  mode_status_mode_started{current_player.rank_skillshot_merits>=5}:
+    status_merit_skill:
+      action: set
+      string: "Collected"
+  mode_status_mode_started{current_player.rank_buzz_count==0}:
+    status_merit_buzz:
+      action: set
+      string: "2"
+  mode_status_mode_started{current_player.rank_buzz_count==1}:
+    status_merit_buzz:
+      action: set
+      string: "3"
+  mode_status_mode_started{current_player.rank_buzz_count>=2}:
+    status_merit_buzz:
+      action: set
+      string: "4 each"
+  # Carrier trap: 2 per video mode, never locked out
+  mode_status_mode_started{current_player.status_mode_page>=0}:
+    status_merit_trap:
+      action: set
+      string: "2 each"
 
 ##############################################################################
 ## EVENT PLAYER
@@ -629,8 +816,8 @@ event_player:
   ## Page navigation
   ##############################################
 
-  mode_status_mode_started:
-    - status_mode_slide_ready|200ms
+  # (mode_status_mode_started -> status_mode_slide_ready is near the end of
+  #  event_player, together with the bonus preview trigger)
 
   # Either flipper tapped while the other is held → next page (7 wraps to 1)
   s_flipper_right_active{mode.status_mode.active==True and device.switches.s_flipper_left.state==1 and current_player.status_mode_page < 7}:
@@ -686,80 +873,110 @@ event_player:
   ##############################################
 
   # Rescue Cougar (CODED)
-  mode_status_mode_started{current_player.mode_rescue_cougar_played==0}:
+  mode_status_mode_started{current_player.mode_rescue_cougar_played==0 and current_player.pilot_replays_active==0}:
     - status_set_rescue_cougar_not_played
+  # Mission replay: lost earlier, available again
+  mode_status_mode_started{current_player.mode_rescue_cougar_played==0 and current_player.pilot_replays_active==1}:
+    - status_set_rescue_cougar_retry
   mode_status_mode_started{current_player.mode_rescue_cougar_played==1 and current_player.mode_rescue_cougar_won==0}:
     - status_set_rescue_cougar_lost
   mode_status_mode_started{current_player.mode_rescue_cougar_played==1 and current_player.mode_rescue_cougar_won==1}:
     - status_set_rescue_cougar_won
 
   # Great Balls Of Fire (CODED)
-  mode_status_mode_started{current_player.mode_balls_of_fire_played==0}:
+  mode_status_mode_started{current_player.mode_balls_of_fire_played==0 and current_player.pilot_replays_active==0}:
     - status_set_balls_of_fire_not_played
+  # Mission replay: lost earlier, available again
+  mode_status_mode_started{current_player.mode_balls_of_fire_played==0 and current_player.pilot_replays_active==1}:
+    - status_set_balls_of_fire_retry
   mode_status_mode_started{current_player.mode_balls_of_fire_played==1 and current_player.mode_balls_of_fire_won==0}:
     - status_set_balls_of_fire_lost
   mode_status_mode_started{current_player.mode_balls_of_fire_played==1 and current_player.mode_balls_of_fire_won==1}:
     - status_set_balls_of_fire_won
 
   # Cool Under Pressure (CODED)
-  mode_status_mode_started{current_player.mode_cool_under_pressure_played==0}:
+  mode_status_mode_started{current_player.mode_cool_under_pressure_played==0 and current_player.pilot_replays_active==0}:
     - status_set_cool_under_pressure_not_played
+  # Mission replay: lost earlier, available again
+  mode_status_mode_started{current_player.mode_cool_under_pressure_played==0 and current_player.pilot_replays_active==1}:
+    - status_set_cool_under_pressure_retry
   mode_status_mode_started{current_player.mode_cool_under_pressure_played==1 and current_player.mode_cool_under_pressure_won==0}:
     - status_set_cool_under_pressure_lost
   mode_status_mode_started{current_player.mode_cool_under_pressure_played==1 and current_player.mode_cool_under_pressure_won==1}:
     - status_set_cool_under_pressure_won
 
   # No Points For Second Place (CODED)
-  mode_status_mode_started{current_player.mode_no_points_for_second_place_played==0}:
+  mode_status_mode_started{current_player.mode_no_points_for_second_place_played==0 and current_player.pilot_replays_active==0}:
     - status_set_no_points_not_played
+  # Mission replay: lost earlier, available again
+  mode_status_mode_started{current_player.mode_no_points_for_second_place_played==0 and current_player.pilot_replays_active==1}:
+    - status_set_no_points_retry
   mode_status_mode_started{current_player.mode_no_points_for_second_place_played==1 and current_player.mode_no_points_for_second_place_won==0}:
     - status_set_no_points_lost
   mode_status_mode_started{current_player.mode_no_points_for_second_place_played==1 and current_player.mode_no_points_for_second_place_won==1}:
     - status_set_no_points_won
 
   # Edge Of Space (CODED)
-  mode_status_mode_started{current_player.mode_edge_of_space_played==0}:
+  mode_status_mode_started{current_player.mode_edge_of_space_played==0 and current_player.pilot_replays_active==0}:
     - status_set_edge_of_space_not_played
+  # Mission replay: lost earlier, available again
+  mode_status_mode_started{current_player.mode_edge_of_space_played==0 and current_player.pilot_replays_active==1}:
+    - status_set_edge_of_space_retry
   mode_status_mode_started{current_player.mode_edge_of_space_played==1 and current_player.mode_edge_of_space_won==0}:
     - status_set_edge_of_space_lost
   mode_status_mode_started{current_player.mode_edge_of_space_played==1 and current_player.mode_edge_of_space_won==1}:
     - status_set_edge_of_space_won
 
   # Below The Hard Deck (CODED)
-  mode_status_mode_started{current_player.mode_below_the_hard_deck_played==0}:
+  mode_status_mode_started{current_player.mode_below_the_hard_deck_played==0 and current_player.pilot_replays_active==0}:
     - status_set_below_the_hard_deck_not_played
+  # Mission replay: lost earlier, available again
+  mode_status_mode_started{current_player.mode_below_the_hard_deck_played==0 and current_player.pilot_replays_active==1}:
+    - status_set_below_the_hard_deck_retry
   mode_status_mode_started{current_player.mode_below_the_hard_deck_played==1 and current_player.mode_below_the_hard_deck_won==0}:
     - status_set_below_the_hard_deck_lost
   mode_status_mode_started{current_player.mode_below_the_hard_deck_played==1 and current_player.mode_below_the_hard_deck_won==1}:
     - status_set_below_the_hard_deck_won
 
   # Canyon Run (CODED)
-  mode_status_mode_started{current_player.mode_canyon_run_played==0}:
+  mode_status_mode_started{current_player.mode_canyon_run_played==0 and current_player.pilot_replays_active==0}:
     - status_set_canyon_run_not_played
+  # Mission replay: lost earlier, available again
+  mode_status_mode_started{current_player.mode_canyon_run_played==0 and current_player.pilot_replays_active==1}:
+    - status_set_canyon_run_retry
   mode_status_mode_started{current_player.mode_canyon_run_played==1 and current_player.mode_canyon_run_won==0}:
     - status_set_canyon_run_lost
   mode_status_mode_started{current_player.mode_canyon_run_played==1 and current_player.mode_canyon_run_won==1}:
     - status_set_canyon_run_won
 
   # No Margin For Error (CODED)
-  mode_status_mode_started{current_player.mode_no_margin_for_error_played==0}:
+  mode_status_mode_started{current_player.mode_no_margin_for_error_played==0 and current_player.pilot_replays_active==0}:
     - status_set_no_margin_not_played
+  # Mission replay: lost earlier, available again
+  mode_status_mode_started{current_player.mode_no_margin_for_error_played==0 and current_player.pilot_replays_active==1}:
+    - status_set_no_margin_retry
   mode_status_mode_started{current_player.mode_no_margin_for_error_played==1 and current_player.mode_no_margin_for_error_won==0}:
     - status_set_no_margin_lost
   mode_status_mode_started{current_player.mode_no_margin_for_error_played==1 and current_player.mode_no_margin_for_error_won==1}:
     - status_set_no_margin_won
 
   # Rise Of Phoenix (CODED)
-  mode_status_mode_started{current_player.mode_rise_of_phoenix_played==0}:
+  mode_status_mode_started{current_player.mode_rise_of_phoenix_played==0 and current_player.pilot_replays_active==0}:
     - status_set_rise_of_phoenix_not_played
+  # Mission replay: lost earlier, available again
+  mode_status_mode_started{current_player.mode_rise_of_phoenix_played==0 and current_player.pilot_replays_active==1}:
+    - status_set_rise_of_phoenix_retry
   mode_status_mode_started{current_player.mode_rise_of_phoenix_played==1 and current_player.mode_rise_of_phoenix_won==0}:
     - status_set_rise_of_phoenix_lost
   mode_status_mode_started{current_player.mode_rise_of_phoenix_played==1 and current_player.mode_rise_of_phoenix_won==1}:
     - status_set_rise_of_phoenix_won
 
   # Battle Jester (CODED)
-  mode_status_mode_started{current_player.mode_battle_jester_played==0}:
+  mode_status_mode_started{current_player.mode_battle_jester_played==0 and current_player.pilot_replays_active==0}:
     - status_set_battle_jester_not_played
+  # Mission replay: lost earlier, available again
+  mode_status_mode_started{current_player.mode_battle_jester_played==0 and current_player.pilot_replays_active==1}:
+    - status_set_battle_jester_retry
   mode_status_mode_started{current_player.mode_battle_jester_played==1 and current_player.mode_battle_jester_won==0}:
     - status_set_battle_jester_lost
   mode_status_mode_started{current_player.mode_battle_jester_played==1 and current_player.mode_battle_jester_won==1}:
@@ -894,20 +1111,12 @@ event_player:
     - status_set_hd_lit_iceman
 
   ##############################################
-  ## PAGE 5: Final battle — compute on mode start
-  ## All conditions needed to unlock the Final Battle wizard mode.
-  ## Dog Fight: from the shared dogfight setters (Not Yet / Yes!)
-  ## Super jackpot: super_jackpots_collected tracks total collected (int, no reset)
+  ## Slide + PAGE 1 bonus preview (computed after the rank points are set).
+  ## Page 5 Navy Rank values are all set in variable_player.
   ##############################################
-
-  # Dog Fight page 5 status is set via the shared dogfight setters in variable_player
-  # (status_set_dogfight_* events set both status_dogfight AND status_final_dogfight)
-
-  # TG Multiball Super Jackpot (super_jackpots_collected increments per collect, no reset)
-  mode_status_mode_started{current_player.super_jackpots_collected==0}:
-    - status_set_final_super_jackpot_no
-  mode_status_mode_started{current_player.super_jackpots_collected>=1}:
-    - status_set_final_super_jackpot_yes
+  mode_status_mode_started:
+    - status_mode_slide_ready|200ms
+    - status_bonus_preview_compute
 
 ##############################################################################
 ## SLIDE PLAYER

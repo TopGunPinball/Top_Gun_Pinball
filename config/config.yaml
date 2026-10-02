@@ -44,6 +44,8 @@ modes:
   - mystery_award
   - no_points_for_second_place
   - pilot_awards
+  - rank_promotions
+  - final_battle
   - pilot_training_mission_afterburner
   - pilot_training_mission_dogfight
   - pilot_training_mission_inverted
@@ -197,10 +199,104 @@ player_vars:
     initial_value: 0
     value_type: int
 
+  ##############################################################################
+  # RANK PROMOTIONS (modes/rank_promotions) - values that don't start at 0.
+  # All other rank_* counters/flags default to 0 automatically.
+  ##############################################################################
+  rank_level:
+    initial_value: 0
+    value_type: int
+  rank_name:
+    initial_value: "ENSIGN"
+    value_type: str
+  rank_merit:
+    initial_value: 0
+    value_type: int
+  rank_merit_pct:
+    initial_value: 0
+    value_type: int
+  rank_prev_threshold:
+    initial_value: 0
+    value_type: int
+  rank_next_threshold:          # set from machine var rank_threshold_1 at ball start
+    initial_value: 12
+    value_type: int
+  rank_panel_hidden:
+    initial_value: 0
+    value_type: int
+  final_battle_qualified:
+    initial_value: 0
+    value_type: int
+  final_battle_played:
+    initial_value: 0
+    value_type: int
+  pilot_replays_active:
+    initial_value: 0
+    value_type: int
+
 ##############################################################################
 # MACHINE VARIABLES - Service mode tracking and audits
 ##############################################################################
 machine_vars:
+  ##############################################################################
+  # RANK PROMOTION THRESHOLDS  <<< ADJUST HERE >>>
+  # Total merit needed for each promotion (modes/rank_promotions).
+  #   rank_threshold_1 = Lieutenant JG   (2,500,000)
+  #   rank_threshold_2 = Lieutenant      (light video mode)
+  #   rank_threshold_3 = Lt Commander    (light extra ball, TOP insert)
+  #   rank_threshold_4 = Commander       (light video mode)
+  #   rank_threshold_5 = Captain         (Final Battle, GUN insert)
+  # Keep them increasing. persist: false = edit and restart MPF, that's it.
+  # For quick testing, try 2 / 4 / 6 / 8 / 10.
+  ##############################################################################
+  rank_threshold_1:
+    initial_value: 1
+    value_type: int
+    persist: false
+  rank_threshold_2:
+    initial_value: 5
+    value_type: int
+    persist: false
+  rank_threshold_3:
+    initial_value: 10
+    value_type: int
+    persist: false
+  rank_threshold_4:
+    initial_value: 15
+    value_type: int
+    persist: false
+  rank_threshold_5:
+    initial_value: 20
+    value_type: int
+    persist: false
+
+  # Set by Godot (rank_screen_watch.gd): 1 while a video or voice callout is
+  # playing, so rank promotions wait for a clear moment.
+  rank_screen_busy:
+    initial_value: 0
+    value_type: int
+    persist: false
+
+  ##############################################################################
+  # RANK ICONS for the player score boxes (set by rank_promotions)
+  #   -1 = no player in this slot, 0-5 = Ensign..Captain
+  ##############################################################################
+  player1_rank:
+    initial_value: 0
+    value_type: int
+    persist: false
+  player2_rank:
+    initial_value: -1
+    value_type: int
+    persist: false
+  player3_rank:
+    initial_value: -1
+    value_type: int
+    persist: false
+  player4_rank:
+    initial_value: -1
+    value_type: int
+    persist: false
   ##############################################################################
   # EXTRA BALL AWARD MODE
   # Toggles what happens when player collects a lit extra ball at the left lane.
@@ -448,9 +544,11 @@ playfields:
       # Honoring Iceman - post releases when ball is released from intro hold
       - honoring_iceman_ball_released
       - mode_hard_deck_honoring_iceman_stopped
-      # Flipper releases - unblock ball search when flippers released
-      - s_flipper_left_inactive
-      - s_flipper_right_inactive
+      # Flipper releases - unblock only once BOTH flippers are released
+      # (posted by ball_search_servos.yaml). Unblocking on either flipper's
+      # release let a tap on one flipper restart the 15s countdown while the
+      # other was still holding the ball.
+      - ball_search_flippers_released
     tags: default
 
 machine:

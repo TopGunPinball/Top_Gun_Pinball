@@ -6,7 +6,8 @@
 ## Priority: 500 (runs after ball ends, before next ball/player)
 ##
 ## TIMING ADJUSTMENTS:
-## - display_delay_ms: Time for ALL bonus slides (default: 2000ms = 2 seconds)
+## - display_delay_ms: Time for ALL bonus slides (now 1500ms - 8 entries fit in
+##   the same total time the old 6 entries at 2000ms took)
 ## - light_show_speed: Speed multiplier for light show (default: 1.0, higher = faster)
 ##
 ## NOTE: MPF does not support per-entry display_delay_ms, only global setting
@@ -56,7 +57,9 @@ sound_player:
 mode_settings:
   # ADJUST THIS: Display time for ALL bonus slides (in milliseconds)
   # 1000 = 1 second, 2000 = 2 seconds, 3000 = 3 seconds, etc.
-  display_delay_ms: 2000
+  # 1500 with 8 entries = same total time as the old 6 entries at 2000
+  #   (start + 8 entries + total = 15s; was start + 6 + total = 16s)
+  display_delay_ms: 1500
   
   # If player hits flipper, speed up to instant
   hurry_up_delay_ms: 0
@@ -96,18 +99,36 @@ mode_settings:
       score: 200000
       skip_if_zero: false
     
-    # 5. Training Missions Played - count and points (does NOT reset)
+    # 5. Pilots Collected (pilot awards) - count and points (does NOT reset)
+    #    pilots_collected_count is totaled from the 14 pilot_<n>_collected
+    #    flags at bonus start (variable_player below)
+    - entry: pilots_collected
+      text: "Pilots Collected"
+      player_score_entry: pilots_collected_count
+      score: 200000
+      skip_if_zero: false
+
+    # 6. Training Missions Played - count and points (does NOT reset)
     - entry: training_missions
       text: "Training Missions Played"
       player_score_entry: training_missions_played
       score: 250000
       skip_if_zero: false
     
-    # 6. Pilot Missions Won - count and points (does NOT reset)
+    # 7. Pilot Missions Won - count and points (does NOT reset)
     - entry: pilot_missions
       text: "Pilot Missions Won"
       player_score_entry: pilot_missions_won
       score: 500000
+      skip_if_zero: false
+
+    # 8. Navy Rank - flat points for the current rank (no count on the slide)
+    #    rank_bonus_points is set from rank_level at bonus start (variable_player
+    #    below) and multiplied by 1, so the "count" IS the points.
+    - entry: navy_rank
+      text: "Navy Rank"
+      player_score_entry: rank_bonus_points
+      score: 1
       skip_if_zero: false
     
     # NOTE: No custom subtotal entry - using MPF's built-in behavior
@@ -120,6 +141,42 @@ mode_settings:
 ##############################################
 
 variable_player:
+  ##############################################
+  ## Values for the two newer entries, set at bonus start (MPF reads each
+  ## entry's player_score_entry when that entry is reached, well after this)
+  ##############################################
+  # Pilots collected this game (each pilot_<n>_collected is 0 or 1)
+  mode_bonus_started:
+    pilots_collected_count:
+      action: set
+      int: current_player.pilot_bob_collected + current_player.pilot_coyote_collected + current_player.pilot_fanboy_collected + current_player.pilot_goose_collected + current_player.pilot_hangman_collected + current_player.pilot_hollywood_collected + current_player.pilot_hondo_collected + current_player.pilot_iceman_collected + current_player.pilot_maverick_collected + current_player.pilot_phoenix_collected + current_player.pilot_rooster_collected + current_player.pilot_slider_collected + current_player.pilot_viper_collected + current_player.pilot_wolfman_collected
+
+  # ADJUST HERE: Navy Rank bonus points by rank (rank_level 0-5)
+  mode_bonus_started{current_player.rank_level==0}:     # Ensign
+    rank_bonus_points:
+      action: set
+      int: 0
+  mode_bonus_started{current_player.rank_level==1}:     # Lieutenant JG
+    rank_bonus_points:
+      action: set
+      int: 750000
+  mode_bonus_started{current_player.rank_level==2}:     # Lieutenant
+    rank_bonus_points:
+      action: set
+      int: 1500000
+  mode_bonus_started{current_player.rank_level==3}:     # Lt Commander
+    rank_bonus_points:
+      action: set
+      int: 2000000
+  mode_bonus_started{current_player.rank_level==4}:     # Commander
+    rank_bonus_points:
+      action: set
+      int: 3500000
+  mode_bonus_started{current_player.rank_level==5}:     # Captain
+    rank_bonus_points:
+      action: set
+      int: 5000000
+
   # Calculate points variables when each bonus entry is shown
   bonus_entry{entry=="switches"}:
     bonus_switches_points:
@@ -141,6 +198,11 @@ variable_player:
       action: set
       int: current_player.hard_deck_awards_count * 200000
   
+  bonus_entry{entry=="pilots_collected"}:
+    bonus_pilots_collected_points:
+      action: set
+      int: current_player.pilots_collected_count * 200000
+
   bonus_entry{entry=="training_missions"}:
     bonus_training_missions_points:
       action: set
@@ -213,6 +275,12 @@ slide_player:
       action: play
       priority: 510
   
+  # Pilots Collected bonus slide
+  bonus_entry{entry=="pilots_collected"}:
+    bonus_pilots_collected:
+      action: play
+      priority: 510
+
   # Training Missions bonus slide
   bonus_entry{entry=="training_missions"}:
     bonus_training_missions:
@@ -225,6 +293,12 @@ slide_player:
       action: play
       priority: 510
   
+  # Navy Rank bonus slide (label + points only)
+  bonus_entry{entry=="navy_rank"}:
+    bonus_navy_rank:
+      action: play
+      priority: 510
+
   # Subtotal slide - uses MPF's built-in subtotal event (only fires at 2x+ multiplier)
   # At 1x multiplier, this slide won't show (goes straight to total)
   bonus_entry{entry=="subtotal"}:

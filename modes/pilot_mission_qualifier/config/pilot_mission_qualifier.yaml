@@ -540,41 +540,11 @@ slide_player:
 
 variable_player:
   ##############################################
-  ## VIDEO MODE (CARRIER LANDING) - Qualify + State
-  ## Qualifies on the 1st, 4th and 7th MISSION WON (pilot + training wins
-  ## combined). No more after the 7th. A qualifier earned while the video
-  ## mode is already lit is banked in video_mode_credits and relights it
-  ## after the current one is played.
-  ## TEST QUALIFIER: one left slingshot hit lights the video mode.
-  ## (Remove the s_slingshot_left_active entry after testing.)
+  ## VIDEO MODE (CARRIER LANDING) - State
+  ## QUALIFYING now lives in rank_promotions.yaml (Lieutenant promotion,
+  ## Commander promotion, first time 5 missions are beaten). If one is
+  ## already lit, that mode pays 15M instead - nothing is banked.
   ##############################################
-  player_pilot_missions_won{change>0 and ((value + current_player.training_missions_won)==1 or (value + current_player.training_missions_won)==4 or (value + current_player.training_missions_won)==7)}:
-    video_mode_credits:
-      action: add
-      int: 1
-    video_mode_lit:
-      action: set
-      int: 1
-
-  player_training_missions_won{change>0 and ((value + current_player.pilot_missions_won)==1 or (value + current_player.pilot_missions_won)==4 or (value + current_player.pilot_missions_won)==7)}:
-    video_mode_credits:
-      action: add
-      int: 1
-    video_mode_lit:
-      action: set
-      int: 1
-
-  # Relight for a banked qualifier once the video mode finishes
-  mode_carrier_landing_stopped{current_player.video_mode_credits>0}:
-    video_mode_lit:
-      action: set
-      int: 1
-
-  s_slingshot_left_active{current_player.video_mode_lit==0 and current_player.carrier_landing_active==0}:
-    video_mode_lit:
-      action: set
-      int: 1
-
   # Clear the running flags on stop (a mode can't act on its own *_stopped
   # event - its config players are already gone).
   mode_carrier_landing_stopped:
@@ -1649,6 +1619,96 @@ variable_player:
     topgun_letter_n:
       action: set
       int: 0
+
+  ##############################################
+  ## FINAL BATTLE - qualified_mode_number 11
+  ## Once rank_promotions qualifies the Final Battle (Captain), completing
+  ## TOPGUN posts qualify_final_battle instead of picking a pilot mission.
+  ## Also posted by rank_promotions at the Captain promotion when a pilot
+  ## mission is already lit - Final Battle overrides it.
+  ## Using slot 11 means every "something is lit at the scoop" behavior
+  ## (barrier down, letters paused, scoop eject guards) works unchanged.
+  ##############################################
+  qualify_final_battle:
+    qualified_mode_number:
+      action: set
+      int: 11
+    topgun_shots_collected:
+      action: set
+      int: 0
+    topgun_letter_t:
+      action: set
+      int: 0
+    topgun_letter_o:
+      action: set
+      int: 0
+    topgun_letter_p:
+      action: set
+      int: 0
+    topgun_letter_g:
+      action: set
+      int: 0
+    topgun_letter_u:
+      action: set
+      int: 0
+    topgun_letter_n:
+      action: set
+      int: 0
+
+  ##############################################
+  ## MISSION REPLAY
+  ## When all 10 pilot missions have been played (and Final Battle isn't
+  ## qualified), every mission that was NOT beaten becomes available again.
+  ## Beaten missions keep played=1 so they stay solid white and locked out.
+  ## Repeats each time the remaining missions have all been played.
+  ##############################################
+  pilot_replay_reset{current_player.mode_rescue_cougar_won==0}:
+    mode_rescue_cougar_played:
+      action: set
+      int: 0
+  pilot_replay_reset{current_player.mode_balls_of_fire_won==0}:
+    mode_balls_of_fire_played:
+      action: set
+      int: 0
+  pilot_replay_reset{current_player.mode_cool_under_pressure_won==0}:
+    mode_cool_under_pressure_played:
+      action: set
+      int: 0
+  pilot_replay_reset{current_player.mode_battle_jester_won==0}:
+    mode_battle_jester_played:
+      action: set
+      int: 0
+  pilot_replay_reset{current_player.mode_no_points_for_second_place_won==0}:
+    mode_no_points_for_second_place_played:
+      action: set
+      int: 0
+  pilot_replay_reset{current_player.mode_no_margin_for_error_won==0}:
+    mode_no_margin_for_error_played:
+      action: set
+      int: 0
+  pilot_replay_reset{current_player.mode_rise_of_phoenix_won==0}:
+    mode_rise_of_phoenix_played:
+      action: set
+      int: 0
+  pilot_replay_reset{current_player.mode_canyon_run_won==0}:
+    mode_canyon_run_played:
+      action: set
+      int: 0
+  pilot_replay_reset{current_player.mode_below_the_hard_deck_won==0}:
+    mode_below_the_hard_deck_played:
+      action: set
+      int: 0
+  pilot_replay_reset{current_player.mode_edge_of_space_won==0}:
+    mode_edge_of_space_played:
+      action: set
+      int: 0
+  pilot_replay_reset{current_player.mode_rescue_cougar_won==0 or current_player.mode_balls_of_fire_won==0 or current_player.mode_cool_under_pressure_won==0 or current_player.mode_battle_jester_won==0 or current_player.mode_no_points_for_second_place_won==0 or current_player.mode_no_margin_for_error_won==0 or current_player.mode_rise_of_phoenix_won==0 or current_player.mode_canyon_run_won==0 or current_player.mode_below_the_hard_deck_won==0 or current_player.mode_edge_of_space_won==0}:
+    all_pilot_modes_played:
+      action: set
+      int: 0
+    pilot_replays_active:
+      action: set
+      int: 1
 
   ##############################################
   ## Mark Modes Complete When They Start
@@ -2734,11 +2794,11 @@ event_player:
   ##############################################
   
   # Rotate qualified mode on spinner or flight_gear_target hit (only when qualified and no mode active)
-  s_spinner_active{current_player.qualified_mode_number>0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.pilot_mode_active==0 and current_player.multiball_active==0}:
+  s_spinner_active{current_player.qualified_mode_number>0 and current_player.qualified_mode_number<11 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.pilot_mode_active==0 and current_player.multiball_active==0}:
     - stop_all_mode_pulse_shows
     - rotate_qualified_mode
   
-  s_flight_gear_target_active{current_player.qualified_mode_number>0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.pilot_mode_active==0 and current_player.multiball_active==0}:
+  s_flight_gear_target_active{current_player.qualified_mode_number>0 and current_player.qualified_mode_number<11 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.pilot_mode_active==0 and current_player.multiball_active==0}:
     - stop_all_mode_pulse_shows
     - rotate_qualified_mode_backwards
   
@@ -2761,9 +2821,15 @@ event_player:
   player_topgun_shots_collected{value==5}:
     topgun_letter_u_lit
   
-  player_topgun_shots_collected{value==6}:
+  # Final Battle qualified (Captain) and not played yet -> TOPGUN lights
+  # Final Battle instead of a pilot mission
+  player_topgun_shots_collected{value==6 and (current_player.final_battle_qualified==0 or current_player.final_battle_played==1)}:
     - topgun_letter_n_lit
     - topgun_pick_start
+  player_topgun_shots_collected{value==6 and current_player.final_battle_qualified==1 and current_player.final_battle_played==0}:
+    - topgun_letter_n_lit
+    - qualify_final_battle
+    - topgun_qualified
   
   ##############################################
   ## Mode Rotation Forward Logic
@@ -3308,13 +3374,29 @@ event_player:
     - start_mode_edge_of_space
 
   ##############################################
+  ## FINAL BATTLE - Scoop Routing (top priority)
+  ## Final Battle lit (qualified_mode_number 11) -> the scoop starts it and
+  ## nothing else activates (mystery, video mode and TGMB all have a
+  ## qualified_mode_number!=11 / <11 guard).
+  ##############################################
+  s_mode_start_active{current_player.qualified_mode_number==11 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and current_player.carrier_landing_active==0 and mode.mystery_award.active==False and mode.carrier_landing.active==False}:
+    - start_mode_final_battle
+
+  # Final Battle became lit while mystery / video mode was running (e.g. a
+  # carrier trap made Captain) - same hand-off as a pending pilot mission
+  mode_mystery_award_stopped{current_player.qualified_mode_number==11 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.mystery_just_lit_pilot==0 and current_player.video_mode_lit==0}:
+    - start_mode_final_battle
+  mode_carrier_landing_stopped{current_player.qualified_mode_number==11 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and mode.mystery_award.active==False}:
+    - start_mode_final_battle
+
+  ##############################################
   ## MYSTERY AWARD - Scoop Routing
   ## Mystery fires FIRST even when pilot mission or TGMB is also qualified.
   ## pilot/MB scoop entries all have mystery_qualified==0 added so they
   ## cannot fire when mystery is pending. After mystery stops, the
   ## mode_mystery_award_stopped handlers below restart whatever was waiting.
   ##############################################
-  s_mode_start_active{current_player.mystery_qualified==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and mode.carrier_landing.active==False}:
+  s_mode_start_active{current_player.mystery_qualified==1 and current_player.qualified_mode_number!=11 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and mode.carrier_landing.active==False}:
     - start_mode_mystery_award
 
   ##############################################
@@ -3364,7 +3446,7 @@ event_player:
 
   ## Both pilot mode AND TGMB qualified → choice screen.
   ## Normal eject path: barrier dropped + raised by mystery, so drop it again for scoop access.
-  mode_mystery_award_stopped{current_player.qualified_mode_number>0 and current_player.multiball_qualified==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.video_mode_lit==0}:
+  mode_mystery_award_stopped{current_player.qualified_mode_number>0 and current_player.qualified_mode_number<11 and current_player.multiball_qualified==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.video_mode_lit==0}:
     - barrier_drop
     - mb_mode_choice_start
 
@@ -3377,7 +3459,7 @@ event_player:
   ##   - Video lit, no mystery: video mode starts here.
   ##   - Pilot / TGMB scoop entries all require video_mode_lit==0.
   ##############################################
-  s_mode_start_active{current_player.video_mode_lit==1 and current_player.mystery_qualified==0 and current_player.carrier_landing_active==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
+  s_mode_start_active{current_player.video_mode_lit==1 and current_player.qualified_mode_number!=11 and current_player.mystery_qualified==0 and current_player.carrier_landing_active==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0}:
     - start_mode_carrier_landing
 
   ##############################################
@@ -3411,7 +3493,7 @@ event_player:
     - start_mode_edge_of_space
 
   ## Both pilot mode AND TGMB qualified -> choice screen
-  mode_carrier_landing_stopped{current_player.qualified_mode_number>0 and current_player.multiball_qualified==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and mode.mystery_award.active==False}:
+  mode_carrier_landing_stopped{current_player.qualified_mode_number>0 and current_player.qualified_mode_number<11 and current_player.multiball_qualified==1 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and mode.mystery_award.active==False}:
     - barrier_drop
     - mb_mode_choice_start
 
@@ -3641,6 +3723,13 @@ event_player:
   ## Also checks on qualifier start since uncoded modes are force-marked played there.
   ##############################################
 
+  # MISSION REPLAY: unbeaten missions become available again (see
+  # pilot_replay_reset in variable_player). Lights refresh after the reset.
+  all_pilot_modes_played_set{current_player.final_battle_qualified==0}:
+    - pilot_replay_reset|100ms
+  pilot_replay_reset:
+    - stop_all_mode_pulse_shows|100ms
+
   check_all_pilot_modes_played{current_player.mode_rescue_cougar_played==1 and current_player.mode_balls_of_fire_played==1 and current_player.mode_cool_under_pressure_played==1 and current_player.mode_battle_jester_played==1 and current_player.mode_no_points_for_second_place_played==1 and current_player.mode_no_margin_for_error_played==1 and current_player.mode_rise_of_phoenix_played==1 and current_player.mode_canyon_run_played==1 and current_player.mode_below_the_hard_deck_played==1 and current_player.mode_edge_of_space_played==1}:
     - all_pilot_modes_played_set
 
@@ -3751,7 +3840,8 @@ show_player:
   ## SCOOP INSERT COLOR CYCLE (l_shot_barrier)
   ## Flashes while something is LIT and waiting at the scoop, cycling through
   ## the colors of everything lit:
-  ##   White  = pilot mission (add final battle's flag to white when built)
+  ##   White  = pilot mission (Final Battle: rank_promotions.yaml overrides
+  ##            this insert with its own white flash at priority 205)
   ##   Green  = Top Gun Multiball
   ##   Blue   = Mystery
   ##   Orange = Video mode

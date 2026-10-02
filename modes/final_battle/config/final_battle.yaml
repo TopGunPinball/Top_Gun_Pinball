@@ -1,0 +1,90 @@
+#config_version=6
+##############################################################################
+## FINAL BATTLE - PLACEHOLDER (stub until the real wizard mode is coded)
+##
+## FILE NAME: modes/final_battle/config/final_battle.yaml
+##
+## QUALIFY: rank_promotions.yaml (Captain) -> final_battle_qualified = 1
+## LIGHT:   pilot_mission_qualifier.yaml - TOPGUN completion posts
+##          qualify_final_battle (qualified_mode_number = 11). A pilot mission
+##          lit at the Captain promotion is overridden immediately.
+## START:   center scoop, top priority (pilot_mission_qualifier.yaml).
+##          Also hand-off starts after mystery / video mode, same as a
+##          pending pilot mission.
+##
+## STUB FLOW:
+##   ball held in bd_mode_scoop -> placeholder slide 6s -> 25M placeholder
+##   score -> final_battle_complete -> ball released -> mode stops.
+##   final_battle_played = 1 so it can't be relit (TOPGUN goes back to
+##   lighting pilot missions until the real mode ends the game).
+##
+## WHEN CODING THE REAL MODE:
+##   - final_battle_complete is the hook for ending the game
+##     (multiplayer: end only this player's game)
+##   - perks (Afterburner / Missiles etc.) apply here
+##   - remove the mode_final_battle_stopped music entry in base.yaml
+##############################################################################
+
+mode:
+  start_events: start_mode_final_battle
+  stop_events: final_battle_stub_done
+  priority: 600
+  game_mode: true
+  use_wait_queue: true
+
+ball_holds:
+  final_battle_scoop_hold:
+    balls_to_hold: 1
+    hold_devices: bd_mode_scoop
+    enable_events:
+      - mode_final_battle_started
+    release_one_events:
+      - final_battle_ball_released
+    release_all_events:
+      - mode_final_battle_will_stop
+
+timers:
+  final_battle_stub_timer:
+    start_value: 0
+    end_value: 6
+    direction: up
+    tick_interval: 1s
+    start_running: true
+
+variable_player:
+  mode_final_battle_started:
+    pilot_mode_active: { action: set, int: 1 }        # blocks scoop routing, hides rank panel
+    letter_collection_paused: { action: set, int: 1 }
+    qualified_mode_number: { action: set, int: 0 }
+    final_battle_played: { action: set, int: 1 }
+  final_battle_complete:
+    score: { action: add, int: 25000000 }              # PLACEHOLDER value
+    mode_points_scored: { action: set, int: 25000000 }
+  # (This mode's handlers are gone before its own _stopped event, so clear
+  #  the flags on will_stop.)
+  mode_final_battle_will_stop:
+    pilot_mode_active: { action: set, int: 0 }
+    letter_collection_paused: { action: set, int: 0 }
+
+event_player:
+  mode_final_battle_started:
+    - barrier_raise
+  timer_final_battle_stub_timer_complete:
+    - final_battle_complete          # HOOK: end the game here when coded
+    - scoop_ball_release             # drops barrier, raises it after the ball leaves
+    - final_battle_ball_released|400ms
+    - final_battle_stub_done|2s
+
+slide_player:
+  mode_final_battle_started:
+    final_battle_stub:
+      action: play
+      priority: 400
+  final_battle_complete:
+    mode_points_scored:
+      action: play
+      priority: 450
+      expire: 2s
+  mode_final_battle_will_stop:
+    final_battle_stub:
+      action: remove

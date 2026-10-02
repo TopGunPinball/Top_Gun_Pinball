@@ -4,9 +4,10 @@
 ## CARRIER LANDING VIDEO MODE
 ##############################################################################
 ##
-## QUALIFY:  video_mode_lit = 1   (set in pilot_mission_qualifier.yaml)
-##           - 1st, 4th and 7th mission won (pilot + training wins combined)
-##           - TEST: one left slingshot hit lights it (remove after testing)
+## QUALIFY:  video_mode_lit = 1   (set in rank_promotions.yaml)
+##           - Lieutenant promotion, Commander promotion, and the first
+##             time 5 missions (pilot/training/hard deck) are beaten
+##           - Already lit when one of those happens -> 15M instead
 ## LIGHT:    l_mystery_lit orange (blue = mystery, fade = both lit)
 ## START:    center scoop (s_mode_start). Order: MYSTERY -> VIDEO -> PILOT/TGMB
 ##             - Scoop hit with video lit        -> qualifier starts this mode
@@ -142,12 +143,6 @@ variable_player:
     video_modes_played:
       action: add
       int: 1
-
-  # Use up one banked mission qualifier (see pilot_mission_qualifier.yaml)
-  mode_carrier_landing_started{current_player.video_mode_credits>0}:
-    video_mode_credits:
-      action: add
-      int: -1
 
   # Scores: base award + 50% per level above 1 (x1 / x1.5 / x2)
   landing_result_wire_3:

@@ -864,6 +864,14 @@ variable_player:
     mode_points_scored:
       action: set
       int: 5000000 * current_player.total_scoring_multiplier
+    # Clearing stage 1 counts as BEATING Charlie (rank merit + 5th-win video).
+    # Set once; never cleared, so a later stage loss doesn't undo it.
+    mode_hard_deck_charlie_won:
+      action: set
+      int: 1
+    hard_deck_missions_won:
+      action: add
+      int: 1
 
   # Stage 2 final (RO captured) — final_shot_hit fires AFTER shot_4 (same event tick).
   # shot_4 already adds 1M score, decrements shots_remaining, sets mode_points_scored.

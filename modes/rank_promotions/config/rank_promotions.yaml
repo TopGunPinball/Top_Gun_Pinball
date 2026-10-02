@@ -1,0 +1,785 @@
+#config_version=6
+##############################################################################
+## RANK PROMOTIONS - merit-driven naval rank ladder (game-long progress bar)
+##
+## FILE NAME: modes/rank_promotions/config/rank_promotions.yaml
+##   Listed in the modes: list in config/config.yaml.
+##
+## MERIT THRESHOLDS: set in ONE place - config/config.yaml, machine_vars,
+##   rank_threshold_1..5 ("RANK PROMOTION THRESHOLDS"). Numbers below are
+##   the defaults.
+##
+## RANKS (rank_level / merit needed / award):
+##   0 ENSIGN          start
+##   1 LIEUTENANT JG    12   2,500,000 (flat - not multiplied)
+##   2 LIEUTENANT       30   light video mode
+##   3 LT COMMANDER     50   light extra ball (banked if one is already lit)
+##   4 COMMANDER        85   light video mode
+##   5 CAPTAIN         125   qualify Final Battle (Final Battle, TOP and GUN
+##                          inserts flash; solid once TOPGUN is spelled)
+##   Promotion is merit only. One rank at a time: after a promotion,
+##   rank_check re-runs 4s later so a big jump plays as separate promotions.
+##
+## MERIT (rank_merit):
+##   Mission played (pilot / training / hard deck)  2  first time per mission
+##       only - a replayed pilot mission earns no "played" merit
+##   Mission beaten                                 +5 (once per mission)
+##       Charlie = stage 1 cleared, PTB = phase 1 victory
+##   First TGMB super jackpot                        8  (later ones: 0)
+##   Each pilot award (14)                           3
+##   Buzz the Tower                                  2 / 3 / then 4 each
+##   First Mach 2 / first Mach 3                     2 / 2
+##   Carrier landing trap (any wire)                 2  per video mode
+##   Ejection Seat success                           2  first 3 only
+##   2X started                                      1  first 3 only
+##   Skillshot                                       1  first 5 only
+##
+## VIDEO MODE QUALIFYING (only place it's qualified now):
+##   Lieutenant promotion, Commander promotion, and the first time
+##   rank_modes_beaten reaches 5. Each one queues in rank_video_pending and
+##   is processed at the next quiet moment (after the rank callout, if any):
+##     video_mode_lit==0 -> light it (also when video mode is RUNNING - the
+##                          running mode already cleared the flag, so the
+##                          next one is lit for afterward)
+##     video_mode_lit==1 -> flat 15,000,000 instead (not multiplied)
+##   Pending items survive a drain and are processed at the next ball start.
+##
+## EXTRA BALL (Lt Commander): goes into rank_eb_banked, lit 3s later if no
+##   extra ball is lit. If one is lit, it stays banked and relights 3s after
+##   the current one is collected (or at the next ball start).
+##
+## ANNOUNCEMENTS: the rank itself (and Final Battle qualifying) applies
+##   immediately. The callout + overlay wait for a QUIET moment (see
+##   QUIET-MOMENT QUEUE in event_player); the promotion's award (video mode /
+##   15M / extra ball) follows 4.5s after its callout, also only when quiet.
+##   If several promotions stack up while waiting, only the highest rank is
+##   announced; all their awards still follow one at a time.
+##
+## RANK PANEL (Godot - blue box on the score screen):
+##   rank_panel_hidden = 1 while 2X, a pilot mission, a training mission or a
+##   hard deck mission is running; back to 0 one second after all are off
+##   (avoids flicker between back-to-back modes). The panel's label / rank
+##   name / merit bar hide on 1; the player-box icons never hide.
+##
+## VARIABLES FOR SLIDES:
+##   rank_level (0-5), rank_name (string), rank_merit,
+##   rank_merit_pct (0-100 progress within the current rank, 100 at Captain),
+##   rank_panel_hidden, final_battle_qualified
+##   machine vars player1_rank..player4_rank (-1 = no player, else 0-5)
+##     for the rank icon in each player's score box
+##
+## FINAL BATTLE (lights here, routing in pilot_mission_qualifier.yaml):
+##   Captain -> final_battle_qualified=1, l_final_battle_lit + TOP + GUN
+##   inserts FLASH (all three off before Captain).
+##   A pilot mission already lit at that moment is overridden right away
+##   (qualify_final_battle). Otherwise the next TOPGUN completion lights it.
+##   Lit (qualified_mode_number 11) -> those three SOLID and
+##   l_shot_barrier flashes white (priority 205, above the qualifier's
+##   scoop color cycle) while nothing else is playing.
+##   Played (final_battle_played=1) -> all three off.
+##
+## SLIDES:
+##   rank_panel      - always up while this mode runs (rank label/name/merit
+##                     bar in the right-hand box + player-box icons)
+##   rank_promotion  - 4s overlay in the center window with each callout
+##
+## PENNY: when coded, add her mode_<name>_started (played) and won flag
+##   to the two mission lists below.
+##############################################################################
+
+mode:
+  start_events: mode_base_started
+  stop_events: mode_base_stopped
+  priority: 205
+  game_mode: true
+
+##############################################################################
+## TIMERS
+##############################################################################
+
+timers:
+  # Delay before the rank panel reappears after the last mode/2X ends
+  rank_panel_show_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: rank_panel_show_wait
+        action: restart
+      - event: rank_panel_hide
+        action: stop
+
+##############################################################################
+## VARIABLE PLAYER
+##############################################################################
+
+variable_player:
+  ##############################################
+  ## MERIT - MISSION PLAYED (2, first time each mission)
+  ##############################################
+  # Pilot missions
+  mode_rescue_cougar_started{current_player.rank_played_rescue_cougar==0}:
+    rank_played_rescue_cougar: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+  mode_great_balls_of_fire_started{current_player.rank_played_balls_of_fire==0}:
+    rank_played_balls_of_fire: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+  mode_cool_under_pressure_started{current_player.rank_played_cool_under_pressure==0}:
+    rank_played_cool_under_pressure: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+  mode_battle_jester_started{current_player.rank_played_battle_jester==0}:
+    rank_played_battle_jester: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+  mode_no_points_for_second_place_started{current_player.rank_played_no_points_for_second_place==0}:
+    rank_played_no_points_for_second_place: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+  mode_no_margin_for_error_started{current_player.rank_played_no_margin_for_error==0}:
+    rank_played_no_margin_for_error: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+  mode_rise_of_phoenix_started{current_player.rank_played_rise_of_phoenix==0}:
+    rank_played_rise_of_phoenix: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+  mode_canyon_run_started{current_player.rank_played_canyon_run==0}:
+    rank_played_canyon_run: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+  mode_below_the_hard_deck_started{current_player.rank_played_below_the_hard_deck==0}:
+    rank_played_below_the_hard_deck: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+  mode_edge_of_space_started{current_player.rank_played_edge_of_space==0}:
+    rank_played_edge_of_space: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+  # Training missions
+  mode_pilot_training_mission_inverted_started{current_player.rank_played_inverted==0}:
+    rank_played_inverted: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+  mode_pilot_training_mission_missiles_started{current_player.rank_played_missiles==0}:
+    rank_played_missiles: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+  mode_pilot_training_mission_wingman_started{current_player.rank_played_wingman==0}:
+    rank_played_wingman: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+  mode_pilot_training_mission_afterburner_started{current_player.rank_played_afterburner==0}:
+    rank_played_afterburner: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+  mode_pilot_training_mission_dogfight_started{current_player.rank_played_dogfight==0}:
+    rank_played_dogfight: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+  # Hard deck missions
+  mode_hard_deck_charlie_started{current_player.rank_played_charlie==0}:
+    rank_played_charlie: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+  mode_hard_deck_playing_with_the_boys_started{current_player.rank_played_ptb==0}:
+    rank_played_ptb: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+  mode_hard_deck_honoring_iceman_started{current_player.rank_played_iceman==0}:
+    rank_played_iceman: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+
+  ##############################################
+  ## MERIT - MISSION BEATEN (+5, once each) + beaten count for video mode
+  ## Won flags are set once and never cleared (replays don't reset them).
+  ##############################################
+  # Pilot missions
+  player_mode_rescue_cougar_won{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 5 }
+    rank_modes_beaten: { action: add, int: 1 }
+  player_mode_balls_of_fire_won{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 5 }
+    rank_modes_beaten: { action: add, int: 1 }
+  player_mode_cool_under_pressure_won{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 5 }
+    rank_modes_beaten: { action: add, int: 1 }
+  player_mode_battle_jester_won{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 5 }
+    rank_modes_beaten: { action: add, int: 1 }
+  player_mode_no_points_for_second_place_won{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 5 }
+    rank_modes_beaten: { action: add, int: 1 }
+  player_mode_no_margin_for_error_won{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 5 }
+    rank_modes_beaten: { action: add, int: 1 }
+  player_mode_rise_of_phoenix_won{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 5 }
+    rank_modes_beaten: { action: add, int: 1 }
+  player_mode_canyon_run_won{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 5 }
+    rank_modes_beaten: { action: add, int: 1 }
+  player_mode_below_the_hard_deck_won{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 5 }
+    rank_modes_beaten: { action: add, int: 1 }
+  player_mode_edge_of_space_won{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 5 }
+    rank_modes_beaten: { action: add, int: 1 }
+  # Training missions
+  player_pilot_training_mission_inverted_won{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 5 }
+    rank_modes_beaten: { action: add, int: 1 }
+  player_training_missiles_won{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 5 }
+    rank_modes_beaten: { action: add, int: 1 }
+  player_training_wingman_won{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 5 }
+    rank_modes_beaten: { action: add, int: 1 }
+  player_training_afterburner_won{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 5 }
+    rank_modes_beaten: { action: add, int: 1 }
+  player_training_dogfight_won{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 5 }
+    rank_modes_beaten: { action: add, int: 1 }
+  # Hard deck missions
+  player_mode_hard_deck_charlie_won{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 5 }
+    rank_modes_beaten: { action: add, int: 1 }
+  player_mode_hard_deck_playing_with_the_boys_won{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 5 }
+    rank_modes_beaten: { action: add, int: 1 }
+  player_mode_hard_deck_honoring_iceman_won{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 5 }
+    rank_modes_beaten: { action: add, int: 1 }
+
+  ##############################################
+  ## MERIT - PILOT AWARDS (3 each)
+  ##############################################
+  player_pilot_bob_collected{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 3 }
+  player_pilot_coyote_collected{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 3 }
+  player_pilot_fanboy_collected{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 3 }
+  player_pilot_goose_collected{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 3 }
+  player_pilot_hangman_collected{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 3 }
+  player_pilot_hollywood_collected{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 3 }
+  player_pilot_hondo_collected{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 3 }
+  player_pilot_iceman_collected{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 3 }
+  player_pilot_maverick_collected{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 3 }
+  player_pilot_phoenix_collected{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 3 }
+  player_pilot_rooster_collected{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 3 }
+  player_pilot_slider_collected{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 3 }
+  player_pilot_viper_collected{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 3 }
+  player_pilot_wolfman_collected{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 3 }
+
+  ##############################################
+  ## MERIT - OTHER ACHIEVEMENTS
+  ##############################################
+  # First TGMB super jackpot only
+  player_super_jackpots_collected{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 8 }
+
+  # Buzz the Tower: 2 / 3 / then 4 each (dispatched in event_player so the
+  # count check and the count change don't happen on the same event)
+  rank_buzz_merit_2:
+    rank_merit: { action: add, int: 2 }
+    rank_buzz_count: { action: add, int: 1 }
+  rank_buzz_merit_3:
+    rank_merit: { action: add, int: 3 }
+    rank_buzz_count: { action: add, int: 1 }
+  rank_buzz_merit_4:
+    rank_merit: { action: add, int: 4 }
+    rank_buzz_count: { action: add, int: 1 }
+
+  # Mach: first time at Mach 2 and first time at Mach 3 only
+  player_mach_level{value>=2 and current_player.rank_mach2_done==0}:
+    rank_mach2_done: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+  player_mach_level{value>=3 and current_player.rank_mach3_done==0}:
+    rank_mach3_done: { action: set, int: 1 }
+    rank_merit: { action: add, int: 2 }
+
+  # Carrier landing trap (video_mode_trapped is cleared at each video mode start)
+  player_video_mode_trapped{value==1 and prev_value==0}:
+    rank_merit: { action: add, int: 2 }
+
+  # Capped extras
+  ejection_success{current_player.rank_eject_merits<3}:
+    rank_eject_merits: { action: add, int: 1 }
+    rank_merit: { action: add, int: 2 }
+  x2_playfield_start{current_player.rank_x2_merits<3}:
+    rank_x2_merits: { action: add, int: 1 }
+    rank_merit: { action: add, int: 1 }
+  player_skillshot_count{change>0 and current_player.rank_skillshot_merits<5}:
+    rank_skillshot_merits: { action: add, int: 1 }
+    rank_merit: { action: add, int: 1 }
+
+  ##############################################
+  ## QUIET-MOMENT FLAGS
+  ## rank_ball_live: 0 from ball_will_end (drain / bonus) until next ball.
+  ## rank_screen_busy (machine var): Godot's rank_screen_watch.gd reports
+  ##   rank_screen_busy / rank_screen_clear whenever a video or voice
+  ##   callout starts / ends (plus a heartbeat every 5s).
+  ##############################################
+  mode_rank_promotions_started:
+    rank_ball_live: { action: set, int: 1 }
+    rank_award_wait: { action: set, int: 0 }    # its release timer died with the last ball
+  rank_award_release:
+    rank_award_wait: { action: set, int: 0 }
+  ball_will_end:
+    rank_ball_live: { action: set, int: 0 }
+  rank_screen_busy:
+    rank_screen_busy: { action: set_machine, int: 1 }
+  rank_screen_clear:
+    rank_screen_busy: { action: set_machine, int: 0 }
+
+  ##############################################
+  ## FIRST THRESHOLD - Ensign's target comes from the machine var too
+  ## (listed before the merit bar calc so the bar uses it)
+  ##############################################
+  mode_rank_promotions_started{current_player.rank_level==0}:
+    rank_next_threshold: { action: set, int: machine.rank_threshold_1 }
+
+  ##############################################
+  ## MERIT BAR - progress within the current rank (0-100)
+  ## Can read over 100 for up to 4s while a cascade promotion waits;
+  ## the gauge clamps it.
+  ##############################################
+  player_rank_merit{current_player.rank_level<5}:
+    rank_merit_pct: { action: set, int: (current_player.rank_merit - current_player.rank_prev_threshold) * 100 / (current_player.rank_next_threshold - current_player.rank_prev_threshold) }
+  player_rank_level{value<5}:
+    rank_merit_pct: { action: set, int: (current_player.rank_merit - current_player.rank_prev_threshold) * 100 / (current_player.rank_next_threshold - current_player.rank_prev_threshold) }
+  mode_rank_promotions_started{current_player.rank_level<5}:
+    rank_merit_pct: { action: set, int: (current_player.rank_merit - current_player.rank_prev_threshold) * 100 / (current_player.rank_next_threshold - current_player.rank_prev_threshold) }
+
+  ##############################################
+  ## PROMOTIONS
+  ## Thresholds before rank_level so the merit bar recalculates against the
+  ## new range when player_rank_level posts.
+  ##############################################
+  rank_promote_1:
+    rank_prev_threshold: { action: set, int: machine.rank_threshold_1 }
+    rank_next_threshold: { action: set, int: machine.rank_threshold_2 }
+    rank_name: { action: set, string: "LIEUTENANT JG" }
+    rank_announce_pending: { action: set, int: 1 }
+    score: { action: add, int: 2500000 }
+    mode_points_scored: { action: set, int: 2500000 }
+    rank_level: { action: set, int: 1 }
+  rank_promote_2:
+    rank_prev_threshold: { action: set, int: machine.rank_threshold_2 }
+    rank_next_threshold: { action: set, int: machine.rank_threshold_3 }
+    rank_name: { action: set, string: "LIEUTENANT" }
+    rank_announce_pending: { action: set, int: 2 }
+    rank_video_pending: { action: add, int: 1 }
+    rank_level: { action: set, int: 2 }
+  rank_promote_3:
+    rank_prev_threshold: { action: set, int: machine.rank_threshold_3 }
+    rank_next_threshold: { action: set, int: machine.rank_threshold_4 }
+    rank_name: { action: set, string: "LT COMMANDER" }
+    rank_announce_pending: { action: set, int: 3 }
+    rank_eb_banked: { action: add, int: 1 }
+    rank_level: { action: set, int: 3 }
+  rank_promote_4:
+    rank_prev_threshold: { action: set, int: machine.rank_threshold_4 }
+    rank_next_threshold: { action: set, int: machine.rank_threshold_5 }
+    rank_name: { action: set, string: "COMMANDER" }
+    rank_announce_pending: { action: set, int: 4 }
+    rank_video_pending: { action: add, int: 1 }
+    rank_level: { action: set, int: 4 }
+  rank_promote_5:
+    rank_prev_threshold: { action: set, int: machine.rank_threshold_5 }
+    rank_next_threshold: { action: set, int: machine.rank_threshold_5 }
+    rank_name: { action: set, string: "CAPTAIN" }
+    rank_announce_pending: { action: set, int: 5 }
+    rank_merit_pct: { action: set, int: 100 }
+    final_battle_qualified: { action: set, int: 1 }
+    rank_level: { action: set, int: 5 }
+
+  # Announcement played -> clear the pending rank, hold awards for 4.5s
+  rank_announce_1:
+    rank_announce_pending: { action: set, int: 0 }
+    rank_award_wait: { action: set, int: 1 }
+  rank_announce_2:
+    rank_announce_pending: { action: set, int: 0 }
+    rank_award_wait: { action: set, int: 1 }
+  rank_announce_3:
+    rank_announce_pending: { action: set, int: 0 }
+    rank_award_wait: { action: set, int: 1 }
+  rank_announce_4:
+    rank_announce_pending: { action: set, int: 0 }
+    rank_award_wait: { action: set, int: 1 }
+  rank_announce_5:
+    rank_announce_pending: { action: set, int: 0 }
+
+  ##############################################
+  ## VIDEO MODE QUALIFYING
+  ##############################################
+  # 5th mission beaten (first time only - the count only goes up)
+  player_rank_modes_beaten{value==5}:
+    rank_video_pending: { action: add, int: 1 }
+
+  rank_video_light:
+    rank_video_pending: { action: add, int: -1 }
+    video_mode_lit: { action: set, int: 1 }
+  rank_video_points:
+    rank_video_pending: { action: add, int: -1 }
+    score: { action: add, int: 15000000 }
+    mode_points_scored: { action: set, int: 15000000 }
+
+  ##############################################
+  ## EXTRA BALL BANK
+  ##############################################
+  rank_eb_unbank:
+    rank_eb_banked: { action: add, int: -1 }
+
+  ##############################################
+  ## RANK PANEL VISIBILITY
+  ##############################################
+  rank_panel_hide:
+    rank_panel_hidden: { action: set, int: 1 }
+  rank_panel_show:
+    rank_panel_hidden: { action: set, int: 0 }
+
+  ##############################################
+  ## PLAYER-BOX RANK ICONS (machine vars, -1 = no player)
+  ##############################################
+  # New game: clear players 2-4 from the last game
+  mode_rank_promotions_started{current_player.number==1 and current_player.ball==1}:
+    player2_rank: { action: set_machine, int: -1 }
+    player3_rank: { action: set_machine, int: -1 }
+    player4_rank: { action: set_machine, int: -1 }
+  player_added{num==2}:
+    player2_rank: { action: set_machine, int: 0 }
+  player_added{num==3}:
+    player3_rank: { action: set_machine, int: 0 }
+  player_added{num==4}:
+    player4_rank: { action: set_machine, int: 0 }
+  mode_rank_promotions_started{current_player.number==1}:
+    player1_rank: { action: set_machine, int: current_player.rank_level }
+  player_rank_level{current_player.number==1}:
+    player1_rank: { action: set_machine, int: current_player.rank_level }
+  mode_rank_promotions_started{current_player.number==2}:
+    player2_rank: { action: set_machine, int: current_player.rank_level }
+  player_rank_level{current_player.number==2}:
+    player2_rank: { action: set_machine, int: current_player.rank_level }
+  mode_rank_promotions_started{current_player.number==3}:
+    player3_rank: { action: set_machine, int: current_player.rank_level }
+  player_rank_level{current_player.number==3}:
+    player3_rank: { action: set_machine, int: current_player.rank_level }
+  mode_rank_promotions_started{current_player.number==4}:
+    player4_rank: { action: set_machine, int: current_player.rank_level }
+  player_rank_level{current_player.number==4}:
+    player4_rank: { action: set_machine, int: current_player.rank_level }
+
+##############################################################################
+## EVENT PLAYER
+##############################################################################
+
+event_player:
+  ##############################################
+  ## PROMOTION CHECK - runs on every merit gain, 4s after each promotion
+  ## (cascade), and at ball start
+  ##############################################
+  player_rank_merit{change>0}: rank_check
+  mode_rank_promotions_started:
+    - rank_check|2s
+    - rank_panel_eval
+    - rank_fb_lights|300ms
+  rank_check{current_player.rank_level==0 and current_player.rank_merit>=machine.rank_threshold_1}: rank_promote_1
+  rank_check{current_player.rank_level==1 and current_player.rank_merit>=machine.rank_threshold_2}: rank_promote_2
+  rank_check{current_player.rank_level==2 and current_player.rank_merit>=machine.rank_threshold_3}: rank_promote_3
+  rank_check{current_player.rank_level==3 and current_player.rank_merit>=machine.rank_threshold_4}: rank_promote_4
+  rank_check{current_player.rank_level==4 and current_player.rank_merit>=machine.rank_threshold_5}: rank_promote_5
+  rank_promote_1:
+    - rank_check|4s
+    - rank_quiet_check|500ms
+  rank_promote_2:
+    - rank_check|4s
+    - rank_quiet_check|500ms
+  rank_promote_3:
+    - rank_check|4s
+    - rank_quiet_check|500ms
+  rank_promote_4:
+    - rank_check|4s
+    - rank_quiet_check|500ms
+  rank_promote_5:
+    - rank_check|4s
+    - rank_quiet_check|500ms
+    - rank_fb_lights
+  # A pilot mission is lit at Captain -> Final Battle takes its place now
+  rank_promote_5{current_player.qualified_mode_number>=1 and current_player.qualified_mode_number<=10}:
+    - stop_all_mode_pulse_shows
+    - qualify_final_battle
+
+  ##############################################
+  ## BUZZ THE TOWER MERIT DISPATCH
+  ##############################################
+  buzz_tower_made{current_player.rank_buzz_count==0}: rank_buzz_merit_2
+  buzz_tower_made{current_player.rank_buzz_count==1}: rank_buzz_merit_3
+  buzz_tower_made{current_player.rank_buzz_count>=2}: rank_buzz_merit_4
+
+  ##############################################
+  ## QUIET-MOMENT QUEUE
+  ## Everything with a callout or video waits for a quiet moment:
+  ##   1. the promotion callout + overlay   (rank_announce_pending)
+  ##   2. then, 4.5s later, the awards      (rank_video_pending: light video
+  ##      mode or 15M / rank_eb_banked: light extra ball)
+  ## QUIET = ball in play (not draining / bonus), no video or voice callout
+  ##   on screen (machine.rank_screen_busy, reported by Godot's
+  ##   rank_screen_watch.gd), no pilot / training / hard deck mission,
+  ##   no video mode, no mystery.
+  ## Anything still waiting at a drain carries to the next ball.
+  ## rank_quiet_check is posted on every trigger below; each step re-checks
+  ## QUIET itself, so a busy screen just means "try again at the next one".
+  ##############################################
+  rank_screen_clear: rank_quiet_check|1500ms
+  player_pilot_mode_active{value==0}: rank_quiet_check|2s
+  player_training_mission_active{value==0}: rank_quiet_check|2s
+  player_hard_deck_active{value==0}: rank_quiet_check|2s
+  player_carrier_landing_active{value==0}: rank_quiet_check|2s
+  mode_mystery_award_stopped: rank_quiet_check|2s
+  extra_ball_main_awarded{current_player.rank_eb_banked>0}: rank_quiet_check|3s
+  player_rank_modes_beaten{value==5}: rank_quiet_check|2s
+  mode_rank_promotions_started{current_player.rank_announce_pending>0 or current_player.rank_video_pending>0 or current_player.rank_eb_banked>0}: rank_quiet_check|3s
+
+  # Callout first; awards only once no callout is waiting. Decided here (not
+  # in rank_award_try) because MPF can run the callout before rank_award_try
+  # is evaluated, which let an award fire on top of its own callout.
+  rank_quiet_check{current_player.rank_announce_pending>0}: rank_announce_try
+  rank_quiet_check{current_player.rank_announce_pending==0}: rank_award_try
+
+  # 1. Promotion callout (highest pending rank only)
+  rank_announce_try{current_player.rank_announce_pending==1 and current_player.rank_ball_live==1 and machine.rank_screen_busy==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.carrier_landing_active==0 and mode.mystery_award.active==False}: rank_announce_1
+  rank_announce_try{current_player.rank_announce_pending==2 and current_player.rank_ball_live==1 and machine.rank_screen_busy==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.carrier_landing_active==0 and mode.mystery_award.active==False}: rank_announce_2
+  rank_announce_try{current_player.rank_announce_pending==3 and current_player.rank_ball_live==1 and machine.rank_screen_busy==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.carrier_landing_active==0 and mode.mystery_award.active==False}: rank_announce_3
+  rank_announce_try{current_player.rank_announce_pending==4 and current_player.rank_ball_live==1 and machine.rank_screen_busy==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.carrier_landing_active==0 and mode.mystery_award.active==False}: rank_announce_4
+  rank_announce_try{current_player.rank_announce_pending==5 and current_player.rank_ball_live==1 and machine.rank_screen_busy==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.carrier_landing_active==0 and mode.mystery_award.active==False}: rank_announce_5
+  # Awards follow the callout once it has finished
+  # rank_award_wait blocks awards until 4.5s after the callout started
+  rank_announce_1: rank_award_release|4500ms
+  rank_announce_2: rank_award_release|4500ms
+  rank_announce_3: rank_award_release|4500ms
+  rank_announce_4: rank_award_release|4500ms
+  rank_award_release: rank_award_try|100ms   # after rank_award_wait clears
+  rank_announce_5: rank_final_battle_callout|4500ms
+  # "Final Battle is lit" only if it's still quiet (the flashing insert says it anyway)
+  rank_final_battle_callout{current_player.rank_ball_live==1 and machine.rank_screen_busy==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.carrier_landing_active==0 and mode.mystery_award.active==False}: rank_final_battle_callout_play
+
+  # 2. Awards - only when no promotion callout is still waiting
+  rank_award_try{current_player.rank_announce_pending==0 and current_player.rank_award_wait==0 and current_player.rank_video_pending>0 and current_player.rank_ball_live==1 and machine.rank_screen_busy==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.carrier_landing_active==0 and mode.mystery_award.active==False}: rank_video_process
+  rank_award_try{current_player.rank_announce_pending==0 and current_player.rank_award_wait==0 and current_player.rank_video_pending==0 and current_player.rank_eb_banked>0 and current_player.rank_ball_live==1 and machine.rank_screen_busy==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.carrier_landing_active==0 and mode.mystery_award.active==False}: rank_eb_relight
+  # More than one award waiting - next one after this one's callout
+  rank_video_light: rank_award_try|4s
+  rank_video_points: rank_award_try|4s
+  rank_eb_unbank: rank_award_try|4s
+
+  ##############################################
+  ## VIDEO MODE QUALIFYING (posted only by rank_award_try)
+  ##############################################
+  rank_video_process{current_player.rank_video_pending>0 and current_player.video_mode_lit==0}: rank_video_light
+  rank_video_process{current_player.rank_video_pending>0 and current_player.video_mode_lit==1}: rank_video_points
+
+  ##############################################
+  ## EXTRA BALL BANK (posted only by rank_award_try)
+  ##############################################
+  rank_eb_relight{current_player.rank_eb_banked>0 and current_player.extra_ball_lit==0 and current_player.extra_ball_collecting==0}:
+    - rank_eb_unbank
+    - light_extra_ball
+
+  ##############################################
+  ## FINAL BATTLE INSERTS - re-evaluated whenever anything they depend on
+  ## changes
+  ##############################################
+  player_qualified_mode_number: rank_fb_lights
+  player_final_battle_qualified: rank_fb_lights
+  player_final_battle_played: rank_fb_lights
+  player_multiball_active: rank_fb_lights
+  player_carrier_landing_active: rank_fb_lights
+  # (pilot / training / hard deck active changes also post rank_fb_lights -
+  #  they're listed once, in the RANK PANEL VISIBILITY block below)
+  rank_fb_lights{current_player.final_battle_qualified==1 and current_player.final_battle_played==0 and current_player.qualified_mode_number!=11}: rank_fb_insert_flash
+  rank_fb_lights{current_player.final_battle_qualified==1 and current_player.final_battle_played==0 and current_player.qualified_mode_number==11}: rank_fb_insert_solid
+  rank_fb_lights{current_player.final_battle_qualified==0 or current_player.final_battle_played==1}: rank_fb_insert_off
+  rank_fb_lights{current_player.final_battle_qualified==1 and current_player.final_battle_played==0 and current_player.qualified_mode_number==11 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and current_player.carrier_landing_active==0}: rank_fb_barrier_on
+  rank_fb_lights{current_player.qualified_mode_number!=11 or current_player.final_battle_played==1 or current_player.pilot_mode_active==1 or current_player.training_mission_active==1 or current_player.hard_deck_active==1 or current_player.multiball_active==1 or current_player.carrier_landing_active==1}: rank_fb_barrier_off
+
+  ##############################################
+  ## RANK PANEL VISIBILITY
+  ##############################################
+  player_x2_active: rank_panel_eval
+  player_pilot_mode_active:
+    - rank_panel_eval
+    - rank_fb_lights
+  player_training_mission_active:
+    - rank_panel_eval
+    - rank_fb_lights
+  player_hard_deck_active:
+    - rank_panel_eval
+    - rank_fb_lights
+  rank_panel_eval{current_player.x2_active==1 or current_player.pilot_mode_active==1 or current_player.training_mission_active==1 or current_player.hard_deck_active==1}: rank_panel_hide
+  rank_panel_eval{current_player.x2_active==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0}: rank_panel_show_wait
+  timer_rank_panel_show_delay_complete{current_player.x2_active==0 and current_player.pilot_mode_active==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0}: rank_panel_show
+
+##############################################################################
+## SHOWS / SHOW PLAYER - Final Battle, TOP and GUN inserts + scoop barrier
+## Final Battle / TOP / GUN move together as one show (key rank_fb_insert):
+##   off until Captain -> flash (same 500ms sync flash as mission inserts)
+##   -> solid once TOPGUN is spelled -> off once Final Battle is played.
+## One show key per group, so each state simply replaces the last one.
+##############################################################################
+
+shows:
+  rank_flash_3:
+    - duration: 500ms
+      lights:
+        (led1): { color: (color), fade: 0ms }
+        (led2): { color: (color), fade: 0ms }
+        (led3): { color: (color), fade: 0ms }
+    - duration: 500ms
+      lights:
+        (led1): { color: off, fade: 0ms }
+        (led2): { color: off, fade: 0ms }
+        (led3): { color: off, fade: 0ms }
+  rank_solid_3:
+    - duration: -1
+      lights:
+        (led1): { color: (color), fade: 0ms }
+        (led2): { color: (color), fade: 0ms }
+        (led3): { color: (color), fade: 0ms }
+
+show_player:
+  rank_fb_insert_flash:
+    rank_flash_3:
+      key: rank_fb_insert
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led1: l_final_battle_lit
+        led2: l_mode_top_top_gun
+        led3: l_mode_gun_top_gun
+        color: FFFFFF
+  rank_fb_insert_solid:
+    rank_solid_3:
+      key: rank_fb_insert
+      show_tokens:
+        led1: l_final_battle_lit
+        led2: l_mode_top_top_gun
+        led3: l_mode_gun_top_gun
+        color: FFFFFF
+  rank_fb_insert_off:
+    rank_fb_insert:
+      action: stop
+  rank_fb_barrier_on:
+    sync_flash_mode:
+      key: rank_fb_barrier
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        color: FFFFFF
+  rank_fb_barrier_off:
+    rank_fb_barrier:
+      action: stop
+
+##############################################################################
+## SLIDE PLAYER (mode priority 205 + value)
+##   mode_points_scored popup for the 2.5M and 15M awards.
+##   Promotion slide: hook it to rank_announce_1..5 once it exists.
+##############################################################################
+
+slide_player:
+  # Rank panel: up for the whole ball, just above base_slide, under every
+  # mode slide. Its label/name/bar hide themselves on rank_panel_hidden.
+  mode_rank_promotions_started:
+    rank_panel:
+      action: play
+      priority: 10
+  # Promotion overlay with the callout (under mode slides, like pilot awards)
+  rank_announce_1:
+    rank_promotion:
+      action: play
+      priority: 35
+      expire: 4s
+  rank_announce_2:
+    rank_promotion:
+      action: play
+      priority: 35
+      expire: 4s
+  rank_announce_3:
+    rank_promotion:
+      action: play
+      priority: 35
+      expire: 4s
+  rank_announce_4:
+    rank_promotion:
+      action: play
+      priority: 35
+      expire: 4s
+  rank_announce_5:
+    rank_promotion:
+      action: play
+      priority: 35
+      expire: 4s
+  rank_promote_1:
+    mode_points_scored:
+      action: play
+      priority: 700
+      expire: 2s
+  rank_video_points:
+    mode_points_scored:
+      action: play
+      priority: 700
+      expire: 2s
+
+##############################################################################
+## SOUND PLAYER - PLACEHOLDER callouts (drop the files in
+## modes/rank_promotions/sounds/ with these exact names)
+##############################################################################
+
+sound_player:
+  rank_announce_1:
+    sfx_rank_promotion:
+      bus: effects
+      loops: 0
+    voice_rank_lieutenant_jg:
+      bus: voice
+      loops: 0
+  rank_announce_2:
+    sfx_rank_promotion:
+      bus: effects
+      loops: 0
+    voice_rank_lieutenant:
+      bus: voice
+      loops: 0
+  rank_announce_3:
+    sfx_rank_promotion:
+      bus: effects
+      loops: 0
+    voice_rank_lt_commander:
+      bus: voice
+      loops: 0
+  rank_announce_4:
+    sfx_rank_promotion:
+      bus: effects
+      loops: 0
+    voice_rank_commander:
+      bus: voice
+      loops: 0
+  rank_announce_5:
+    sfx_rank_promotion:
+      bus: effects
+      loops: 0
+    voice_rank_captain:
+      bus: voice
+      loops: 0
+  rank_final_battle_callout_play:
+    voice_final_battle_lit:
+      bus: voice
+      loops: 0
+  rank_video_light:
+    voice_video_mode_lit:
+      bus: voice
+      loops: 0
+  rank_video_points:
+    voice_video_mode_15m:
+      bus: voice
+      loops: 0

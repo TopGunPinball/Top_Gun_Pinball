@@ -20,6 +20,15 @@
 #
 # Counter resets each time ball search starts fresh.
 # Sequence repeats every 10s after completing (matches ball_search_wait_after_iteration).
+#
+# FLIPPER HOLD: ball search is blocked while either flipper is held
+# (config.yaml playfield: block on s_flipper_*_active, unblock only on
+# ball_search_flippers_released, which is posted here once BOTH flippers are
+# up). While a flipper stays held, ball_search_block is re-posted every 5s in
+# case a mode unblocked ball search in the meantime.
+# NOTE: MPF has no "reset countdown" event for the playfield - posting
+# ball_search_reset does nothing. Blocking is what stops the countdown, and
+# unblocking restarts it from the full 15s.
 ####################################################################################
 
 mode:
@@ -56,6 +65,22 @@ variable_player:
 # TIMERS - Repeat servo sequence every 10s (matches ball_search_wait_after_iteration)
 ####################################################################################
 timers:
+  # Re-blocks every 5s while either flipper is held (see FLIPPER HOLD above)
+  ball_search_flipper_hold:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 5s
+    start_running: false
+    restart_on_complete: true
+    control_events:
+      - event: s_flipper_left_active
+        action: restart
+      - event: s_flipper_right_active
+        action: restart
+      - event: ball_search_flippers_released
+        action: stop
+
   ball_search_servo_repeat:
     start_value: 0
     end_value: 1
@@ -71,6 +96,14 @@ timers:
 # EVENT PLAYER - Staggered servo sequence
 ####################################################################################
 event_player:
+
+  # FLIPPER HOLD: keep ball search blocked while a flipper is held
+  timer_ball_search_flipper_hold_complete{device.switches.s_flipper_left.state or device.switches.s_flipper_right.state}:
+    - ball_search_block
+  s_flipper_left_inactive{device.switches.s_flipper_right.state==0}:
+    - ball_search_flippers_released
+  s_flipper_right_inactive{device.switches.s_flipper_left.state==0}:
+    - ball_search_flippers_released
 
   # TRIGGER: Start sequence when ball search begins and on each repeat
   ball_search_started:

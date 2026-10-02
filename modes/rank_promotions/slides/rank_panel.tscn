@@ -1,0 +1,131 @@
+[gd_scene load_steps=9 format=3 uid="uid://dccsvas0ympk4"]
+
+[ext_resource type="Script" uid="uid://dru3usokwlhd3" path="res://addons/mpf-gmc/classes/mpf_slide.gd" id="1_slide"]
+[ext_resource type="Script" uid="uid://bfvhmv2eirpua" path="res://addons/mpf-gmc/classes/mpf_variable.gd" id="2_var"]
+[ext_resource type="FontFile" uid="uid://bmeoubu4ga0gt" path="res://fonts/ITCMachine-Medium Medium.ttf" id="3_machine"]
+[ext_resource type="FontFile" uid="uid://owwgv28vrgts" path="res://fonts/ShareTechMono-Regular.ttf" id="4_mono"]
+[ext_resource type="Script" uid="uid://cxt21btxdp8t5" path="res://modes/rank_promotions/scripts/rank_insignia.gd" id="5_insignia"]
+[ext_resource type="Script" uid="uid://brq3j5gm4vhwj" path="res://modes/rank_promotions/scripts/rank_merit_bar.gd" id="6_bar"]
+[ext_resource type="Script" uid="uid://sqgisnw0uq4j" path="res://modes/rank_promotions/scripts/rank_panel_visibility.gd" id="7_vis"]
+[ext_resource type="Script" uid="uid://b8gu6pupgtacl" path="res://modes/rank_promotions/scripts/rank_screen_watch.gd" id="8_watch"]
+
+[node name="rank_panel" type="Control"]
+process_priority = 200
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("1_slide")
+
+[node name="panel" type="Control" parent="."]
+z_index = 51
+anchors_preset = 0
+mouse_filter = 2
+
+[node name="current_rank_label" type="Label" parent="panel"]
+layout_mode = 0
+offset_left = 1012.0
+offset_top = 259.0
+offset_right = 1218.0
+offset_bottom = 299.0
+theme_override_colors/font_color = Color(0.898039, 0.894118, 0.823529, 0.921569)
+theme_override_fonts/font = ExtResource("3_machine")
+theme_override_font_sizes/font_size = 24
+text = "CURRENT RANK"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="rank_name" type="Label" parent="panel"]
+layout_mode = 0
+offset_left = 995.0
+offset_top = 300.0
+offset_right = 1228.0
+offset_bottom = 341.0
+theme_override_colors/font_color = Color(1, 0.82, 0.25, 1)
+theme_override_colors/font_shadow_color = Color(1, 0.82, 0.25, 0.35)
+theme_override_constants/shadow_offset_x = 0
+theme_override_constants/shadow_offset_y = 0
+theme_override_constants/shadow_outline_size = 8
+theme_override_fonts/font = ExtResource("4_mono")
+theme_override_font_sizes/font_size = 28
+text = "LT COMMANDER"
+horizontal_alignment = 1
+vertical_alignment = 1
+script = ExtResource("2_var")
+variable_name = "rank_name"
+
+[node name="merit_bar" type="Label" parent="panel"]
+layout_mode = 0
+offset_left = 1001.0
+offset_top = 349.0
+offset_right = 1222.0
+offset_bottom = 371.0
+script = ExtResource("6_bar")
+segments = 20
+lit_color = Color(0.45, 0.72, 1, 1)
+unlit_color = Color(0.06, 0.11, 0.2, 1)
+gap = 3.0
+variable_name = "rank_merit_pct"
+initialize_empty = false
+
+[node name="icons" type="Control" parent="."]
+visible = false
+z_index = 51
+anchors_preset = 0
+mouse_filter = 2
+
+[node name="player1_rank_icon" type="Label" parent="icons"]
+visible = false
+layout_mode = 0
+offset_left = 232.0
+offset_top = 585.0
+offset_right = 305.0
+offset_bottom = 616.0
+script = ExtResource("5_insignia")
+variable_type = 2
+variable_name = "player1_rank"
+
+[node name="player2_rank_icon" type="Label" parent="icons"]
+visible = false
+layout_mode = 0
+offset_left = 526.0
+offset_top = 585.0
+offset_right = 611.0
+offset_bottom = 616.0
+script = ExtResource("5_insignia")
+variable_type = 2
+variable_name = "player2_rank"
+
+[node name="player3_rank_icon" type="Label" parent="icons"]
+visible = false
+layout_mode = 0
+offset_left = 828.0
+offset_top = 585.0
+offset_right = 914.0
+offset_bottom = 616.0
+script = ExtResource("5_insignia")
+variable_type = 2
+variable_name = "player3_rank"
+
+[node name="player4_rank_icon" type="Label" parent="icons"]
+visible = false
+layout_mode = 0
+offset_left = 1138.0
+offset_top = 579.0
+offset_right = 1226.0
+offset_bottom = 616.0
+script = ExtResource("5_insignia")
+variable_type = 2
+variable_name = "player4_rank"
+
+[node name="visibility" type="Label" parent="."]
+visible = false
+layout_mode = 0
+offset_right = 1.0
+offset_bottom = 1.0
+script = ExtResource("7_vis")
+targets = Array[NodePath]([NodePath("../panel")])
+variable_name = "rank_panel_hidden"
+
+[node name="screen_watch" type="Node" parent="."]
+script = ExtResource("8_watch")
+send_to_mpf = true
