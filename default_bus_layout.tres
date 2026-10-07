@@ -1,10 +1,17 @@
-[gd_resource type="AudioBusLayout" load_steps=4 format=3 uid="uid://cqy7bla6ovmv2"]
+[gd_resource type="AudioBusLayout" load_steps=6 format=3 uid="uid://cqy7bla6ovmv2"]
 
 [sub_resource type="AudioEffectCompressor" id="AudioEffectCompressor_j3pel"]
 resource_name = "Compressor"
 threshold = -20.0
 ratio = 2.0
 sidechain = &"voice"
+
+[sub_resource type="AudioEffectCompressor" id="AudioEffectCompressor_fbmus"]
+resource_name = "Compressor"
+threshold = -24.0
+ratio = 3.0
+release_ms = 300.0
+sidechain = &"fb_video"
 
 [sub_resource type="AudioEffectCompressor" id="AudioEffectCompressor_n8wo2"]
 resource_name = "Compressor"
@@ -14,6 +21,14 @@ resource_name = "Compressor"
 threshold = -20.0
 ratio = 5.0
 release_ms = 200.0
+sidechain = &"voice"
+
+[sub_resource type="AudioEffectCompressor" id="AudioEffectCompressor_fbvid"]
+resource_name = "Compressor"
+threshold = -30.0
+ratio = 8.0
+attack_us = 2000.0
+release_ms = 400.0
 sidechain = &"voice"
 
 [resource]
@@ -32,6 +47,8 @@ bus/2/volume_db = 3.4424782
 bus/2/send = &"sfx_music"
 bus/2/effect/0/effect = SubResource("AudioEffectCompressor_j3pel")
 bus/2/effect/0/enabled = true
+bus/2/effect/1/effect = SubResource("AudioEffectCompressor_fbmus")
+bus/2/effect/1/enabled = true
 bus/3/name = &"voice"
 bus/3/solo = false
 bus/3/mute = false
@@ -54,3 +71,11 @@ bus/5/mute = false
 bus/5/bypass_fx = false
 bus/5/volume_db = 0.0
 bus/5/send = &"Master"
+bus/6/name = &"fb_video"
+bus/6/solo = false
+bus/6/mute = false
+bus/6/bypass_fx = false
+bus/6/volume_db = 2.6470032
+bus/6/send = &"Master"
+bus/6/effect/0/effect = SubResource("AudioEffectCompressor_fbvid")
+bus/6/effect/0/enabled = true

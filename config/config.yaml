@@ -46,6 +46,10 @@ modes:
   - pilot_awards
   - rank_promotions
   - final_battle
+  - final_battle_p1
+  - final_battle_p2
+  - final_battle_p3
+  - final_battle_p4
   - pilot_training_mission_afterburner
   - pilot_training_mission_dogfight
   - pilot_training_mission_inverted
@@ -227,6 +231,22 @@ player_vars:
   final_battle_qualified:
     initial_value: 0
     value_type: int
+  # FINAL BATTLE (modes/final_battle*) - HUD strings + end-of-game flag
+  fb_phase_title:
+    initial_value: ""
+    value_type: str
+  fb_objective:
+    initial_value: ""
+    value_type: str
+  fb_info:
+    initial_value: ""
+    value_type: str
+  fb_hud_count_label:
+    initial_value: ""
+    value_type: str
+  final_battle_game_over:
+    initial_value: 0
+    value_type: int
   final_battle_played:
     initial_value: 0
     value_type: int
@@ -254,19 +274,25 @@ machine_vars:
     value_type: int
     persist: false
   rank_threshold_2:
-    initial_value: 5
+    initial_value: 2
     value_type: int
     persist: false
   rank_threshold_3:
-    initial_value: 10
+    initial_value: 3
     value_type: int
     persist: false
   rank_threshold_4:
-    initial_value: 15
+    initial_value: 4
     value_type: int
     persist: false
   rank_threshold_5:
-    initial_value: 20
+    initial_value: 5
+    value_type: int
+    persist: false
+
+  # Final Battle: 1 while a ball is held at a lane post (no ball search)
+  fb_holding:
+    initial_value: 0
     value_type: int
     persist: false
 
@@ -580,6 +606,13 @@ event_player:
   ##############################################################################
   s_coin_door_service_4_active{device.switches.s_coin_door.state==1 and mode.top_gun_service.active==False}:
     - service_mode_request
+
+  ##############################################################################
+  # FINAL BATTLE: a player who has played Final Battle is done for the game.
+  # In a multiplayer game their later turns end straight away (no bonus).
+  ##############################################################################
+  ball_started{current_player.final_battle_game_over==1}:
+    - end_ball|1s
 
 ##############################################################################
 # VOLUME CONTROL

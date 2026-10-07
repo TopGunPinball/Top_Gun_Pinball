@@ -1,90 +1,3540 @@
 #config_version=6
 ##############################################################################
-## FINAL BATTLE - PLACEHOLDER (stub until the real wizard mode is coded)
+## FINAL BATTLE - CONTROLLER (wizard mode, based on the Top Gun: Maverick
+## final mission). Runs for the whole Final Battle; the four phase modes
+## (final_battle_p1 .. final_battle_p4) run inside it one at a time.
 ##
 ## FILE NAME: modes/final_battle/config/final_battle.yaml
 ##
-## QUALIFY: rank_promotions.yaml (Captain) -> final_battle_qualified = 1
-## LIGHT:   pilot_mission_qualifier.yaml - TOPGUN completion posts
-##          qualify_final_battle (qualified_mode_number = 11). A pilot mission
-##          lit at the Captain promotion is overridden immediately.
-## START:   center scoop, top priority (pilot_mission_qualifier.yaml).
-##          Also hand-off starts after mystery / video mode, same as a
-##          pending pilot mission.
+## START: center scoop while Final Battle is lit (pilot_mission_qualifier.yaml
+##        posts start_mode_final_battle). Final Battle ALWAYS ends the game for
+##        this player - win, lose (out of jets) or tilt.
 ##
-## STUB FLOW:
-##   ball held in bd_mode_scoop -> placeholder slide 6s -> 25M placeholder
-##   score -> final_battle_complete -> ball released -> mode stops.
-##   final_battle_played = 1 so it can't be relit (TOPGUN goes back to
-##   lighting pilot missions until the real mode ends the game).
+## THIS MODE OWNS:
+##   - intro: final_battle_intro (62s) + final_battle_intro_instructions slide
+##     (first 25s); voice_final_battle_intro starts 48s in
+##   - SKIPPABLE VIDEOS (both flippers): every intro and every lost video.
+##   - VICTORY: final_battle_victory (includes The End); game ends after it
+##     Skipping just ends the video early - the game carries on exactly as if
+##     it had finished.
+##   - ONE MORE TRY: last jet lost in PHASE 1 with at least one jet locked ->
+##     voice_one_more_try (5s), phase 1 won video, phase 2 on the last jet
+##     with the locked jets released (+ the ball already in play, which
+##     waits in the shooter lane with the flippers off until that release).
+##     Lost in phase 1 with nothing locked -> voice_failed_seriously.
+##   - LOST: out of jets -> final_battle_phase<N>_lost for the phase it
+##     happened in (phase 4 + landing use phase4_lost) -> points tally
+##   - jets (lives): 3, +1 with the Wingman perk
+##   - the scoop hold, the unlimited "last ball" save (= lose a jet + new ball),
+##     the single-ball grace save, every multiball device, auto-plunge
+##   - lights: every letter / shot insert off at priority 600 (phase modes
+##     light their own shots at 610); GI color per phase; explosion GI
+##   - SHOT FANFARE: fb_fanfare (every shot made) -> 1s GI flicker in the
+##     phase color + one of 8 random light shows (final_battle_fanfare_01..08
+##     in modes/final_battle/shows/)
+##   - phase sequencing: phase N complete -> won video -> phase N+1
+##   - the points tally, awarding the points, and ending the game
+##   - tilt: Final Battle lost, no points
 ##
-## WHEN CODING THE REAL MODE:
-##   - final_battle_complete is the hook for ending the game
-##     (multiplayer: end only this player's game)
-##   - perks (Afterburner / Missiles etc.) apply here
-##   - remove the mode_final_battle_stopped music entry in base.yaml
+## PERKS (captured at start):
+##   Wingman     +1 jet
+##   Afterburner +30s on the phase 1, 3 and 4 timers
+##   Inverted    +10s on each missile set and flare window
+##   Missiles    one shot completed automatically at the start of each phase
+##
+## OTHER MODES: goose / iceman / MIG letters, Mach scoring, 2X, Buzz the Tower,
+##   pilot awards, hard deck qualifiers, extra ball and the shot callout
+##   randomizers stop when Final Battle starts (mode_final_battle_started is in
+##   their stop_events). TGMB locks keeps running (it owns the lock diverter
+##   and servo) but is neutralized here (nothing lit, collection paused).
+##
+## VIDEOS: Godot plays them from res://addons/artwork/videos/final_battle/
+##   <name>.ogv through final_battle_video (a queue: one step video waits at
+##   most; urgent videos interrupt). Missing files show a 2.5s placeholder card.
+##   MPF -> Godot: fb_video (video, urgent)  Godot -> MPF: fb_video_done (video)
+##
+## SCORING: flat points (no multipliers), banked per phase and awarded at the
+##   tally. A complete run = 75,000,000. Values live in the phase mode files.
 ##############################################################################
 
 mode:
   start_events: start_mode_final_battle
-  stop_events: final_battle_stub_done
+  # ball_ended (not ball_will_end): after a lost Final Battle the ball ends
+  # while the lost video / tally still have to play - the queue relay below
+  # holds ball_ending until fb_end_game. (A ball_ending stop would run before
+  # the relay - mode stop handlers sit at priority + 1 - and cancel it.)
+  stop_events: ball_ended
   priority: 600
   game_mode: true
   use_wait_queue: true
+  # code/final_battle_code.py: the game loop skips a player whose game Final
+  # Battle ended (other players keep their balls)
+  code: final_battle_code.FinalBattleMode
 
+##############################################################################
+## END OF THE PLAYER'S GAME AFTER A LOSS
+## On the last jet the last-ball save is OFF (fb_save_check), so the final
+## drain really ends the ball. ball_ending is held here until the lost video
+## and tally are done (fb_end_game) - no ball is ever kicked out for it.
+##############################################################################
+queue_relay_player:
+  ball_ending{current_player.fb_end_hold==1}:
+    post: fb_ball_end_held
+    wait_for: fb_end_game
+    priority: 1000
+
+##############################################################################
+## BALL HOLD - scoop (intro, phase 1 ball 3, phase 2/4 finales)
+## Stays enabled the whole time; a ball taken out by a multiball (ball_locks)
+## is subtracted automatically, so it never goes stale.
+##############################################################################
 ball_holds:
-  final_battle_scoop_hold:
+  fb_scoop_hold:
     balls_to_hold: 1
     hold_devices: bd_mode_scoop
-    enable_events:
-      - mode_final_battle_started
-    release_one_events:
-      - final_battle_ball_released
-    release_all_events:
-      - mode_final_battle_will_stop
+    enable_events: mode_final_battle_started
+    release_one_events: fb_scoop_release
+    release_all_events: mode_final_battle_will_stop, tilt, fb_end_game
+    # Cleared before every scoop shot that should hold the ball. A ball taken
+    # out by a multiball doesn't count down the hold, so without this the hold
+    # stays "full" and the next scoop shot is ejected right away.
+    reset_events: fb_scoop_hold_reset
 
+##############################################################################
+## BALL SAVES
+##############################################################################
+ball_saves:
+  # LAST-BALL SAVE = losing a jet. Unlimited; only saves the last ball in play.
+  fb_last_ball_save:
+    active_time: 0              # 0 = until disabled
+    only_last_ball: true
+    balls_to_save: -1
+    auto_launch: false          # fb_plunge_delay timer plunges
+    # The saved ball WAITS IN THE TROUGH until fb_save_eject: after the jet
+    # explosion (fb_jet_continue), or at phase 2 for one more try. On the last
+    # jet this save is off (fb_save_check), so the final drain ends the ball.
+    delayed_eject_events: fb_save_eject
+    enable_events: fb_life_save_enable
+    disable_events: fb_life_save_disable, fb_end_game, tilt, ball_will_end
+  # Grace save at the start of single-ball play (no jet lost while active)
+  fb_grace_save:
+    active_time: current_player.fb_grace_secs
+    balls_to_save: -1
+    auto_launch: false
+    enable_events: fb_grace_save_enable
+    disable_events: fb_grace_save_disable, fb_end_game, tilt, ball_will_end
+
+##############################################################################
+## MULTIBALLS (all here so the last-ball save can check their shoot-again)
+##############################################################################
+multiballs:
+  # Locked balls already sitting in the lock when Final Battle starts are
+  # released during the intro (flippers off) and drain.
+  fb_clear_locks_1:
+    ball_count: 1
+    ball_count_type: add
+    shoot_again: 0
+    ball_locks: bd_lock_goose, bd_lock_mav
+    start_events: fb_clear_locks_1
+  fb_clear_locks_2:
+    ball_count: 2
+    ball_count_type: add
+    shoot_again: 0
+    ball_locks: bd_lock_goose, bd_lock_mav
+    start_events: fb_clear_locks_2
+  # PHASE 2: 2 locked jets + the scoop jet join the jet held at the left lane
+  # (one more try: only the jets locked in phase 1 + the ball in play)
+  fb_p2_multiball:
+    ball_count: current_player.fb_omt_balls
+    ball_count_type: total
+    shoot_again: 20s
+    ball_locks: bd_lock_goose, bd_lock_mav, bd_mode_scoop
+    start_events: fb_p2_multiball_start
+    stop_events: fb_mb_stop_saves, fb_end_game
+  # One more jet after every missile set (7s save each)
+  fb_p2_adder:
+    ball_count: 1
+    ball_count_type: add
+    shoot_again: 7s
+    add_a_ball_shoot_again: 7s
+    start_or_add_a_ball_events: fb_p2_add_ball
+    stop_events: fb_mb_stop_saves, fb_end_game
+  # All jets drained -> jet lost -> 4 balls again, 20s save
+  fb_p2_relaunch:
+    ball_count: 4
+    ball_count_type: total
+    shoot_again: 20s
+    start_events: fb_p2_relaunch
+    stop_events: fb_mb_stop_saves, fb_end_game
+  # PHASE 4: both locked jets released (one ejected, the lock servo drops both)
+  fb_p4_multiball:
+    ball_count: 2
+    ball_count_type: total
+    shoot_again: 30s
+    ball_locks: bd_lock_goose, bd_lock_mav
+    start_events: fb_p4_multiball_start
+    stop_events: fb_mb_stop_saves, fb_end_game
+  fb_p4_adder:
+    ball_count: 1
+    ball_count_type: add
+    shoot_again: 30s
+    add_a_ball_shoot_again: 30s
+    start_or_add_a_ball_events: fb_p4_add_ball
+    stop_events: fb_mb_stop_saves, fb_end_game
+  fb_p4_relaunch:
+    ball_count: 2
+    ball_count_type: total
+    shoot_again: 30s
+    start_events: fb_p4_relaunch
+    stop_events: fb_mb_stop_saves, fb_end_game
+
+##############################################################################
+## TIMERS
+##############################################################################
 timers:
-  final_battle_stub_timer:
+  # Intro: ends when final_battle_intro (62s) reports done; 65s = fallback.
+  # Its ticks also time the briefing voice (48s).
+  fb_intro_timer:
     start_value: 0
-    end_value: 6
-    direction: up
+    end_value: 65
     tick_interval: 1s
-    start_running: true
+    control_events:
+      - event: mode_final_battle_started
+        action: start
+      - event: fb_intro_done
+        action: stop
+  # Both-flipper skip ignored for 1s after a skippable video starts
+  fb_skip_lockout:
+    start_value: 0
+    end_value: 1
+    tick_interval: 1s
+    control_events:
+      - event: fb_skippable_on
+        action: restart
+  # Auto-plunge any ball that lands in the shooter lane
+  # fb_omt_hold = 1 keeps the ball in the shooter lane:
+  #   one more try - until phase 2 releases the locked jets
+  #   out of jets  - for good (the game is over)
+  fb_plunge_delay:
+    start_value: 0
+    end_value: 1
+    tick_interval: 1s
+    control_events:
+      - event: s_shooter_lane_active{current_player.fb_omt_hold==0}
+        action: restart
+      - event: fb_one_more_try
+        action: stop
+      - event: fb_jet_lost_final
+        action: stop
+      - event: fb_omt_release{device.switches.s_shooter_lane.state}
+        action: restart
+      - event: s_shooter_lane_inactive
+        action: stop
+  # Fallback if a won/failed video never reports done
+  fb_transition_timeout:
+    start_value: 0
+    end_value: 90
+    tick_interval: 1s
+    control_events:
+      - event: fb_transition_start
+        action: restart
+      - event: fb_advance
+        action: stop
+  # Tally rows reveal every 1.5s (8 rows), then 3 more ticks before done
+  fb_tally_timer:
+    start_value: 0
+    end_value: 11
+    tick_interval: 1500ms
+    control_events:
+      - event: fb_tally_start
+        action: restart
+  # Shot value: held at 1,500,000 for 3s, then falls smoothly to 500,000
+  # over 15s (updated every 200ms). Restarts every time a shot is made (and at
+  # each phase / missile set). 90 ticks = 18s; ticks 90-76 = the 3s hold.
+  fb_shot_value_timer:
+    start_value: 90
+    end_value: 0
+    direction: down
+    tick_interval: 200ms
+    control_events:
+      - event: fb_step_made
+        action: restart
+      - event: fb_shot_value_reset
+        action: restart
+  # Shoot Again insert flashes while a ball save is on; off 2s before it ends.
+  # (counts up; fb_sa_off_at = save length - 2)
+  fb_sa_timer:
+    start_value: 0
+    end_value: 120
+    tick_interval: 1s
+    control_events:
+      - event: fb_sa_start
+        action: restart
+      - event: fb_sa_off
+        action: stop
+  # Phase 2 instructions: 16s into the phase 1 won video
+  fb_p2_instr_delay:
+    start_value: 0
+    end_value: 16
+    tick_interval: 1s
+    control_events:
+      - event: fb_p2_instr_arm
+        action: restart
+      - event: fb_p2_begin
+        action: stop
+  fb_end_timeout:
+    start_value: 0
+    end_value: 240
+    tick_interval: 1s
+    control_events:
+      - event: fb_end_timeout_start
+        action: restart
 
+##############################################################################
+## VARIABLE PLAYER
+##############################################################################
 variable_player:
   mode_final_battle_started:
-    pilot_mode_active: { action: set, int: 1 }        # blocks scoop routing, hides rank panel
+    # perks first, before anything reacts to pilot_mode_active
+    fb_perk_missiles: { action: set, int: current_player.missiles_perk_active }
+    fb_perk_afterburner: { action: set, int: current_player.afterburner_perk_active }
+    fb_perk_inverted: { action: set, int: current_player.training_mission_inverted_perk_active }
+    fb_perk_wingman: { action: set, int: current_player.wingman_perk_active }
+    fb_jets: { action: set, int: 3 + current_player.wingman_perk_active }
+    # neutralize multiball / lock progress (this player's game ends here)
+    multiball_qualified: { action: set, int: 0 }
+    lock_goose_lit: { action: set, int: 0 }
+    lock_mav_lit: { action: set, int: 0 }
+    lock_collection_paused: { action: set, int: 1 }
+    pilot_mode_active: { action: set, int: 1 }
     letter_collection_paused: { action: set, int: 1 }
     qualified_mode_number: { action: set, int: 0 }
     final_battle_played: { action: set, int: 1 }
-  final_battle_complete:
-    score: { action: add, int: 25000000 }              # PLACEHOLDER value
-    mode_points_scored: { action: set, int: 25000000 }
-  # (This mode's handlers are gone before its own _stopped event, so clear
-  #  the flags on will_stop.)
-  mode_final_battle_will_stop:
-    pilot_mode_active: { action: set, int: 0 }
-    letter_collection_paused: { action: set, int: 0 }
+    fb_phase: { action: set, int: 0 }
+    fb_step: { action: set, int: 0 }
+    fb_losing: { action: set, int: 0 }
+    fb_omt: { action: set, int: 0 }          # 1 = phase 2 reached via "one more try"
+    fb_omt_balls: { action: set, int: 4 }    # balls phase 2 starts with
+    fb_omt_hold: { action: set, int: 0 }     # 1 = keep the ball in the shooter lane
+    fb_end_hold: { action: set, int: 0 }     # 1 = hold ball_ending for the lost video + tally
+    fb_hud_text_on: { action: set, int: 1 }  # 0 = HUD centre text hidden (tally)
+    fb_intro_over: { action: set, int: 0 }
+    fb_skippable: { action: set, int: 1 }
+    fb_lost_phase: { action: set, int: 0 }
+    fb_transition: { action: set, int: 0 }
+    fb_result: { action: set, int: 0 }
+    fb_tally_step: { action: set, int: 0 }
+    fb_points_awarded: { action: set, int: 0 }
+    fb_shot_value: { action: set, int: 1500000 }
+    fb_p2_instr_shown: { action: set, int: 0 }
+    fb_timer_on: { action: set, int: 0 }
+    fb_tally_mult: { action: set, int: 1 }
+    fb_tally_award: { action: set, int: 0 }
+    fb_missiles_evaded: { action: set, int: 0 }
+    fb_points_p1: { action: set, int: 0 }
+    fb_points_p2: { action: set, int: 0 }
+    fb_points_p3: { action: set, int: 0 }
+    fb_points_p4: { action: set, int: 0 }
+    fb_points_p5: { action: set, int: 0 }
+    fb_mission_points: { action: set, int: 0 }
+    fb_timer: { action: set, int: 0 }
+    fb_phase_title: { action: set, string: "FINAL BATTLE" }
+    fb_objective: { action: set, string: "MISSION BRIEFING" }
+    fb_info: { action: set, string: "" }
 
+  fb_intro_done:
+    fb_intro_over: { action: set, int: 1 }
+
+  fb_hold_on:
+    fb_holding: { action: set_machine, int: 1 }
+  fb_hold_off:
+    fb_holding: { action: set_machine, int: 0 }
+
+  # Skippable videos
+  fb_skippable_on:
+    fb_skippable: { action: set, int: 1 }
+  fb_video_done{video=="final_battle_phase1_won"}:
+    fb_skippable: { action: set, int: 0 }
+  fb_video_done{video=="final_battle_phase2_won"}:
+    fb_skippable: { action: set, int: 0 }
+  fb_video_done{video=="final_battle_phase3_won"}:
+    fb_skippable: { action: set, int: 0 }
+  fb_video_done{video=="final_battle_phase4_step_9"}:
+    fb_skippable: { action: set, int: 0 }
+  fb_skip_video:
+    fb_skippable: { action: set, int: 0 }
+  fb_video_done{video=="final_battle_intro"}:
+    fb_skippable: { action: set, int: 0 }
+  fb_video_done{video=="final_battle_phase2_intro"}:
+    fb_skippable: { action: set, int: 0 }
+  fb_video_done{video=="final_battle_phase3_intro"}:
+    fb_skippable: { action: set, int: 0 }
+  fb_video_done{video=="final_battle_phase4_intro"}:
+    fb_skippable: { action: set, int: 0 }
+  fb_video_done{video=="final_battle_phase1_lost"}:
+    fb_skippable: { action: set, int: 0 }
+  fb_video_done{video=="final_battle_phase2_lost"}:
+    fb_skippable: { action: set, int: 0 }
+  fb_video_done{video=="final_battle_phase3_lost"}:
+    fb_skippable: { action: set, int: 0 }
+  fb_video_done{video=="final_battle_phase4_lost"}:
+    fb_skippable: { action: set, int: 0 }
+
+  # Points banked by the phase modes (fb_points_add with phase + points)
+  fb_points_add{phase==1}:
+    fb_points_p1: { action: add, int: points }
+    fb_mission_points: { action: add, int: points }
+  fb_points_add{phase==2}:
+    fb_points_p2: { action: add, int: points }
+    fb_mission_points: { action: add, int: points }
+  fb_points_add{phase==3}:
+    fb_points_p3: { action: add, int: points }
+    fb_mission_points: { action: add, int: points }
+  fb_points_add{phase==4}:
+    fb_points_p4: { action: add, int: points }
+    fb_mission_points: { action: add, int: points }
+  fb_points_add{phase==5}:
+    fb_points_p5: { action: add, int: points }
+    fb_mission_points: { action: add, int: points }
+
+  # Phase starts
+  fb_p1_begin:
+    fb_phase: { action: set, int: 1 }
+    fb_step: { action: set, int: 0 }
+    fb_transition: { action: set, int: 0 }
+    fb_phase_title: { action: set, string: "PHASE 1 - CANYON RUN" }
+    fb_info: { action: set, string: "LOCK ALL 4 JETS" }
+  # ONE MORE TRY (lost the last jet in phase 1 with jets locked): keep the
+  # last jet (shows 1 = last chance), block further losses until phase 2,
+  # remember the ball count: every locked jet + the ball already in play.
+  fb_one_more_try:
+    fb_omt_hold: { action: set, int: 1 }
+    fb_omt: { action: set, int: 1 }
+    fb_omt_balls: { action: set, int: current_player.fb_hud_count + 1 }
+    fb_losing: { action: set, int: 1 }
+  fb_p2_begin{current_player.fb_omt==1}:
+    fb_losing: { action: set, int: 0 }
+    fb_omt_hold: { action: set, int: 0 }
+  fb_p2_begin:
+    fb_phase: { action: set, int: 2 }
+    fb_step: { action: set, int: 0 }
+    fb_transition: { action: set, int: 0 }
+    fb_phase_title: { action: set, string: "PHASE 2 - EVADE THE MISSILES" }
+    fb_info: { action: set, string: "HIT ALL 3 SHOTS BEFORE THE MISSILE FIRES" }
+  fb_p3_begin:
+    fb_phase: { action: set, int: 3 }
+    fb_step: { action: set, int: 0 }
+    fb_transition: { action: set, int: 0 }
+    fb_phase_title: { action: set, string: "PHASE 3 - ESCAPE IN THE F-14" }
+    fb_info: { action: set, string: "HIT EVERY GREEN SHOT, THEN LOCK 2 BALLS" }
+  fb_p4_begin:
+    fb_phase: { action: set, int: 4 }
+    fb_step: { action: set, int: 0 }
+    fb_transition: { action: set, int: 0 }
+    fb_phase_title: { action: set, string: "PHASE 4 - DOGFIGHT" }
+    fb_info: { action: set, string: "SHOOT DOWN THE BANDITS" }
+  fb_landing_begin:
+    fb_phase: { action: set, int: 5 }
+    fb_step: { action: set, int: 0 }
+    fb_transition: { action: set, int: 0 }
+    fb_phase_title: { action: set, string: "LAND THE JET" }
+    fb_info: { action: set, string: "BRING HER HOME" }
+
+  # Phase complete -> waiting on the won video
+  fb_p1_complete:
+    fb_transition: { action: set, int: 1 }
+  fb_p2_complete:
+    fb_transition: { action: set, int: 2 }
+  fb_p3_complete:
+    fb_transition: { action: set, int: 3 }
+  fb_p4_complete:
+    fb_transition: { action: set, int: 4 }
+
+  # Step counter for step videos (phase modes post fb_step_made)
+  fb_step_made:
+    fb_step: { action: add, int: 1 }
+    fb_shot_value: { action: set, int: 1500000 }
+
+  # Jets
+  fb_jet_lost_normal:
+    fb_jets: { action: add, int: -1 }
+    fb_losing: { action: set, int: 1 }
+  fb_jet_lost_final:
+    fb_lost_phase: { action: set, int: current_player.fb_phase }
+    fb_jets: { action: add, int: -1 }
+    fb_losing: { action: set, int: 1 }
+    fb_omt_hold: { action: set, int: 1 }   # game over: never plunge again
+    fb_end_hold: { action: set, int: 1 }   # the ball may end now: hold it for the tally
+  # Last jet drained (the last-ball save is off on the last jet): the ball
+  # is ending -> that's the final loss. Hold the ball end for the tally.
+  ball_will_end{current_player.fb_phase>=1 and current_player.fb_phase<=5 and current_player.fb_losing==0}:
+    fb_end_hold: { action: set, int: 1 }
+  fb_jet_continue:
+    fb_losing: { action: set, int: 0 }
+  fb_loss_drain:
+    fb_loss_reason: { action: set, int: 1 }
+  fb_loss_timer:
+    fb_loss_reason: { action: set, int: 2 }
+
+  # Results
+  fb_victory:
+    fb_hud_text_on: { action: set, int: 0 }
+    fb_result: { action: set, int: 1 }
+    fb_phase: { action: set, int: 9 }
+  fb_failed:
+    fb_hud_text_on: { action: set, int: 0 }
+    fb_result: { action: set, int: 2 }
+    fb_phase: { action: set, int: 9 }
+
+  # Tally: rows 1-5 phases, 6 subtotal, 7 jets remaining (x), 8 award.
+  # Multiplier = jets remaining (x1 if Final Battle was lost with none left)
+  fb_tally_start{current_player.fb_jets>=1}:
+    fb_tally_mult: { action: set, int: current_player.fb_jets }
+    fb_tally_award: { action: set, int: current_player.fb_mission_points * current_player.fb_jets }
+  fb_tally_start{current_player.fb_jets<1}:
+    fb_tally_mult: { action: set, int: 1 }
+    fb_tally_award: { action: set, int: current_player.fb_mission_points }
+  timer_fb_tally_timer_tick{ticks<=8}:
+    fb_tally_step: { action: set, int: ticks }
+  timer_fb_tally_timer_tick{ticks==8 and current_player.fb_points_awarded==0}:
+    score: { action: add, int: current_player.fb_tally_award }
+    fb_points_awarded: { action: set, int: 1 }
+  # Safety: the game is ending before the tally reached its total
+  fb_end_game{current_player.fb_points_awarded==0 and current_player.fb_result>=1 and current_player.fb_jets>=1}:
+    score: { action: add, int: current_player.fb_mission_points * current_player.fb_jets }
+    fb_points_awarded: { action: set, int: 1 }
+  fb_end_game{current_player.fb_points_awarded==0 and current_player.fb_result>=1 and current_player.fb_jets<1}:
+    score: { action: add, int: current_player.fb_mission_points }
+    fb_points_awarded: { action: set, int: 1 }
+
+  # Shot value (see fb_shot_value_timer)
+  timer_fb_shot_value_timer_tick{ticks<75}:
+    fb_shot_value: { action: set, int: 500000 + ticks * 1000000 / 75 }
+  fb_shot_value_reset:
+    fb_shot_value: { action: set, int: 1500000 }
+  timer_fb_shot_value_timer_complete:
+    fb_shot_value: { action: set, int: 500000 }
+
+  # Shoot Again light: when to turn it off (save length - 2s)
+  fb_grace_save_enable:
+    fb_sa_off_at: { action: set, int: current_player.fb_grace_secs - 2 }
+  multiball_fb_p2_multiball_started:
+    fb_sa_off_at: { action: set, int: 18 }
+  multiball_fb_p2_relaunch_started:
+    fb_sa_off_at: { action: set, int: 18 }
+  fb_p2_add_ball:
+    fb_sa_off_at: { action: set, int: 5 }
+  multiball_fb_p4_multiball_started:
+    fb_sa_off_at: { action: set, int: 28 }
+  multiball_fb_p4_relaunch_started:
+    fb_sa_off_at: { action: set, int: 28 }
+  fb_p4_add_ball:
+    fb_sa_off_at: { action: set, int: 28 }
+
+  # Phase 2 instructions slide shown during the phase 1 won video?
+  fb_p2_instr_show:
+    fb_p2_instr_shown: { action: set, int: 1 }
+
+  # HUD timer only while a phase timer is actually running
+  fb_timer_show:
+    fb_timer_on: { action: set, int: 1 }
+  fb_timer_hide:
+    fb_timer_on: { action: set, int: 0 }
+
+  # End of the player's game: no more balls, no extra balls
+  # End of THIS player's game: final_battle_game_over makes the game loop skip
+  # them from now on (code/final_battle_code.py) - the other players keep
+  # their balls. (No more forcing ball = balls_per_game: that ended everyone's
+  # game when this was the last player, and gave extra turns otherwise.)
+  fb_end_game:
+    extra_balls: { action: set, int: 0 }
+    final_battle_game_over: { action: set, int: 1 }
+    fb_end_hold: { action: set, int: 0 }
+  # Tilt during Final Battle: this player's game is over (the game loop skips
+  # them from now on - see code/final_battle_code.py)
+  tilt:
+    extra_balls: { action: set, int: 0 }
+    final_battle_game_over: { action: set, int: 1 }
+    fb_phase: { action: set, int: 9 }
+
+##############################################################################
+## EVENT PLAYER
+##############################################################################
 event_player:
-  mode_final_battle_started:
-    - barrier_raise
-  timer_final_battle_stub_timer_complete:
-    - final_battle_complete          # HOOK: end the game here when coded
-    - scoop_ball_release             # drops barrier, raises it after the ball leaves
-    - final_battle_ball_released|400ms
-    - final_battle_stub_done|2s
+  ##############################################
+  ## WON VIDEOS are skippable too (both flippers), once they actually start
+  ## (Godot reports fb_video_started)
+  ##############################################
+  fb_video_started{video=="final_battle_phase2_won"}:
+    - fb_skippable_on
+  fb_video_started{video=="final_battle_phase3_won"}:
+    - fb_skippable_on
+  fb_video_started{video=="final_battle_phase4_step_9"}:
+    - fb_skippable_on
+  fb_video_started{video=="final_battle_phase1_won"}:
+    - fb_skippable_on
+    - fb_p2_instr_arm
 
+  ##############################################
+  ## PHASE 2 INSTRUCTIONS: 16s into the phase 1 won video, off when the balls
+  ## are released. Won video skipped before 16s -> shown for 10s at release.
+  ##############################################
+  timer_fb_p2_instr_delay_complete{current_player.fb_transition==1}:
+    - fb_p2_instr_show
+
+  ##############################################
+  ## SHOOT AGAIN LIGHT (flashes during any Final Battle ball save)
+  ##############################################
+  fb_grace_save_enable:
+    - fb_sa_start
+  multiball_fb_p2_multiball_started:
+    - fb_sa_start
+  multiball_fb_p2_relaunch_started:
+    - fb_sa_start
+  fb_p2_add_ball:
+    - fb_sa_start
+  multiball_fb_p4_multiball_started:
+    - fb_sa_start
+  multiball_fb_p4_relaunch_started:
+    - fb_sa_start
+  fb_p4_add_ball:
+    - fb_sa_start
+  timer_fb_sa_timer_tick{ticks>=current_player.fb_sa_off_at}:
+    - fb_sa_off
+  fb_grace_save_disable:
+    - fb_sa_off
+  fb_mb_stop_saves:
+    - fb_sa_off
+
+  ##############################################
+  ## HUD TIMER: shown in phases 1-3 and the landing; hidden for intros and the
+## phase 4 bandits
+  ##############################################
+  fb_p2_begin:
+    - fb_timer_show
+    - fb_shot_value_reset
+  # One more try: the waiting ball goes in as the locked jets are released
+  mode_final_battle_p2_started{current_player.fb_omt==1}:
+    - enable_normal_flippers
+    - fb_hold_off
+    - fb_save_eject     # the held ball leaves the trough now...
+    - fb_omt_release    # ...and is plunged (if it's already in the lane)
+  fb_p3_begin:
+    - fb_timer_hide
+  fb_p4_begin:
+    - fb_timer_hide
+
+  ##############################################
+  ## SCOOP OUT: kick the held ball out (barrier drops, ball out, barrier back
+  ## up - scoop_ball_release in pilot_mission_qualifier.yaml). If the scoop is
+  ## empty, just make sure the barrier is up.
+  ##############################################
+  fb_scoop_out{device.switches.s_mode_start.state}:
+    - scoop_ball_release
+    - fb_scoop_release
+    - lock_disable_scoop_for_mode
+  fb_scoop_out{not device.switches.s_mode_start.state}:
+    - barrier_raise
+
+  ##############################################
+  ## BALL HELD BY A POST (left / right lane): no ball search while it's held.
+  ## (A ball in the scoop or the lock is off the playfield, so ball search
+  ## already ignores it.) machine var fb_holding also stops the both-flippers-
+  ## released unblock in ball_search_servos.yaml from undoing this.
+  ##############################################
+  fb_left_post_hold:
+    - fb_hold_on
+  fb_right_post_hold:
+    - fb_hold_on
+  fb_left_post_release:
+    - fb_hold_off
+  fb_hold_on:
+    - ball_search_block
+  fb_hold_off:
+    - ball_search_unblock
+  mode_final_battle_will_stop:
+    - fb_hold_off
+
+  ##############################################
+  ## MUSIC: plays whenever a phase is being played; silent during intro, won
+  ## and lost videos. fb_music_go starts the current phase's track.
+  ##############################################
+  fb_music_go{current_player.fb_phase==1}:
+    - fb_music_p1
+  fb_music_go{current_player.fb_phase==2}:
+    - fb_music_p2
+  fb_music_go{current_player.fb_phase==3}:
+    - fb_music_p3
+  fb_music_go{current_player.fb_phase==4}:
+    - fb_music_p4
+  # Landing (fb_phase 5, set on fb_landing_begin = ball kicked out of the
+  # scoop) has its own track
+  fb_music_go{current_player.fb_phase==5}:
+    - fb_music_landing
+  fb_video_done{video=="final_battle_phase2_intro" and current_player.fb_phase==2}:
+    - fb_music_go
+  fb_p3_go:
+    - fb_music_go
+    - fb_timer_show
+    - fb_shot_value_reset
+  fb_p4_go:
+    - fb_music_go
+    - fb_shot_value_reset
+  fb_landing_begin:
+    - fb_music_go
+    - fb_shot_value_reset
+    - fb_timer_show
+
+  ##############################################
+  ## VIDEO REQUESTS (fb_vu_<name> = urgent: interrupts + clears the queue)
+  ## Step videos: phase modes post fb_step_made; the counter goes up, then
+  ## fb_step_video picks phase<N>_step_<count> (queued).
+  ##############################################
+  fb_step_made:
+    - fb_step_video
+  # FANFARE: every shot made -> GI flicker + random light show.
+  # Phase 2 posts fb_fanfare itself (once per hit, even when a stack of
+  # missiles awards 2-3 steps), so it is left out here.
+  fb_step_made{current_player.fb_phase!=2}:
+    - fb_fanfare
+  fb_vu_final_battle_intro:
+    fb_video:
+      video: final_battle_intro
+      urgent: 1
+    fb_skippable_on: {}
+  fb_vu_final_battle_phase1_won:
+    fb_video:
+      video: final_battle_phase1_won
+      urgent: 1
+  fb_vu_final_battle_phase2_won:
+    fb_video:
+      video: final_battle_phase2_won
+      urgent: 1
+  fb_vu_final_battle_phase3_won:
+    fb_video:
+      video: final_battle_phase3_won
+      urgent: 1
+  fb_vu_final_battle_phase2_intro:
+    fb_video:
+      video: final_battle_phase2_intro
+      urgent: 1
+    fb_skippable_on: {}
+    fb_music_stop: {}
+  fb_vu_final_battle_phase3_intro:
+    fb_video:
+      video: final_battle_phase3_intro
+      urgent: 1
+    fb_skippable_on: {}
+    fb_music_stop: {}
+  fb_vu_final_battle_phase4_intro:
+    fb_video:
+      video: final_battle_phase4_intro
+      urgent: 1
+    fb_skippable_on: {}
+    fb_music_stop: {}
+  fb_vu_final_battle_phase1_lost:
+    fb_video:
+      video: final_battle_phase1_lost
+      urgent: 1
+    fb_skippable_on: {}
+  fb_vu_final_battle_phase2_lost:
+    fb_video:
+      video: final_battle_phase2_lost
+      urgent: 1
+    fb_skippable_on: {}
+  fb_vu_final_battle_phase3_lost:
+    fb_video:
+      video: final_battle_phase3_lost
+      urgent: 1
+    fb_skippable_on: {}
+  fb_vu_final_battle_phase4_lost:
+    fb_video:
+      video: final_battle_phase4_lost
+      urgent: 1
+    fb_skippable_on: {}
+  fb_vq_final_battle_phase1_won:
+    fb_video:
+      video: final_battle_phase1_won
+      urgent: 0
+  fb_vq_final_battle_phase2_won:
+    fb_video:
+      video: final_battle_phase2_won
+      urgent: 0
+  fb_vq_final_battle_phase3_won:
+    fb_video:
+      video: final_battle_phase3_won
+      urgent: 0
+  # Phase 4 has no separate won video - phase4_step_9 is used
+  fb_vq_final_battle_phase4_won:
+    fb_video:
+      video: final_battle_phase4_step_9
+      urgent: 0
+  fb_vq_final_battle_phase2_evade1:
+    fb_video:
+      video: final_battle_phase2_evade1
+      urgent: 0
+  fb_vq_final_battle_phase2_evade2:
+    fb_video:
+      video: final_battle_phase2_evade2
+      urgent: 0
+  fb_vq_final_battle_phase2_evade3:
+    fb_video:
+      video: final_battle_phase2_evade3
+      urgent: 0
+  fb_vq_final_battle_phase2_evade4:
+    fb_video:
+      video: final_battle_phase2_evade4
+      urgent: 0
+  fb_vq_final_battle_phase2_evade5:
+    fb_video:
+      video: final_battle_phase2_evade5
+      urgent: 0
+  fb_vq_final_battle_phase2_evade6:
+    fb_video:
+      video: final_battle_phase2_evade6
+      urgent: 0
+  fb_vq_final_battle_phase2_missiles1:
+    fb_video:
+      video: final_battle_phase2_missiles1
+      urgent: 0
+  fb_vq_final_battle_phase2_missiles2:
+    fb_video:
+      video: final_battle_phase2_missiles2
+      urgent: 0
+  fb_vq_final_battle_phase2_missiles3:
+    fb_video:
+      video: final_battle_phase2_missiles3
+      urgent: 0
+  fb_vu_final_battle_jet_explosion:
+    fb_video:
+      video: final_battle_jet_explosion
+      urgent: 1
+  fb_vu_final_battle_phase2_flare1:
+    fb_video:
+      video: final_battle_phase2_flare1
+      urgent: 1
+  fb_vu_final_battle_phase2_flare2:
+    fb_video:
+      video: final_battle_phase2_flare2
+      urgent: 1
+  fb_vu_final_battle_phase2_flare3:
+    fb_video:
+      video: final_battle_phase2_flare3
+      urgent: 1
+  fb_vu_final_battle_phase2_flare4:
+    fb_video:
+      video: final_battle_phase2_flare4
+      urgent: 1
+  fb_vu_final_battle_victory:
+    fb_video:
+      video: final_battle_victory
+      urgent: 1
+  fb_step_video{current_player.fb_phase==1 and current_player.fb_step==1}:
+    fb_video:
+      video: final_battle_phase1_step_1
+      urgent: 0
+  fb_step_video{current_player.fb_phase==1 and current_player.fb_step==2}:
+    fb_video:
+      video: final_battle_phase1_step_2
+      urgent: 0
+  fb_step_video{current_player.fb_phase==1 and current_player.fb_step==3}:
+    fb_video:
+      video: final_battle_phase1_step_3
+      urgent: 0
+  fb_step_video{current_player.fb_phase==1 and current_player.fb_step==4}:
+    fb_video:
+      video: final_battle_phase1_step_4
+      urgent: 0
+  fb_step_video{current_player.fb_phase==1 and current_player.fb_step==5}:
+    fb_video:
+      video: final_battle_phase1_step_5
+      urgent: 0
+  fb_step_video{current_player.fb_phase==1 and current_player.fb_step==6}:
+    fb_video:
+      video: final_battle_phase1_step_6
+      urgent: 0
+  fb_step_video{current_player.fb_phase==1 and current_player.fb_step==7}:
+    fb_video:
+      video: final_battle_phase1_step_7
+      urgent: 0
+  fb_step_video{current_player.fb_phase==1 and current_player.fb_step==8}:
+    fb_video:
+      video: final_battle_phase1_step_8
+      urgent: 0
+  fb_step_video{current_player.fb_phase==1 and current_player.fb_step==9}:
+    fb_video:
+      video: final_battle_phase1_step_9
+      urgent: 0
+  fb_step_video{current_player.fb_phase==1 and current_player.fb_step==10}:
+    fb_video:
+      video: final_battle_phase1_step_10
+      urgent: 0
+  fb_step_video{current_player.fb_phase==1 and current_player.fb_step==11}:
+    fb_video:
+      video: final_battle_phase1_step_11
+      urgent: 0
+  fb_step_video{current_player.fb_phase==1 and current_player.fb_step==12}:
+    fb_video:
+      video: final_battle_phase1_step_12
+      urgent: 0
+  fb_step_video{current_player.fb_phase==1 and current_player.fb_step==13}:
+    fb_video:
+      video: final_battle_phase1_step_13
+      urgent: 0
+  fb_step_video{current_player.fb_phase==1 and current_player.fb_step==14}:
+    fb_video:
+      video: final_battle_phase1_step_14
+      urgent: 0
+  fb_step_video{current_player.fb_phase==1 and current_player.fb_step==15}:
+    fb_video:
+      video: final_battle_phase1_step_15
+      urgent: 0
+  fb_step_video{current_player.fb_phase==1 and current_player.fb_step==16}:
+    fb_video:
+      video: final_battle_phase1_step_16
+      urgent: 0
+  fb_step_video{current_player.fb_phase==1 and current_player.fb_step==17}:
+    fb_video:
+      video: final_battle_phase1_step_17
+      urgent: 0
+  fb_step_video{current_player.fb_phase==3 and current_player.fb_step==1}:
+    fb_video:
+      video: final_battle_phase3_step_1
+      urgent: 0
+  fb_step_video{current_player.fb_phase==3 and current_player.fb_step==2}:
+    fb_video:
+      video: final_battle_phase3_step_2
+      urgent: 0
+  fb_step_video{current_player.fb_phase==3 and current_player.fb_step==3}:
+    fb_video:
+      video: final_battle_phase3_step_3
+      urgent: 0
+  fb_step_video{current_player.fb_phase==3 and current_player.fb_step==4}:
+    fb_video:
+      video: final_battle_phase3_step_4
+      urgent: 0
+  fb_step_video{current_player.fb_phase==3 and current_player.fb_step==5}:
+    fb_video:
+      video: final_battle_phase3_step_5
+      urgent: 0
+  fb_step_video{current_player.fb_phase==3 and current_player.fb_step==6}:
+    fb_video:
+      video: final_battle_phase3_step_6
+      urgent: 0
+  fb_step_video{current_player.fb_phase==3 and current_player.fb_step==7}:
+    fb_video:
+      video: final_battle_phase3_step_7
+      urgent: 0
+  fb_step_video{current_player.fb_phase==3 and current_player.fb_step==8}:
+    fb_video:
+      video: final_battle_phase3_step_8
+      urgent: 0
+  fb_step_video{current_player.fb_phase==3 and current_player.fb_step==9}:
+    fb_video:
+      video: final_battle_phase3_step_9
+      urgent: 0
+  fb_step_video{current_player.fb_phase==4 and current_player.fb_step==1}:
+    fb_video:
+      video: final_battle_phase4_step_1
+      urgent: 0
+  fb_step_video{current_player.fb_phase==4 and current_player.fb_step==2}:
+    fb_video:
+      video: final_battle_phase4_step_2
+      urgent: 0
+  fb_step_video{current_player.fb_phase==4 and current_player.fb_step==3}:
+    fb_video:
+      video: final_battle_phase4_step_3
+      urgent: 0
+  fb_step_video{current_player.fb_phase==4 and current_player.fb_step==4}:
+    fb_video:
+      video: final_battle_phase4_step_4
+      urgent: 0
+  fb_step_video{current_player.fb_phase==4 and current_player.fb_step==5}:
+    fb_video:
+      video: final_battle_phase4_step_5
+      urgent: 0
+  fb_step_video{current_player.fb_phase==4 and current_player.fb_step==6}:
+    fb_video:
+      video: final_battle_phase4_step_6
+      urgent: 0
+  fb_step_video{current_player.fb_phase==4 and current_player.fb_step==7}:
+    fb_video:
+      video: final_battle_phase4_step_7
+      urgent: 0
+  fb_step_video{current_player.fb_phase==4 and current_player.fb_step==8}:
+    fb_video:
+      video: final_battle_phase4_step_8
+      urgent: 0
+  fb_step_video{current_player.fb_phase==5 and current_player.fb_step==1}:
+    fb_video:
+      video: final_battle_landing_step_1
+      urgent: 0
+  fb_step_video{current_player.fb_phase==5 and current_player.fb_step==2}:
+    fb_video:
+      video: final_battle_landing_step_2
+      urgent: 0
+  fb_step_video{current_player.fb_phase==5 and current_player.fb_step==3}:
+    fb_video:
+      video: final_battle_landing_step_3
+      urgent: 0
+  fb_step_video{current_player.fb_phase==5 and current_player.fb_step==4}:
+    fb_video:
+      video: final_battle_landing_step_4
+      urgent: 0
+
+  ##############################################
+  ## START / INTRO
+  ##############################################
+  # Intro video 1s after the start: the Godot video player slide is created
+  # when Final Battle starts and has to be listening before the request goes
+  # out (sent at the same instant, the request was missed).
+  mode_final_battle_started:
+    - fb_vu_final_battle_intro|1s
+    - disable_normal_flippers
+    - barrier_raise|1500ms
+  # Balls already in the lock (from an earlier TGMB lock) are released now
+  mode_final_battle_started{device.switches.s_lock_goose.state and device.switches.s_lock_mav.state}:
+    - lock_mech_release
+    - fb_clear_locks_2
+  mode_final_battle_started{(device.switches.s_lock_goose.state or device.switches.s_lock_mav.state) and not (device.switches.s_lock_goose.state and device.switches.s_lock_mav.state)}:
+    - lock_mech_release
+    - fb_clear_locks_1
+
+  # SKIP (both flippers) any skippable video: it just ends early, and its
+  # fb_video_done carries the game on exactly as if it had finished
+  s_flipper_left_active{current_player.fb_skippable==1 and device.switches.s_flipper_right.state and not device.timers.fb_skip_lockout.running}:
+    - fb_skip_video
+  s_flipper_right_active{current_player.fb_skippable==1 and device.switches.s_flipper_left.state and not device.timers.fb_skip_lockout.running}:
+    - fb_skip_video
+  fb_skip_video:
+    - fb_video_clear
+
+  # Intro over: video finished / skipped (or the 65s fallback)
+  fb_video_done{video=="final_battle_intro" and current_player.fb_phase==0 and current_player.fb_intro_over==0}:
+    - fb_intro_done
+  timer_fb_intro_timer_complete{current_player.fb_intro_over==0}:
+    - fb_intro_done
+  timer_fb_intro_timer_tick{ticks==49 and current_player.fb_intro_over==0}:
+    - fb_intro_voice
+
+  # Phase 1 starts once any released lock balls have drained
+  fb_intro_done{game.balls_in_play<=1}:
+    - fb_p1_begin
+  balls_in_play{balls==1 and current_player.fb_phase==0 and current_player.fb_intro_over==1}:
+    - fb_p1_begin
+
+  # Phase 1 start: flippers on, last-ball save (= jets) on
+  fb_p1_begin:
+    - enable_normal_flippers
+    - fb_life_save_enable
+    - fb_music_go
+    - fb_timer_show
+    - fb_shot_value_reset
+
+  ##############################################
+  ## PHASE TRANSITIONS: complete -> won video -> next phase
+  ##############################################
+  fb_p1_complete:
+    - fb_vq_final_battle_phase1_won
+    - fb_transition_start
+    - fb_music_stop
+  fb_p2_complete:
+    - fb_vq_final_battle_phase2_won
+    - fb_transition_start
+    - fb_music_stop
+  fb_p3_complete:
+    - fb_vq_final_battle_phase3_won
+    - fb_transition_start
+    - fb_music_stop
+  fb_p4_complete:
+    - fb_vq_final_battle_phase4_won
+    - fb_transition_start
+    - fb_music_stop
+  fb_video_done{video=="final_battle_phase1_won" and current_player.fb_transition==1}:
+    - fb_advance
+  fb_video_done{video=="final_battle_phase2_won" and current_player.fb_transition==2}:
+    - fb_advance
+  fb_video_done{video=="final_battle_phase3_won" and current_player.fb_transition==3}:
+    - fb_advance
+  fb_video_done{video=="final_battle_phase4_step_9" and current_player.fb_transition==4}:
+    - fb_advance
+  timer_fb_transition_timeout_complete{current_player.fb_transition>0}:
+    - fb_advance
+  fb_advance{current_player.fb_transition==1}:
+    - fb_p2_begin
+  fb_advance{current_player.fb_transition==2}:
+    - fb_p3_begin
+  fb_advance{current_player.fb_transition==3}:
+    - fb_p4_begin
+  fb_advance{current_player.fb_transition==4}:
+    - fb_landing_begin
+
+  ##############################################
+  ## JETS (LIVES)
+  ## A drained last ball (no grace / multiball save running) costs a jet;
+  ## phase modes post fb_lose_jet themselves for timer / missile losses.
+  ##############################################
+  # (MPF posts this with balls=0 when it declines to save during multiball)
+  ball_save_fb_last_ball_save_saving_ball{balls>0 and current_player.fb_phase>=1 and current_player.fb_phase<=5 and current_player.fb_losing==0 and device.multiballs.fb_p2_multiball.shoot_again==False and device.multiballs.fb_p2_adder.shoot_again==False and device.multiballs.fb_p2_relaunch.shoot_again==False and device.multiballs.fb_p4_multiball.shoot_again==False and device.multiballs.fb_p4_adder.shoot_again==False and device.multiballs.fb_p4_relaunch.shoot_again==False and device.ball_saves.fb_grace_save.enabled==False}:
+    - fb_loss_drain
+    - fb_lose_jet
+  # The save caught a drain that does NOT cost a jet (grace save running, a
+  # multiball shoot-again, a loss already in progress...): that ball must come
+  # straight back out, like before the save held balls in the trough. Only
+  # one more try keeps it waiting (fb_omt_hold). Without this the ball sat in
+  # the trough with nothing to release it - no ball, and later two at once.
+  ball_save_fb_last_ball_save_saving_ball{balls>0 and current_player.fb_omt_hold==0 and not (current_player.fb_phase>=1 and current_player.fb_phase<=5 and current_player.fb_losing==0 and device.multiballs.fb_p2_multiball.shoot_again==False and device.multiballs.fb_p2_adder.shoot_again==False and device.multiballs.fb_p2_relaunch.shoot_again==False and device.multiballs.fb_p4_multiball.shoot_again==False and device.multiballs.fb_p4_adder.shoot_again==False and device.multiballs.fb_p4_relaunch.shoot_again==False and device.ball_saves.fb_grace_save.enabled==False)}:
+    - fb_save_eject
+  fb_lose_jet{current_player.fb_losing==0 and current_player.fb_phase<=5 and current_player.fb_jets>2}:
+    - fb_jet_lost_normal
+    - fb_voice_jet_lost
+  fb_lose_jet{current_player.fb_losing==0 and current_player.fb_phase<=5 and current_player.fb_jets==2}:
+    - fb_jet_lost_normal
+    - fb_voice_last_jet
+  fb_lose_jet{current_player.fb_losing==0 and current_player.fb_phase<=5 and current_player.fb_jets<=1 and not (current_player.fb_phase==1 and current_player.fb_hud_count>=1)}:
+    - fb_jet_lost_final
+  # Last jet lost in phase 1 but at least one jet is locked: one more try.
+  # Explosion + "one more try" (5s), then the phase 1 won video and phase 2
+  # with the locked jets (fb_p2_multiball uses fb_omt_balls).
+  fb_lose_jet{current_player.fb_losing==0 and current_player.fb_jets<=1 and current_player.fb_phase==1 and current_player.fb_hud_count>=1}:
+    - fb_one_more_try
+  # Flippers off so a ball still on the playfield drains; the last-ball save
+  # feeds it to the shooter lane, where it waits (no plunge, no ball search)
+  # until phase 2 releases the locked jets.
+  fb_one_more_try:
+    - disable_normal_flippers
+    - fb_hold_on
+    - fb_stop_phases          # phase 1 off (timer, shots, lights)
+    - fb_music_stop
+    - fb_vu_final_battle_jet_explosion
+    - fb_gi_explode|300ms
+    - fb_voice_one_more_try
+    - fb_p1_complete|5500ms   # -> phase 1 won video -> phase 2 (as a win)
+  # Explosion video (2.15s); GI explosion starts 0.3s into it
+  # A drained jet's replacement leaves the trough when play continues
+  fb_jet_continue:
+    - fb_save_eject
+    - fb_save_check     # (not changed while a loss is in progress)
+
+  # LAST-BALL SAVE ON THE LAST JET: off, so the final drain ends the ball
+  # (nothing is ever ejected for it). Back on if a phase 1 lock makes the
+  # player eligible for one more try again.
+  player_fb_jets:
+    - fb_save_check
+  player_fb_phase:
+    - fb_save_check
+  player_fb_hud_count:
+    - fb_save_check
+  fb_save_check{current_player.fb_losing==0 and current_player.fb_phase>=1 and current_player.fb_phase<=5 and current_player.fb_jets<=1 and not (current_player.fb_phase==1 and current_player.fb_hud_count>=1)}:
+    - fb_life_save_disable
+  fb_save_check{current_player.fb_losing==0 and current_player.fb_phase>=1 and current_player.fb_phase<=5 and not (current_player.fb_jets<=1 and not (current_player.fb_phase==1 and current_player.fb_hud_count>=1))}:
+    - fb_life_save_enable
+  # ...and the final drain itself: the ball is ending on the last jet
+  ball_will_end{current_player.fb_phase>=1 and current_player.fb_phase<=5 and current_player.fb_losing==0}:
+    - fb_loss_drain
+    - fb_lose_jet
+  fb_jet_lost_normal:
+    - fb_vu_final_battle_jet_explosion
+    - fb_gi_explode|300ms
+    - fb_jet_continue|3500ms
+  # Out of jets = game over for this player. Stop play right now: phase off,
+  # flippers off, no multiball re-launches. Any ball still loose drains (no
+  # save on the last jet) and ball_ending is held until fb_end_game.
+  fb_jet_lost_final:
+    - fb_stop_phases
+    - disable_normal_flippers
+    - fb_mb_stop_saves
+    - fb_grace_save_disable
+    - fb_hold_on
+    - fb_vu_final_battle_jet_explosion
+    - fb_gi_explode|300ms
+    - fb_failed|3500ms
+
+  ##############################################
+  ## RESULTS -> TALLY -> END OF GAME
+  ##############################################
+  fb_failed:
+    - fb_music_stop
+    - fb_stop_phases
+    - fb_mb_stop_saves
+    - fb_grace_save_disable
+    - fb_voice_failed
+    - fb_end_timeout_start
+  fb_failed{current_player.fb_lost_phase<=1}:
+    - fb_vu_final_battle_phase1_lost
+  fb_failed{current_player.fb_lost_phase==2}:
+    - fb_vu_final_battle_phase2_lost
+  fb_failed{current_player.fb_lost_phase==3}:
+    - fb_vu_final_battle_phase3_lost
+  fb_failed{current_player.fb_lost_phase>=4}:
+    - fb_vu_final_battle_phase4_lost
+  fb_video_done{video=="final_battle_phase1_lost" and current_player.fb_result==2 and current_player.fb_tally_step==0}:
+    - fb_tally_start
+  fb_video_done{video=="final_battle_phase2_lost" and current_player.fb_result==2 and current_player.fb_tally_step==0}:
+    - fb_tally_start
+  fb_video_done{video=="final_battle_phase3_lost" and current_player.fb_result==2 and current_player.fb_tally_step==0}:
+    - fb_tally_start
+  fb_video_done{video=="final_battle_phase4_lost" and current_player.fb_result==2 and current_player.fb_tally_step==0}:
+    - fb_tally_start
+  # VICTORY: final_battle_victory plays (it includes "The End"). The game ends
+  # when it finishes.
+  # >>> TALLY TIMING: the points-award slide starts at the |0s below. Change it
+  # >>> to the point in the victory video where it should appear (e.g. |12s).
+  fb_victory:
+    - fb_music_stop
+    - fb_stop_phases
+    - fb_mb_stop_saves
+    - fb_grace_save_disable
+    - fb_vu_final_battle_victory
+    - fb_voice_victory
+    - fb_end_timeout_start
+    - fb_tally_start|0s
+  fb_video_done{video=="final_battle_victory" and current_player.fb_result==1}:
+    - fb_end_game
+  # Lost: tally done -> game ends
+  timer_fb_tally_timer_complete{current_player.fb_result==2}:
+    - fb_end_game
+  # Safety: something never reported done
+  timer_fb_end_timeout_complete{current_player.fb_result==2 and current_player.fb_tally_step==0}:
+    - fb_tally_start
+  timer_fb_end_timeout_complete{current_player.fb_result==1 and current_player.final_battle_game_over==0}:
+    - fb_end_game
+
+  # End the game: flippers off, everything released, the ball drains and the
+  # game ends exactly like the last ball draining (high score entry etc.)
+  fb_end_game:
+    - fb_sa_off
+    - fb_stop_phases
+    - fb_life_save_disable
+    - fb_grace_save_disable
+    - disable_normal_flippers
+    - lock_disable_scoop_for_mode
+  fb_end_game{device.switches.s_mode_start.state}:
+    - scoop_ball_release
+    - fb_hold_off
+  tilt:
+    - fb_stop_phases
+    - fb_mb_stop_saves
+    - fb_video_clear
+    - lock_disable_scoop_for_mode
+
+##############################################################################
+## COIL PLAYER
+##############################################################################
+coil_player:
+  timer_fb_plunge_delay_complete:
+    c_plunger:
+      action: pulse
+  # Posts are owned here so they survive phase mode changes
+  fb_left_post_hold:
+    c_left_lane_up_post:
+      action: enable
+  fb_left_post_release:
+    c_left_lane_up_post:
+      action: disable
+  fb_right_post_hold:
+    c_right_lane_post:
+      action: enable
+  fb_end_game:
+    c_left_lane_up_post:
+      action: disable
+    c_right_lane_post:
+      action: disable
+  tilt:
+    c_left_lane_up_post:
+      action: disable
+    c_right_lane_post:
+      action: disable
+  mode_final_battle_will_stop:
+    c_left_lane_up_post:
+      action: disable
+    c_right_lane_post:
+      action: disable
+
+##############################################################################
+## LIGHT PLAYER - everything off underneath the phase modes; GI per phase
+##############################################################################
+light_player:
+  mode_final_battle_started:
+    l_goose_g:
+      color: off
+      fade: 0ms
+    l_goose_o_left:
+      color: off
+      fade: 0ms
+    l_goose_o_right:
+      color: off
+      fade: 0ms
+    l_goose_s:
+      color: off
+      fade: 0ms
+    l_goose_e:
+      color: off
+      fade: 0ms
+    l_mig_m:
+      color: off
+      fade: 0ms
+    l_mig_i:
+      color: off
+      fade: 0ms
+    l_mig_g:
+      color: off
+      fade: 0ms
+    l_iceman_i:
+      color: off
+      fade: 0ms
+    l_iceman_c:
+      color: off
+      fade: 0ms
+    l_iceman_e:
+      color: off
+      fade: 0ms
+    l_iceman_m:
+      color: off
+      fade: 0ms
+    l_iceman_a:
+      color: off
+      fade: 0ms
+    l_iceman_n:
+      color: off
+      fade: 0ms
+    l_lock_l:
+      color: off
+      fade: 0ms
+    l_lock_o:
+      color: off
+      fade: 0ms
+    l_lock_c:
+      color: off
+      fade: 0ms
+    l_lock_k:
+      color: off
+      fade: 0ms
+    l_lock_lit:
+      color: off
+      fade: 0ms
+    l_lock_mav:
+      color: off
+      fade: 0ms
+    l_lock_goose:
+      color: off
+      fade: 0ms
+    l_shot_left_lane:
+      color: off
+      fade: 0ms
+    l_shot_left_orbit:
+      color: off
+      fade: 0ms
+    l_shot_left_ramp:
+      color: off
+      fade: 0ms
+    l_shot_spinner:
+      color: off
+      fade: 0ms
+    l_shot_barrier:
+      color: off
+      fade: 0ms
+    l_shot_tower_ramp:
+      color: off
+      fade: 0ms
+    l_shot_upper_orbit:
+      color: off
+      fade: 0ms
+    l_shot_middle_ramp:
+      color: off
+      fade: 0ms
+    l_shot_right_orbit:
+      color: off
+      fade: 0ms
+    l_shot_pilot_gear:
+      color: off
+      fade: 0ms
+    l_pilot_mission_lit:
+      color: off
+      fade: 0ms
+    l_pilot_training_lit:
+      color: off
+      fade: 0ms
+    l_multiball_lit:
+      color: off
+      fade: 0ms
+    l_extra_ball_lit:
+      color: off
+      fade: 0ms
+    l_hard_deck_lit:
+      color: off
+      fade: 0ms
+    l_mystery_lit:
+      color: off
+      fade: 0ms
+    l_eject:
+      color: off
+      fade: 0ms
+    l_shoot_again:
+      color: off
+      fade: 0ms
+  fb_p1_begin:
+    gi_lights:
+      color: FFFFFF
+      fade: 200ms
+    l_gi_light_pop_left:
+      color: FFFFFF
+      fade: 200ms
+    l_gi_light_pop_right:
+      color: FFFFFF
+      fade: 200ms
+    l_gi_light_pop_bottom:
+      color: FFFFFF
+      fade: 200ms
+  fb_p2_begin:
+    gi_lights:
+      color: 66CCFF
+      fade: 200ms
+    l_gi_light_pop_left:
+      color: 66CCFF
+      fade: 200ms
+    l_gi_light_pop_right:
+      color: 66CCFF
+      fade: 200ms
+    l_gi_light_pop_bottom:
+      color: 66CCFF
+      fade: 200ms
+  fb_p3_begin:
+    gi_lights:
+      color: 66FF66
+      fade: 200ms
+    l_gi_light_pop_left:
+      color: 66FF66
+      fade: 200ms
+    l_gi_light_pop_right:
+      color: 66FF66
+      fade: 200ms
+    l_gi_light_pop_bottom:
+      color: 66FF66
+      fade: 200ms
+  fb_p4_begin:
+    gi_lights:
+      color: FFAA33
+      fade: 200ms
+    l_gi_light_pop_left:
+      color: FFAA33
+      fade: 200ms
+    l_gi_light_pop_right:
+      color: FFAA33
+      fade: 200ms
+    l_gi_light_pop_bottom:
+      color: FFAA33
+      fade: 200ms
+  fb_landing_begin:
+    gi_lights:
+      color: FFFFFF
+      fade: 200ms
+    l_gi_light_pop_left:
+      color: FFFFFF
+      fade: 200ms
+    l_gi_light_pop_right:
+      color: FFFFFF
+      fade: 200ms
+    l_gi_light_pop_bottom:
+      color: FFFFFF
+      fade: 200ms
+
+  ##############################################
+  ## LOCKED JETS
+  ##   Phase 1: scoop jet = Final Battle light, 1st top ramp lock = Maverick,
+  ##            2nd = Goose (fb_lock_light_* posted by final_battle_p1).
+  ##   Phase 3: 1st lock = Maverick, 2nd = Goose.
+  ##   Off when the jets are released (phase 2 / phase 4 start).
+  ##############################################
+  fb_lock_light_scoop:
+    l_final_battle_lit:
+      color: 00FF00
+      fade: 0ms
+  fb_lock_light_mav:
+    l_lock_mav:
+      color: 00FF00
+      fade: 0ms
+  fb_lock_light_goose:
+    l_lock_goose:
+      color: 00FF00
+      fade: 0ms
+  fb_p3_lock1:
+    l_lock_mav:
+      color: 00FF00
+      fade: 0ms
+  fb_p3_final:
+    l_lock_goose:
+      color: 00FF00
+      fade: 0ms
+  lock_mech_release{current_player.fb_phase==2 or current_player.fb_phase==4}:
+    l_lock_mav:
+      color: off
+      fade: 0ms
+    l_lock_goose:
+      color: off
+      fade: 0ms
+  scoop_ball_release{current_player.fb_phase==2}:
+    l_final_battle_lit:
+      color: off
+      fade: 0ms
+
+##############################################################################
+## SHOWS - explosion GI strobe (jet lost)
+##############################################################################
+shows:
+  # Shot fanfare: GI flickers on/off in the phase color for ~1s (16 x 62ms)
+  fb_gi_flicker:
+    - duration: 62ms
+      lights:
+        gi_lights: (color)
+        l_gi_light_pop_left: (color)
+        l_gi_light_pop_right: (color)
+        l_gi_light_pop_bottom: (color)
+    - duration: 62ms
+      lights:
+        gi_lights: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 62ms
+      lights:
+        gi_lights: (color)
+        l_gi_light_pop_left: (color)
+        l_gi_light_pop_right: (color)
+        l_gi_light_pop_bottom: (color)
+    - duration: 62ms
+      lights:
+        gi_lights: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 62ms
+      lights:
+        gi_lights: (color)
+        l_gi_light_pop_left: (color)
+        l_gi_light_pop_right: (color)
+        l_gi_light_pop_bottom: (color)
+    - duration: 62ms
+      lights:
+        gi_lights: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 62ms
+      lights:
+        gi_lights: (color)
+        l_gi_light_pop_left: (color)
+        l_gi_light_pop_right: (color)
+        l_gi_light_pop_bottom: (color)
+    - duration: 62ms
+      lights:
+        gi_lights: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 62ms
+      lights:
+        gi_lights: (color)
+        l_gi_light_pop_left: (color)
+        l_gi_light_pop_right: (color)
+        l_gi_light_pop_bottom: (color)
+    - duration: 62ms
+      lights:
+        gi_lights: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 62ms
+      lights:
+        gi_lights: (color)
+        l_gi_light_pop_left: (color)
+        l_gi_light_pop_right: (color)
+        l_gi_light_pop_bottom: (color)
+    - duration: 62ms
+      lights:
+        gi_lights: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 62ms
+      lights:
+        gi_lights: (color)
+        l_gi_light_pop_left: (color)
+        l_gi_light_pop_right: (color)
+        l_gi_light_pop_bottom: (color)
+    - duration: 62ms
+      lights:
+        gi_lights: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 62ms
+      lights:
+        gi_lights: (color)
+        l_gi_light_pop_left: (color)
+        l_gi_light_pop_right: (color)
+        l_gi_light_pop_bottom: (color)
+    - duration: 62ms
+      lights:
+        gi_lights: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+  # Victory: GI flickers on and off in random spots
+  fb_gi_sparkle:
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFD27A
+        l_gi_light_2: FFFFFF
+        l_gi_light_3: off
+        l_gi_light_4: FFFFFF
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: FFFFFF
+        l_gi_light_8: off
+        l_gi_light_9: FFFFFF
+        l_gi_light_10: off
+        l_gi_light_11: FFFFFF
+        l_gi_light_12: FFFFFF
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: FFFFFF
+        l_gi_light_16: FFD27A
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: FFFFFF
+        l_gi_light_23: off
+        l_gi_light_24: FFD27A
+        l_gi_light_25: FFFFFF
+        l_gi_light_26: FFFFFF
+        l_gi_light_27: FFD27A
+        l_apron_light_1: off
+        l_apron_light_2: FFFFFF
+        l_apron_light_3: off
+        l_apron_light_4: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: FFFFFF
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFFFFF
+        l_gi_light_2: FFFFFF
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: FFD27A
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: FFD27A
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: FFD27A
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: FFD27A
+        l_gi_light_17: off
+        l_gi_light_18: FFFFFF
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: FFFFFF
+        l_gi_light_22: off
+        l_gi_light_23: FFFFFF
+        l_gi_light_24: off
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: off
+        l_apron_light_1: FFD27A
+        l_apron_light_2: off
+        l_apron_light_3: off
+        l_apron_light_4: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: FFFFFF
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: FFD27A
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: FFFFFF
+        l_gi_light_12: off
+        l_gi_light_13: FFFFFF
+        l_gi_light_14: FFFFFF
+        l_gi_light_15: FFFFFF
+        l_gi_light_16: off
+        l_gi_light_17: FFFFFF
+        l_gi_light_18: FFD27A
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: FFFFFF
+        l_gi_light_22: off
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: FFD27A
+        l_apron_light_1: off
+        l_apron_light_2: off
+        l_apron_light_3: off
+        l_apron_light_4: off
+        l_gi_light_pop_left: FFFFFF
+        l_gi_light_pop_right: FFFFFF
+        l_gi_light_pop_bottom: FFD27A
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFD27A
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: FFD27A
+        l_gi_light_5: FFFFFF
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: FFFFFF
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: FFFFFF
+        l_gi_light_22: off
+        l_gi_light_23: FFFFFF
+        l_gi_light_24: FFFFFF
+        l_gi_light_25: FFFFFF
+        l_gi_light_26: FFFFFF
+        l_gi_light_27: FFD27A
+        l_apron_light_1: FFFFFF
+        l_apron_light_2: FFFFFF
+        l_apron_light_3: FFFFFF
+        l_apron_light_4: FFFFFF
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: FFFFFF
+        l_gi_light_pop_bottom: off
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: FFFFFF
+        l_gi_light_3: FFD27A
+        l_gi_light_4: FFD27A
+        l_gi_light_5: off
+        l_gi_light_6: FFFFFF
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: FFFFFF
+        l_gi_light_12: FFFFFF
+        l_gi_light_13: FFD27A
+        l_gi_light_14: FFD27A
+        l_gi_light_15: off
+        l_gi_light_16: FFFFFF
+        l_gi_light_17: FFFFFF
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: FFFFFF
+        l_gi_light_21: off
+        l_gi_light_22: FFFFFF
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: FFD27A
+        l_apron_light_1: off
+        l_apron_light_2: FFFFFF
+        l_apron_light_3: off
+        l_apron_light_4: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: FFD27A
+        l_gi_light_pop_bottom: FFD27A
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: FFD27A
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: FFFFFF
+        l_gi_light_11: FFFFFF
+        l_gi_light_12: FFD27A
+        l_gi_light_13: FFD27A
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: FFD27A
+        l_gi_light_22: FFD27A
+        l_gi_light_23: FFFFFF
+        l_gi_light_24: FFFFFF
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: off
+        l_apron_light_1: off
+        l_apron_light_2: off
+        l_apron_light_3: off
+        l_apron_light_4: FFFFFF
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: FFFFFF
+        l_gi_light_4: off
+        l_gi_light_5: FFD27A
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: FFFFFF
+        l_gi_light_13: FFFFFF
+        l_gi_light_14: FFFFFF
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: FFFFFF
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: off
+        l_gi_light_23: FFFFFF
+        l_gi_light_24: FFFFFF
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: off
+        l_apron_light_1: off
+        l_apron_light_2: off
+        l_apron_light_3: off
+        l_apron_light_4: off
+        l_gi_light_pop_left: FFFFFF
+        l_gi_light_pop_right: FFD27A
+        l_gi_light_pop_bottom: FFD27A
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFD27A
+        l_gi_light_2: off
+        l_gi_light_3: FFD27A
+        l_gi_light_4: off
+        l_gi_light_5: FFFFFF
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: FFFFFF
+        l_gi_light_17: off
+        l_gi_light_18: FFFFFF
+        l_gi_light_19: FFFFFF
+        l_gi_light_20: off
+        l_gi_light_21: FFFFFF
+        l_gi_light_22: off
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: FFD27A
+        l_gi_light_26: off
+        l_gi_light_27: off
+        l_apron_light_1: off
+        l_apron_light_2: FFFFFF
+        l_apron_light_3: off
+        l_apron_light_4: FFD27A
+        l_gi_light_pop_left: FFD27A
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: FFD27A
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: FFFFFF
+        l_gi_light_21: FFFFFF
+        l_gi_light_22: off
+        l_gi_light_23: FFFFFF
+        l_gi_light_24: FFD27A
+        l_gi_light_25: FFFFFF
+        l_gi_light_26: off
+        l_gi_light_27: off
+        l_apron_light_1: off
+        l_apron_light_2: FFFFFF
+        l_apron_light_3: off
+        l_apron_light_4: off
+        l_gi_light_pop_left: FFFFFF
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFFFFF
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: FFFFFF
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: FFD27A
+        l_gi_light_11: FFFFFF
+        l_gi_light_12: FFD27A
+        l_gi_light_13: off
+        l_gi_light_14: FFFFFF
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: FFFFFF
+        l_gi_light_18: FFD27A
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: FFFFFF
+        l_gi_light_22: off
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: FFFFFF
+        l_gi_light_26: FFD27A
+        l_gi_light_27: FFFFFF
+        l_apron_light_1: off
+        l_apron_light_2: FFD27A
+        l_apron_light_3: FFFFFF
+        l_apron_light_4: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: FFD27A
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFFFFF
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: FFFFFF
+        l_gi_light_6: FFFFFF
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: FFFFFF
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: FFFFFF
+        l_gi_light_14: off
+        l_gi_light_15: FFFFFF
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: FFD27A
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: FFD27A
+        l_gi_light_22: FFFFFF
+        l_gi_light_23: off
+        l_gi_light_24: FFD27A
+        l_gi_light_25: FFFFFF
+        l_gi_light_26: FFFFFF
+        l_gi_light_27: FFFFFF
+        l_apron_light_1: FFFFFF
+        l_apron_light_2: FFD27A
+        l_apron_light_3: FFD27A
+        l_apron_light_4: off
+        l_gi_light_pop_left: FFD27A
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: FFFFFF
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFD27A
+        l_gi_light_2: FFFFFF
+        l_gi_light_3: FFD27A
+        l_gi_light_4: FFFFFF
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: FFFFFF
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: FFFFFF
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: FFD27A
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: off
+        l_gi_light_23: off
+        l_gi_light_24: FFD27A
+        l_gi_light_25: FFFFFF
+        l_gi_light_26: FFFFFF
+        l_gi_light_27: FFFFFF
+        l_apron_light_1: off
+        l_apron_light_2: FFD27A
+        l_apron_light_3: FFFFFF
+        l_apron_light_4: FFFFFF
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFD27A
+        l_gi_light_2: FFD27A
+        l_gi_light_3: FFD27A
+        l_gi_light_4: off
+        l_gi_light_5: FFFFFF
+        l_gi_light_6: off
+        l_gi_light_7: FFD27A
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: FFD27A
+        l_gi_light_12: off
+        l_gi_light_13: FFD27A
+        l_gi_light_14: off
+        l_gi_light_15: FFFFFF
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: FFFFFF
+        l_gi_light_20: off
+        l_gi_light_21: FFFFFF
+        l_gi_light_22: FFD27A
+        l_gi_light_23: FFFFFF
+        l_gi_light_24: off
+        l_gi_light_25: FFFFFF
+        l_gi_light_26: FFFFFF
+        l_gi_light_27: FFD27A
+        l_apron_light_1: FFD27A
+        l_apron_light_2: off
+        l_apron_light_3: off
+        l_apron_light_4: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: FFD27A
+        l_gi_light_3: off
+        l_gi_light_4: FFFFFF
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: FFFFFF
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: FFFFFF
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: off
+        l_gi_light_23: FFD27A
+        l_gi_light_24: FFFFFF
+        l_gi_light_25: FFFFFF
+        l_gi_light_26: off
+        l_gi_light_27: FFFFFF
+        l_apron_light_1: off
+        l_apron_light_2: off
+        l_apron_light_3: off
+        l_apron_light_4: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: FFFFFF
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: FFFFFF
+        l_gi_light_7: off
+        l_gi_light_8: FFD27A
+        l_gi_light_9: FFFFFF
+        l_gi_light_10: FFD27A
+        l_gi_light_11: off
+        l_gi_light_12: FFFFFF
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: FFFFFF
+        l_gi_light_23: FFFFFF
+        l_gi_light_24: FFD27A
+        l_gi_light_25: off
+        l_gi_light_26: FFD27A
+        l_gi_light_27: off
+        l_apron_light_1: FFFFFF
+        l_apron_light_2: FFFFFF
+        l_apron_light_3: FFD27A
+        l_apron_light_4: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: FFD27A
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: FFFFFF
+        l_gi_light_5: off
+        l_gi_light_6: FFFFFF
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: FFFFFF
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: FFD27A
+        l_gi_light_15: FFFFFF
+        l_gi_light_16: off
+        l_gi_light_17: FFFFFF
+        l_gi_light_18: off
+        l_gi_light_19: FFFFFF
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: FFFFFF
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: FFD27A
+        l_apron_light_1: off
+        l_apron_light_2: off
+        l_apron_light_3: FFFFFF
+        l_apron_light_4: FFFFFF
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: FFD27A
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFFFFF
+        l_gi_light_2: FFD27A
+        l_gi_light_3: FFD27A
+        l_gi_light_4: off
+        l_gi_light_5: FFFFFF
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: FFFFFF
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: FFD27A
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: FFD27A
+        l_gi_light_20: FFFFFF
+        l_gi_light_21: FFFFFF
+        l_gi_light_22: off
+        l_gi_light_23: FFD27A
+        l_gi_light_24: off
+        l_gi_light_25: FFD27A
+        l_gi_light_26: FFD27A
+        l_gi_light_27: off
+        l_apron_light_1: FFFFFF
+        l_apron_light_2: off
+        l_apron_light_3: off
+        l_apron_light_4: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: FFFFFF
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: FFD27A
+        l_gi_light_10: FFFFFF
+        l_gi_light_11: off
+        l_gi_light_12: FFFFFF
+        l_gi_light_13: off
+        l_gi_light_14: FFD27A
+        l_gi_light_15: FFD27A
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: FFD27A
+        l_gi_light_19: off
+        l_gi_light_20: FFD27A
+        l_gi_light_21: off
+        l_gi_light_22: off
+        l_gi_light_23: FFFFFF
+        l_gi_light_24: FFFFFF
+        l_gi_light_25: FFFFFF
+        l_gi_light_26: off
+        l_gi_light_27: off
+        l_apron_light_1: FFD27A
+        l_apron_light_2: off
+        l_apron_light_3: off
+        l_apron_light_4: off
+        l_gi_light_pop_left: FFFFFF
+        l_gi_light_pop_right: FFFFFF
+        l_gi_light_pop_bottom: FFFFFF
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFD27A
+        l_gi_light_2: FFFFFF
+        l_gi_light_3: FFD27A
+        l_gi_light_4: FFD27A
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: FFD27A
+        l_gi_light_13: FFFFFF
+        l_gi_light_14: FFD27A
+        l_gi_light_15: off
+        l_gi_light_16: FFFFFF
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: FFFFFF
+        l_gi_light_21: FFD27A
+        l_gi_light_22: FFD27A
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: off
+        l_apron_light_1: FFFFFF
+        l_apron_light_2: FFFFFF
+        l_apron_light_3: off
+        l_apron_light_4: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: FFFFFF
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: FFD27A
+        l_gi_light_7: FFFFFF
+        l_gi_light_8: FFFFFF
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: FFFFFF
+        l_gi_light_18: off
+        l_gi_light_19: FFD27A
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: FFD27A
+        l_gi_light_23: FFFFFF
+        l_gi_light_24: FFD27A
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: FFFFFF
+        l_apron_light_1: FFFFFF
+        l_apron_light_2: off
+        l_apron_light_3: off
+        l_apron_light_4: off
+        l_gi_light_pop_left: FFD27A
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: FFFFFF
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFD27A
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: FFD27A
+        l_gi_light_8: FFD27A
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: FFD27A
+        l_gi_light_12: FFFFFF
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: FFD27A
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: FFD27A
+        l_gi_light_20: FFFFFF
+        l_gi_light_21: FFD27A
+        l_gi_light_22: off
+        l_gi_light_23: off
+        l_gi_light_24: FFFFFF
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: off
+        l_apron_light_1: FFFFFF
+        l_apron_light_2: off
+        l_apron_light_3: FFD27A
+        l_apron_light_4: off
+        l_gi_light_pop_left: FFD27A
+        l_gi_light_pop_right: FFD27A
+        l_gi_light_pop_bottom: off
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFD27A
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: FFFFFF
+        l_gi_light_5: FFD27A
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: FFFFFF
+        l_gi_light_10: off
+        l_gi_light_11: FFFFFF
+        l_gi_light_12: off
+        l_gi_light_13: FFFFFF
+        l_gi_light_14: FFFFFF
+        l_gi_light_15: FFFFFF
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: FFD27A
+        l_gi_light_23: FFFFFF
+        l_gi_light_24: off
+        l_gi_light_25: off
+        l_gi_light_26: FFFFFF
+        l_gi_light_27: off
+        l_apron_light_1: off
+        l_apron_light_2: off
+        l_apron_light_3: FFD27A
+        l_apron_light_4: FFFFFF
+        l_gi_light_pop_left: FFFFFF
+        l_gi_light_pop_right: FFD27A
+        l_gi_light_pop_bottom: off
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: FFFFFF
+        l_gi_light_3: off
+        l_gi_light_4: FFFFFF
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: FFFFFF
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: FFFFFF
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: FFFFFF
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: FFFFFF
+        l_gi_light_21: FFFFFF
+        l_gi_light_22: FFFFFF
+        l_gi_light_23: off
+        l_gi_light_24: FFD27A
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: FFD27A
+        l_apron_light_1: FFD27A
+        l_apron_light_2: off
+        l_apron_light_3: off
+        l_apron_light_4: FFD27A
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: FFD27A
+        l_gi_light_pop_bottom: FFD27A
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFFFFF
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: FFFFFF
+        l_gi_light_7: FFD27A
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: FFD27A
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: FFFFFF
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: FFD27A
+        l_gi_light_23: FFD27A
+        l_gi_light_24: off
+        l_gi_light_25: off
+        l_gi_light_26: FFFFFF
+        l_gi_light_27: FFFFFF
+        l_apron_light_1: off
+        l_apron_light_2: FFD27A
+        l_apron_light_3: FFFFFF
+        l_apron_light_4: FFFFFF
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: FFD27A
+        l_gi_light_pop_bottom: off
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: FFD27A
+        l_gi_light_4: FFFFFF
+        l_gi_light_5: FFFFFF
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: FFD27A
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: FFFFFF
+        l_gi_light_17: off
+        l_gi_light_18: FFD27A
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: FFFFFF
+        l_gi_light_23: FFD27A
+        l_gi_light_24: FFD27A
+        l_gi_light_25: FFFFFF
+        l_gi_light_26: off
+        l_gi_light_27: off
+        l_apron_light_1: FFD27A
+        l_apron_light_2: off
+        l_apron_light_3: off
+        l_apron_light_4: off
+        l_gi_light_pop_left: FFD27A
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: FFFFFF
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: FFFFFF
+        l_gi_light_8: FFD27A
+        l_gi_light_9: FFFFFF
+        l_gi_light_10: FFFFFF
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: FFD27A
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: FFFFFF
+        l_gi_light_21: off
+        l_gi_light_22: off
+        l_gi_light_23: FFFFFF
+        l_gi_light_24: off
+        l_gi_light_25: FFFFFF
+        l_gi_light_26: FFFFFF
+        l_gi_light_27: FFD27A
+        l_apron_light_1: off
+        l_apron_light_2: off
+        l_apron_light_3: FFFFFF
+        l_apron_light_4: FFFFFF
+        l_gi_light_pop_left: FFD27A
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: FFFFFF
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFD27A
+        l_gi_light_2: FFFFFF
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: FFFFFF
+        l_gi_light_6: FFFFFF
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: FFFFFF
+        l_gi_light_11: FFFFFF
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: FFD27A
+        l_gi_light_15: FFD27A
+        l_gi_light_16: off
+        l_gi_light_17: FFD27A
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: off
+        l_gi_light_23: off
+        l_gi_light_24: FFFFFF
+        l_gi_light_25: off
+        l_gi_light_26: FFFFFF
+        l_gi_light_27: FFFFFF
+        l_apron_light_1: off
+        l_apron_light_2: off
+        l_apron_light_3: off
+        l_apron_light_4: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: FFFFFF
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFFFFF
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: FFFFFF
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: FFFFFF
+        l_gi_light_10: FFD27A
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: FFFFFF
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: FFFFFF
+        l_gi_light_18: FFFFFF
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: FFFFFF
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: off
+        l_apron_light_1: FFFFFF
+        l_apron_light_2: off
+        l_apron_light_3: FFD27A
+        l_apron_light_4: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: FFFFFF
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFFFFF
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: FFFFFF
+        l_gi_light_6: FFD27A
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: FFFFFF
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: FFFFFF
+        l_gi_light_13: off
+        l_gi_light_14: FFFFFF
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: FFD27A
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: off
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: FFFFFF
+        l_gi_light_26: off
+        l_gi_light_27: off
+        l_apron_light_1: FFD27A
+        l_apron_light_2: off
+        l_apron_light_3: off
+        l_apron_light_4: off
+        l_gi_light_pop_left: FFFFFF
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: FFFFFF
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFFFFF
+        l_gi_light_2: off
+        l_gi_light_3: FFFFFF
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: FFFFFF
+        l_gi_light_7: off
+        l_gi_light_8: FFFFFF
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: FFFFFF
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: FFFFFF
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: FFFFFF
+        l_gi_light_22: off
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: off
+        l_gi_light_26: FFFFFF
+        l_gi_light_27: off
+        l_apron_light_1: off
+        l_apron_light_2: FFFFFF
+        l_apron_light_3: off
+        l_apron_light_4: off
+        l_gi_light_pop_left: FFFFFF
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: FFD27A
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: FFFFFF
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: FFFFFF
+        l_gi_light_6: FFD27A
+        l_gi_light_7: off
+        l_gi_light_8: FFD27A
+        l_gi_light_9: FFFFFF
+        l_gi_light_10: FFFFFF
+        l_gi_light_11: FFFFFF
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: FFFFFF
+        l_gi_light_16: off
+        l_gi_light_17: FFFFFF
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: off
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: FFFFFF
+        l_gi_light_26: off
+        l_gi_light_27: off
+        l_apron_light_1: off
+        l_apron_light_2: off
+        l_apron_light_3: FFD27A
+        l_apron_light_4: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: FFFFFF
+        l_gi_light_3: off
+        l_gi_light_4: FFFFFF
+        l_gi_light_5: off
+        l_gi_light_6: FFD27A
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: FFD27A
+        l_gi_light_12: FFFFFF
+        l_gi_light_13: FFFFFF
+        l_gi_light_14: FFFFFF
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: FFFFFF
+        l_gi_light_20: FFD27A
+        l_gi_light_21: off
+        l_gi_light_22: FFFFFF
+        l_gi_light_23: FFFFFF
+        l_gi_light_24: off
+        l_gi_light_25: FFFFFF
+        l_gi_light_26: off
+        l_gi_light_27: FFD27A
+        l_apron_light_1: off
+        l_apron_light_2: off
+        l_apron_light_3: FFFFFF
+        l_apron_light_4: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: FFFFFF
+        l_gi_light_pop_bottom: off
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFD27A
+        l_gi_light_2: FFFFFF
+        l_gi_light_3: FFFFFF
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: FFD27A
+        l_gi_light_9: FFFFFF
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: FFD27A
+        l_gi_light_18: off
+        l_gi_light_19: FFFFFF
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: FFD27A
+        l_gi_light_23: FFFFFF
+        l_gi_light_24: off
+        l_gi_light_25: FFFFFF
+        l_gi_light_26: off
+        l_gi_light_27: off
+        l_apron_light_1: FFFFFF
+        l_apron_light_2: FFFFFF
+        l_apron_light_3: off
+        l_apron_light_4: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: FFFFFF
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFD27A
+        l_gi_light_2: FFD27A
+        l_gi_light_3: FFFFFF
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: FFFFFF
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: FFD27A
+        l_gi_light_14: FFFFFF
+        l_gi_light_15: FFD27A
+        l_gi_light_16: FFFFFF
+        l_gi_light_17: FFD27A
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: FFD27A
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: FFD27A
+        l_apron_light_1: off
+        l_apron_light_2: off
+        l_apron_light_3: FFFFFF
+        l_apron_light_4: off
+        l_gi_light_pop_left: FFFFFF
+        l_gi_light_pop_right: FFD27A
+        l_gi_light_pop_bottom: FFD27A
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: FFD27A
+        l_gi_light_5: off
+        l_gi_light_6: FFD27A
+        l_gi_light_7: FFD27A
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: off
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: FFD27A
+        l_gi_light_21: FFFFFF
+        l_gi_light_22: off
+        l_gi_light_23: FFFFFF
+        l_gi_light_24: off
+        l_gi_light_25: FFFFFF
+        l_gi_light_26: FFFFFF
+        l_gi_light_27: FFFFFF
+        l_apron_light_1: off
+        l_apron_light_2: FFD27A
+        l_apron_light_3: FFFFFF
+        l_apron_light_4: FFFFFF
+        l_gi_light_pop_left: FFFFFF
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: FFFFFF
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: FFFFFF
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: FFFFFF
+        l_gi_light_14: FFFFFF
+        l_gi_light_15: FFFFFF
+        l_gi_light_16: FFFFFF
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: FFD27A
+        l_gi_light_23: FFFFFF
+        l_gi_light_24: FFFFFF
+        l_gi_light_25: off
+        l_gi_light_26: FFFFFF
+        l_gi_light_27: FFD27A
+        l_apron_light_1: off
+        l_apron_light_2: FFFFFF
+        l_apron_light_3: FFD27A
+        l_apron_light_4: FFD27A
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: FFD27A
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: FFFFFF
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: FFD27A
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: FFFFFF
+        l_gi_light_13: off
+        l_gi_light_14: FFFFFF
+        l_gi_light_15: off
+        l_gi_light_16: FFFFFF
+        l_gi_light_17: FFFFFF
+        l_gi_light_18: FFFFFF
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: FFFFFF
+        l_gi_light_22: off
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: FFFFFF
+        l_gi_light_26: off
+        l_gi_light_27: FFD27A
+        l_apron_light_1: off
+        l_apron_light_2: FFD27A
+        l_apron_light_3: off
+        l_apron_light_4: FFD27A
+        l_gi_light_pop_left: FFFFFF
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 90ms
+      lights:
+        l_gi_light_1: FFFFFF
+        l_gi_light_2: off
+        l_gi_light_3: FFFFFF
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: off
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: FFFFFF
+        l_gi_light_13: off
+        l_gi_light_14: FFFFFF
+        l_gi_light_15: FFFFFF
+        l_gi_light_16: FFD27A
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: FFD27A
+        l_gi_light_22: off
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: FFD27A
+        l_apron_light_1: FFD27A
+        l_apron_light_2: FFFFFF
+        l_apron_light_3: off
+        l_apron_light_4: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: FFFFFF
+        l_gi_light_pop_bottom: off
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: FFFFFF
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: FFD27A
+        l_gi_light_7: FFFFFF
+        l_gi_light_8: FFD27A
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: FFFFFF
+        l_gi_light_12: FFFFFF
+        l_gi_light_13: FFD27A
+        l_gi_light_14: FFD27A
+        l_gi_light_15: off
+        l_gi_light_16: FFFFFF
+        l_gi_light_17: FFD27A
+        l_gi_light_18: FFFFFF
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: FFFFFF
+        l_gi_light_22: off
+        l_gi_light_23: FFFFFF
+        l_gi_light_24: off
+        l_gi_light_25: off
+        l_gi_light_26: off
+        l_gi_light_27: off
+        l_apron_light_1: off
+        l_apron_light_2: FFFFFF
+        l_apron_light_3: off
+        l_apron_light_4: FFFFFF
+        l_gi_light_pop_left: FFFFFF
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: FFFFFF
+    - duration: 90ms
+      lights:
+        l_gi_light_1: off
+        l_gi_light_2: off
+        l_gi_light_3: off
+        l_gi_light_4: off
+        l_gi_light_5: off
+        l_gi_light_6: off
+        l_gi_light_7: FFFFFF
+        l_gi_light_8: off
+        l_gi_light_9: off
+        l_gi_light_10: off
+        l_gi_light_11: off
+        l_gi_light_12: off
+        l_gi_light_13: off
+        l_gi_light_14: off
+        l_gi_light_15: off
+        l_gi_light_16: FFD27A
+        l_gi_light_17: off
+        l_gi_light_18: off
+        l_gi_light_19: off
+        l_gi_light_20: off
+        l_gi_light_21: off
+        l_gi_light_22: off
+        l_gi_light_23: off
+        l_gi_light_24: off
+        l_gi_light_25: FFD27A
+        l_gi_light_26: off
+        l_gi_light_27: FFFFFF
+        l_apron_light_1: off
+        l_apron_light_2: off
+        l_apron_light_3: off
+        l_apron_light_4: off
+        l_gi_light_pop_left: FFD27A
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+  fb_gi_explosion:
+    - duration: 120ms
+      lights:
+        gi_lights: FF2200
+        l_gi_light_pop_left: FF2200
+        l_gi_light_pop_right: FF2200
+        l_gi_light_pop_bottom: FF2200
+    - duration: 120ms
+      lights:
+        gi_lights: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+    - duration: 120ms
+      lights:
+        gi_lights: FFAA00
+        l_gi_light_pop_left: FFAA00
+        l_gi_light_pop_right: FFAA00
+        l_gi_light_pop_bottom: FFAA00
+    - duration: 120ms
+      lights:
+        gi_lights: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+
+show_player:
+  ##############################################
+  ## SHOT FANFARE (fb_fanfare)
+  ##   GI flicker in the phase's GI color, ~1s, priority 3 (under the jet-lost
+  ##   explosion). A new hit while it runs just lets it carry on.
+  ##   Random light show: final_battle_fanfare_01..08 from
+  ##   modes/final_battle/shows/, priority 2 - above the "everything off"
+  ##   lights here, below the phase modes' lit shots (610+), so lit shots
+  ##   always show through.
+  ##############################################
+  fb_fanfare{current_player.fb_phase==1 or current_player.fb_phase==5}:
+    fb_gi_flicker:
+      key: fb_fanfare_gi
+      loops: 0
+      priority: 3
+      show_tokens:
+        color: FFFFFF
+  fb_fanfare{current_player.fb_phase==2}:
+    fb_gi_flicker:
+      key: fb_fanfare_gi
+      loops: 0
+      priority: 3
+      show_tokens:
+        color: 66CCFF
+  fb_fanfare{current_player.fb_phase==3}:
+    fb_gi_flicker:
+      key: fb_fanfare_gi
+      loops: 0
+      priority: 3
+      show_tokens:
+        color: 66FF66
+  fb_fanfare{current_player.fb_phase==4}:
+    fb_gi_flicker:
+      key: fb_fanfare_gi
+      loops: 0
+      priority: 3
+      show_tokens:
+        color: FFAA33
+  # (color) in the show = the phase GI color (same colors as the GI)
+  fb_fanfare_show_1{current_player.fb_phase==1 or current_player.fb_phase==5}:
+    final_battle_fanfare_01:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: FFFFFF
+  fb_fanfare_show_1{current_player.fb_phase==2}:
+    final_battle_fanfare_01:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: 66CCFF
+  fb_fanfare_show_1{current_player.fb_phase==3}:
+    final_battle_fanfare_01:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: 66FF66
+  fb_fanfare_show_1{current_player.fb_phase==4}:
+    final_battle_fanfare_01:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: FFAA33
+  fb_fanfare_show_2{current_player.fb_phase==1 or current_player.fb_phase==5}:
+    final_battle_fanfare_02:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: FFFFFF
+  fb_fanfare_show_2{current_player.fb_phase==2}:
+    final_battle_fanfare_02:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: 66CCFF
+  fb_fanfare_show_2{current_player.fb_phase==3}:
+    final_battle_fanfare_02:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: 66FF66
+  fb_fanfare_show_2{current_player.fb_phase==4}:
+    final_battle_fanfare_02:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: FFAA33
+  fb_fanfare_show_3{current_player.fb_phase==1 or current_player.fb_phase==5}:
+    final_battle_fanfare_03:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: FFFFFF
+  fb_fanfare_show_3{current_player.fb_phase==2}:
+    final_battle_fanfare_03:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: 66CCFF
+  fb_fanfare_show_3{current_player.fb_phase==3}:
+    final_battle_fanfare_03:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: 66FF66
+  fb_fanfare_show_3{current_player.fb_phase==4}:
+    final_battle_fanfare_03:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: FFAA33
+  fb_fanfare_show_4{current_player.fb_phase==1 or current_player.fb_phase==5}:
+    final_battle_fanfare_04:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: FFFFFF
+  fb_fanfare_show_4{current_player.fb_phase==2}:
+    final_battle_fanfare_04:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: 66CCFF
+  fb_fanfare_show_4{current_player.fb_phase==3}:
+    final_battle_fanfare_04:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: 66FF66
+  fb_fanfare_show_4{current_player.fb_phase==4}:
+    final_battle_fanfare_04:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: FFAA33
+  fb_fanfare_show_5{current_player.fb_phase==1 or current_player.fb_phase==5}:
+    final_battle_fanfare_05:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: FFFFFF
+  fb_fanfare_show_5{current_player.fb_phase==2}:
+    final_battle_fanfare_05:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: 66CCFF
+  fb_fanfare_show_5{current_player.fb_phase==3}:
+    final_battle_fanfare_05:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: 66FF66
+  fb_fanfare_show_5{current_player.fb_phase==4}:
+    final_battle_fanfare_05:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: FFAA33
+  fb_fanfare_show_6{current_player.fb_phase==1 or current_player.fb_phase==5}:
+    final_battle_fanfare_06:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: FFFFFF
+  fb_fanfare_show_6{current_player.fb_phase==2}:
+    final_battle_fanfare_06:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: 66CCFF
+  fb_fanfare_show_6{current_player.fb_phase==3}:
+    final_battle_fanfare_06:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: 66FF66
+  fb_fanfare_show_6{current_player.fb_phase==4}:
+    final_battle_fanfare_06:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: FFAA33
+  fb_fanfare_show_7{current_player.fb_phase==1 or current_player.fb_phase==5}:
+    final_battle_fanfare_07:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: FFFFFF
+  fb_fanfare_show_7{current_player.fb_phase==2}:
+    final_battle_fanfare_07:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: 66CCFF
+  fb_fanfare_show_7{current_player.fb_phase==3}:
+    final_battle_fanfare_07:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: 66FF66
+  fb_fanfare_show_7{current_player.fb_phase==4}:
+    final_battle_fanfare_07:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: FFAA33
+  fb_fanfare_show_8{current_player.fb_phase==1 or current_player.fb_phase==5}:
+    final_battle_fanfare_08:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: FFFFFF
+  fb_fanfare_show_8{current_player.fb_phase==2}:
+    final_battle_fanfare_08:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: 66CCFF
+  fb_fanfare_show_8{current_player.fb_phase==3}:
+    final_battle_fanfare_08:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: 66FF66
+  fb_fanfare_show_8{current_player.fb_phase==4}:
+    final_battle_fanfare_08:
+      key: fb_fanfare_show
+      loops: 0
+      priority: 2
+      show_tokens:
+        color: FFAA33
+  # Shoot Again insert flashes while a ball save is on
+  fb_sa_start:
+    sync_flash_mode:
+      key: fb_sa_light
+      loops: -1
+      sync_ms: 1000
+      priority: 2
+      show_tokens:
+        led: l_shoot_again
+        color: FFFFFF
+  fb_sa_off:
+    fb_sa_light:
+      action: stop
+  # Victory GI sparkle (tally + victory video)
+  fb_victory:
+    fb_gi_sparkle:
+      key: fb_gi_sparkle
+      loops: -1
+      priority: 4
+  # 4 loops x 480ms = ~1.9s, ending with the 2.15s explosion video
+  fb_gi_explode:
+    fb_gi_explosion:
+      key: fb_gi_explosion
+      loops: 4
+      priority: 5
+
+##############################################################################
+## RANDOM EVENT PLAYER - shot fanfare light show (never the same twice in a row)
+##############################################################################
+random_event_player:
+  fb_fanfare:
+    force_different: true
+    events:
+      - fb_fanfare_show_1
+      - fb_fanfare_show_2
+      - fb_fanfare_show_3
+      - fb_fanfare_show_4
+      - fb_fanfare_show_5
+      - fb_fanfare_show_6
+      - fb_fanfare_show_7
+      - fb_fanfare_show_8
+
+##############################################################################
+## SLIDE PLAYER (mode priority 600 + value)
+##############################################################################
 slide_player:
   mode_final_battle_started:
-    final_battle_stub:
+    final_battle_hud:
       action: play
-      priority: 400
-  final_battle_complete:
-    mode_points_scored:
+      priority: 10
+    final_battle_video:
       action: play
-      priority: 450
-      expire: 2s
-  mode_final_battle_will_stop:
-    final_battle_stub:
+      priority: 20
+    final_battle_intro_instructions:
+      action: play
+      priority: 30
+      expire: 25s
+  fb_intro_done:
+    final_battle_intro_instructions:
       action: remove
+  # Phase 2 instructions: 16s into the phase 1 won video until the balls are
+  # released; if the won video was skipped first, 10s from the release
+  fb_p2_instr_show:
+    final_battle_phase2_instructions:
+      action: play
+      priority: 30
+  fb_p2_begin{current_player.fb_p2_instr_shown==1}:
+    final_battle_phase2_instructions:
+      action: remove
+  fb_p2_begin{current_player.fb_p2_instr_shown==0}:
+    final_battle_phase2_instructions:
+      action: play
+      priority: 30
+      expire: 10s
+  # Written instructions over the phase 3 / phase 4 intro videos
+  fb_vu_final_battle_phase3_intro:
+    final_battle_phase3_instructions:
+      action: play
+      priority: 30
+  fb_video_done{video=="final_battle_phase3_intro"}:
+    final_battle_phase3_instructions:
+      action: remove
+  fb_vu_final_battle_phase4_intro:
+    final_battle_phase4_instructions:
+      action: play
+      priority: 30
+  fb_video_done{video=="final_battle_phase4_intro"}:
+    final_battle_phase4_instructions:
+      action: remove
+  # Mission over (won or lost): no instruction overlay may stay up
+  fb_failed:
+    final_battle_intro_instructions:
+      action: remove
+    final_battle_phase2_instructions:
+      action: remove
+    final_battle_phase3_instructions:
+      action: remove
+    final_battle_phase4_instructions:
+      action: remove
+  fb_victory:
+    final_battle_intro_instructions:
+      action: remove
+    final_battle_phase2_instructions:
+      action: remove
+    final_battle_phase3_instructions:
+      action: remove
+    final_battle_phase4_instructions:
+      action: remove
+  fb_tally_start:
+    final_battle_tally:
+      action: play
+      priority: 40
+      expire: 30s
+
+##############################################################################
+## SOUND PLAYER
+##############################################################################
+sound_player:
+  fb_music_stop:
+    silence:
+      bus: music
+      loops: 0
+  fb_intro_voice:
+    voice_final_battle_intro:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_music_p1:
+    final_battle_phase_1_music:
+      bus: music
+      loops: -1
+  fb_music_p2:
+    final_battle_phase_2_music:
+      bus: music
+      loops: -1
+  fb_music_p3:
+    final_battle_phase_3_music:
+      bus: music
+      loops: -1
+  fb_music_p4:
+    final_battle_phase_4_music:
+      bus: music
+      loops: -1
+  # (no "stop" entry here: GMC stops processing a sound_player event at the
+  # first stop action, so it would swallow the play. The phase 4 track is
+  # already silenced when phase 4 is won.)
+  fb_music_landing:
+    final_battle_landing_music:
+      bus: music
+      loops: -1
+  fb_voice_jet_lost:
+    voice_final_battle_jet_lost:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_voice_last_jet:
+    voice_final_battle_last_jet:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  # Lost in phase 1 without locking a single jet: "failed seriously"
+  # (fb_hud_count = jets locked during phase 1). Otherwise the normal line.
+  fb_voice_one_more_try:
+    voice_one_more_try:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_voice_failed{current_player.fb_lost_phase<=1 and current_player.fb_hud_count==0}:
+    voice_failed_seriously:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_voice_failed{not (current_player.fb_lost_phase<=1 and current_player.fb_hud_count==0)}:
+    voice_final_battle_failed:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_voice_victory:
+    voice_final_battle_victory:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_voice_10_seconds:
+    voice_final_battle_10_seconds:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0

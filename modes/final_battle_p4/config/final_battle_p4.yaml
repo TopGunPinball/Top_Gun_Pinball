@@ -1,0 +1,948 @@
+#config_version=6
+##############################################################################
+## FINAL BATTLE - PHASE 4: DOGFIGHT + LANDING   (runs inside final_battle)
+##
+## INTRO: final_battle_phase4_intro (skippable) with the
+##   final_battle_phase4_instructions slide; the multiball starts after it.
+## 2-ball multiball (both locked jets), 30s ball save, GI light orange,
+## bandit shots flash red. No time limit: every ball draining -> lose a jet,
+## 2 balls back in play (30s save), progress kept. Scoop made -> flippers off
+## until the landing ball is released (landing is single ball).
+##
+## STAGE 1 - two slow bandits, move every 7.5s (2s grace: the spot it just left
+##   still counts). 3 hits total. Each hit moves that bandit on immediately.
+##     Bandit A: LO, LR, I, SP, C, E, SP, LR, LO, LL
+##     Bandit B: RR, TR, N, TL, A, TWR, M, BAR, M, TWR, A, TL, N, TR
+## STAGE 2 - one fast bandit (+1 ball, 30s save), moves every 3.75s (2s grace),
+##   starting at the Spinner. Each hit jumps it 3 spots. 5 hits.
+##   Path (83 spots, then repeats): SP BAR TWR BAR SP LR SP BAR TWR TL TWR BAR SP LR LO LR SP BAR TWR TL TR TL TWR BAR SP LR LO LR SP BAR TWR TL TR RR TR TL TWR BAR SP LR LO LR SP BAR TWR TL TR RR TR TL TWR BAR SP LR LO LR SP BAR TWR TL TR RR TR TL TWR BAR SP LR LO LR SP BAR TWR TL TR RR TR TL TWR BAR SP LR LO
+## STAGE 3 - barrier drops, shoot the scoop. Ball held, flippers off, other
+##   balls drain -> phase won (won video).
+## LANDING - ball released from the scoop, 120s (+30s Afterburner) to land;
+##   time runs out -> lose a jet, fresh 120s (after a drain, the fresh 120s
+##   starts when the new ball is plunged). White shots in order:
+##   Left Ramp, Right Ramp, Left Ramp, Tower, Left Orbit. The Left Orbit ball
+##   is caught by the right lane post (s_lane_right) -> VICTORY
+##   (final_battle_victory; the game ends when it finishes).
+## SCORING: 1,500,000 slow hit, 2,000,000 fast hit, 3,500,000 scoop (18,000,000)
+##   Landing: 1,000,000 per shot, 4,000,000 final (8,000,000)
+## MISSILES PERK: one slow bandit hit is credited at the start.
+##############################################################################
+
+mode:
+  start_events: fb_p4_begin
+  stop_events: fb_stop_phases, ball_will_end
+  priority: 610
+  game_mode: true
+
+timers:
+  # Fallback if the intro video never reports done
+  fb_p4_intro_fallback:
+    start_value: 0
+    end_value: 60
+    tick_interval: 1s
+    control_events:
+      - event: mode_final_battle_p4_started
+        action: restart
+      - event: fb_p4_go
+        action: stop
+  # LANDING: 120s (+30s Afterburner). Runs out -> lose a jet, fresh 120s.
+  # After a drain, the fresh 120s starts when the new ball is plunged.
+  fb_p4_land_timer:
+    start_value: 120 + 30 * current_player.fb_perk_afterburner
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    control_events:
+      - event: fb_p4_land_timer_restart
+        action: restart
+      - event: fb_jet_lost_normal
+        action: pause
+      - event: fb_p4_land_final
+        action: stop
+      - event: mode_timers_idle_pause
+        action: pause
+      - event: mode_timers_resume{current_player.fb_p4_stage==4 and current_player.fb_p4_land_wait==0 and current_player.fb_losing==0}
+        action: start
+  # Fallback if the new ball's plunge is never confirmed
+  fb_p4_land_wait_fallback:
+    start_value: 0
+    end_value: 8
+    tick_interval: 1s
+    control_events:
+      - event: fb_p4_land_wait_on
+        action: restart
+      - event: fb_p4_land_timer_restart
+        action: stop
+  fb_p4_slow_move:
+    start_value: 0
+    end_value: 1
+    tick_interval: 7500ms    # 25% faster (was 10s)
+    restart_on_complete: true
+    control_events:
+      - event: fb_p4_slow_go
+        action: restart
+      - event: fb_p4_stage2
+        action: stop
+  fb_p4_fast_move:
+    start_value: 0
+    end_value: 1
+    tick_interval: 3750ms    # 25% faster (was 5s)
+    restart_on_complete: true
+    control_events:
+      - event: fb_p4_stage2
+        action: restart
+      - event: fb_p4_stage3
+        action: stop
+  fb_p4_grace:
+    start_value: 0
+    end_value: 2
+    tick_interval: 1s
+    control_events:
+      - event: fb_p4_grace_start
+        action: restart
+      - event: fb_p4_grace_stop
+        action: stop
+  fb_p4_catch_window:
+    start_value: 0
+    end_value: 4
+    tick_interval: 1s
+    control_events:
+      - event: fb_p4_catch_arm
+        action: restart
+
+variable_player:
+  mode_final_battle_p4_started:
+    fb_p4_stage: { action: set, int: 0 }
+    fb_p4_a: { action: set, int: 0 }
+    fb_p4_a_prev: { action: set, int: -1 }
+    fb_p4_b: { action: set, int: 0 }
+    fb_p4_b_prev: { action: set, int: -1 }
+    fb_p4_f: { action: set, int: 0 }
+    fb_p4_f_prev: { action: set, int: -1 }
+    fb_p4_slow_hits: { action: set, int: 0 }
+    fb_p4_fast_hits: { action: set, int: 0 }
+    fb_p4_land: { action: set, int: 0 }
+    fb_p4_catch: { action: set, int: 0 }
+    fb_hud_count: { action: set, int: 0 }
+    fb_hud_count_label: { action: set, string: "BANDIT HITS" }
+    fb_objective: { action: set, string: "BANDITS INBOUND" }
+  fb_p4_go:
+    fb_p4_stage: { action: set, int: 1 }
+    fb_objective: { action: set, string: "SHOOT THE RED BANDITS - 3 HITS" }
+  # Bandit moves (prev = where it was, for the 2s grace)
+  fb_p4_a_step:
+    fb_p4_a_prev: { action: set, int: current_player.fb_p4_a }
+    fb_p4_a: { action: add, int: 1 }
+  fb_p4_a_wrap:
+    fb_p4_a_prev: { action: set, int: current_player.fb_p4_a }
+    fb_p4_a: { action: set, int: 0 }
+  fb_p4_b_step:
+    fb_p4_b_prev: { action: set, int: current_player.fb_p4_b }
+    fb_p4_b: { action: add, int: 1 }
+  fb_p4_b_wrap:
+    fb_p4_b_prev: { action: set, int: current_player.fb_p4_b }
+    fb_p4_b: { action: set, int: 0 }
+  fb_p4_f_step:
+    fb_p4_f_prev: { action: set, int: current_player.fb_p4_f }
+    fb_p4_f: { action: add, int: 1 }
+  fb_p4_f_wrap:
+    fb_p4_f_prev: { action: set, int: current_player.fb_p4_f }
+    fb_p4_f: { action: set, int: 0 }
+  fb_p4_f_jump:
+    fb_p4_f_prev: { action: set, int: -1 }
+    fb_p4_f: { action: add, int: 3 }
+  fb_p4_f_jump_wrap:
+    fb_p4_f_prev: { action: set, int: -1 }
+    fb_p4_f: { action: set, int: current_player.fb_p4_f + 3 - 83 }
+  fb_p4_a_noprev:
+    fb_p4_a_prev: { action: set, int: -1 }
+  fb_p4_b_noprev:
+    fb_p4_b_prev: { action: set, int: -1 }
+  fb_p4_slow_scored:
+    fb_p4_slow_hits: { action: add, int: 1 }
+    fb_hud_count: { action: add, int: 1 }
+  fb_p4_fast_scored:
+    fb_p4_fast_hits: { action: add, int: 1 }
+    fb_hud_count: { action: add, int: 1 }
+  fb_p4_stage2:
+    fb_p4_stage: { action: set, int: 2 }
+    fb_objective: { action: set, string: "SHOOT THE FAST BANDIT - 5 HITS" }
+  fb_p4_stage3:
+    fb_p4_stage: { action: set, int: 3 }
+    fb_objective: { action: set, string: "BANDITS DOWN - SHOOT THE SCOOP" }
+  fb_p4_scoop_made:
+    fb_p4_stage: { action: set, int: 8 }
+  fb_p4_drained:
+    fb_p4_stage: { action: set, int: 9 }
+  timer_fb_p4_land_timer_tick:
+    fb_timer: { action: set, int: ticks }
+  fb_p4_land_wait_on:
+    fb_p4_land_wait: { action: set, int: 1 }
+  fb_p4_land_timer_restart:
+    fb_p4_land_wait: { action: set, int: 0 }
+  fb_landing_begin:
+    fb_p4_land_wait: { action: set, int: 0 }
+    fb_p4_stage: { action: set, int: 4 }
+    fb_p4_land: { action: set, int: 0 }
+    fb_grace_secs: { action: set, int: 10 }
+    fb_hud_count: { action: set, int: 0 }
+    fb_hud_count_label: { action: set, string: "LANDING" }
+  fb_p4_land_hit:
+    fb_p4_land: { action: add, int: 1 }
+    fb_hud_count: { action: add, int: 1 }
+  fb_p4_catch_arm:
+    fb_p4_catch: { action: set, int: 1 }
+  timer_fb_p4_catch_window_complete:
+    fb_p4_catch: { action: set, int: 0 }
+  fb_p4_land_final:
+    fb_p4_stage: { action: set, int: 10 }
+  fb_p4_land_show_0:
+    fb_objective: { action: set, string: "LANDING 1 OF 5 - SHOOT THE LEFT RAMP" }
+  fb_p4_land_show_1:
+    fb_objective: { action: set, string: "LANDING 2 OF 5 - SHOOT THE RIGHT RAMP" }
+  fb_p4_land_show_2:
+    fb_objective: { action: set, string: "LANDING 3 OF 5 - SHOOT THE LEFT RAMP" }
+  fb_p4_land_show_3:
+    fb_objective: { action: set, string: "LANDING 4 OF 5 - SHOOT THE TOWER" }
+  fb_p4_land_show_4:
+    fb_objective: { action: set, string: "LANDING 5 OF 5 - LEFT ORBIT - BRING HER HOME" }
+
+event_player:
+  ##############################################
+  ## BEGIN: both locked jets released (2-ball multiball)
+  ##############################################
+  # Intro first (both jets are still in the lock, nothing on the playfield)
+  mode_final_battle_p4_started:
+    - fb_vu_final_battle_phase4_intro
+  fb_video_done{video=="final_battle_phase4_intro" and current_player.fb_p4_stage==0}:
+    - fb_p4_go
+  timer_fb_p4_intro_fallback_complete{current_player.fb_p4_stage==0}:
+    - fb_p4_go
+  fb_p4_go:
+    - barrier_raise   # Barrier Target is a bandit spot
+    - lock_mech_release
+    - fb_p4_multiball_start
+    - fb_p4_slow_go
+    - fb_p4_refresh_a
+    - fb_p4_refresh_b
+  fb_p4_go{current_player.fb_perk_missiles==1}:
+    - fb_p4_slow_scored|2s
+
+
+  ##############################################
+  ## STAGE 1: slow bandits
+  ##############################################
+  timer_fb_p4_slow_move_complete{current_player.fb_p4_stage==1}:
+    - fb_p4_move_a
+    - fb_p4_move_b
+    - fb_p4_grace_start
+  fb_p4_move_a{current_player.fb_p4_a>=9}:
+    - fb_p4_a_wrap
+  fb_p4_move_a{current_player.fb_p4_a<9}:
+    - fb_p4_a_step
+  fb_p4_move_b{current_player.fb_p4_b>=13}:
+    - fb_p4_b_wrap
+  fb_p4_move_b{current_player.fb_p4_b<13}:
+    - fb_p4_b_step
+  fb_p4_a_step:
+    - fb_p4_refresh_a
+  fb_p4_a_wrap:
+    - fb_p4_refresh_a
+  fb_p4_b_step:
+    - fb_p4_refresh_b
+  fb_p4_b_wrap:
+    - fb_p4_refresh_b
+  s_c_iceman_target_active{current_player.fb_p4_stage==1 and ((current_player.fb_p4_a==4) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_a_prev==4)))}:
+    - fb_p4_a_hit
+  s_e_iceman_target_active{current_player.fb_p4_stage==1 and ((current_player.fb_p4_a==5) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_a_prev==5)))}:
+    - fb_p4_a_hit
+  s_i_iceman_target_active{current_player.fb_p4_stage==1 and ((current_player.fb_p4_a==2) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_a_prev==2)))}:
+    - fb_p4_a_hit
+  s_lane_left_active{current_player.fb_p4_stage==1 and ((current_player.fb_p4_a==9) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_a_prev==9)))}:
+    - fb_p4_a_hit
+    - fb_p4_ll_catch
+  # Left Lane bandit hit: the left lane post catches the ball for 1.5s, then
+  # lets it go - a clean feed back to the flippers. The post events are owned
+  # by final_battle.yaml (coil + ball search block), so the release still
+  # happens if this mode stops in the meantime.
+  fb_p4_ll_catch:
+    - fb_left_post_hold
+    - fb_left_post_release|1500ms
+  left_orbit_shot_hit{current_player.fb_p4_stage==1 and ((current_player.fb_p4_a==0 or current_player.fb_p4_a==8) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_a_prev==0 or current_player.fb_p4_a_prev==8)))}:
+    - fb_p4_a_hit
+  s_ramp_left_exit_active{current_player.fb_p4_stage==1 and ((current_player.fb_p4_a==1 or current_player.fb_p4_a==7) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_a_prev==1 or current_player.fb_p4_a_prev==7)))}:
+    - fb_p4_a_hit
+  spinner_shot_made{current_player.fb_p4_stage==1 and ((current_player.fb_p4_a==3 or current_player.fb_p4_a==6) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_a_prev==3 or current_player.fb_p4_a_prev==6)))}:
+    - fb_p4_a_hit
+  s_a_iceman_target_active{current_player.fb_p4_stage==1 and ((current_player.fb_p4_b==4 or current_player.fb_p4_b==10) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_b_prev==4 or current_player.fb_p4_b_prev==10)))}:
+    - fb_p4_b_hit
+  s_barrier_target_active{current_player.fb_p4_stage==1 and ((current_player.fb_p4_b==7) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_b_prev==7)))}:
+    - fb_p4_b_hit
+  s_m_iceman_target_active{current_player.fb_p4_stage==1 and ((current_player.fb_p4_b==6 or current_player.fb_p4_b==8) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_b_prev==6 or current_player.fb_p4_b_prev==8)))}:
+    - fb_p4_b_hit
+  s_n_iceman_target_active{current_player.fb_p4_stage==1 and ((current_player.fb_p4_b==2 or current_player.fb_p4_b==12) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_b_prev==2 or current_player.fb_p4_b_prev==12)))}:
+    - fb_p4_b_hit
+  s_ramp_right_exit_active{current_player.fb_p4_stage==1 and ((current_player.fb_p4_b==0) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_b_prev==0)))}:
+    - fb_p4_b_hit
+  s_orbit_upper_active{current_player.fb_p4_stage==1 and ((current_player.fb_p4_b==3 or current_player.fb_p4_b==11) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_b_prev==3 or current_player.fb_p4_b_prev==11)))}:
+    - fb_p4_b_hit
+  s_ramp_inner_exit_active{current_player.fb_p4_stage==1 and ((current_player.fb_p4_b==1 or current_player.fb_p4_b==13) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_b_prev==1 or current_player.fb_p4_b_prev==13)))}:
+    - fb_p4_b_hit
+  s_ramp_tower_exit_active{current_player.fb_p4_stage==1 and ((current_player.fb_p4_b==5 or current_player.fb_p4_b==9) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_b_prev==5 or current_player.fb_p4_b_prev==9)))}:
+    - fb_p4_b_hit
+  # Hit bandit moves on right away; its old spot must not count again
+  fb_p4_a_hit:
+    - fb_p4_slow_scored
+    - fb_p4_move_a
+    - fb_p4_a_noprev|100ms
+  fb_p4_b_hit:
+    - fb_p4_slow_scored
+    - fb_p4_move_b
+    - fb_p4_b_noprev|100ms
+  fb_p4_slow_scored:
+    fb_step_made: {}
+    fb_p4_bandit_sound: {}
+    fb_p4_slow_check: {}
+    fb_points_add:
+      phase: 4
+      points:
+        value: current_player.fb_shot_value
+        type: int
+  fb_p4_slow_check{current_player.fb_p4_slow_hits>=3 and current_player.fb_p4_stage==1}:
+    - fb_p4_stage2
+
+  ##############################################
+  ## STAGE 2: fast bandit
+  ##############################################
+  fb_p4_stage2:
+    - barrier_raise
+    - fb_p4_bandits_off
+    - fb_p4_add_ball
+    - fb_p4_refresh_f
+  timer_fb_p4_fast_move_complete{current_player.fb_p4_stage==2}:
+    - fb_p4_move_f
+    - fb_p4_grace_start
+  fb_p4_move_f{current_player.fb_p4_f>=82}:
+    - fb_p4_f_wrap
+  fb_p4_move_f{current_player.fb_p4_f<82}:
+    - fb_p4_f_step
+  fb_p4_f_step:
+    - fb_p4_refresh_f
+  fb_p4_f_wrap:
+    - fb_p4_refresh_f
+  fb_p4_f_jump:
+    - fb_p4_refresh_f
+  fb_p4_f_jump_wrap:
+    - fb_p4_refresh_f
+  s_barrier_target_active{current_player.fb_p4_stage==2 and ((current_player.fb_p4_f==1 or current_player.fb_p4_f==3 or current_player.fb_p4_f==7 or current_player.fb_p4_f==11 or current_player.fb_p4_f==17 or current_player.fb_p4_f==23 or current_player.fb_p4_f==29 or current_player.fb_p4_f==37 or current_player.fb_p4_f==43 or current_player.fb_p4_f==51 or current_player.fb_p4_f==57 or current_player.fb_p4_f==65 or current_player.fb_p4_f==71 or current_player.fb_p4_f==79) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_f_prev==1 or current_player.fb_p4_f_prev==3 or current_player.fb_p4_f_prev==7 or current_player.fb_p4_f_prev==11 or current_player.fb_p4_f_prev==17 or current_player.fb_p4_f_prev==23 or current_player.fb_p4_f_prev==29 or current_player.fb_p4_f_prev==37 or current_player.fb_p4_f_prev==43 or current_player.fb_p4_f_prev==51 or current_player.fb_p4_f_prev==57 or current_player.fb_p4_f_prev==65 or current_player.fb_p4_f_prev==71 or current_player.fb_p4_f_prev==79)))}:
+    - fb_p4_fast_scored
+  left_orbit_shot_hit{current_player.fb_p4_stage==2 and ((current_player.fb_p4_f==14 or current_player.fb_p4_f==26 or current_player.fb_p4_f==40 or current_player.fb_p4_f==54 or current_player.fb_p4_f==68 or current_player.fb_p4_f==82) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_f_prev==14 or current_player.fb_p4_f_prev==26 or current_player.fb_p4_f_prev==40 or current_player.fb_p4_f_prev==54 or current_player.fb_p4_f_prev==68 or current_player.fb_p4_f_prev==82)))}:
+    - fb_p4_fast_scored
+  s_ramp_left_exit_active{current_player.fb_p4_stage==2 and ((current_player.fb_p4_f==5 or current_player.fb_p4_f==13 or current_player.fb_p4_f==15 or current_player.fb_p4_f==25 or current_player.fb_p4_f==27 or current_player.fb_p4_f==39 or current_player.fb_p4_f==41 or current_player.fb_p4_f==53 or current_player.fb_p4_f==55 or current_player.fb_p4_f==67 or current_player.fb_p4_f==69 or current_player.fb_p4_f==81) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_f_prev==5 or current_player.fb_p4_f_prev==13 or current_player.fb_p4_f_prev==15 or current_player.fb_p4_f_prev==25 or current_player.fb_p4_f_prev==27 or current_player.fb_p4_f_prev==39 or current_player.fb_p4_f_prev==41 or current_player.fb_p4_f_prev==53 or current_player.fb_p4_f_prev==55 or current_player.fb_p4_f_prev==67 or current_player.fb_p4_f_prev==69 or current_player.fb_p4_f_prev==81)))}:
+    - fb_p4_fast_scored
+  s_ramp_right_exit_active{current_player.fb_p4_stage==2 and ((current_player.fb_p4_f==33 or current_player.fb_p4_f==47 or current_player.fb_p4_f==61 or current_player.fb_p4_f==75) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_f_prev==33 or current_player.fb_p4_f_prev==47 or current_player.fb_p4_f_prev==61 or current_player.fb_p4_f_prev==75)))}:
+    - fb_p4_fast_scored
+  spinner_shot_made{current_player.fb_p4_stage==2 and ((current_player.fb_p4_f==0 or current_player.fb_p4_f==4 or current_player.fb_p4_f==6 or current_player.fb_p4_f==12 or current_player.fb_p4_f==16 or current_player.fb_p4_f==24 or current_player.fb_p4_f==28 or current_player.fb_p4_f==38 or current_player.fb_p4_f==42 or current_player.fb_p4_f==52 or current_player.fb_p4_f==56 or current_player.fb_p4_f==66 or current_player.fb_p4_f==70 or current_player.fb_p4_f==80) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_f_prev==0 or current_player.fb_p4_f_prev==4 or current_player.fb_p4_f_prev==6 or current_player.fb_p4_f_prev==12 or current_player.fb_p4_f_prev==16 or current_player.fb_p4_f_prev==24 or current_player.fb_p4_f_prev==28 or current_player.fb_p4_f_prev==38 or current_player.fb_p4_f_prev==42 or current_player.fb_p4_f_prev==52 or current_player.fb_p4_f_prev==56 or current_player.fb_p4_f_prev==66 or current_player.fb_p4_f_prev==70 or current_player.fb_p4_f_prev==80)))}:
+    - fb_p4_fast_scored
+  s_orbit_upper_active{current_player.fb_p4_stage==2 and ((current_player.fb_p4_f==9 or current_player.fb_p4_f==19 or current_player.fb_p4_f==21 or current_player.fb_p4_f==31 or current_player.fb_p4_f==35 or current_player.fb_p4_f==45 or current_player.fb_p4_f==49 or current_player.fb_p4_f==59 or current_player.fb_p4_f==63 or current_player.fb_p4_f==73 or current_player.fb_p4_f==77) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_f_prev==9 or current_player.fb_p4_f_prev==19 or current_player.fb_p4_f_prev==21 or current_player.fb_p4_f_prev==31 or current_player.fb_p4_f_prev==35 or current_player.fb_p4_f_prev==45 or current_player.fb_p4_f_prev==49 or current_player.fb_p4_f_prev==59 or current_player.fb_p4_f_prev==63 or current_player.fb_p4_f_prev==73 or current_player.fb_p4_f_prev==77)))}:
+    - fb_p4_fast_scored
+  s_ramp_inner_exit_active{current_player.fb_p4_stage==2 and ((current_player.fb_p4_f==20 or current_player.fb_p4_f==32 or current_player.fb_p4_f==34 or current_player.fb_p4_f==46 or current_player.fb_p4_f==48 or current_player.fb_p4_f==60 or current_player.fb_p4_f==62 or current_player.fb_p4_f==74 or current_player.fb_p4_f==76) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_f_prev==20 or current_player.fb_p4_f_prev==32 or current_player.fb_p4_f_prev==34 or current_player.fb_p4_f_prev==46 or current_player.fb_p4_f_prev==48 or current_player.fb_p4_f_prev==60 or current_player.fb_p4_f_prev==62 or current_player.fb_p4_f_prev==74 or current_player.fb_p4_f_prev==76)))}:
+    - fb_p4_fast_scored
+  s_ramp_tower_exit_active{current_player.fb_p4_stage==2 and ((current_player.fb_p4_f==2 or current_player.fb_p4_f==8 or current_player.fb_p4_f==10 or current_player.fb_p4_f==18 or current_player.fb_p4_f==22 or current_player.fb_p4_f==30 or current_player.fb_p4_f==36 or current_player.fb_p4_f==44 or current_player.fb_p4_f==50 or current_player.fb_p4_f==58 or current_player.fb_p4_f==64 or current_player.fb_p4_f==72 or current_player.fb_p4_f==78) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_f_prev==2 or current_player.fb_p4_f_prev==8 or current_player.fb_p4_f_prev==10 or current_player.fb_p4_f_prev==18 or current_player.fb_p4_f_prev==22 or current_player.fb_p4_f_prev==30 or current_player.fb_p4_f_prev==36 or current_player.fb_p4_f_prev==44 or current_player.fb_p4_f_prev==50 or current_player.fb_p4_f_prev==58 or current_player.fb_p4_f_prev==64 or current_player.fb_p4_f_prev==72 or current_player.fb_p4_f_prev==78)))}:
+    - fb_p4_fast_scored
+  fb_p4_fast_scored:
+    fb_step_made: {}
+    fb_p4_bandit_sound: {}
+    fb_p4_grace_stop: {}
+    fb_p4_jump_f: {}
+    fb_p4_fast_check: {}
+    fb_points_add:
+      phase: 4
+      points:
+        value: current_player.fb_shot_value
+        type: int
+  fb_p4_jump_f{current_player.fb_p4_f>=80}:
+    - fb_p4_f_jump_wrap
+  fb_p4_jump_f{current_player.fb_p4_f<80}:
+    - fb_p4_f_jump
+  fb_p4_fast_check{current_player.fb_p4_fast_hits>=5 and current_player.fb_p4_stage==2}:
+    - fb_p4_stage3
+
+  ##############################################
+  ## STAGE 3: scoop
+  ##############################################
+  fb_p4_stage3:
+    - fb_p4_bandits_off
+    - fb_voice_bandits_down
+    - fb_scoop_hold_reset   # room in the scoop hold before the shot
+    - barrier_drop
+    - fb_p4_scoop_on
+  s_mode_start_active{current_player.fb_p4_stage==3}:
+    - fb_p4_scoop_made
+  fb_p4_scoop_made:
+    fb_p4_scoop_off: {}
+    barrier_raise|1500ms: {}
+    disable_normal_flippers: {}
+    fb_mb_stop_saves: {}
+    fb_grace_save_disable: {}
+    fb_p4_drain_check|2s: {}
+    fb_points_add:
+      phase: 4
+      points: 3500000
+  balls_in_play{balls==1 and current_player.fb_p4_stage==8}:
+    - fb_p4_drained
+  fb_p4_drain_check{game.balls_in_play<=1 and current_player.fb_p4_stage==8}:
+    - fb_p4_drained
+  # flippers stay off until the landing ball is released (single ball)
+  fb_p4_drained:
+    - fb_p4_complete
+
+  ##############################################
+  ## TIMER / JETS
+  ##############################################
+  # No time limit on the bandits: a jet is only lost when every ball drains
+  fb_jet_continue{current_player.fb_phase==4 and current_player.fb_p4_stage<=3}:
+    - fb_p4_relaunch
+
+  ##############################################
+  ## LANDING
+  ##############################################
+  fb_landing_begin:
+    - fb_scoop_out
+    - enable_normal_flippers
+    - fb_p4_land_timer_restart
+    - fb_grace_save_enable|100ms
+    - fb_voice_land_it
+    - fb_p4_land_refresh|300ms
+  # Landing timer
+  timer_fb_p4_land_timer_tick{ticks==10 and current_player.fb_p4_stage==4}:
+    - fb_voice_10_seconds
+  timer_fb_p4_land_timer_complete{current_player.fb_p4_stage==4}:
+    - fb_loss_timer
+    - fb_lose_jet
+  # Jet lost on the timer: the ball is still in play -> fresh 120s now
+  fb_jet_continue{current_player.fb_phase==5 and current_player.fb_loss_reason==2}:
+    - fb_p4_land_timer_restart
+  # Jet lost on a drain: fresh 120s once the new ball is plunged
+  fb_jet_continue{current_player.fb_phase==5 and current_player.fb_loss_reason==1}:
+    - fb_p4_land_wait_on
+  plunger_eject_confirmed{current_player.fb_p4_stage==4 and current_player.fb_p4_land_wait==1}:
+    - fb_p4_land_timer_restart
+  timer_fb_p4_land_wait_fallback_complete{current_player.fb_p4_stage==4 and current_player.fb_p4_land_wait==1}:
+    - fb_p4_land_timer_restart
+  s_ramp_left_exit_active{current_player.fb_p4_stage==4 and current_player.fb_p4_land==0}:
+    - fb_p4_land_hit
+  fb_p4_land_refresh{current_player.fb_p4_stage==4 and current_player.fb_p4_land==0}:
+    - fb_p4_land_show_0
+  s_ramp_right_exit_active{current_player.fb_p4_stage==4 and current_player.fb_p4_land==1}:
+    - fb_p4_land_hit
+  fb_p4_land_refresh{current_player.fb_p4_stage==4 and current_player.fb_p4_land==1}:
+    - fb_p4_land_show_1
+  s_ramp_left_exit_active{current_player.fb_p4_stage==4 and current_player.fb_p4_land==2}:
+    - fb_p4_land_hit
+  fb_p4_land_refresh{current_player.fb_p4_stage==4 and current_player.fb_p4_land==2}:
+    - fb_p4_land_show_2
+  s_ramp_tower_exit_active{current_player.fb_p4_stage==4 and current_player.fb_p4_land==3}:
+    - fb_p4_land_hit
+  fb_p4_land_refresh{current_player.fb_p4_stage==4 and current_player.fb_p4_land==3}:
+    - fb_p4_land_show_3
+  fb_p4_land_refresh{current_player.fb_p4_stage==4 and current_player.fb_p4_land==4}:
+    - fb_p4_land_show_4
+  fb_p4_land_hit:
+    fb_step_made: {}
+    fb_p4_land_refresh: {}
+    fb_points_add:
+      phase: 5
+      points:
+        value: current_player.fb_shot_value
+        type: int
+  # Final: left orbit -> ball comes down the right lane -> post catches it
+  s_orbit_left_active{current_player.fb_p4_stage==4 and current_player.fb_p4_land==4}:
+    - fb_p4_catch_arm
+  s_lane_right_active{current_player.fb_p4_stage==4 and current_player.fb_p4_land==4 and current_player.fb_p4_catch==1}:
+    - fb_right_post_hold
+    - fb_p4_land_final
+  fb_p4_land_final:
+    fb_p4_land_off: {}
+    fb_victory: {}
+    fb_points_add:
+      phase: 5
+      points: 4000000
+
+  ##############################################
+  ## LIGHT DISPATCH (bandit position -> show)
+  ##############################################
+  fb_p4_refresh_a{current_player.fb_p4_stage==1 and current_player.fb_p4_a==0}:
+    - fb_p4_a_on_LO
+  fb_p4_refresh_a{current_player.fb_p4_stage==1 and current_player.fb_p4_a==1}:
+    - fb_p4_a_on_LR
+  fb_p4_refresh_a{current_player.fb_p4_stage==1 and current_player.fb_p4_a==2}:
+    - fb_p4_a_on_I
+  fb_p4_refresh_a{current_player.fb_p4_stage==1 and current_player.fb_p4_a==3}:
+    - fb_p4_a_on_SP
+  fb_p4_refresh_a{current_player.fb_p4_stage==1 and current_player.fb_p4_a==4}:
+    - fb_p4_a_on_C
+  fb_p4_refresh_a{current_player.fb_p4_stage==1 and current_player.fb_p4_a==5}:
+    - fb_p4_a_on_E
+  fb_p4_refresh_a{current_player.fb_p4_stage==1 and current_player.fb_p4_a==6}:
+    - fb_p4_a_on_SP
+  fb_p4_refresh_a{current_player.fb_p4_stage==1 and current_player.fb_p4_a==7}:
+    - fb_p4_a_on_LR
+  fb_p4_refresh_a{current_player.fb_p4_stage==1 and current_player.fb_p4_a==8}:
+    - fb_p4_a_on_LO
+  fb_p4_refresh_a{current_player.fb_p4_stage==1 and current_player.fb_p4_a==9}:
+    - fb_p4_a_on_LL
+  fb_p4_refresh_b{current_player.fb_p4_stage==1 and current_player.fb_p4_b==0}:
+    - fb_p4_b_on_RR
+  fb_p4_refresh_b{current_player.fb_p4_stage==1 and current_player.fb_p4_b==1}:
+    - fb_p4_b_on_TR
+  fb_p4_refresh_b{current_player.fb_p4_stage==1 and current_player.fb_p4_b==2}:
+    - fb_p4_b_on_N
+  fb_p4_refresh_b{current_player.fb_p4_stage==1 and current_player.fb_p4_b==3}:
+    - fb_p4_b_on_TL
+  fb_p4_refresh_b{current_player.fb_p4_stage==1 and current_player.fb_p4_b==4}:
+    - fb_p4_b_on_A
+  fb_p4_refresh_b{current_player.fb_p4_stage==1 and current_player.fb_p4_b==5}:
+    - fb_p4_b_on_TWR
+  fb_p4_refresh_b{current_player.fb_p4_stage==1 and current_player.fb_p4_b==6}:
+    - fb_p4_b_on_M
+  fb_p4_refresh_b{current_player.fb_p4_stage==1 and current_player.fb_p4_b==7}:
+    - fb_p4_b_on_BAR
+  fb_p4_refresh_b{current_player.fb_p4_stage==1 and current_player.fb_p4_b==8}:
+    - fb_p4_b_on_M
+  fb_p4_refresh_b{current_player.fb_p4_stage==1 and current_player.fb_p4_b==9}:
+    - fb_p4_b_on_TWR
+  fb_p4_refresh_b{current_player.fb_p4_stage==1 and current_player.fb_p4_b==10}:
+    - fb_p4_b_on_A
+  fb_p4_refresh_b{current_player.fb_p4_stage==1 and current_player.fb_p4_b==11}:
+    - fb_p4_b_on_TL
+  fb_p4_refresh_b{current_player.fb_p4_stage==1 and current_player.fb_p4_b==12}:
+    - fb_p4_b_on_N
+  fb_p4_refresh_b{current_player.fb_p4_stage==1 and current_player.fb_p4_b==13}:
+    - fb_p4_b_on_TR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==0}:
+    - fb_p4_f_on_SP
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==1}:
+    - fb_p4_f_on_BAR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==2}:
+    - fb_p4_f_on_TWR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==3}:
+    - fb_p4_f_on_BAR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==4}:
+    - fb_p4_f_on_SP
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==5}:
+    - fb_p4_f_on_LR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==6}:
+    - fb_p4_f_on_SP
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==7}:
+    - fb_p4_f_on_BAR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==8}:
+    - fb_p4_f_on_TWR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==9}:
+    - fb_p4_f_on_TL
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==10}:
+    - fb_p4_f_on_TWR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==11}:
+    - fb_p4_f_on_BAR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==12}:
+    - fb_p4_f_on_SP
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==13}:
+    - fb_p4_f_on_LR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==14}:
+    - fb_p4_f_on_LO
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==15}:
+    - fb_p4_f_on_LR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==16}:
+    - fb_p4_f_on_SP
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==17}:
+    - fb_p4_f_on_BAR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==18}:
+    - fb_p4_f_on_TWR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==19}:
+    - fb_p4_f_on_TL
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==20}:
+    - fb_p4_f_on_TR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==21}:
+    - fb_p4_f_on_TL
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==22}:
+    - fb_p4_f_on_TWR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==23}:
+    - fb_p4_f_on_BAR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==24}:
+    - fb_p4_f_on_SP
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==25}:
+    - fb_p4_f_on_LR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==26}:
+    - fb_p4_f_on_LO
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==27}:
+    - fb_p4_f_on_LR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==28}:
+    - fb_p4_f_on_SP
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==29}:
+    - fb_p4_f_on_BAR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==30}:
+    - fb_p4_f_on_TWR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==31}:
+    - fb_p4_f_on_TL
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==32}:
+    - fb_p4_f_on_TR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==33}:
+    - fb_p4_f_on_RR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==34}:
+    - fb_p4_f_on_TR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==35}:
+    - fb_p4_f_on_TL
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==36}:
+    - fb_p4_f_on_TWR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==37}:
+    - fb_p4_f_on_BAR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==38}:
+    - fb_p4_f_on_SP
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==39}:
+    - fb_p4_f_on_LR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==40}:
+    - fb_p4_f_on_LO
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==41}:
+    - fb_p4_f_on_LR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==42}:
+    - fb_p4_f_on_SP
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==43}:
+    - fb_p4_f_on_BAR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==44}:
+    - fb_p4_f_on_TWR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==45}:
+    - fb_p4_f_on_TL
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==46}:
+    - fb_p4_f_on_TR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==47}:
+    - fb_p4_f_on_RR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==48}:
+    - fb_p4_f_on_TR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==49}:
+    - fb_p4_f_on_TL
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==50}:
+    - fb_p4_f_on_TWR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==51}:
+    - fb_p4_f_on_BAR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==52}:
+    - fb_p4_f_on_SP
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==53}:
+    - fb_p4_f_on_LR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==54}:
+    - fb_p4_f_on_LO
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==55}:
+    - fb_p4_f_on_LR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==56}:
+    - fb_p4_f_on_SP
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==57}:
+    - fb_p4_f_on_BAR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==58}:
+    - fb_p4_f_on_TWR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==59}:
+    - fb_p4_f_on_TL
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==60}:
+    - fb_p4_f_on_TR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==61}:
+    - fb_p4_f_on_RR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==62}:
+    - fb_p4_f_on_TR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==63}:
+    - fb_p4_f_on_TL
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==64}:
+    - fb_p4_f_on_TWR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==65}:
+    - fb_p4_f_on_BAR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==66}:
+    - fb_p4_f_on_SP
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==67}:
+    - fb_p4_f_on_LR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==68}:
+    - fb_p4_f_on_LO
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==69}:
+    - fb_p4_f_on_LR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==70}:
+    - fb_p4_f_on_SP
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==71}:
+    - fb_p4_f_on_BAR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==72}:
+    - fb_p4_f_on_TWR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==73}:
+    - fb_p4_f_on_TL
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==74}:
+    - fb_p4_f_on_TR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==75}:
+    - fb_p4_f_on_RR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==76}:
+    - fb_p4_f_on_TR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==77}:
+    - fb_p4_f_on_TL
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==78}:
+    - fb_p4_f_on_TWR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==79}:
+    - fb_p4_f_on_BAR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==80}:
+    - fb_p4_f_on_SP
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==81}:
+    - fb_p4_f_on_LR
+  fb_p4_refresh_f{current_player.fb_p4_stage==2 and current_player.fb_p4_f==82}:
+    - fb_p4_f_on_LO
+
+show_player:
+  fb_p4_a_on_C:
+    sync_flash_mode:
+      key: fb_p4_bandit_a
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_iceman_c
+        color: FF0000
+  fb_p4_a_on_E:
+    sync_flash_mode:
+      key: fb_p4_bandit_a
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_iceman_e
+        color: FF0000
+  fb_p4_a_on_I:
+    sync_flash_mode:
+      key: fb_p4_bandit_a
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_iceman_i
+        color: FF0000
+  fb_p4_a_on_LL:
+    sync_flash_mode:
+      key: fb_p4_bandit_a
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_left_lane
+        color: FF0000
+  fb_p4_a_on_LO:
+    sync_flash_mode:
+      key: fb_p4_bandit_a
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_left_orbit
+        color: FF0000
+  fb_p4_a_on_LR:
+    sync_flash_mode:
+      key: fb_p4_bandit_a
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_left_ramp
+        color: FF0000
+  fb_p4_a_on_SP:
+    sync_flash_mode:
+      key: fb_p4_bandit_a
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_spinner
+        color: FF0000
+  fb_p4_b_on_A:
+    sync_flash_mode:
+      key: fb_p4_bandit_b
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_iceman_a
+        color: FF0000
+  fb_p4_b_on_BAR:
+    sync_flash_mode:
+      key: fb_p4_bandit_b
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        color: FF0000
+  fb_p4_b_on_M:
+    sync_flash_mode:
+      key: fb_p4_bandit_b
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_iceman_m
+        color: FF0000
+  fb_p4_b_on_N:
+    sync_flash_mode:
+      key: fb_p4_bandit_b
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_iceman_n
+        color: FF0000
+  fb_p4_b_on_RR:
+    sync_flash_mode:
+      key: fb_p4_bandit_b
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_right_orbit
+        color: FF0000
+  fb_p4_b_on_TL:
+    sync_flash_mode:
+      key: fb_p4_bandit_b
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: FF0000
+  fb_p4_b_on_TR:
+    sync_flash_mode:
+      key: fb_p4_bandit_b
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: FF0000
+  fb_p4_b_on_TWR:
+    sync_flash_mode:
+      key: fb_p4_bandit_b
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_tower_ramp
+        color: FF0000
+  fb_p4_f_on_BAR:
+    sync_flash_mode:
+      key: fb_p4_bandit_f
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        color: FF0000
+  fb_p4_f_on_LO:
+    sync_flash_mode:
+      key: fb_p4_bandit_f
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_left_orbit
+        color: FF0000
+  fb_p4_f_on_LR:
+    sync_flash_mode:
+      key: fb_p4_bandit_f
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_left_ramp
+        color: FF0000
+  fb_p4_f_on_RR:
+    sync_flash_mode:
+      key: fb_p4_bandit_f
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_right_orbit
+        color: FF0000
+  fb_p4_f_on_SP:
+    sync_flash_mode:
+      key: fb_p4_bandit_f
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_spinner
+        color: FF0000
+  fb_p4_f_on_TL:
+    sync_flash_mode:
+      key: fb_p4_bandit_f
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: FF0000
+  fb_p4_f_on_TR:
+    sync_flash_mode:
+      key: fb_p4_bandit_f
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: FF0000
+  fb_p4_f_on_TWR:
+    sync_flash_mode:
+      key: fb_p4_bandit_f
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_tower_ramp
+        color: FF0000
+  fb_p4_bandits_off:
+    fb_p4_bandit_a:
+      action: stop
+    fb_p4_bandit_b:
+      action: stop
+    fb_p4_bandit_f:
+      action: stop
+  fb_p4_scoop_on:
+    sync_flash_mode:
+      key: fb_p4_scoop
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        color: FF0000
+  fb_p4_scoop_off:
+    fb_p4_scoop:
+      action: stop
+  fb_p4_land_show_0:
+    sync_flash_mode:
+      key: fb_p4_land_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_left_ramp
+        color: FFFFFF
+  fb_p4_land_show_1:
+    sync_flash_mode:
+      key: fb_p4_land_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_right_orbit
+        color: FFFFFF
+  fb_p4_land_show_2:
+    sync_flash_mode:
+      key: fb_p4_land_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_left_ramp
+        color: FFFFFF
+  fb_p4_land_show_3:
+    sync_flash_mode:
+      key: fb_p4_land_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_tower_ramp
+        color: FFFFFF
+  fb_p4_land_show_4:
+    sync_flash_mode:
+      key: fb_p4_land_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_left_orbit
+        color: FFFFFF
+  fb_p4_land_off:
+    fb_p4_land_lit:
+      action: stop
+
+sound_player:
+  fb_voice_land_it:
+    voice_final_battle_land_it:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0

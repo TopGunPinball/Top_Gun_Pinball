@@ -1,0 +1,582 @@
+#config_version=6
+##############################################################################
+## FINAL BATTLE - PHASE 1: CANYON RUN   (runs inside final_battle)
+##
+## Single ball. Lock all 4 jets. 150s for the whole phase (+30s
+## Afterburner); +30s for each of jets 1-3 locked. Timer runs out or the
+## ball drains -> lose a jet, fresh timer, progress kept. Timer pauses while a locked jet's replacement is served.
+##
+##   Jet 1: Spinner -> barrier drops -> Scoop (jet held in the scoop)
+##   Jet 2: Left Ramp -> Right Ramp -> Spinner -> Top Ramp (lock)
+##   Jet 3: Left Orbit -> Left Ramp (right ramp rises) -> Right Orbit (top
+##          ramp rises) -> Top Orbit -> ramps lower -> Top Ramp (lock)
+##   (The scoop lock comes first so it's the easy one to get.)
+## LOCK LIGHTS (final_battle.yaml): scoop jet = Final Battle light green,
+##   1st top ramp lock = Maverick green, 2nd = Goose green.
+##   Jet 4: Left Ramp -> Tower -> Spinner -> Top Loop -> Spinner (left
+##          diverter opens 4s) -> Left Lane: left lane post catches it.
+##          Missed the lane: Top Loop, Spinner and Right Orbit (right ramp up)
+##          pulse; any of them re-opens the diverter for another try.
+##   Step videos 1-17 (the 17th = the Left Lane), then the won video.
+##   Out of jets here -> final_battle_phase1_lost
+##
+## Lit shots flash yellow. Top ramp locks use the TGMB lock (diverter ->
+## elevator -> goose / mav); a new ball is served from the trough after each.
+## SCORING: 500,000 per shot, 1,500,000 per lock  (12 + 4 = 12,000,000)
+## MISSILES PERK: jet 1's spinner shot is completed at the start.
+##############################################################################
+
+mode:
+  start_events: fb_p1_begin
+  stop_events: fb_p2_begin, fb_stop_phases, ball_will_end
+  priority: 610
+  game_mode: true
+
+timers:
+  fb_p1_timer:
+    start_value: 150 + 30 * current_player.fb_perk_afterburner
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    control_events:
+      - event: mode_final_battle_p1_started
+        action: restart
+      - event: fb_p1_pause
+        action: pause
+      - event: fb_p1_resume
+        action: start
+      - event: fb_jet_lost_normal
+        action: pause
+      - event: fb_p1_restart_timer
+        action: restart
+      - event: fb_p1_final
+        action: stop
+      # Jets 1-3 locked: +30s (jet 4 is fb_p1_final, no bonus)
+      - event: fb_p1_lock_made
+        action: add
+        value: 30
+      - event: mode_timers_idle_pause
+        action: pause
+      - event: mode_timers_resume{current_player.fb_p1_state==1 and current_player.fb_losing==0}
+        action: start
+  # Fallback: resume the timer if the served ball's plunge isn't confirmed
+  fb_p1_serve_fallback:
+    start_value: 0
+    end_value: 6
+    tick_interval: 1s
+    control_events:
+      - event: fb_p1_serve
+        action: restart
+      - event: fb_p1_resume
+        action: stop
+  # Jet 3: raise the right ramp if the ball never reaches the right lane
+  fb_p1_lane_fallback:
+    start_value: 0
+    end_value: 3
+    tick_interval: 1s
+    control_events:
+      - event: fb_p1_lane_wait_start
+        action: restart
+      - event: fb_p1_lane_done
+        action: stop
+  # Jet 4: left diverter open window
+  fb_p1_diverter:
+    start_value: 0
+    end_value: 4
+    tick_interval: 1s
+    control_events:
+      - event: fb_p1_open_diverter
+        action: restart
+
+variable_player:
+  mode_final_battle_p1_started:
+    fb_p1_ball: { action: set, int: 1 }
+    fb_p1_idx: { action: set, int: 0 }
+    fb_p1_state: { action: set, int: 1 }
+    fb_p1_lock_wait: { action: set, int: 0 }
+    fb_p1_lane_wait: { action: set, int: 0 }
+    fb_p1_ll_help: { action: set, int: 0 }
+    fb_grace_secs: { action: set, int: 10 }
+    fb_hud_count: { action: set, int: 0 }
+    fb_hud_count_label: { action: set, string: "JETS LOCKED" }
+  timer_fb_p1_timer_tick:
+    fb_timer: { action: set, int: ticks }
+  fb_p1_hit:
+    fb_p1_idx: { action: add, int: 1 }
+  fb_p1_lock_armed:
+    fb_p1_lock_wait: { action: set, int: 1 }
+  fb_p1_lock_made:
+    fb_timer: { action: add, int: 30 }   # HUD shows the +30s now (timer is paused while the next jet is served)
+    fb_hud_count: { action: add, int: 1 }
+    fb_p1_lock_wait: { action: set, int: 0 }
+    fb_p1_state: { action: set, int: 2 }
+    fb_p1_ball: { action: add, int: 1 }
+    fb_p1_idx: { action: set, int: 0 }
+  fb_p1_serve:
+    fb_p1_state: { action: set, int: 1 }
+  fb_p1_ll_help_on:
+    fb_p1_ll_help: { action: set, int: 1 }
+    fb_objective: { action: set, string: "TOP LOOP, SPINNER OR RIGHT ORBIT - THEN THE LEFT LANE" }
+  fb_p1_lane_wait_start:
+    fb_p1_lane_wait: { action: set, int: 1 }
+  fb_p1_lane_done:
+    fb_p1_lane_wait: { action: set, int: 0 }
+  fb_p1_final:
+    fb_hud_count: { action: add, int: 1 }
+    fb_p1_state: { action: set, int: 9 }
+  fb_p1_show_1_0:
+    fb_objective: { action: set, string: "JET 1 OF 4 - SHOOT THE SPINNER" }
+  fb_p1_show_1_1:
+    fb_objective: { action: set, string: "JET 1 OF 4 - SHOOT THE SCOOP TO LOCK THE JET" }
+  fb_p1_show_2_0:
+    fb_objective: { action: set, string: "JET 2 OF 4 - SHOOT THE LEFT RAMP" }
+  fb_p1_show_2_1:
+    fb_objective: { action: set, string: "JET 2 OF 4 - SHOOT THE RIGHT RAMP" }
+  fb_p1_show_2_2:
+    fb_objective: { action: set, string: "JET 2 OF 4 - SHOOT THE SPINNER" }
+  fb_p1_show_2_3:
+    fb_objective: { action: set, string: "JET 2 OF 4 - SHOOT THE TOP RAMP TO LOCK THE JET" }
+  fb_p1_show_3_0:
+    fb_objective: { action: set, string: "JET 3 OF 4 - SHOOT THE LEFT ORBIT" }
+  fb_p1_show_3_1:
+    fb_objective: { action: set, string: "JET 3 OF 4 - SHOOT THE LEFT RAMP" }
+  fb_p1_show_3_2:
+    fb_objective: { action: set, string: "JET 3 OF 4 - SHOOT THE RIGHT ORBIT" }
+  fb_p1_show_3_3:
+    fb_objective: { action: set, string: "JET 3 OF 4 - SHOOT THE TOP ORBIT" }
+  fb_p1_show_3_4:
+    fb_objective: { action: set, string: "JET 3 OF 4 - SHOOT THE TOP RAMP TO LOCK THE JET" }
+  fb_p1_show_4_0:
+    fb_objective: { action: set, string: "JET 4 OF 4 - SHOOT THE LEFT RAMP" }
+  fb_p1_show_4_1:
+    fb_objective: { action: set, string: "JET 4 OF 4 - SHOOT THE TOWER" }
+  fb_p1_show_4_2:
+    fb_objective: { action: set, string: "JET 4 OF 4 - SHOOT THE SPINNER" }
+  fb_p1_show_4_3:
+    fb_objective: { action: set, string: "JET 4 OF 4 - SHOOT THE TOP LOOP" }
+  fb_p1_show_4_4:
+    fb_objective: { action: set, string: "JET 4 OF 4 - SHOOT THE SPINNER" }
+  fb_p1_show_4_5:
+    fb_objective: { action: set, string: "JET 4 OF 4 - LEFT LANE" }
+
+event_player:
+  ##############################################
+  ## BEGIN: release the scoop ball, lock ready, grace save, missiles perk
+  ##############################################
+  mode_final_battle_p1_started:
+    - fb_scoop_out
+    - right_ramp_down
+    - top_ramp_down|500ms
+    - final_battle_lock_holds_reset
+    - lock_servo_to_held|200ms
+    - fb_grace_save_enable|100ms
+    - fb_p1_refresh|300ms
+  mode_final_battle_p1_started{current_player.fb_perk_missiles==1}:
+    - fb_p1_hit|1500ms
+    - fb_p1_scoop_arm|1500ms
+
+  ##############################################
+  ## SHOTS
+  ##############################################
+  spinner_shot_made{current_player.fb_p1_ball==1 and current_player.fb_p1_idx==0 and current_player.fb_p1_state==1}:
+    - fb_p1_hit
+    - fb_p1_scoop_arm
+  # Jet 1 lock = the scoop (held by fb_scoop_hold in final_battle.yaml)
+  fb_p1_scoop_arm:
+    - fb_scoop_hold_reset
+    - barrier_drop
+  s_mode_start_active{current_player.fb_p1_ball==1 and current_player.fb_p1_idx==1 and current_player.fb_p1_state==1}:
+    - fb_p1_lock_made
+    - fb_lock_light_scoop
+    - barrier_raise|1500ms
+  s_ramp_left_exit_active{current_player.fb_p1_ball==2 and current_player.fb_p1_idx==0 and current_player.fb_p1_state==1}:
+    - fb_p1_hit
+  s_ramp_right_exit_active{current_player.fb_p1_ball==2 and current_player.fb_p1_idx==1 and current_player.fb_p1_state==1}:
+    - fb_p1_hit
+  spinner_shot_made{current_player.fb_p1_ball==2 and current_player.fb_p1_idx==2 and current_player.fb_p1_state==1}:
+    - fb_p1_hit
+  s_ramp_inner_exit_active{current_player.fb_p1_ball==2 and current_player.fb_p1_idx==3 and current_player.fb_p1_state==1}:
+    - lock_diverter_fired
+    - fb_p1_lock_armed
+  left_orbit_shot_hit{current_player.fb_p1_ball==3 and current_player.fb_p1_idx==0 and current_player.fb_p1_state==1}:
+    - fb_p1_hit
+  # Right Orbit is next: raise the right ramp now (not before)
+  s_ramp_left_exit_active{current_player.fb_p1_ball==3 and current_player.fb_p1_idx==1 and current_player.fb_p1_state==1}:
+    - fb_p1_hit
+    - right_ramp_up
+  right_orbit_shot_hit{current_player.fb_p1_ball==3 and current_player.fb_p1_idx==2 and current_player.fb_p1_state==1}:
+    - fb_p1_hit
+    - top_ramp_up
+  # Top Orbit made: both ramps lower so the Top Ramp lock can be made
+  s_orbit_lower_active{current_player.fb_p1_ball==3 and current_player.fb_p1_idx==3 and current_player.fb_p1_state==1}:
+    - fb_p1_hit
+    - right_ramp_down
+    - top_ramp_down|500ms
+  s_ramp_inner_exit_active{current_player.fb_p1_ball==3 and current_player.fb_p1_idx==4 and current_player.fb_p1_state==1}:
+    - lock_diverter_fired
+    - fb_p1_lock_armed
+  s_ramp_left_exit_active{current_player.fb_p1_ball==4 and current_player.fb_p1_idx==0 and current_player.fb_p1_state==1}:
+    - fb_p1_hit
+  s_ramp_tower_exit_active{current_player.fb_p1_ball==4 and current_player.fb_p1_idx==1 and current_player.fb_p1_state==1}:
+    - fb_p1_hit
+  spinner_shot_made{current_player.fb_p1_ball==4 and current_player.fb_p1_idx==2 and current_player.fb_p1_state==1}:
+    - fb_p1_hit
+  s_orbit_upper_active{current_player.fb_p1_ball==4 and current_player.fb_p1_idx==3 and current_player.fb_p1_state==1}:
+    - fb_p1_hit
+  # Step 16: Spinner - the left diverter opens so the ball feeds the left lane
+  spinner_shot_made{current_player.fb_p1_ball==4 and current_player.fb_p1_idx==4 and current_player.fb_p1_state==1}:
+    - fb_p1_hit
+    - fb_p1_open_diverter
+  # Step 17: Left Lane - post catches the ball, phase won
+  s_lane_left_active{current_player.fb_p1_ball==4 and current_player.fb_p1_idx==5 and current_player.fb_p1_state==1}:
+    - fb_left_post_hold
+    - fb_p1_final
+
+  # Generic shot made
+  fb_p1_hit:
+    fb_step_made: {}
+    fb_p1_refresh: {}
+    fb_points_add:
+      phase: 1
+      points:
+        value: current_player.fb_shot_value
+        type: int
+
+  # Lock confirmed when the lock mech holds the ball
+  ball_hold_lock_goose_hold_held_ball{current_player.fb_p1_lock_wait==1 and current_player.fb_p1_state==1}:
+    - fb_p1_lock_made
+    - fb_p1_lock_light
+  ball_hold_lock_mav_hold_held_ball{current_player.fb_p1_lock_wait==1 and current_player.fb_p1_state==1}:
+    - fb_p1_lock_made
+    - fb_p1_lock_light
+  # Lock lights: 1st top ramp lock (jet 2) = Maverick, 2nd (jet 3) = Goose.
+  # fb_p1_lock_made runs first (MPF finishes each posted event before the
+  # next), so fb_p1_ball has already moved on: 3 = jet 2 locked, 4 = jet 3.
+  fb_p1_lock_light{current_player.fb_p1_ball==3}:
+    - fb_lock_light_mav
+  fb_p1_lock_light{current_player.fb_p1_ball>=4}:
+    - fb_lock_light_goose
+  fb_p1_lock_made:
+    fb_step_made: {}
+    fb_p1_pause: {}
+    fb_p1_lights_off: {}
+    fb_p1_lock_sound: {}
+    fb_p1_serve|3s: {}
+    fb_points_add:
+      phase: 1
+      points: 1500000
+  fb_p1_serve:
+    - lock_serve_new_ball
+    - fb_p1_refresh
+  plunger_eject_confirmed{current_player.fb_p1_state==1}:
+    - fb_p1_resume
+  timer_fb_p1_serve_fallback_complete:
+    - fb_p1_resume
+
+  # Jet 4: spinner -> left diverter -> left lane (post catches it)
+  fb_p1_open_diverter:
+    - left_orbit_diverter_open
+  timer_fb_p1_diverter_complete:
+    - left_orbit_diverter_closed
+  # The ball didn't make the left lane: Top Loop, Spinner and Right Orbit
+  # (right ramp up) pulse - any of them re-opens the left diverter
+  timer_fb_p1_diverter_complete{current_player.fb_p1_ball==4 and current_player.fb_p1_idx==5 and current_player.fb_p1_state==1 and current_player.fb_p1_ll_help==0}:
+    - fb_p1_ll_help_on
+  fb_p1_ll_help_on:
+    - right_ramp_up
+    - fb_p1_ll_help_spinner
+    - fb_p1_ll_help_ro
+  s_orbit_upper_active{current_player.fb_p1_ball==4 and current_player.fb_p1_idx==5 and current_player.fb_p1_state==1 and current_player.fb_p1_ll_help==1}:
+    - fb_p1_open_diverter
+  spinner_shot_made{current_player.fb_p1_ball==4 and current_player.fb_p1_idx==5 and current_player.fb_p1_state==1 and current_player.fb_p1_ll_help==1}:
+    - fb_p1_open_diverter
+  s_orbit_right_active{current_player.fb_p1_ball==4 and current_player.fb_p1_idx==5 and current_player.fb_p1_state==1 and current_player.fb_p1_ll_help==1}:
+    - fb_p1_open_diverter
+
+  # Phase won
+  fb_p1_final:
+    fb_step_made: {}
+    fb_p1_lights_off: {}
+    left_orbit_diverter_closed: {}
+    right_ramp_down: {}
+    fb_p1_lock_sound: {}
+    fb_p1_complete: {}
+    fb_points_add:
+      phase: 1
+      points: 1500000
+
+  # "Dagger N made it to target" - fb_p1_lock_sound is posted after the jet
+  # count has moved on, so jet 1 locked = fb_p1_ball 2, etc. Jet 4 = phase won.
+  fb_p1_lock_sound{current_player.fb_p1_state<=2 and current_player.fb_p1_ball==2}:
+    - fb_p1_dagger_1
+  fb_p1_lock_sound{current_player.fb_p1_state<=2 and current_player.fb_p1_ball==3}:
+    - fb_p1_dagger_2
+  fb_p1_lock_sound{current_player.fb_p1_state<=2 and current_player.fb_p1_ball==4}:
+    - fb_p1_dagger_3
+  fb_p1_lock_sound{current_player.fb_p1_state==9}:
+    - fb_p1_dagger_4
+
+  ##############################################
+  ## TIMER / JETS
+  ##############################################
+  timer_fb_p1_timer_tick{ticks==10}:
+    - fb_voice_10_seconds
+  timer_fb_p1_timer_complete{current_player.fb_p1_state==1}:
+    - fb_loss_timer
+    - fb_lose_jet
+  fb_jet_continue{current_player.fb_phase==1 and current_player.fb_p1_state<=2}:
+    - fb_p1_restart_timer
+  fb_jet_continue{current_player.fb_phase==1 and current_player.fb_loss_reason==1}:
+    - fb_grace_save_enable
+
+  ##############################################
+  ## LIGHTS + objective text
+  ##############################################
+  fb_p1_refresh{current_player.fb_p1_ball==1 and current_player.fb_p1_idx==0 and current_player.fb_p1_state<=2}:
+    - fb_p1_show_1_0
+  fb_p1_refresh{current_player.fb_p1_ball==1 and current_player.fb_p1_idx==1 and current_player.fb_p1_state<=2}:
+    - fb_p1_show_1_1
+  fb_p1_refresh{current_player.fb_p1_ball==2 and current_player.fb_p1_idx==0 and current_player.fb_p1_state<=2}:
+    - fb_p1_show_2_0
+  fb_p1_refresh{current_player.fb_p1_ball==2 and current_player.fb_p1_idx==1 and current_player.fb_p1_state<=2}:
+    - fb_p1_show_2_1
+  fb_p1_refresh{current_player.fb_p1_ball==2 and current_player.fb_p1_idx==2 and current_player.fb_p1_state<=2}:
+    - fb_p1_show_2_2
+  fb_p1_refresh{current_player.fb_p1_ball==2 and current_player.fb_p1_idx==3 and current_player.fb_p1_state<=2}:
+    - fb_p1_show_2_3
+  fb_p1_refresh{current_player.fb_p1_ball==3 and current_player.fb_p1_idx==0 and current_player.fb_p1_state<=2}:
+    - fb_p1_show_3_0
+  fb_p1_refresh{current_player.fb_p1_ball==3 and current_player.fb_p1_idx==1 and current_player.fb_p1_state<=2}:
+    - fb_p1_show_3_1
+  fb_p1_refresh{current_player.fb_p1_ball==3 and current_player.fb_p1_idx==2 and current_player.fb_p1_state<=2}:
+    - fb_p1_show_3_2
+  fb_p1_refresh{current_player.fb_p1_ball==3 and current_player.fb_p1_idx==3 and current_player.fb_p1_state<=2}:
+    - fb_p1_show_3_3
+  fb_p1_refresh{current_player.fb_p1_ball==3 and current_player.fb_p1_idx==4 and current_player.fb_p1_state<=2}:
+    - fb_p1_show_3_4
+  fb_p1_refresh{current_player.fb_p1_ball==4 and current_player.fb_p1_idx==0 and current_player.fb_p1_state<=2}:
+    - fb_p1_show_4_0
+  fb_p1_refresh{current_player.fb_p1_ball==4 and current_player.fb_p1_idx==1 and current_player.fb_p1_state<=2}:
+    - fb_p1_show_4_1
+  fb_p1_refresh{current_player.fb_p1_ball==4 and current_player.fb_p1_idx==2 and current_player.fb_p1_state<=2}:
+    - fb_p1_show_4_2
+  fb_p1_refresh{current_player.fb_p1_ball==4 and current_player.fb_p1_idx==3 and current_player.fb_p1_state<=2}:
+    - fb_p1_show_4_3
+  fb_p1_refresh{current_player.fb_p1_ball==4 and current_player.fb_p1_idx==4 and current_player.fb_p1_state<=2}:
+    - fb_p1_show_4_4
+  fb_p1_refresh{current_player.fb_p1_ball==4 and current_player.fb_p1_idx==5 and current_player.fb_p1_state<=2}:
+    - fb_p1_show_4_5
+
+show_player:
+  fb_p1_show_1_0:
+    sync_flash_mode:
+      key: fb_p1_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_spinner
+        color: FFDD00
+  fb_p1_show_1_1:
+    sync_flash_mode:
+      key: fb_p1_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        color: FFDD00
+  fb_p1_show_2_0:
+    sync_flash_mode:
+      key: fb_p1_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_left_ramp
+        color: FFDD00
+  fb_p1_show_2_1:
+    sync_flash_mode:
+      key: fb_p1_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_right_orbit
+        color: FFDD00
+  fb_p1_show_2_2:
+    sync_flash_mode:
+      key: fb_p1_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_spinner
+        color: FFDD00
+  fb_p1_show_2_3:
+    sync_flash_mode:
+      key: fb_p1_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: FFDD00
+  fb_p1_show_3_0:
+    sync_flash_mode:
+      key: fb_p1_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_left_orbit
+        color: FFDD00
+  fb_p1_show_3_1:
+    sync_flash_mode:
+      key: fb_p1_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_left_ramp
+        color: FFDD00
+  fb_p1_show_3_2:
+    sync_flash_mode:
+      key: fb_p1_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_right_orbit
+        color: FFDD00
+  fb_p1_show_3_3:
+    sync_flash_mode:
+      key: fb_p1_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: FFDD00
+  fb_p1_show_3_4:
+    sync_flash_mode:
+      key: fb_p1_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: FFDD00
+  fb_p1_show_4_0:
+    sync_flash_mode:
+      key: fb_p1_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_left_ramp
+        color: FFDD00
+  fb_p1_show_4_1:
+    sync_flash_mode:
+      key: fb_p1_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_tower_ramp
+        color: FFDD00
+  fb_p1_show_4_2:
+    sync_flash_mode:
+      key: fb_p1_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_spinner
+        color: FFDD00
+  fb_p1_show_4_3:
+    sync_flash_mode:
+      key: fb_p1_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: FFDD00
+  fb_p1_show_4_4:
+    sync_flash_mode:
+      key: fb_p1_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_spinner
+        color: FFDD00
+  fb_p1_show_4_5:
+    sync_flash_mode:
+      key: fb_p1_lit
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_left_lane
+        color: FFDD00
+  fb_p1_lights_off:
+    fb_p1_lit:
+      action: stop
+  fb_p1_ll_help_on:
+    sync_flash_mode:
+      key: fb_p1_help_tl
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: FFDD00
+  fb_p1_ll_help_spinner:
+    sync_flash_mode:
+      key: fb_p1_help_sp
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_spinner
+        color: FFDD00
+  fb_p1_ll_help_ro:
+    sync_flash_mode:
+      key: fb_p1_help_ro
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_right_orbit
+        color: FFDD00
+  fb_p1_final:
+    fb_p1_help_tl:
+      action: stop
+    fb_p1_help_sp:
+      action: stop
+    fb_p1_help_ro:
+      action: stop
+
+sound_player:
+  fb_p1_dagger_1:
+    voice_final_battle_dagger_1:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_p1_dagger_2:
+    voice_final_battle_dagger_2:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_p1_dagger_3:
+    voice_final_battle_dagger_3:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_p1_dagger_4:
+    voice_final_battle_dagger_4:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0

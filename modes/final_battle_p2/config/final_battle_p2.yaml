@@ -1,0 +1,2825 @@
+#config_version=6
+##############################################################################
+## FINAL BATTLE - PHASE 2: EVADE THE MISSILES   (runs inside final_battle)
+##
+## Multiball. Starts with 4 balls (2 locked jets + the scoop jet + the jet held
+## at the left lane), 20s ball save. GI light blue, shots flash blue (lock /
+## goose inserts flash white).
+##
+## MISSILE SETS 1-6: three shots lit, 30s to hit all three (+10s Inverted).
+##   All three in time  -> missile evaded (2,000,000 + counts toward the total)
+##   Time runs out      -> MISSILE FIRED: spinner flashes red, GI flashes red,
+##                         20s (+10s Inverted) to hit the spinner for flares.
+##                         Pop bumpers pause this timer.
+##                         Spinner hit -> safe (flares video, rotates 1-3)
+##                         No spinner  -> lose a jet
+##   FLARES: the pilot only has 3 for the whole phase (each spinner save uses
+##   one). With no flares left, a fired missile means BANK RIGHT instead:
+##   voice_out_of_flares plays, the Top Loop flashes red, 15s (+10s Inverted)
+##   to hit it. Hit -> safe (no video). Miss -> lose a jet.
+##   After every EVADED set: one more ball (max 6 in play), 7s ball save.
+##   (No extra ball after flares / bank right / a lost jet.)
+##   Set evaded: the next set's shots light and go live right away (before
+##   the extra ball and while the evade / missiles videos play).
+##   VIDEOS: final_battle_phase2_intro when the balls are released (skippable,
+##   final_battle_phase2_instructions slide on top). No per-shot videos: set
+##   evaded -> final_battle_phase2_evade<set>; flares -> flare1-4; bank
+##   right -> no video; then a missiles video (missiles1-3, random order).
+##   After flares / bank right the next set lights after that video; after
+##   an evade it is already lit. Missile fired = no video: the set's shots go
+##   out, the spinner flashes, voice_final_battle_missile_lock plays.
+##   Out of jets here -> final_battle_phase2_lost
+##     1  Left Ramp, Right Ramp, Tower
+##     2  Left Orbit, Barrier Target, Right Orbit  (right ramp up for this set)
+##     3  Spinner, Tower, ICEMAN M
+##     4  ICEMAN C, LOCK L, Top Loop
+##     5  Left Ramp, Tower, GOOSE S
+##     6  Right Ramp, Left Orbit, Top Orbit        (top ramp up until it's hit)
+##   (the list above is where each missile STARTS - see MOVING MISSILES)
+## MOVING MISSILES: every 2.5s the missiles move one spot. The spot just left
+##   still counts for 2s (dark).
+##   Main shots, left to right: LL LO LR SP CNT TWR TL TR/TO RR/RO
+##     1 main shot in the set  -> starts moving LEFT, bounces end to end
+##     2 main shots            -> leftmost starts RIGHT, rightmost starts LEFT
+##     3 main shots            -> outer two as above, the middle one stays put
+##   LOCK L-O-C-K   starts moving right, bounces
+##   ICEMAN I-C-E-M-A-N  starts moving toward I, bounces (M: m,e,c,i,c,e,m,a,n)
+##   GOOSE          left flipper = toward G, right flipper = toward E (wraps)
+##   TR/TO and RR/RO count from either switch.
+##   Missiles on the same spot: one hit takes them all, awarded 1s apart (one
+##   fanfare, one callout); the insert flashes 2x for two, 4x for three.
+## CALLOUTS: random shot-made voice on hits 1 and 2 of a set (not the hit that
+##   finishes it - the evade video plays). Phase 2's own copy, because the shot
+##   callout randomizer mode is stopped during Final Battle.
+## FANFARE: every shot hit posts fb_fanfare (final_battle.yaml: GI flicker +
+##   random light show). Not for the Missiles perk auto-shot.
+## SET 7: barrier drops, 30s to shoot the scoop. Time runs out -> missile
+##   fired (same flare rules) -> set 7 starts over, until the scoop is made or
+##   the jets run out. Scoop made -> ball held, flippers off, the other balls
+##   drain, phase won.
+## ALL BALLS DRAINED: lose a jet, 4 balls back in play with a 20s save.
+## SCORING: 500,000 per shot, 2,000,000 per set completed in time,
+##   1,000,000 for the scoop  (18 + 6 + 1 = 22,000,000 max)
+## MISSILES PERK: the first shot of every set is completed automatically.
+##############################################################################
+
+mode:
+  start_events: fb_p2_begin
+  stop_events: fb_p3_begin, fb_stop_phases, ball_will_end
+  priority: 610
+  game_mode: true
+
+timers:
+  fb_p2_set_timer:
+    start_value: 30 + 10 * current_player.fb_perk_inverted
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    control_events:
+      - event: fb_p2_set_go
+        action: restart
+      - event: fb_p2_set_timer_stop
+        action: stop
+      - event: mode_timers_idle_pause
+        action: pause
+      - event: mode_timers_resume{current_player.fb_p2_state==1}
+        action: start
+  fb_p2_flare_timer:
+    start_value: 20 + 10 * current_player.fb_perk_inverted
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    control_events:
+      - event: fb_p2_missile
+        action: restart
+      - event: fb_p2_flare_stop
+        action: stop
+      - event: fb_p2_flare_pause
+        action: pause
+      - event: fb_p2_flare_resume
+        action: start
+  # Fallback while waiting on a between-sets video
+  fb_p2_await_timer:
+    start_value: 0
+    end_value: 30
+    tick_interval: 1s
+    control_events:
+      - event: fb_p2_set_evaded
+        action: restart
+      - event: fb_p2_flare_ok
+        action: restart
+      - event: fb_p2_launch_missiles
+        action: restart
+      - event: fb_p2_next
+        action: stop
+      - event: fb_p2_set7_start
+        action: stop
+  # No flares left: bank right (Top Loop) window
+  fb_p2_bank_timer:
+    start_value: 15 + 10 * current_player.fb_perk_inverted
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    control_events:
+      - event: fb_p2_bank
+        action: restart
+      - event: fb_p2_bank_stop
+        action: stop
+  # Ball in the pops: flare timer paused until 1.5s after the last bumper hit
+  fb_p2_bumper_idle:
+    start_value: 0
+    end_value: 3
+    tick_interval: 500ms
+    control_events:
+      - event: fb_p2_flare_pause
+        action: restart
+      - event: fb_p2_flare_stop
+        action: stop
+
+  # MOVING MISSILES: every 2.5s each moving missile steps one spot
+  # (5 ticks x 500ms)
+  fb_p2_move_timer:
+    start_value: 0
+    end_value: 5
+    tick_interval: 500ms
+    restart_on_complete: true
+    control_events:
+      - event: fb_p2_set_go{current_player.fb_p2_set<=6}
+        action: restart
+      - event: fb_p2_set_timer_stop
+        action: stop
+      - event: fb_p2_missile
+        action: stop
+      - event: fb_p2_bank
+        action: stop
+      - event: fb_p2_set_end
+        action: stop
+      - event: fb_p2_final
+        action: stop
+      - event: mode_timers_idle_pause
+        action: pause
+      - event: mode_timers_resume{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}
+        action: start
+  # Grace: the spot a missile just left still counts for 2s (dark)
+  fb_p2_grace_timer:
+    start_value: 0
+    end_value: 2
+    tick_interval: 1s
+    control_events:
+      - event: fb_p2_move
+        action: restart
+      - event: fb_p2_set_end
+        action: stop
+
+variable_player:
+  mode_final_battle_p2_started:
+    fb_p2_set: { action: set, int: 1 }
+    fb_p2_state: { action: set, int: 0 }
+    fb_p2_hit_1: { action: set, int: 0 }
+    fb_p2_hit_2: { action: set, int: 0 }
+    fb_p2_hit_3: { action: set, int: 0 }
+    fb_p2_flare_vid: { action: set, int: 0 }
+    fb_hud_count: { action: set, int: 0 }
+    fb_hud_count_label: { action: set, string: "MISSILES EVADED" }
+    fb_p2_flares: { action: set, int: 3 }
+    fb_p2_await: { action: set, int: 0 }
+    fb_info: { action: set, string: "FLARES LEFT: 3" }
+  timer_fb_p2_set_timer_tick:
+    fb_timer: { action: set, int: ticks }
+  timer_fb_p2_flare_timer_tick:
+    fb_timer: { action: set, int: ticks }
+  timer_fb_p2_bank_timer_tick:
+    fb_timer: { action: set, int: ticks }
+  fb_p2_bank:
+    fb_p2_state: { action: set, int: 3 }
+    fb_objective: { action: set, string: "OUT OF FLARES! BANK RIGHT - SHOOT THE TOP LOOP" }
+  fb_p2_bank_ok:
+    fb_p2_state: { action: set, int: 0 }
+  fb_p2_bank_fail:
+    fb_p2_state: { action: set, int: 0 }
+  player_fb_p2_flares{value==2}:
+    fb_info: { action: set, string: "FLARES LEFT: 2" }
+  player_fb_p2_flares{value==1}:
+    fb_info: { action: set, string: "FLARES LEFT: 1" }
+  player_fb_p2_flares{value==0}:
+    fb_info: { action: set, string: "NO FLARES LEFT - BANK RIGHT TO EVADE" }
+  fb_p2_set_start:
+    fb_p2_state: { action: set, int: 1 }
+    fb_p2_hit_1: { action: set, int: 0 }
+    fb_p2_hit_2: { action: set, int: 0 }
+    fb_p2_hit_3: { action: set, int: 0 }
+  fb_p2_set7_start:
+    fb_p2_state: { action: set, int: 1 }
+    fb_objective: { action: set, string: "FINAL MISSILE - SHOOT THE SCOOP" }
+  fb_p2_hit_1:
+    fb_p2_hit_1: { action: set, int: 1 }
+  fb_p2_hit_2:
+    fb_p2_hit_2: { action: set, int: 1 }
+  fb_p2_hit_3:
+    fb_p2_hit_3: { action: set, int: 1 }
+  fb_p2_set_evaded:
+    fb_p2_await: { action: set, int: 0 }   # nothing waits on the evade video now
+    fb_p2_state: { action: set, int: 0 }
+    fb_missiles_evaded: { action: add, int: 1 }
+    fb_hud_count: { action: add, int: 1 }
+  fb_p2_missile:
+    fb_p2_state: { action: set, int: 2 }
+    fb_objective: { action: set, string: "MISSILE FIRED! HIT THE SPINNER FOR FLARES" }
+  fb_p2_flare_ok:
+    fb_p2_await: { action: set, int: 1 }
+    fb_p2_state: { action: set, int: 0 }
+    fb_p2_flares: { action: add, int: -1 }
+  fb_p2_flare_vid_next:
+    fb_p2_flare_vid: { action: add, int: 1 }
+  fb_p2_flare_vid_wrap:
+    fb_p2_flare_vid: { action: set, int: 0 }
+  fb_p2_flare_fail:
+    fb_p2_state: { action: set, int: 0 }
+  fb_p2_after_missile:
+    fb_p2_await: { action: set, int: 0 }
+  fb_p2_launch_missiles:
+    fb_p2_await: { action: set, int: 2 }
+  fb_p2_missiles_done:
+    fb_p2_await: { action: set, int: 0 }
+  fb_p2_next:
+    fb_p2_set: { action: add, int: 1 }
+  fb_p2_final:
+    fb_p2_state: { action: set, int: 9 }
+    fb_objective: { action: set, string: "MISSILES EVADED - HOLD ON" }
+  fb_p2_drained:
+    fb_p2_state: { action: set, int: 10 }
+  fb_p2_lights_1:
+    fb_objective: { action: set, string: "MISSILE 1 OF 6 - HIT THE 3 MOVING SHOTS" }
+  fb_p2_lights_2:
+    fb_objective: { action: set, string: "MISSILE 2 OF 6 - HIT THE 3 MOVING SHOTS" }
+  fb_p2_lights_3:
+    fb_objective: { action: set, string: "MISSILE 3 OF 6 - HIT THE 3 MOVING SHOTS" }
+  fb_p2_lights_4:
+    fb_objective: { action: set, string: "MISSILE 4 OF 6 - HIT THE 3 MOVING SHOTS" }
+  fb_p2_lights_5:
+    fb_objective: { action: set, string: "MISSILE 5 OF 6 - FLIPPERS MOVE THE GOOSE MISSILE" }
+  fb_p2_lights_6:
+    fb_objective: { action: set, string: "MISSILE 6 OF 6 - HIT THE 3 MOVING SHOTS" }
+
+  ##############################################
+  ## MOVING MISSILES - slot state
+  ##   fb_p2_loc_N  : where slot N's missile is (location code, 0 = gone)
+  ##                  10-18 main shots LL..RR/RO, 20-23 LOCK, 30-35 ICEMAN,
+  ##                  40-44 GOOSE (G, O left, O right, S, E)
+  ##   fb_p2_prev_N : spot it just left (counts for 2s), 0 = none
+  ##   fb_p2_dir_N  : +1 right / -1 left     fb_p2_mov_N : 1 = moves on the timer
+  ##   fb_p2_min_N / fb_p2_max_N : ends of its row (bounce points)
+  ##   fb_p2_claim_N: 1 = hit (award may still be pending the 1s stack delay)
+  ##############################################
+  fb_p2_set_start{current_player.fb_p2_set==1}:
+    fb_p2_loc_1: { action: set, int: 12 }
+    fb_p2_prev_1: { action: set, int: 0 }
+    fb_p2_dir_1: { action: set, int: 1 }
+    fb_p2_min_1: { action: set, int: 10 }
+    fb_p2_max_1: { action: set, int: 18 }
+    fb_p2_mov_1: { action: set, int: 1 }
+    fb_p2_claim_1: { action: set, int: 0 }
+    fb_p2_loc_2: { action: set, int: 18 }
+    fb_p2_prev_2: { action: set, int: 0 }
+    fb_p2_dir_2: { action: set, int: -1 }
+    fb_p2_min_2: { action: set, int: 10 }
+    fb_p2_max_2: { action: set, int: 18 }
+    fb_p2_mov_2: { action: set, int: 1 }
+    fb_p2_claim_2: { action: set, int: 0 }
+    fb_p2_loc_3: { action: set, int: 15 }
+    fb_p2_prev_3: { action: set, int: 0 }
+    fb_p2_dir_3: { action: set, int: 0 }
+    fb_p2_min_3: { action: set, int: 10 }
+    fb_p2_max_3: { action: set, int: 18 }
+    fb_p2_mov_3: { action: set, int: 0 }
+    fb_p2_claim_3: { action: set, int: 0 }
+  fb_p2_set_start{current_player.fb_p2_set==2}:
+    fb_p2_loc_1: { action: set, int: 11 }
+    fb_p2_prev_1: { action: set, int: 0 }
+    fb_p2_dir_1: { action: set, int: 1 }
+    fb_p2_min_1: { action: set, int: 10 }
+    fb_p2_max_1: { action: set, int: 18 }
+    fb_p2_mov_1: { action: set, int: 1 }
+    fb_p2_claim_1: { action: set, int: 0 }
+    fb_p2_loc_2: { action: set, int: 14 }
+    fb_p2_prev_2: { action: set, int: 0 }
+    fb_p2_dir_2: { action: set, int: 0 }
+    fb_p2_min_2: { action: set, int: 10 }
+    fb_p2_max_2: { action: set, int: 18 }
+    fb_p2_mov_2: { action: set, int: 0 }
+    fb_p2_claim_2: { action: set, int: 0 }
+    fb_p2_loc_3: { action: set, int: 18 }
+    fb_p2_prev_3: { action: set, int: 0 }
+    fb_p2_dir_3: { action: set, int: -1 }
+    fb_p2_min_3: { action: set, int: 10 }
+    fb_p2_max_3: { action: set, int: 18 }
+    fb_p2_mov_3: { action: set, int: 1 }
+    fb_p2_claim_3: { action: set, int: 0 }
+  fb_p2_set_start{current_player.fb_p2_set==3}:
+    fb_p2_loc_1: { action: set, int: 13 }
+    fb_p2_prev_1: { action: set, int: 0 }
+    fb_p2_dir_1: { action: set, int: 1 }
+    fb_p2_min_1: { action: set, int: 10 }
+    fb_p2_max_1: { action: set, int: 18 }
+    fb_p2_mov_1: { action: set, int: 1 }
+    fb_p2_claim_1: { action: set, int: 0 }
+    fb_p2_loc_2: { action: set, int: 15 }
+    fb_p2_prev_2: { action: set, int: 0 }
+    fb_p2_dir_2: { action: set, int: -1 }
+    fb_p2_min_2: { action: set, int: 10 }
+    fb_p2_max_2: { action: set, int: 18 }
+    fb_p2_mov_2: { action: set, int: 1 }
+    fb_p2_claim_2: { action: set, int: 0 }
+    fb_p2_loc_3: { action: set, int: 33 }
+    fb_p2_prev_3: { action: set, int: 0 }
+    fb_p2_dir_3: { action: set, int: -1 }
+    fb_p2_min_3: { action: set, int: 30 }
+    fb_p2_max_3: { action: set, int: 35 }
+    fb_p2_mov_3: { action: set, int: 1 }
+    fb_p2_claim_3: { action: set, int: 0 }
+  fb_p2_set_start{current_player.fb_p2_set==4}:
+    fb_p2_loc_1: { action: set, int: 31 }
+    fb_p2_prev_1: { action: set, int: 0 }
+    fb_p2_dir_1: { action: set, int: -1 }
+    fb_p2_min_1: { action: set, int: 30 }
+    fb_p2_max_1: { action: set, int: 35 }
+    fb_p2_mov_1: { action: set, int: 1 }
+    fb_p2_claim_1: { action: set, int: 0 }
+    fb_p2_loc_2: { action: set, int: 20 }
+    fb_p2_prev_2: { action: set, int: 0 }
+    fb_p2_dir_2: { action: set, int: 1 }
+    fb_p2_min_2: { action: set, int: 20 }
+    fb_p2_max_2: { action: set, int: 23 }
+    fb_p2_mov_2: { action: set, int: 1 }
+    fb_p2_claim_2: { action: set, int: 0 }
+    fb_p2_loc_3: { action: set, int: 16 }
+    fb_p2_prev_3: { action: set, int: 0 }
+    fb_p2_dir_3: { action: set, int: -1 }
+    fb_p2_min_3: { action: set, int: 10 }
+    fb_p2_max_3: { action: set, int: 18 }
+    fb_p2_mov_3: { action: set, int: 1 }
+    fb_p2_claim_3: { action: set, int: 0 }
+  fb_p2_set_start{current_player.fb_p2_set==5}:
+    fb_p2_loc_1: { action: set, int: 12 }
+    fb_p2_prev_1: { action: set, int: 0 }
+    fb_p2_dir_1: { action: set, int: 1 }
+    fb_p2_min_1: { action: set, int: 10 }
+    fb_p2_max_1: { action: set, int: 18 }
+    fb_p2_mov_1: { action: set, int: 1 }
+    fb_p2_claim_1: { action: set, int: 0 }
+    fb_p2_loc_2: { action: set, int: 15 }
+    fb_p2_prev_2: { action: set, int: 0 }
+    fb_p2_dir_2: { action: set, int: -1 }
+    fb_p2_min_2: { action: set, int: 10 }
+    fb_p2_max_2: { action: set, int: 18 }
+    fb_p2_mov_2: { action: set, int: 1 }
+    fb_p2_claim_2: { action: set, int: 0 }
+    fb_p2_loc_3: { action: set, int: 43 }
+    fb_p2_prev_3: { action: set, int: 0 }
+    fb_p2_dir_3: { action: set, int: 0 }
+    fb_p2_min_3: { action: set, int: 40 }
+    fb_p2_max_3: { action: set, int: 44 }
+    fb_p2_mov_3: { action: set, int: 0 }
+    fb_p2_claim_3: { action: set, int: 0 }
+  fb_p2_set_start{current_player.fb_p2_set==6}:
+    fb_p2_loc_1: { action: set, int: 18 }
+    fb_p2_prev_1: { action: set, int: 0 }
+    fb_p2_dir_1: { action: set, int: -1 }
+    fb_p2_min_1: { action: set, int: 10 }
+    fb_p2_max_1: { action: set, int: 18 }
+    fb_p2_mov_1: { action: set, int: 1 }
+    fb_p2_claim_1: { action: set, int: 0 }
+    fb_p2_loc_2: { action: set, int: 11 }
+    fb_p2_prev_2: { action: set, int: 0 }
+    fb_p2_dir_2: { action: set, int: 1 }
+    fb_p2_min_2: { action: set, int: 10 }
+    fb_p2_max_2: { action: set, int: 18 }
+    fb_p2_mov_2: { action: set, int: 1 }
+    fb_p2_claim_2: { action: set, int: 0 }
+    fb_p2_loc_3: { action: set, int: 17 }
+    fb_p2_prev_3: { action: set, int: 0 }
+    fb_p2_dir_3: { action: set, int: 0 }
+    fb_p2_min_3: { action: set, int: 10 }
+    fb_p2_max_3: { action: set, int: 18 }
+    fb_p2_mov_3: { action: set, int: 0 }
+    fb_p2_claim_3: { action: set, int: 0 }
+  # Move step 1: remember the spot being left + turn around at the ends
+  fb_p2_mv_1{current_player.fb_p2_claim_1==0 and current_player.fb_p2_mov_1==1}:
+    fb_p2_prev_1: { action: set, int: current_player.fb_p2_loc_1 }
+    fb_p2_dir_1:
+      action: set
+      int: -1 if current_player.fb_p2_loc_1>=current_player.fb_p2_max_1 else (1 if current_player.fb_p2_loc_1<=current_player.fb_p2_min_1 else current_player.fb_p2_dir_1)
+  fb_p2_mv_2{current_player.fb_p2_claim_2==0 and current_player.fb_p2_mov_2==1}:
+    fb_p2_prev_2: { action: set, int: current_player.fb_p2_loc_2 }
+    fb_p2_dir_2:
+      action: set
+      int: -1 if current_player.fb_p2_loc_2>=current_player.fb_p2_max_2 else (1 if current_player.fb_p2_loc_2<=current_player.fb_p2_min_2 else current_player.fb_p2_dir_2)
+  fb_p2_mv_3{current_player.fb_p2_claim_3==0 and current_player.fb_p2_mov_3==1}:
+    fb_p2_prev_3: { action: set, int: current_player.fb_p2_loc_3 }
+    fb_p2_dir_3:
+      action: set
+      int: -1 if current_player.fb_p2_loc_3>=current_player.fb_p2_max_3 else (1 if current_player.fb_p2_loc_3<=current_player.fb_p2_min_3 else current_player.fb_p2_dir_3)
+  # Move step 2 (separate event so the new direction is already set)
+  fb_p2_stp_1:
+    fb_p2_loc_1: { action: add, int: current_player.fb_p2_dir_1 }
+  fb_p2_stp_2:
+    fb_p2_loc_2: { action: add, int: current_player.fb_p2_dir_2 }
+  fb_p2_stp_3:
+    fb_p2_loc_3: { action: add, int: current_player.fb_p2_dir_3 }
+  # GOOSE ring (flippers): left = toward G, right = toward E, wraps around
+  fb_p2_gl_1:
+    fb_p2_loc_1:
+      action: set
+      int: 44 if current_player.fb_p2_loc_1==40 else current_player.fb_p2_loc_1 - 1
+  fb_p2_gr_1:
+    fb_p2_loc_1:
+      action: set
+      int: 40 if current_player.fb_p2_loc_1==44 else current_player.fb_p2_loc_1 + 1
+  fb_p2_gl_2:
+    fb_p2_loc_2:
+      action: set
+      int: 44 if current_player.fb_p2_loc_2==40 else current_player.fb_p2_loc_2 - 1
+  fb_p2_gr_2:
+    fb_p2_loc_2:
+      action: set
+      int: 40 if current_player.fb_p2_loc_2==44 else current_player.fb_p2_loc_2 + 1
+  fb_p2_gl_3:
+    fb_p2_loc_3:
+      action: set
+      int: 44 if current_player.fb_p2_loc_3==40 else current_player.fb_p2_loc_3 - 1
+  fb_p2_gr_3:
+    fb_p2_loc_3:
+      action: set
+      int: 40 if current_player.fb_p2_loc_3==44 else current_player.fb_p2_loc_3 + 1
+  # Hit: the missile is gone right away (the award follows, 1s apart if stacked)
+  fb_p2_claim_1:
+    fb_p2_claim_1: { action: set, int: 1 }
+    fb_p2_loc_1: { action: set, int: 0 }
+    fb_p2_prev_1: { action: set, int: 0 }
+  fb_p2_claim_2:
+    fb_p2_claim_2: { action: set, int: 1 }
+    fb_p2_loc_2: { action: set, int: 0 }
+    fb_p2_prev_2: { action: set, int: 0 }
+  fb_p2_claim_3:
+    fb_p2_claim_3: { action: set, int: 1 }
+    fb_p2_loc_3: { action: set, int: 0 }
+    fb_p2_prev_3: { action: set, int: 0 }
+  timer_fb_p2_grace_timer_complete:
+    fb_p2_prev_1: { action: set, int: 0 }
+    fb_p2_prev_2: { action: set, int: 0 }
+    fb_p2_prev_3: { action: set, int: 0 }
+  # Set over / missile fired: every missile gone
+  fb_p2_set_end:
+    fb_p2_loc_1: { action: set, int: 0 }
+    fb_p2_prev_1: { action: set, int: 0 }
+    fb_p2_claim_1: { action: set, int: 1 }
+    fb_p2_loc_2: { action: set, int: 0 }
+    fb_p2_prev_2: { action: set, int: 0 }
+    fb_p2_claim_2: { action: set, int: 1 }
+    fb_p2_loc_3: { action: set, int: 0 }
+    fb_p2_prev_3: { action: set, int: 0 }
+    fb_p2_claim_3: { action: set, int: 1 }
+
+event_player:
+  ##############################################
+  ## BEGIN: release every held jet into a 4-ball multiball
+  ##############################################
+  mode_final_battle_p2_started:
+    - fb_vu_final_battle_phase2_intro
+    - fb_left_post_release
+    - lock_mech_release
+    - scoop_ball_release
+    - fb_p2_multiball_start
+    - fb_scoop_hold_reset|3s   # the multiball took the scoop jet out
+    - fb_p2_go|2s
+  fb_p2_go:
+    - fb_p2_set_start
+
+  ##############################################
+  ## MISSILE SETS 1-6
+  ##############################################
+  fb_p2_set_start:
+    - fb_p2_set_lights
+    - fb_p2_set_go
+    - fb_shot_value_reset
+  fb_p2_set_lights{current_player.fb_p2_set==1}:
+    - fb_p2_lights_1
+  fb_p2_set_lights{current_player.fb_p2_set==2}:
+    - fb_p2_lights_2
+  fb_p2_set_lights{current_player.fb_p2_set==3}:
+    - fb_p2_lights_3
+  fb_p2_set_lights{current_player.fb_p2_set==4}:
+    - fb_p2_lights_4
+  fb_p2_set_lights{current_player.fb_p2_set==5}:
+    - fb_p2_lights_5
+  fb_p2_set_lights{current_player.fb_p2_set==6}:
+    - fb_p2_lights_6
+  fb_p2_set_start{current_player.fb_p2_set==2}:
+    - right_ramp_up
+    - barrier_raise   # set 2 needs the barrier TARGET
+  fb_p2_set_start{current_player.fb_p2_set==6}:
+    - top_ramp_up
+  fb_p2_set_start{current_player.fb_perk_missiles==1}:
+    - fb_p2_perk_claim|1s
+
+  fb_p2_hit_1:
+    fb_step_made: {}
+    fb_p2_check: {}
+    fb_points_add:
+      phase: 2
+      points:
+        value: current_player.fb_shot_value
+        type: int
+  fb_p2_hit_2:
+    fb_step_made: {}
+    fb_p2_check: {}
+    fb_points_add:
+      phase: 2
+      points:
+        value: current_player.fb_shot_value
+        type: int
+  fb_p2_hit_3:
+    fb_step_made: {}
+    fb_p2_check: {}
+    fb_points_add:
+      phase: 2
+      points:
+        value: current_player.fb_shot_value
+        type: int
+  fb_p2_check{current_player.fb_p2_hit_1==1 and current_player.fb_p2_hit_2==1 and current_player.fb_p2_hit_3==1 and current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_set_evaded
+  # One ordered list: MPF finishes each posted event (and everything it posts)
+  # before the next one, so fb_p2_after_evade - which starts the next set -
+  # must come LAST or the stop / lights-off above would hit the new set.
+  fb_p2_set_evaded:
+    fb_p2_set_timer_stop: {}
+    fb_p2_voice_evaded: {}
+    fb_p2_slots_off: {}
+    fb_p2_play_evade: {}
+    fb_points_add:
+      phase: 2
+      points: 2000000
+    fb_p2_after_evade: {}
+
+  ##############################################
+  ## MISSILE FIRED -> FLARES
+  ##############################################
+  timer_fb_p2_set_timer_tick{ticks==10 and current_player.fb_p2_state==1}:
+    - fb_voice_10_seconds
+  timer_fb_p2_set_timer_complete{current_player.fb_p2_state==1 and current_player.fb_p2_flares>0}:
+    - fb_p2_missile
+  timer_fb_p2_set_timer_complete{current_player.fb_p2_state==1 and current_player.fb_p2_flares<=0}:
+    - fb_p2_bank
+
+  # Out of flares: bank right (Top Loop)
+  fb_p2_bank:
+    - fb_p2_slots_off
+  s_orbit_upper_active{current_player.fb_p2_state==3}:
+    - fb_p2_bank_ok
+  timer_fb_p2_bank_timer_complete{current_player.fb_p2_state==3}:
+    - fb_p2_bank_fail
+  fb_p2_bank_ok:
+    - fb_p2_bank_stop
+    - fb_p2_voice_evaded
+    - fb_p2_after_missile|1500ms
+  fb_p2_bank_fail:
+    - fb_p2_bank_stop
+    - fb_loss_timer
+    - fb_lose_jet
+  fb_p2_missile:
+    - fb_p2_slots_off
+  s_spinner_active{current_player.fb_p2_state==2}:
+    - fb_p2_flare_ok
+  timer_fb_p2_flare_timer_complete{current_player.fb_p2_state==2}:
+    - fb_p2_flare_fail
+
+  # Pop bumpers pause the flare timer
+  s_bumper_left_active{current_player.fb_p2_state==2}:
+    - fb_p2_flare_pause
+  s_bumper_center_active{current_player.fb_p2_state==2}:
+    - fb_p2_flare_pause
+  s_bumper_right_active{current_player.fb_p2_state==2}:
+    - fb_p2_flare_pause
+  timer_fb_p2_bumper_idle_complete{current_player.fb_p2_state==2}:
+    - fb_p2_flare_resume
+
+  fb_p2_flare_ok:
+    - fb_p2_flare_stop
+    - fb_p2_voice_evaded
+    - fb_p2_flare_video
+  # flare1-4 in order (only 3 flares per phase, but set 7 can repeat)
+  fb_p2_flare_video{current_player.fb_p2_flare_vid==0}:
+    - fb_vu_final_battle_phase2_flare1
+    - fb_p2_flare_vid_next
+  fb_p2_flare_video{current_player.fb_p2_flare_vid==1}:
+    - fb_vu_final_battle_phase2_flare2
+    - fb_p2_flare_vid_next
+  fb_p2_flare_video{current_player.fb_p2_flare_vid==2}:
+    - fb_vu_final_battle_phase2_flare3
+    - fb_p2_flare_vid_next
+  fb_p2_flare_video{current_player.fb_p2_flare_vid>=3}:
+    - fb_vu_final_battle_phase2_flare4
+    - fb_p2_flare_vid_wrap
+  fb_p2_flare_fail:
+    - fb_p2_flare_stop
+    - fb_loss_timer
+    - fb_lose_jet
+  fb_jet_continue{current_player.fb_phase==2 and current_player.fb_loss_reason==2 and current_player.fb_p2_state==0}:
+    - fb_p2_after_missile
+  ##############################################
+  ## BETWEEN SETS
+  ##   set evaded (1-5)   -> next set lights + goes live NOW, then the
+  ##                         evade<set> + a missiles video play over it and
+  ##                         the extra ball comes 1s later (nothing waits)
+  ##   flares / bank made -> flare<n> video (bank right: none)     (await 1)
+  ##   jet lost           -> (explosion, handled by final_battle)
+  ##   -> ramps down + one more ball -> a missiles video (missiles1-3 in a
+  ##      random order, each once before repeating)          (await 2)
+  ##   -> next set. 30s fallback if a video never reports done.
+  ##############################################
+  fb_p2_play_evade{current_player.fb_p2_set==1}:
+    - fb_vq_final_battle_phase2_evade1
+  fb_p2_play_evade{current_player.fb_p2_set==2}:
+    - fb_vq_final_battle_phase2_evade2
+  fb_p2_play_evade{current_player.fb_p2_set==3}:
+    - fb_vq_final_battle_phase2_evade3
+  fb_p2_play_evade{current_player.fb_p2_set==4}:
+    - fb_vq_final_battle_phase2_evade4
+  fb_p2_play_evade{current_player.fb_p2_set==5}:
+    - fb_vq_final_battle_phase2_evade5
+  fb_p2_play_evade{current_player.fb_p2_set==6}:
+    - fb_vq_final_battle_phase2_evade6
+  fb_video_done{(video=="final_battle_phase2_evade1" or video=="final_battle_phase2_evade2" or video=="final_battle_phase2_evade3" or video=="final_battle_phase2_evade4" or video=="final_battle_phase2_evade5" or video=="final_battle_phase2_evade6") and current_player.fb_p2_await==1}:
+    - fb_p2_after_missile
+  fb_video_done{(video=="final_battle_phase2_flare1" or video=="final_battle_phase2_flare2" or video=="final_battle_phase2_flare3" or video=="final_battle_phase2_flare4") and current_player.fb_p2_await==1}:
+    - fb_p2_after_missile
+  timer_fb_p2_await_timer_complete{current_player.fb_p2_await==1}:
+    - fb_p2_after_missile
+  # Missiles 1-5 evaded: the NEXT set lights and goes live immediately (timer
+  # running, shots moving). The evade video, then a missiles video, play over
+  # it; the extra ball comes 1s after the new shots light.
+  fb_p2_after_evade{current_player.fb_p2_set<=5}:
+    - fb_p2_roll
+    - fb_p2_mvid_pick
+  fb_p2_after_evade{current_player.fb_p2_set<=5 and game.balls_in_play<6}:
+    - fb_p2_add_ball|1s
+  fb_p2_roll:
+    - fb_p2_slots_off
+    - fb_p2_next
+  # Ramps between sets (set 2 raises the right ramp and set 6 the top ramp in
+  # fb_p2_set_start; only the right ramp has to come down, after set 2)
+  fb_p2_roll{current_player.fb_p2_set==2}:
+    - right_ramp_down
+  # Missile 6 done: straight to the final missile (barrier drops right away,
+  # no missiles video in between)
+  fb_p2_after_evade{current_player.fb_p2_set==6}:
+    - fb_p2_after_missile
+  fb_p2_after_missile{current_player.fb_p2_set==6}:
+    - fb_p2_set_end
+    - fb_p2_next
+  fb_p2_after_missile{current_player.fb_p2_set<=5}:
+    - fb_p2_set_end
+    - fb_p2_launch_missiles
+  fb_p2_after_missile{current_player.fb_p2_set==7}:
+    - fb_p2_launch_missiles
+  fb_p2_mvid_1:
+    - fb_vq_final_battle_phase2_missiles1
+  fb_p2_mvid_2:
+    - fb_vq_final_battle_phase2_missiles2
+  fb_p2_mvid_3:
+    - fb_vq_final_battle_phase2_missiles3
+  fb_video_done{(video=="final_battle_phase2_missiles1" or video=="final_battle_phase2_missiles2" or video=="final_battle_phase2_missiles3") and current_player.fb_p2_await==2}:
+    - fb_p2_missiles_done
+  timer_fb_p2_await_timer_complete{current_player.fb_p2_await==2}:
+    - fb_p2_missiles_done
+  fb_p2_missiles_done{current_player.fb_p2_set<=6}:
+    - fb_p2_next
+  fb_p2_missiles_done{current_player.fb_p2_set==7}:
+    - fb_p2_set7_start
+
+  # Set over after a missile was fired (flares / bank right / jet lost):
+  # ramps down, lights off. No extra ball here - only an evaded set earns one.
+  fb_p2_set_end:
+    - right_ramp_down
+    - top_ramp_down|500ms
+    - fb_p2_slots_off
+  fb_p2_next:
+    - fb_p2_next_go
+  fb_p2_next_go{current_player.fb_p2_set<=6}:
+    - fb_p2_set_start
+  fb_p2_next_go{current_player.fb_p2_set==7}:
+    - fb_p2_set7_start
+
+  ##############################################
+  ## SET 7: barrier down, shoot the scoop
+  ##############################################
+  fb_p2_set7_start:
+    - fb_scoop_hold_reset   # room in the scoop hold before the shot
+    - barrier_drop
+    - fb_p2_lights_7
+    - fb_p2_set_go
+  s_mode_start_active{current_player.fb_p2_set==7 and current_player.fb_p2_state>=1 and current_player.fb_p2_state<=3}:
+    - fb_p2_final
+  fb_p2_final:
+    fb_fanfare: {}
+    fb_p2_set_timer_stop: {}
+    fb_p2_flare_stop: {}
+    fb_p2_bank_stop: {}
+    fb_p2_slots_off: {}
+    barrier_raise|1500ms: {}
+    disable_normal_flippers: {}
+    fb_mb_stop_saves: {}
+    fb_grace_save_disable: {}
+    fb_p2_drain_check|2s: {}
+    fb_points_add:
+      phase: 2
+      points: 1000000
+  balls_in_play{balls==1 and current_player.fb_p2_state==9}:
+    - fb_p2_drained
+  fb_p2_drain_check{game.balls_in_play<=1 and current_player.fb_p2_state==9}:
+    - fb_p2_drained
+  fb_p2_drained:
+    - enable_normal_flippers
+    - fb_p2_complete
+
+  ##############################################
+  ## ALL BALLS DRAINED -> jet lost -> 4 balls again
+  ##############################################
+  fb_jet_continue{current_player.fb_phase==2 and current_player.fb_loss_reason==1 and current_player.fb_p2_state<=3}:
+    - fb_p2_relaunch
+  fb_jet_continue{current_player.fb_phase==2 and current_player.fb_loss_reason==1 and current_player.fb_p2_state==1}:
+    - fb_p2_set_go
+
+  # Set lights: the moving-missile refresh lights every spot
+  fb_p2_lights_1:
+    - fb_p2_refresh_q
+  fb_p2_lights_2:
+    - fb_p2_refresh_q
+  fb_p2_lights_3:
+    - fb_p2_refresh_q
+  fb_p2_lights_4:
+    - fb_p2_refresh_q
+  fb_p2_lights_5:
+    - fb_p2_refresh_q
+  fb_p2_lights_6:
+    - fb_p2_refresh_q
+  ##############################################
+  ## MOVING MISSILES
+  ##   Main shots (LL LO LR SP CNT TWR TL TR/TO RR/RO) and LOCK / ICEMAN bounce
+  ##   end to end, one spot every 2.5s. The spot just left still counts for 2s
+  ##   (dark). GOOSE moves with the flippers (ring, like the GOOSE letters).
+  ##   Several missiles on one spot: one hit takes them all - awarded 1s apart,
+  ##   one fanfare, one callout. The insert flashes 2x (two) / 4x (three).
+  ##############################################
+  timer_fb_p2_move_timer_complete{current_player.fb_p2_state==1}:
+    - fb_p2_move
+  # Order matters: mv_1..3 queue their steps, then refresh_q queues the
+  # refresh behind those steps
+  fb_p2_move:
+    - fb_p2_mv_1
+    - fb_p2_mv_2
+    - fb_p2_mv_3
+    - fb_p2_refresh_q
+  fb_p2_mv_1{current_player.fb_p2_claim_1==0 and current_player.fb_p2_mov_1==1}:
+    - fb_p2_stp_1
+  fb_p2_mv_2{current_player.fb_p2_claim_2==0 and current_player.fb_p2_mov_2==1}:
+    - fb_p2_stp_2
+  fb_p2_mv_3{current_player.fb_p2_claim_3==0 and current_player.fb_p2_mov_3==1}:
+    - fb_p2_stp_3
+  fb_p2_refresh_q:
+    - fb_p2_refresh
+  # GOOSE ring - flipper buttons
+  s_flipper_left_active{current_player.fb_p2_state==1 and current_player.fb_p2_claim_1==0 and current_player.fb_p2_loc_1>=40}:
+    - fb_p2_gl_1
+    - fb_p2_refresh_q
+  s_flipper_right_active{current_player.fb_p2_state==1 and current_player.fb_p2_claim_1==0 and current_player.fb_p2_loc_1>=40}:
+    - fb_p2_gr_1
+    - fb_p2_refresh_q
+  s_flipper_left_active{current_player.fb_p2_state==1 and current_player.fb_p2_claim_2==0 and current_player.fb_p2_loc_2>=40}:
+    - fb_p2_gl_2
+    - fb_p2_refresh_q
+  s_flipper_right_active{current_player.fb_p2_state==1 and current_player.fb_p2_claim_2==0 and current_player.fb_p2_loc_2>=40}:
+    - fb_p2_gr_2
+    - fb_p2_refresh_q
+  s_flipper_left_active{current_player.fb_p2_state==1 and current_player.fb_p2_claim_3==0 and current_player.fb_p2_loc_3>=40}:
+    - fb_p2_gl_3
+    - fb_p2_refresh_q
+  s_flipper_right_active{current_player.fb_p2_state==1 and current_player.fb_p2_claim_3==0 and current_player.fb_p2_loc_3>=40}:
+    - fb_p2_gr_3
+    - fb_p2_refresh_q
+  # Switches -> spot hit (only while a missile set is live)
+  s_lane_left_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_10
+  left_orbit_shot_hit{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_11
+  s_ramp_left_exit_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_12
+  spinner_shot_made{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_13
+  s_barrier_target_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_14
+  s_ramp_tower_exit_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_15
+  s_orbit_upper_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_16
+  s_orbit_lower_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_17
+  s_ramp_inner_exit_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_17
+  s_ramp_right_exit_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_18
+  right_orbit_shot_hit{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_18
+  s_l_lock_target_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_20
+  s_o_lock_target_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_21
+  s_c_lock_target_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_22
+  s_k_lock_target_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_23
+  s_i_iceman_target_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_30
+  s_c_iceman_target_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_31
+  s_e_iceman_target_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_32
+  s_m_iceman_target_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_33
+  s_a_iceman_target_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_34
+  s_n_iceman_target_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_35
+  s_outlane_left_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_40
+  s_inlane_left_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_41
+  s_inner_inlane_right_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_42
+  s_outer_inlane_right_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_43
+  s_outlane_right_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
+    - fb_p2_at_44
+  # Spot hit -> claim every missile there (now) and award them 1s apart.
+  # Every condition below reads the values from BEFORE the claims.
+  # 10: LEFT LANE
+  fb_p2_at_10{(current_player.fb_p2_loc_1==10 or current_player.fb_p2_prev_1==10)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_10{(current_player.fb_p2_loc_2==10 or current_player.fb_p2_prev_2==10) and not (current_player.fb_p2_loc_1==10 or current_player.fb_p2_prev_1==10)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_10{(current_player.fb_p2_loc_2==10 or current_player.fb_p2_prev_2==10) and (current_player.fb_p2_loc_1==10 or current_player.fb_p2_prev_1==10)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_10{(current_player.fb_p2_loc_3==10 or current_player.fb_p2_prev_3==10) and ((current_player.fb_p2_loc_1==10 or current_player.fb_p2_prev_1==10)) + ((current_player.fb_p2_loc_2==10 or current_player.fb_p2_prev_2==10)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_10{(current_player.fb_p2_loc_3==10 or current_player.fb_p2_prev_3==10) and ((current_player.fb_p2_loc_1==10 or current_player.fb_p2_prev_1==10)) + ((current_player.fb_p2_loc_2==10 or current_player.fb_p2_prev_2==10)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_10{(current_player.fb_p2_loc_3==10 or current_player.fb_p2_prev_3==10) and ((current_player.fb_p2_loc_1==10 or current_player.fb_p2_prev_1==10)) + ((current_player.fb_p2_loc_2==10 or current_player.fb_p2_prev_2==10)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_10{((current_player.fb_p2_loc_1==10 or current_player.fb_p2_prev_1==10) or (current_player.fb_p2_loc_2==10 or current_player.fb_p2_prev_2==10) or (current_player.fb_p2_loc_3==10 or current_player.fb_p2_prev_3==10))}:
+    - fb_fanfare
+  fb_p2_at_10{((current_player.fb_p2_loc_1==10 or current_player.fb_p2_prev_1==10) or (current_player.fb_p2_loc_2==10 or current_player.fb_p2_prev_2==10) or (current_player.fb_p2_loc_3==10 or current_player.fb_p2_prev_3==10)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==10 or current_player.fb_p2_prev_1==10)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==10 or current_player.fb_p2_prev_2==10)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==10 or current_player.fb_p2_prev_3==10)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_10{((current_player.fb_p2_loc_1==10 or current_player.fb_p2_prev_1==10) or (current_player.fb_p2_loc_2==10 or current_player.fb_p2_prev_2==10) or (current_player.fb_p2_loc_3==10 or current_player.fb_p2_prev_3==10)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==10 or current_player.fb_p2_prev_1==10)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==10 or current_player.fb_p2_prev_2==10)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==10 or current_player.fb_p2_prev_3==10)) and ((current_player.fb_p2_loc_1==10 or current_player.fb_p2_prev_1==10)) + ((current_player.fb_p2_loc_2==10 or current_player.fb_p2_prev_2==10)) + ((current_player.fb_p2_loc_3==10 or current_player.fb_p2_prev_3==10)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 11: LEFT ORBIT
+  fb_p2_at_11{(current_player.fb_p2_loc_1==11 or current_player.fb_p2_prev_1==11)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_11{(current_player.fb_p2_loc_2==11 or current_player.fb_p2_prev_2==11) and not (current_player.fb_p2_loc_1==11 or current_player.fb_p2_prev_1==11)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_11{(current_player.fb_p2_loc_2==11 or current_player.fb_p2_prev_2==11) and (current_player.fb_p2_loc_1==11 or current_player.fb_p2_prev_1==11)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_11{(current_player.fb_p2_loc_3==11 or current_player.fb_p2_prev_3==11) and ((current_player.fb_p2_loc_1==11 or current_player.fb_p2_prev_1==11)) + ((current_player.fb_p2_loc_2==11 or current_player.fb_p2_prev_2==11)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_11{(current_player.fb_p2_loc_3==11 or current_player.fb_p2_prev_3==11) and ((current_player.fb_p2_loc_1==11 or current_player.fb_p2_prev_1==11)) + ((current_player.fb_p2_loc_2==11 or current_player.fb_p2_prev_2==11)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_11{(current_player.fb_p2_loc_3==11 or current_player.fb_p2_prev_3==11) and ((current_player.fb_p2_loc_1==11 or current_player.fb_p2_prev_1==11)) + ((current_player.fb_p2_loc_2==11 or current_player.fb_p2_prev_2==11)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_11{((current_player.fb_p2_loc_1==11 or current_player.fb_p2_prev_1==11) or (current_player.fb_p2_loc_2==11 or current_player.fb_p2_prev_2==11) or (current_player.fb_p2_loc_3==11 or current_player.fb_p2_prev_3==11))}:
+    - fb_fanfare
+  fb_p2_at_11{((current_player.fb_p2_loc_1==11 or current_player.fb_p2_prev_1==11) or (current_player.fb_p2_loc_2==11 or current_player.fb_p2_prev_2==11) or (current_player.fb_p2_loc_3==11 or current_player.fb_p2_prev_3==11)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==11 or current_player.fb_p2_prev_1==11)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==11 or current_player.fb_p2_prev_2==11)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==11 or current_player.fb_p2_prev_3==11)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_11{((current_player.fb_p2_loc_1==11 or current_player.fb_p2_prev_1==11) or (current_player.fb_p2_loc_2==11 or current_player.fb_p2_prev_2==11) or (current_player.fb_p2_loc_3==11 or current_player.fb_p2_prev_3==11)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==11 or current_player.fb_p2_prev_1==11)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==11 or current_player.fb_p2_prev_2==11)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==11 or current_player.fb_p2_prev_3==11)) and ((current_player.fb_p2_loc_1==11 or current_player.fb_p2_prev_1==11)) + ((current_player.fb_p2_loc_2==11 or current_player.fb_p2_prev_2==11)) + ((current_player.fb_p2_loc_3==11 or current_player.fb_p2_prev_3==11)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 12: LEFT RAMP
+  fb_p2_at_12{(current_player.fb_p2_loc_1==12 or current_player.fb_p2_prev_1==12)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_12{(current_player.fb_p2_loc_2==12 or current_player.fb_p2_prev_2==12) and not (current_player.fb_p2_loc_1==12 or current_player.fb_p2_prev_1==12)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_12{(current_player.fb_p2_loc_2==12 or current_player.fb_p2_prev_2==12) and (current_player.fb_p2_loc_1==12 or current_player.fb_p2_prev_1==12)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_12{(current_player.fb_p2_loc_3==12 or current_player.fb_p2_prev_3==12) and ((current_player.fb_p2_loc_1==12 or current_player.fb_p2_prev_1==12)) + ((current_player.fb_p2_loc_2==12 or current_player.fb_p2_prev_2==12)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_12{(current_player.fb_p2_loc_3==12 or current_player.fb_p2_prev_3==12) and ((current_player.fb_p2_loc_1==12 or current_player.fb_p2_prev_1==12)) + ((current_player.fb_p2_loc_2==12 or current_player.fb_p2_prev_2==12)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_12{(current_player.fb_p2_loc_3==12 or current_player.fb_p2_prev_3==12) and ((current_player.fb_p2_loc_1==12 or current_player.fb_p2_prev_1==12)) + ((current_player.fb_p2_loc_2==12 or current_player.fb_p2_prev_2==12)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_12{((current_player.fb_p2_loc_1==12 or current_player.fb_p2_prev_1==12) or (current_player.fb_p2_loc_2==12 or current_player.fb_p2_prev_2==12) or (current_player.fb_p2_loc_3==12 or current_player.fb_p2_prev_3==12))}:
+    - fb_fanfare
+  fb_p2_at_12{((current_player.fb_p2_loc_1==12 or current_player.fb_p2_prev_1==12) or (current_player.fb_p2_loc_2==12 or current_player.fb_p2_prev_2==12) or (current_player.fb_p2_loc_3==12 or current_player.fb_p2_prev_3==12)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==12 or current_player.fb_p2_prev_1==12)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==12 or current_player.fb_p2_prev_2==12)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==12 or current_player.fb_p2_prev_3==12)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_12{((current_player.fb_p2_loc_1==12 or current_player.fb_p2_prev_1==12) or (current_player.fb_p2_loc_2==12 or current_player.fb_p2_prev_2==12) or (current_player.fb_p2_loc_3==12 or current_player.fb_p2_prev_3==12)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==12 or current_player.fb_p2_prev_1==12)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==12 or current_player.fb_p2_prev_2==12)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==12 or current_player.fb_p2_prev_3==12)) and ((current_player.fb_p2_loc_1==12 or current_player.fb_p2_prev_1==12)) + ((current_player.fb_p2_loc_2==12 or current_player.fb_p2_prev_2==12)) + ((current_player.fb_p2_loc_3==12 or current_player.fb_p2_prev_3==12)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 13: SPINNER
+  fb_p2_at_13{(current_player.fb_p2_loc_1==13 or current_player.fb_p2_prev_1==13)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_13{(current_player.fb_p2_loc_2==13 or current_player.fb_p2_prev_2==13) and not (current_player.fb_p2_loc_1==13 or current_player.fb_p2_prev_1==13)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_13{(current_player.fb_p2_loc_2==13 or current_player.fb_p2_prev_2==13) and (current_player.fb_p2_loc_1==13 or current_player.fb_p2_prev_1==13)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_13{(current_player.fb_p2_loc_3==13 or current_player.fb_p2_prev_3==13) and ((current_player.fb_p2_loc_1==13 or current_player.fb_p2_prev_1==13)) + ((current_player.fb_p2_loc_2==13 or current_player.fb_p2_prev_2==13)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_13{(current_player.fb_p2_loc_3==13 or current_player.fb_p2_prev_3==13) and ((current_player.fb_p2_loc_1==13 or current_player.fb_p2_prev_1==13)) + ((current_player.fb_p2_loc_2==13 or current_player.fb_p2_prev_2==13)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_13{(current_player.fb_p2_loc_3==13 or current_player.fb_p2_prev_3==13) and ((current_player.fb_p2_loc_1==13 or current_player.fb_p2_prev_1==13)) + ((current_player.fb_p2_loc_2==13 or current_player.fb_p2_prev_2==13)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_13{((current_player.fb_p2_loc_1==13 or current_player.fb_p2_prev_1==13) or (current_player.fb_p2_loc_2==13 or current_player.fb_p2_prev_2==13) or (current_player.fb_p2_loc_3==13 or current_player.fb_p2_prev_3==13))}:
+    - fb_fanfare
+  fb_p2_at_13{((current_player.fb_p2_loc_1==13 or current_player.fb_p2_prev_1==13) or (current_player.fb_p2_loc_2==13 or current_player.fb_p2_prev_2==13) or (current_player.fb_p2_loc_3==13 or current_player.fb_p2_prev_3==13)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==13 or current_player.fb_p2_prev_1==13)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==13 or current_player.fb_p2_prev_2==13)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==13 or current_player.fb_p2_prev_3==13)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_13{((current_player.fb_p2_loc_1==13 or current_player.fb_p2_prev_1==13) or (current_player.fb_p2_loc_2==13 or current_player.fb_p2_prev_2==13) or (current_player.fb_p2_loc_3==13 or current_player.fb_p2_prev_3==13)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==13 or current_player.fb_p2_prev_1==13)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==13 or current_player.fb_p2_prev_2==13)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==13 or current_player.fb_p2_prev_3==13)) and ((current_player.fb_p2_loc_1==13 or current_player.fb_p2_prev_1==13)) + ((current_player.fb_p2_loc_2==13 or current_player.fb_p2_prev_2==13)) + ((current_player.fb_p2_loc_3==13 or current_player.fb_p2_prev_3==13)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 14: BARRIER TARGET
+  fb_p2_at_14{(current_player.fb_p2_loc_1==14 or current_player.fb_p2_prev_1==14)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_14{(current_player.fb_p2_loc_2==14 or current_player.fb_p2_prev_2==14) and not (current_player.fb_p2_loc_1==14 or current_player.fb_p2_prev_1==14)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_14{(current_player.fb_p2_loc_2==14 or current_player.fb_p2_prev_2==14) and (current_player.fb_p2_loc_1==14 or current_player.fb_p2_prev_1==14)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_14{(current_player.fb_p2_loc_3==14 or current_player.fb_p2_prev_3==14) and ((current_player.fb_p2_loc_1==14 or current_player.fb_p2_prev_1==14)) + ((current_player.fb_p2_loc_2==14 or current_player.fb_p2_prev_2==14)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_14{(current_player.fb_p2_loc_3==14 or current_player.fb_p2_prev_3==14) and ((current_player.fb_p2_loc_1==14 or current_player.fb_p2_prev_1==14)) + ((current_player.fb_p2_loc_2==14 or current_player.fb_p2_prev_2==14)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_14{(current_player.fb_p2_loc_3==14 or current_player.fb_p2_prev_3==14) and ((current_player.fb_p2_loc_1==14 or current_player.fb_p2_prev_1==14)) + ((current_player.fb_p2_loc_2==14 or current_player.fb_p2_prev_2==14)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_14{((current_player.fb_p2_loc_1==14 or current_player.fb_p2_prev_1==14) or (current_player.fb_p2_loc_2==14 or current_player.fb_p2_prev_2==14) or (current_player.fb_p2_loc_3==14 or current_player.fb_p2_prev_3==14))}:
+    - fb_fanfare
+  fb_p2_at_14{((current_player.fb_p2_loc_1==14 or current_player.fb_p2_prev_1==14) or (current_player.fb_p2_loc_2==14 or current_player.fb_p2_prev_2==14) or (current_player.fb_p2_loc_3==14 or current_player.fb_p2_prev_3==14)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==14 or current_player.fb_p2_prev_1==14)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==14 or current_player.fb_p2_prev_2==14)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==14 or current_player.fb_p2_prev_3==14)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_14{((current_player.fb_p2_loc_1==14 or current_player.fb_p2_prev_1==14) or (current_player.fb_p2_loc_2==14 or current_player.fb_p2_prev_2==14) or (current_player.fb_p2_loc_3==14 or current_player.fb_p2_prev_3==14)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==14 or current_player.fb_p2_prev_1==14)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==14 or current_player.fb_p2_prev_2==14)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==14 or current_player.fb_p2_prev_3==14)) and ((current_player.fb_p2_loc_1==14 or current_player.fb_p2_prev_1==14)) + ((current_player.fb_p2_loc_2==14 or current_player.fb_p2_prev_2==14)) + ((current_player.fb_p2_loc_3==14 or current_player.fb_p2_prev_3==14)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 15: TOWER
+  fb_p2_at_15{(current_player.fb_p2_loc_1==15 or current_player.fb_p2_prev_1==15)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_15{(current_player.fb_p2_loc_2==15 or current_player.fb_p2_prev_2==15) and not (current_player.fb_p2_loc_1==15 or current_player.fb_p2_prev_1==15)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_15{(current_player.fb_p2_loc_2==15 or current_player.fb_p2_prev_2==15) and (current_player.fb_p2_loc_1==15 or current_player.fb_p2_prev_1==15)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_15{(current_player.fb_p2_loc_3==15 or current_player.fb_p2_prev_3==15) and ((current_player.fb_p2_loc_1==15 or current_player.fb_p2_prev_1==15)) + ((current_player.fb_p2_loc_2==15 or current_player.fb_p2_prev_2==15)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_15{(current_player.fb_p2_loc_3==15 or current_player.fb_p2_prev_3==15) and ((current_player.fb_p2_loc_1==15 or current_player.fb_p2_prev_1==15)) + ((current_player.fb_p2_loc_2==15 or current_player.fb_p2_prev_2==15)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_15{(current_player.fb_p2_loc_3==15 or current_player.fb_p2_prev_3==15) and ((current_player.fb_p2_loc_1==15 or current_player.fb_p2_prev_1==15)) + ((current_player.fb_p2_loc_2==15 or current_player.fb_p2_prev_2==15)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_15{((current_player.fb_p2_loc_1==15 or current_player.fb_p2_prev_1==15) or (current_player.fb_p2_loc_2==15 or current_player.fb_p2_prev_2==15) or (current_player.fb_p2_loc_3==15 or current_player.fb_p2_prev_3==15))}:
+    - fb_fanfare
+  fb_p2_at_15{((current_player.fb_p2_loc_1==15 or current_player.fb_p2_prev_1==15) or (current_player.fb_p2_loc_2==15 or current_player.fb_p2_prev_2==15) or (current_player.fb_p2_loc_3==15 or current_player.fb_p2_prev_3==15)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==15 or current_player.fb_p2_prev_1==15)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==15 or current_player.fb_p2_prev_2==15)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==15 or current_player.fb_p2_prev_3==15)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_15{((current_player.fb_p2_loc_1==15 or current_player.fb_p2_prev_1==15) or (current_player.fb_p2_loc_2==15 or current_player.fb_p2_prev_2==15) or (current_player.fb_p2_loc_3==15 or current_player.fb_p2_prev_3==15)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==15 or current_player.fb_p2_prev_1==15)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==15 or current_player.fb_p2_prev_2==15)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==15 or current_player.fb_p2_prev_3==15)) and ((current_player.fb_p2_loc_1==15 or current_player.fb_p2_prev_1==15)) + ((current_player.fb_p2_loc_2==15 or current_player.fb_p2_prev_2==15)) + ((current_player.fb_p2_loc_3==15 or current_player.fb_p2_prev_3==15)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 16: TOP LOOP
+  fb_p2_at_16{(current_player.fb_p2_loc_1==16 or current_player.fb_p2_prev_1==16)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_16{(current_player.fb_p2_loc_2==16 or current_player.fb_p2_prev_2==16) and not (current_player.fb_p2_loc_1==16 or current_player.fb_p2_prev_1==16)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_16{(current_player.fb_p2_loc_2==16 or current_player.fb_p2_prev_2==16) and (current_player.fb_p2_loc_1==16 or current_player.fb_p2_prev_1==16)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_16{(current_player.fb_p2_loc_3==16 or current_player.fb_p2_prev_3==16) and ((current_player.fb_p2_loc_1==16 or current_player.fb_p2_prev_1==16)) + ((current_player.fb_p2_loc_2==16 or current_player.fb_p2_prev_2==16)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_16{(current_player.fb_p2_loc_3==16 or current_player.fb_p2_prev_3==16) and ((current_player.fb_p2_loc_1==16 or current_player.fb_p2_prev_1==16)) + ((current_player.fb_p2_loc_2==16 or current_player.fb_p2_prev_2==16)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_16{(current_player.fb_p2_loc_3==16 or current_player.fb_p2_prev_3==16) and ((current_player.fb_p2_loc_1==16 or current_player.fb_p2_prev_1==16)) + ((current_player.fb_p2_loc_2==16 or current_player.fb_p2_prev_2==16)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_16{((current_player.fb_p2_loc_1==16 or current_player.fb_p2_prev_1==16) or (current_player.fb_p2_loc_2==16 or current_player.fb_p2_prev_2==16) or (current_player.fb_p2_loc_3==16 or current_player.fb_p2_prev_3==16))}:
+    - fb_fanfare
+  fb_p2_at_16{((current_player.fb_p2_loc_1==16 or current_player.fb_p2_prev_1==16) or (current_player.fb_p2_loc_2==16 or current_player.fb_p2_prev_2==16) or (current_player.fb_p2_loc_3==16 or current_player.fb_p2_prev_3==16)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==16 or current_player.fb_p2_prev_1==16)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==16 or current_player.fb_p2_prev_2==16)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==16 or current_player.fb_p2_prev_3==16)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_16{((current_player.fb_p2_loc_1==16 or current_player.fb_p2_prev_1==16) or (current_player.fb_p2_loc_2==16 or current_player.fb_p2_prev_2==16) or (current_player.fb_p2_loc_3==16 or current_player.fb_p2_prev_3==16)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==16 or current_player.fb_p2_prev_1==16)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==16 or current_player.fb_p2_prev_2==16)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==16 or current_player.fb_p2_prev_3==16)) and ((current_player.fb_p2_loc_1==16 or current_player.fb_p2_prev_1==16)) + ((current_player.fb_p2_loc_2==16 or current_player.fb_p2_prev_2==16)) + ((current_player.fb_p2_loc_3==16 or current_player.fb_p2_prev_3==16)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 17: TOP ORBIT / TOP RAMP
+  fb_p2_at_17{(current_player.fb_p2_loc_1==17 or current_player.fb_p2_prev_1==17)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_17{(current_player.fb_p2_loc_2==17 or current_player.fb_p2_prev_2==17) and not (current_player.fb_p2_loc_1==17 or current_player.fb_p2_prev_1==17)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_17{(current_player.fb_p2_loc_2==17 or current_player.fb_p2_prev_2==17) and (current_player.fb_p2_loc_1==17 or current_player.fb_p2_prev_1==17)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_17{(current_player.fb_p2_loc_3==17 or current_player.fb_p2_prev_3==17) and ((current_player.fb_p2_loc_1==17 or current_player.fb_p2_prev_1==17)) + ((current_player.fb_p2_loc_2==17 or current_player.fb_p2_prev_2==17)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_17{(current_player.fb_p2_loc_3==17 or current_player.fb_p2_prev_3==17) and ((current_player.fb_p2_loc_1==17 or current_player.fb_p2_prev_1==17)) + ((current_player.fb_p2_loc_2==17 or current_player.fb_p2_prev_2==17)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_17{(current_player.fb_p2_loc_3==17 or current_player.fb_p2_prev_3==17) and ((current_player.fb_p2_loc_1==17 or current_player.fb_p2_prev_1==17)) + ((current_player.fb_p2_loc_2==17 or current_player.fb_p2_prev_2==17)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_17{((current_player.fb_p2_loc_1==17 or current_player.fb_p2_prev_1==17) or (current_player.fb_p2_loc_2==17 or current_player.fb_p2_prev_2==17) or (current_player.fb_p2_loc_3==17 or current_player.fb_p2_prev_3==17))}:
+    - fb_fanfare
+  fb_p2_at_17{((current_player.fb_p2_loc_1==17 or current_player.fb_p2_prev_1==17) or (current_player.fb_p2_loc_2==17 or current_player.fb_p2_prev_2==17) or (current_player.fb_p2_loc_3==17 or current_player.fb_p2_prev_3==17)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==17 or current_player.fb_p2_prev_1==17)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==17 or current_player.fb_p2_prev_2==17)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==17 or current_player.fb_p2_prev_3==17)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_17{((current_player.fb_p2_loc_1==17 or current_player.fb_p2_prev_1==17) or (current_player.fb_p2_loc_2==17 or current_player.fb_p2_prev_2==17) or (current_player.fb_p2_loc_3==17 or current_player.fb_p2_prev_3==17)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==17 or current_player.fb_p2_prev_1==17)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==17 or current_player.fb_p2_prev_2==17)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==17 or current_player.fb_p2_prev_3==17)) and ((current_player.fb_p2_loc_1==17 or current_player.fb_p2_prev_1==17)) + ((current_player.fb_p2_loc_2==17 or current_player.fb_p2_prev_2==17)) + ((current_player.fb_p2_loc_3==17 or current_player.fb_p2_prev_3==17)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 18: RIGHT ORBIT / RIGHT RAMP
+  fb_p2_at_18{(current_player.fb_p2_loc_1==18 or current_player.fb_p2_prev_1==18)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_18{(current_player.fb_p2_loc_2==18 or current_player.fb_p2_prev_2==18) and not (current_player.fb_p2_loc_1==18 or current_player.fb_p2_prev_1==18)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_18{(current_player.fb_p2_loc_2==18 or current_player.fb_p2_prev_2==18) and (current_player.fb_p2_loc_1==18 or current_player.fb_p2_prev_1==18)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_18{(current_player.fb_p2_loc_3==18 or current_player.fb_p2_prev_3==18) and ((current_player.fb_p2_loc_1==18 or current_player.fb_p2_prev_1==18)) + ((current_player.fb_p2_loc_2==18 or current_player.fb_p2_prev_2==18)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_18{(current_player.fb_p2_loc_3==18 or current_player.fb_p2_prev_3==18) and ((current_player.fb_p2_loc_1==18 or current_player.fb_p2_prev_1==18)) + ((current_player.fb_p2_loc_2==18 or current_player.fb_p2_prev_2==18)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_18{(current_player.fb_p2_loc_3==18 or current_player.fb_p2_prev_3==18) and ((current_player.fb_p2_loc_1==18 or current_player.fb_p2_prev_1==18)) + ((current_player.fb_p2_loc_2==18 or current_player.fb_p2_prev_2==18)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_18{((current_player.fb_p2_loc_1==18 or current_player.fb_p2_prev_1==18) or (current_player.fb_p2_loc_2==18 or current_player.fb_p2_prev_2==18) or (current_player.fb_p2_loc_3==18 or current_player.fb_p2_prev_3==18))}:
+    - fb_fanfare
+  fb_p2_at_18{((current_player.fb_p2_loc_1==18 or current_player.fb_p2_prev_1==18) or (current_player.fb_p2_loc_2==18 or current_player.fb_p2_prev_2==18) or (current_player.fb_p2_loc_3==18 or current_player.fb_p2_prev_3==18)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==18 or current_player.fb_p2_prev_1==18)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==18 or current_player.fb_p2_prev_2==18)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==18 or current_player.fb_p2_prev_3==18)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_18{((current_player.fb_p2_loc_1==18 or current_player.fb_p2_prev_1==18) or (current_player.fb_p2_loc_2==18 or current_player.fb_p2_prev_2==18) or (current_player.fb_p2_loc_3==18 or current_player.fb_p2_prev_3==18)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==18 or current_player.fb_p2_prev_1==18)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==18 or current_player.fb_p2_prev_2==18)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==18 or current_player.fb_p2_prev_3==18)) and ((current_player.fb_p2_loc_1==18 or current_player.fb_p2_prev_1==18)) + ((current_player.fb_p2_loc_2==18 or current_player.fb_p2_prev_2==18)) + ((current_player.fb_p2_loc_3==18 or current_player.fb_p2_prev_3==18)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 20: LOCK L
+  fb_p2_at_20{(current_player.fb_p2_loc_1==20 or current_player.fb_p2_prev_1==20)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_20{(current_player.fb_p2_loc_2==20 or current_player.fb_p2_prev_2==20) and not (current_player.fb_p2_loc_1==20 or current_player.fb_p2_prev_1==20)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_20{(current_player.fb_p2_loc_2==20 or current_player.fb_p2_prev_2==20) and (current_player.fb_p2_loc_1==20 or current_player.fb_p2_prev_1==20)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_20{(current_player.fb_p2_loc_3==20 or current_player.fb_p2_prev_3==20) and ((current_player.fb_p2_loc_1==20 or current_player.fb_p2_prev_1==20)) + ((current_player.fb_p2_loc_2==20 or current_player.fb_p2_prev_2==20)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_20{(current_player.fb_p2_loc_3==20 or current_player.fb_p2_prev_3==20) and ((current_player.fb_p2_loc_1==20 or current_player.fb_p2_prev_1==20)) + ((current_player.fb_p2_loc_2==20 or current_player.fb_p2_prev_2==20)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_20{(current_player.fb_p2_loc_3==20 or current_player.fb_p2_prev_3==20) and ((current_player.fb_p2_loc_1==20 or current_player.fb_p2_prev_1==20)) + ((current_player.fb_p2_loc_2==20 or current_player.fb_p2_prev_2==20)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_20{((current_player.fb_p2_loc_1==20 or current_player.fb_p2_prev_1==20) or (current_player.fb_p2_loc_2==20 or current_player.fb_p2_prev_2==20) or (current_player.fb_p2_loc_3==20 or current_player.fb_p2_prev_3==20))}:
+    - fb_fanfare
+  fb_p2_at_20{((current_player.fb_p2_loc_1==20 or current_player.fb_p2_prev_1==20) or (current_player.fb_p2_loc_2==20 or current_player.fb_p2_prev_2==20) or (current_player.fb_p2_loc_3==20 or current_player.fb_p2_prev_3==20)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==20 or current_player.fb_p2_prev_1==20)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==20 or current_player.fb_p2_prev_2==20)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==20 or current_player.fb_p2_prev_3==20)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_20{((current_player.fb_p2_loc_1==20 or current_player.fb_p2_prev_1==20) or (current_player.fb_p2_loc_2==20 or current_player.fb_p2_prev_2==20) or (current_player.fb_p2_loc_3==20 or current_player.fb_p2_prev_3==20)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==20 or current_player.fb_p2_prev_1==20)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==20 or current_player.fb_p2_prev_2==20)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==20 or current_player.fb_p2_prev_3==20)) and ((current_player.fb_p2_loc_1==20 or current_player.fb_p2_prev_1==20)) + ((current_player.fb_p2_loc_2==20 or current_player.fb_p2_prev_2==20)) + ((current_player.fb_p2_loc_3==20 or current_player.fb_p2_prev_3==20)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 21: LOCK O
+  fb_p2_at_21{(current_player.fb_p2_loc_1==21 or current_player.fb_p2_prev_1==21)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_21{(current_player.fb_p2_loc_2==21 or current_player.fb_p2_prev_2==21) and not (current_player.fb_p2_loc_1==21 or current_player.fb_p2_prev_1==21)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_21{(current_player.fb_p2_loc_2==21 or current_player.fb_p2_prev_2==21) and (current_player.fb_p2_loc_1==21 or current_player.fb_p2_prev_1==21)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_21{(current_player.fb_p2_loc_3==21 or current_player.fb_p2_prev_3==21) and ((current_player.fb_p2_loc_1==21 or current_player.fb_p2_prev_1==21)) + ((current_player.fb_p2_loc_2==21 or current_player.fb_p2_prev_2==21)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_21{(current_player.fb_p2_loc_3==21 or current_player.fb_p2_prev_3==21) and ((current_player.fb_p2_loc_1==21 or current_player.fb_p2_prev_1==21)) + ((current_player.fb_p2_loc_2==21 or current_player.fb_p2_prev_2==21)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_21{(current_player.fb_p2_loc_3==21 or current_player.fb_p2_prev_3==21) and ((current_player.fb_p2_loc_1==21 or current_player.fb_p2_prev_1==21)) + ((current_player.fb_p2_loc_2==21 or current_player.fb_p2_prev_2==21)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_21{((current_player.fb_p2_loc_1==21 or current_player.fb_p2_prev_1==21) or (current_player.fb_p2_loc_2==21 or current_player.fb_p2_prev_2==21) or (current_player.fb_p2_loc_3==21 or current_player.fb_p2_prev_3==21))}:
+    - fb_fanfare
+  fb_p2_at_21{((current_player.fb_p2_loc_1==21 or current_player.fb_p2_prev_1==21) or (current_player.fb_p2_loc_2==21 or current_player.fb_p2_prev_2==21) or (current_player.fb_p2_loc_3==21 or current_player.fb_p2_prev_3==21)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==21 or current_player.fb_p2_prev_1==21)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==21 or current_player.fb_p2_prev_2==21)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==21 or current_player.fb_p2_prev_3==21)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_21{((current_player.fb_p2_loc_1==21 or current_player.fb_p2_prev_1==21) or (current_player.fb_p2_loc_2==21 or current_player.fb_p2_prev_2==21) or (current_player.fb_p2_loc_3==21 or current_player.fb_p2_prev_3==21)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==21 or current_player.fb_p2_prev_1==21)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==21 or current_player.fb_p2_prev_2==21)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==21 or current_player.fb_p2_prev_3==21)) and ((current_player.fb_p2_loc_1==21 or current_player.fb_p2_prev_1==21)) + ((current_player.fb_p2_loc_2==21 or current_player.fb_p2_prev_2==21)) + ((current_player.fb_p2_loc_3==21 or current_player.fb_p2_prev_3==21)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 22: LOCK C
+  fb_p2_at_22{(current_player.fb_p2_loc_1==22 or current_player.fb_p2_prev_1==22)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_22{(current_player.fb_p2_loc_2==22 or current_player.fb_p2_prev_2==22) and not (current_player.fb_p2_loc_1==22 or current_player.fb_p2_prev_1==22)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_22{(current_player.fb_p2_loc_2==22 or current_player.fb_p2_prev_2==22) and (current_player.fb_p2_loc_1==22 or current_player.fb_p2_prev_1==22)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_22{(current_player.fb_p2_loc_3==22 or current_player.fb_p2_prev_3==22) and ((current_player.fb_p2_loc_1==22 or current_player.fb_p2_prev_1==22)) + ((current_player.fb_p2_loc_2==22 or current_player.fb_p2_prev_2==22)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_22{(current_player.fb_p2_loc_3==22 or current_player.fb_p2_prev_3==22) and ((current_player.fb_p2_loc_1==22 or current_player.fb_p2_prev_1==22)) + ((current_player.fb_p2_loc_2==22 or current_player.fb_p2_prev_2==22)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_22{(current_player.fb_p2_loc_3==22 or current_player.fb_p2_prev_3==22) and ((current_player.fb_p2_loc_1==22 or current_player.fb_p2_prev_1==22)) + ((current_player.fb_p2_loc_2==22 or current_player.fb_p2_prev_2==22)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_22{((current_player.fb_p2_loc_1==22 or current_player.fb_p2_prev_1==22) or (current_player.fb_p2_loc_2==22 or current_player.fb_p2_prev_2==22) or (current_player.fb_p2_loc_3==22 or current_player.fb_p2_prev_3==22))}:
+    - fb_fanfare
+  fb_p2_at_22{((current_player.fb_p2_loc_1==22 or current_player.fb_p2_prev_1==22) or (current_player.fb_p2_loc_2==22 or current_player.fb_p2_prev_2==22) or (current_player.fb_p2_loc_3==22 or current_player.fb_p2_prev_3==22)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==22 or current_player.fb_p2_prev_1==22)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==22 or current_player.fb_p2_prev_2==22)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==22 or current_player.fb_p2_prev_3==22)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_22{((current_player.fb_p2_loc_1==22 or current_player.fb_p2_prev_1==22) or (current_player.fb_p2_loc_2==22 or current_player.fb_p2_prev_2==22) or (current_player.fb_p2_loc_3==22 or current_player.fb_p2_prev_3==22)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==22 or current_player.fb_p2_prev_1==22)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==22 or current_player.fb_p2_prev_2==22)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==22 or current_player.fb_p2_prev_3==22)) and ((current_player.fb_p2_loc_1==22 or current_player.fb_p2_prev_1==22)) + ((current_player.fb_p2_loc_2==22 or current_player.fb_p2_prev_2==22)) + ((current_player.fb_p2_loc_3==22 or current_player.fb_p2_prev_3==22)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 23: LOCK K
+  fb_p2_at_23{(current_player.fb_p2_loc_1==23 or current_player.fb_p2_prev_1==23)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_23{(current_player.fb_p2_loc_2==23 or current_player.fb_p2_prev_2==23) and not (current_player.fb_p2_loc_1==23 or current_player.fb_p2_prev_1==23)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_23{(current_player.fb_p2_loc_2==23 or current_player.fb_p2_prev_2==23) and (current_player.fb_p2_loc_1==23 or current_player.fb_p2_prev_1==23)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_23{(current_player.fb_p2_loc_3==23 or current_player.fb_p2_prev_3==23) and ((current_player.fb_p2_loc_1==23 or current_player.fb_p2_prev_1==23)) + ((current_player.fb_p2_loc_2==23 or current_player.fb_p2_prev_2==23)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_23{(current_player.fb_p2_loc_3==23 or current_player.fb_p2_prev_3==23) and ((current_player.fb_p2_loc_1==23 or current_player.fb_p2_prev_1==23)) + ((current_player.fb_p2_loc_2==23 or current_player.fb_p2_prev_2==23)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_23{(current_player.fb_p2_loc_3==23 or current_player.fb_p2_prev_3==23) and ((current_player.fb_p2_loc_1==23 or current_player.fb_p2_prev_1==23)) + ((current_player.fb_p2_loc_2==23 or current_player.fb_p2_prev_2==23)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_23{((current_player.fb_p2_loc_1==23 or current_player.fb_p2_prev_1==23) or (current_player.fb_p2_loc_2==23 or current_player.fb_p2_prev_2==23) or (current_player.fb_p2_loc_3==23 or current_player.fb_p2_prev_3==23))}:
+    - fb_fanfare
+  fb_p2_at_23{((current_player.fb_p2_loc_1==23 or current_player.fb_p2_prev_1==23) or (current_player.fb_p2_loc_2==23 or current_player.fb_p2_prev_2==23) or (current_player.fb_p2_loc_3==23 or current_player.fb_p2_prev_3==23)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==23 or current_player.fb_p2_prev_1==23)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==23 or current_player.fb_p2_prev_2==23)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==23 or current_player.fb_p2_prev_3==23)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_23{((current_player.fb_p2_loc_1==23 or current_player.fb_p2_prev_1==23) or (current_player.fb_p2_loc_2==23 or current_player.fb_p2_prev_2==23) or (current_player.fb_p2_loc_3==23 or current_player.fb_p2_prev_3==23)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==23 or current_player.fb_p2_prev_1==23)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==23 or current_player.fb_p2_prev_2==23)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==23 or current_player.fb_p2_prev_3==23)) and ((current_player.fb_p2_loc_1==23 or current_player.fb_p2_prev_1==23)) + ((current_player.fb_p2_loc_2==23 or current_player.fb_p2_prev_2==23)) + ((current_player.fb_p2_loc_3==23 or current_player.fb_p2_prev_3==23)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 30: ICEMAN I
+  fb_p2_at_30{(current_player.fb_p2_loc_1==30 or current_player.fb_p2_prev_1==30)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_30{(current_player.fb_p2_loc_2==30 or current_player.fb_p2_prev_2==30) and not (current_player.fb_p2_loc_1==30 or current_player.fb_p2_prev_1==30)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_30{(current_player.fb_p2_loc_2==30 or current_player.fb_p2_prev_2==30) and (current_player.fb_p2_loc_1==30 or current_player.fb_p2_prev_1==30)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_30{(current_player.fb_p2_loc_3==30 or current_player.fb_p2_prev_3==30) and ((current_player.fb_p2_loc_1==30 or current_player.fb_p2_prev_1==30)) + ((current_player.fb_p2_loc_2==30 or current_player.fb_p2_prev_2==30)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_30{(current_player.fb_p2_loc_3==30 or current_player.fb_p2_prev_3==30) and ((current_player.fb_p2_loc_1==30 or current_player.fb_p2_prev_1==30)) + ((current_player.fb_p2_loc_2==30 or current_player.fb_p2_prev_2==30)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_30{(current_player.fb_p2_loc_3==30 or current_player.fb_p2_prev_3==30) and ((current_player.fb_p2_loc_1==30 or current_player.fb_p2_prev_1==30)) + ((current_player.fb_p2_loc_2==30 or current_player.fb_p2_prev_2==30)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_30{((current_player.fb_p2_loc_1==30 or current_player.fb_p2_prev_1==30) or (current_player.fb_p2_loc_2==30 or current_player.fb_p2_prev_2==30) or (current_player.fb_p2_loc_3==30 or current_player.fb_p2_prev_3==30))}:
+    - fb_fanfare
+  fb_p2_at_30{((current_player.fb_p2_loc_1==30 or current_player.fb_p2_prev_1==30) or (current_player.fb_p2_loc_2==30 or current_player.fb_p2_prev_2==30) or (current_player.fb_p2_loc_3==30 or current_player.fb_p2_prev_3==30)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==30 or current_player.fb_p2_prev_1==30)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==30 or current_player.fb_p2_prev_2==30)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==30 or current_player.fb_p2_prev_3==30)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_30{((current_player.fb_p2_loc_1==30 or current_player.fb_p2_prev_1==30) or (current_player.fb_p2_loc_2==30 or current_player.fb_p2_prev_2==30) or (current_player.fb_p2_loc_3==30 or current_player.fb_p2_prev_3==30)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==30 or current_player.fb_p2_prev_1==30)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==30 or current_player.fb_p2_prev_2==30)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==30 or current_player.fb_p2_prev_3==30)) and ((current_player.fb_p2_loc_1==30 or current_player.fb_p2_prev_1==30)) + ((current_player.fb_p2_loc_2==30 or current_player.fb_p2_prev_2==30)) + ((current_player.fb_p2_loc_3==30 or current_player.fb_p2_prev_3==30)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 31: ICEMAN C
+  fb_p2_at_31{(current_player.fb_p2_loc_1==31 or current_player.fb_p2_prev_1==31)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_31{(current_player.fb_p2_loc_2==31 or current_player.fb_p2_prev_2==31) and not (current_player.fb_p2_loc_1==31 or current_player.fb_p2_prev_1==31)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_31{(current_player.fb_p2_loc_2==31 or current_player.fb_p2_prev_2==31) and (current_player.fb_p2_loc_1==31 or current_player.fb_p2_prev_1==31)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_31{(current_player.fb_p2_loc_3==31 or current_player.fb_p2_prev_3==31) and ((current_player.fb_p2_loc_1==31 or current_player.fb_p2_prev_1==31)) + ((current_player.fb_p2_loc_2==31 or current_player.fb_p2_prev_2==31)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_31{(current_player.fb_p2_loc_3==31 or current_player.fb_p2_prev_3==31) and ((current_player.fb_p2_loc_1==31 or current_player.fb_p2_prev_1==31)) + ((current_player.fb_p2_loc_2==31 or current_player.fb_p2_prev_2==31)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_31{(current_player.fb_p2_loc_3==31 or current_player.fb_p2_prev_3==31) and ((current_player.fb_p2_loc_1==31 or current_player.fb_p2_prev_1==31)) + ((current_player.fb_p2_loc_2==31 or current_player.fb_p2_prev_2==31)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_31{((current_player.fb_p2_loc_1==31 or current_player.fb_p2_prev_1==31) or (current_player.fb_p2_loc_2==31 or current_player.fb_p2_prev_2==31) or (current_player.fb_p2_loc_3==31 or current_player.fb_p2_prev_3==31))}:
+    - fb_fanfare
+  fb_p2_at_31{((current_player.fb_p2_loc_1==31 or current_player.fb_p2_prev_1==31) or (current_player.fb_p2_loc_2==31 or current_player.fb_p2_prev_2==31) or (current_player.fb_p2_loc_3==31 or current_player.fb_p2_prev_3==31)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==31 or current_player.fb_p2_prev_1==31)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==31 or current_player.fb_p2_prev_2==31)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==31 or current_player.fb_p2_prev_3==31)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_31{((current_player.fb_p2_loc_1==31 or current_player.fb_p2_prev_1==31) or (current_player.fb_p2_loc_2==31 or current_player.fb_p2_prev_2==31) or (current_player.fb_p2_loc_3==31 or current_player.fb_p2_prev_3==31)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==31 or current_player.fb_p2_prev_1==31)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==31 or current_player.fb_p2_prev_2==31)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==31 or current_player.fb_p2_prev_3==31)) and ((current_player.fb_p2_loc_1==31 or current_player.fb_p2_prev_1==31)) + ((current_player.fb_p2_loc_2==31 or current_player.fb_p2_prev_2==31)) + ((current_player.fb_p2_loc_3==31 or current_player.fb_p2_prev_3==31)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 32: ICEMAN E
+  fb_p2_at_32{(current_player.fb_p2_loc_1==32 or current_player.fb_p2_prev_1==32)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_32{(current_player.fb_p2_loc_2==32 or current_player.fb_p2_prev_2==32) and not (current_player.fb_p2_loc_1==32 or current_player.fb_p2_prev_1==32)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_32{(current_player.fb_p2_loc_2==32 or current_player.fb_p2_prev_2==32) and (current_player.fb_p2_loc_1==32 or current_player.fb_p2_prev_1==32)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_32{(current_player.fb_p2_loc_3==32 or current_player.fb_p2_prev_3==32) and ((current_player.fb_p2_loc_1==32 or current_player.fb_p2_prev_1==32)) + ((current_player.fb_p2_loc_2==32 or current_player.fb_p2_prev_2==32)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_32{(current_player.fb_p2_loc_3==32 or current_player.fb_p2_prev_3==32) and ((current_player.fb_p2_loc_1==32 or current_player.fb_p2_prev_1==32)) + ((current_player.fb_p2_loc_2==32 or current_player.fb_p2_prev_2==32)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_32{(current_player.fb_p2_loc_3==32 or current_player.fb_p2_prev_3==32) and ((current_player.fb_p2_loc_1==32 or current_player.fb_p2_prev_1==32)) + ((current_player.fb_p2_loc_2==32 or current_player.fb_p2_prev_2==32)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_32{((current_player.fb_p2_loc_1==32 or current_player.fb_p2_prev_1==32) or (current_player.fb_p2_loc_2==32 or current_player.fb_p2_prev_2==32) or (current_player.fb_p2_loc_3==32 or current_player.fb_p2_prev_3==32))}:
+    - fb_fanfare
+  fb_p2_at_32{((current_player.fb_p2_loc_1==32 or current_player.fb_p2_prev_1==32) or (current_player.fb_p2_loc_2==32 or current_player.fb_p2_prev_2==32) or (current_player.fb_p2_loc_3==32 or current_player.fb_p2_prev_3==32)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==32 or current_player.fb_p2_prev_1==32)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==32 or current_player.fb_p2_prev_2==32)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==32 or current_player.fb_p2_prev_3==32)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_32{((current_player.fb_p2_loc_1==32 or current_player.fb_p2_prev_1==32) or (current_player.fb_p2_loc_2==32 or current_player.fb_p2_prev_2==32) or (current_player.fb_p2_loc_3==32 or current_player.fb_p2_prev_3==32)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==32 or current_player.fb_p2_prev_1==32)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==32 or current_player.fb_p2_prev_2==32)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==32 or current_player.fb_p2_prev_3==32)) and ((current_player.fb_p2_loc_1==32 or current_player.fb_p2_prev_1==32)) + ((current_player.fb_p2_loc_2==32 or current_player.fb_p2_prev_2==32)) + ((current_player.fb_p2_loc_3==32 or current_player.fb_p2_prev_3==32)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 33: ICEMAN M
+  fb_p2_at_33{(current_player.fb_p2_loc_1==33 or current_player.fb_p2_prev_1==33)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_33{(current_player.fb_p2_loc_2==33 or current_player.fb_p2_prev_2==33) and not (current_player.fb_p2_loc_1==33 or current_player.fb_p2_prev_1==33)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_33{(current_player.fb_p2_loc_2==33 or current_player.fb_p2_prev_2==33) and (current_player.fb_p2_loc_1==33 or current_player.fb_p2_prev_1==33)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_33{(current_player.fb_p2_loc_3==33 or current_player.fb_p2_prev_3==33) and ((current_player.fb_p2_loc_1==33 or current_player.fb_p2_prev_1==33)) + ((current_player.fb_p2_loc_2==33 or current_player.fb_p2_prev_2==33)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_33{(current_player.fb_p2_loc_3==33 or current_player.fb_p2_prev_3==33) and ((current_player.fb_p2_loc_1==33 or current_player.fb_p2_prev_1==33)) + ((current_player.fb_p2_loc_2==33 or current_player.fb_p2_prev_2==33)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_33{(current_player.fb_p2_loc_3==33 or current_player.fb_p2_prev_3==33) and ((current_player.fb_p2_loc_1==33 or current_player.fb_p2_prev_1==33)) + ((current_player.fb_p2_loc_2==33 or current_player.fb_p2_prev_2==33)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_33{((current_player.fb_p2_loc_1==33 or current_player.fb_p2_prev_1==33) or (current_player.fb_p2_loc_2==33 or current_player.fb_p2_prev_2==33) or (current_player.fb_p2_loc_3==33 or current_player.fb_p2_prev_3==33))}:
+    - fb_fanfare
+  fb_p2_at_33{((current_player.fb_p2_loc_1==33 or current_player.fb_p2_prev_1==33) or (current_player.fb_p2_loc_2==33 or current_player.fb_p2_prev_2==33) or (current_player.fb_p2_loc_3==33 or current_player.fb_p2_prev_3==33)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==33 or current_player.fb_p2_prev_1==33)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==33 or current_player.fb_p2_prev_2==33)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==33 or current_player.fb_p2_prev_3==33)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_33{((current_player.fb_p2_loc_1==33 or current_player.fb_p2_prev_1==33) or (current_player.fb_p2_loc_2==33 or current_player.fb_p2_prev_2==33) or (current_player.fb_p2_loc_3==33 or current_player.fb_p2_prev_3==33)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==33 or current_player.fb_p2_prev_1==33)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==33 or current_player.fb_p2_prev_2==33)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==33 or current_player.fb_p2_prev_3==33)) and ((current_player.fb_p2_loc_1==33 or current_player.fb_p2_prev_1==33)) + ((current_player.fb_p2_loc_2==33 or current_player.fb_p2_prev_2==33)) + ((current_player.fb_p2_loc_3==33 or current_player.fb_p2_prev_3==33)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 34: ICEMAN A
+  fb_p2_at_34{(current_player.fb_p2_loc_1==34 or current_player.fb_p2_prev_1==34)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_34{(current_player.fb_p2_loc_2==34 or current_player.fb_p2_prev_2==34) and not (current_player.fb_p2_loc_1==34 or current_player.fb_p2_prev_1==34)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_34{(current_player.fb_p2_loc_2==34 or current_player.fb_p2_prev_2==34) and (current_player.fb_p2_loc_1==34 or current_player.fb_p2_prev_1==34)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_34{(current_player.fb_p2_loc_3==34 or current_player.fb_p2_prev_3==34) and ((current_player.fb_p2_loc_1==34 or current_player.fb_p2_prev_1==34)) + ((current_player.fb_p2_loc_2==34 or current_player.fb_p2_prev_2==34)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_34{(current_player.fb_p2_loc_3==34 or current_player.fb_p2_prev_3==34) and ((current_player.fb_p2_loc_1==34 or current_player.fb_p2_prev_1==34)) + ((current_player.fb_p2_loc_2==34 or current_player.fb_p2_prev_2==34)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_34{(current_player.fb_p2_loc_3==34 or current_player.fb_p2_prev_3==34) and ((current_player.fb_p2_loc_1==34 or current_player.fb_p2_prev_1==34)) + ((current_player.fb_p2_loc_2==34 or current_player.fb_p2_prev_2==34)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_34{((current_player.fb_p2_loc_1==34 or current_player.fb_p2_prev_1==34) or (current_player.fb_p2_loc_2==34 or current_player.fb_p2_prev_2==34) or (current_player.fb_p2_loc_3==34 or current_player.fb_p2_prev_3==34))}:
+    - fb_fanfare
+  fb_p2_at_34{((current_player.fb_p2_loc_1==34 or current_player.fb_p2_prev_1==34) or (current_player.fb_p2_loc_2==34 or current_player.fb_p2_prev_2==34) or (current_player.fb_p2_loc_3==34 or current_player.fb_p2_prev_3==34)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==34 or current_player.fb_p2_prev_1==34)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==34 or current_player.fb_p2_prev_2==34)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==34 or current_player.fb_p2_prev_3==34)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_34{((current_player.fb_p2_loc_1==34 or current_player.fb_p2_prev_1==34) or (current_player.fb_p2_loc_2==34 or current_player.fb_p2_prev_2==34) or (current_player.fb_p2_loc_3==34 or current_player.fb_p2_prev_3==34)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==34 or current_player.fb_p2_prev_1==34)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==34 or current_player.fb_p2_prev_2==34)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==34 or current_player.fb_p2_prev_3==34)) and ((current_player.fb_p2_loc_1==34 or current_player.fb_p2_prev_1==34)) + ((current_player.fb_p2_loc_2==34 or current_player.fb_p2_prev_2==34)) + ((current_player.fb_p2_loc_3==34 or current_player.fb_p2_prev_3==34)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 35: ICEMAN N
+  fb_p2_at_35{(current_player.fb_p2_loc_1==35 or current_player.fb_p2_prev_1==35)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_35{(current_player.fb_p2_loc_2==35 or current_player.fb_p2_prev_2==35) and not (current_player.fb_p2_loc_1==35 or current_player.fb_p2_prev_1==35)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_35{(current_player.fb_p2_loc_2==35 or current_player.fb_p2_prev_2==35) and (current_player.fb_p2_loc_1==35 or current_player.fb_p2_prev_1==35)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_35{(current_player.fb_p2_loc_3==35 or current_player.fb_p2_prev_3==35) and ((current_player.fb_p2_loc_1==35 or current_player.fb_p2_prev_1==35)) + ((current_player.fb_p2_loc_2==35 or current_player.fb_p2_prev_2==35)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_35{(current_player.fb_p2_loc_3==35 or current_player.fb_p2_prev_3==35) and ((current_player.fb_p2_loc_1==35 or current_player.fb_p2_prev_1==35)) + ((current_player.fb_p2_loc_2==35 or current_player.fb_p2_prev_2==35)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_35{(current_player.fb_p2_loc_3==35 or current_player.fb_p2_prev_3==35) and ((current_player.fb_p2_loc_1==35 or current_player.fb_p2_prev_1==35)) + ((current_player.fb_p2_loc_2==35 or current_player.fb_p2_prev_2==35)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_35{((current_player.fb_p2_loc_1==35 or current_player.fb_p2_prev_1==35) or (current_player.fb_p2_loc_2==35 or current_player.fb_p2_prev_2==35) or (current_player.fb_p2_loc_3==35 or current_player.fb_p2_prev_3==35))}:
+    - fb_fanfare
+  fb_p2_at_35{((current_player.fb_p2_loc_1==35 or current_player.fb_p2_prev_1==35) or (current_player.fb_p2_loc_2==35 or current_player.fb_p2_prev_2==35) or (current_player.fb_p2_loc_3==35 or current_player.fb_p2_prev_3==35)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==35 or current_player.fb_p2_prev_1==35)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==35 or current_player.fb_p2_prev_2==35)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==35 or current_player.fb_p2_prev_3==35)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_35{((current_player.fb_p2_loc_1==35 or current_player.fb_p2_prev_1==35) or (current_player.fb_p2_loc_2==35 or current_player.fb_p2_prev_2==35) or (current_player.fb_p2_loc_3==35 or current_player.fb_p2_prev_3==35)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==35 or current_player.fb_p2_prev_1==35)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==35 or current_player.fb_p2_prev_2==35)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==35 or current_player.fb_p2_prev_3==35)) and ((current_player.fb_p2_loc_1==35 or current_player.fb_p2_prev_1==35)) + ((current_player.fb_p2_loc_2==35 or current_player.fb_p2_prev_2==35)) + ((current_player.fb_p2_loc_3==35 or current_player.fb_p2_prev_3==35)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 40: GOOSE G
+  fb_p2_at_40{(current_player.fb_p2_loc_1==40 or current_player.fb_p2_prev_1==40)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_40{(current_player.fb_p2_loc_2==40 or current_player.fb_p2_prev_2==40) and not (current_player.fb_p2_loc_1==40 or current_player.fb_p2_prev_1==40)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_40{(current_player.fb_p2_loc_2==40 or current_player.fb_p2_prev_2==40) and (current_player.fb_p2_loc_1==40 or current_player.fb_p2_prev_1==40)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_40{(current_player.fb_p2_loc_3==40 or current_player.fb_p2_prev_3==40) and ((current_player.fb_p2_loc_1==40 or current_player.fb_p2_prev_1==40)) + ((current_player.fb_p2_loc_2==40 or current_player.fb_p2_prev_2==40)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_40{(current_player.fb_p2_loc_3==40 or current_player.fb_p2_prev_3==40) and ((current_player.fb_p2_loc_1==40 or current_player.fb_p2_prev_1==40)) + ((current_player.fb_p2_loc_2==40 or current_player.fb_p2_prev_2==40)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_40{(current_player.fb_p2_loc_3==40 or current_player.fb_p2_prev_3==40) and ((current_player.fb_p2_loc_1==40 or current_player.fb_p2_prev_1==40)) + ((current_player.fb_p2_loc_2==40 or current_player.fb_p2_prev_2==40)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_40{((current_player.fb_p2_loc_1==40 or current_player.fb_p2_prev_1==40) or (current_player.fb_p2_loc_2==40 or current_player.fb_p2_prev_2==40) or (current_player.fb_p2_loc_3==40 or current_player.fb_p2_prev_3==40))}:
+    - fb_fanfare
+  fb_p2_at_40{((current_player.fb_p2_loc_1==40 or current_player.fb_p2_prev_1==40) or (current_player.fb_p2_loc_2==40 or current_player.fb_p2_prev_2==40) or (current_player.fb_p2_loc_3==40 or current_player.fb_p2_prev_3==40)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==40 or current_player.fb_p2_prev_1==40)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==40 or current_player.fb_p2_prev_2==40)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==40 or current_player.fb_p2_prev_3==40)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_40{((current_player.fb_p2_loc_1==40 or current_player.fb_p2_prev_1==40) or (current_player.fb_p2_loc_2==40 or current_player.fb_p2_prev_2==40) or (current_player.fb_p2_loc_3==40 or current_player.fb_p2_prev_3==40)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==40 or current_player.fb_p2_prev_1==40)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==40 or current_player.fb_p2_prev_2==40)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==40 or current_player.fb_p2_prev_3==40)) and ((current_player.fb_p2_loc_1==40 or current_player.fb_p2_prev_1==40)) + ((current_player.fb_p2_loc_2==40 or current_player.fb_p2_prev_2==40)) + ((current_player.fb_p2_loc_3==40 or current_player.fb_p2_prev_3==40)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 41: GOOSE O (LEFT)
+  fb_p2_at_41{(current_player.fb_p2_loc_1==41 or current_player.fb_p2_prev_1==41)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_41{(current_player.fb_p2_loc_2==41 or current_player.fb_p2_prev_2==41) and not (current_player.fb_p2_loc_1==41 or current_player.fb_p2_prev_1==41)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_41{(current_player.fb_p2_loc_2==41 or current_player.fb_p2_prev_2==41) and (current_player.fb_p2_loc_1==41 or current_player.fb_p2_prev_1==41)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_41{(current_player.fb_p2_loc_3==41 or current_player.fb_p2_prev_3==41) and ((current_player.fb_p2_loc_1==41 or current_player.fb_p2_prev_1==41)) + ((current_player.fb_p2_loc_2==41 or current_player.fb_p2_prev_2==41)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_41{(current_player.fb_p2_loc_3==41 or current_player.fb_p2_prev_3==41) and ((current_player.fb_p2_loc_1==41 or current_player.fb_p2_prev_1==41)) + ((current_player.fb_p2_loc_2==41 or current_player.fb_p2_prev_2==41)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_41{(current_player.fb_p2_loc_3==41 or current_player.fb_p2_prev_3==41) and ((current_player.fb_p2_loc_1==41 or current_player.fb_p2_prev_1==41)) + ((current_player.fb_p2_loc_2==41 or current_player.fb_p2_prev_2==41)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_41{((current_player.fb_p2_loc_1==41 or current_player.fb_p2_prev_1==41) or (current_player.fb_p2_loc_2==41 or current_player.fb_p2_prev_2==41) or (current_player.fb_p2_loc_3==41 or current_player.fb_p2_prev_3==41))}:
+    - fb_fanfare
+  fb_p2_at_41{((current_player.fb_p2_loc_1==41 or current_player.fb_p2_prev_1==41) or (current_player.fb_p2_loc_2==41 or current_player.fb_p2_prev_2==41) or (current_player.fb_p2_loc_3==41 or current_player.fb_p2_prev_3==41)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==41 or current_player.fb_p2_prev_1==41)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==41 or current_player.fb_p2_prev_2==41)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==41 or current_player.fb_p2_prev_3==41)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_41{((current_player.fb_p2_loc_1==41 or current_player.fb_p2_prev_1==41) or (current_player.fb_p2_loc_2==41 or current_player.fb_p2_prev_2==41) or (current_player.fb_p2_loc_3==41 or current_player.fb_p2_prev_3==41)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==41 or current_player.fb_p2_prev_1==41)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==41 or current_player.fb_p2_prev_2==41)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==41 or current_player.fb_p2_prev_3==41)) and ((current_player.fb_p2_loc_1==41 or current_player.fb_p2_prev_1==41)) + ((current_player.fb_p2_loc_2==41 or current_player.fb_p2_prev_2==41)) + ((current_player.fb_p2_loc_3==41 or current_player.fb_p2_prev_3==41)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 42: GOOSE O (RIGHT)
+  fb_p2_at_42{(current_player.fb_p2_loc_1==42 or current_player.fb_p2_prev_1==42)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_42{(current_player.fb_p2_loc_2==42 or current_player.fb_p2_prev_2==42) and not (current_player.fb_p2_loc_1==42 or current_player.fb_p2_prev_1==42)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_42{(current_player.fb_p2_loc_2==42 or current_player.fb_p2_prev_2==42) and (current_player.fb_p2_loc_1==42 or current_player.fb_p2_prev_1==42)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_42{(current_player.fb_p2_loc_3==42 or current_player.fb_p2_prev_3==42) and ((current_player.fb_p2_loc_1==42 or current_player.fb_p2_prev_1==42)) + ((current_player.fb_p2_loc_2==42 or current_player.fb_p2_prev_2==42)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_42{(current_player.fb_p2_loc_3==42 or current_player.fb_p2_prev_3==42) and ((current_player.fb_p2_loc_1==42 or current_player.fb_p2_prev_1==42)) + ((current_player.fb_p2_loc_2==42 or current_player.fb_p2_prev_2==42)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_42{(current_player.fb_p2_loc_3==42 or current_player.fb_p2_prev_3==42) and ((current_player.fb_p2_loc_1==42 or current_player.fb_p2_prev_1==42)) + ((current_player.fb_p2_loc_2==42 or current_player.fb_p2_prev_2==42)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_42{((current_player.fb_p2_loc_1==42 or current_player.fb_p2_prev_1==42) or (current_player.fb_p2_loc_2==42 or current_player.fb_p2_prev_2==42) or (current_player.fb_p2_loc_3==42 or current_player.fb_p2_prev_3==42))}:
+    - fb_fanfare
+  fb_p2_at_42{((current_player.fb_p2_loc_1==42 or current_player.fb_p2_prev_1==42) or (current_player.fb_p2_loc_2==42 or current_player.fb_p2_prev_2==42) or (current_player.fb_p2_loc_3==42 or current_player.fb_p2_prev_3==42)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==42 or current_player.fb_p2_prev_1==42)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==42 or current_player.fb_p2_prev_2==42)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==42 or current_player.fb_p2_prev_3==42)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_42{((current_player.fb_p2_loc_1==42 or current_player.fb_p2_prev_1==42) or (current_player.fb_p2_loc_2==42 or current_player.fb_p2_prev_2==42) or (current_player.fb_p2_loc_3==42 or current_player.fb_p2_prev_3==42)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==42 or current_player.fb_p2_prev_1==42)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==42 or current_player.fb_p2_prev_2==42)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==42 or current_player.fb_p2_prev_3==42)) and ((current_player.fb_p2_loc_1==42 or current_player.fb_p2_prev_1==42)) + ((current_player.fb_p2_loc_2==42 or current_player.fb_p2_prev_2==42)) + ((current_player.fb_p2_loc_3==42 or current_player.fb_p2_prev_3==42)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 43: GOOSE S
+  fb_p2_at_43{(current_player.fb_p2_loc_1==43 or current_player.fb_p2_prev_1==43)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_43{(current_player.fb_p2_loc_2==43 or current_player.fb_p2_prev_2==43) and not (current_player.fb_p2_loc_1==43 or current_player.fb_p2_prev_1==43)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_43{(current_player.fb_p2_loc_2==43 or current_player.fb_p2_prev_2==43) and (current_player.fb_p2_loc_1==43 or current_player.fb_p2_prev_1==43)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_43{(current_player.fb_p2_loc_3==43 or current_player.fb_p2_prev_3==43) and ((current_player.fb_p2_loc_1==43 or current_player.fb_p2_prev_1==43)) + ((current_player.fb_p2_loc_2==43 or current_player.fb_p2_prev_2==43)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_43{(current_player.fb_p2_loc_3==43 or current_player.fb_p2_prev_3==43) and ((current_player.fb_p2_loc_1==43 or current_player.fb_p2_prev_1==43)) + ((current_player.fb_p2_loc_2==43 or current_player.fb_p2_prev_2==43)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_43{(current_player.fb_p2_loc_3==43 or current_player.fb_p2_prev_3==43) and ((current_player.fb_p2_loc_1==43 or current_player.fb_p2_prev_1==43)) + ((current_player.fb_p2_loc_2==43 or current_player.fb_p2_prev_2==43)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_43{((current_player.fb_p2_loc_1==43 or current_player.fb_p2_prev_1==43) or (current_player.fb_p2_loc_2==43 or current_player.fb_p2_prev_2==43) or (current_player.fb_p2_loc_3==43 or current_player.fb_p2_prev_3==43))}:
+    - fb_fanfare
+  fb_p2_at_43{((current_player.fb_p2_loc_1==43 or current_player.fb_p2_prev_1==43) or (current_player.fb_p2_loc_2==43 or current_player.fb_p2_prev_2==43) or (current_player.fb_p2_loc_3==43 or current_player.fb_p2_prev_3==43)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==43 or current_player.fb_p2_prev_1==43)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==43 or current_player.fb_p2_prev_2==43)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==43 or current_player.fb_p2_prev_3==43)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_43{((current_player.fb_p2_loc_1==43 or current_player.fb_p2_prev_1==43) or (current_player.fb_p2_loc_2==43 or current_player.fb_p2_prev_2==43) or (current_player.fb_p2_loc_3==43 or current_player.fb_p2_prev_3==43)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==43 or current_player.fb_p2_prev_1==43)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==43 or current_player.fb_p2_prev_2==43)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==43 or current_player.fb_p2_prev_3==43)) and ((current_player.fb_p2_loc_1==43 or current_player.fb_p2_prev_1==43)) + ((current_player.fb_p2_loc_2==43 or current_player.fb_p2_prev_2==43)) + ((current_player.fb_p2_loc_3==43 or current_player.fb_p2_prev_3==43)) >= 2}:
+    - fb_p2_set_timer_stop
+  # 44: GOOSE E
+  fb_p2_at_44{(current_player.fb_p2_loc_1==44 or current_player.fb_p2_prev_1==44)}:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+  fb_p2_at_44{(current_player.fb_p2_loc_2==44 or current_player.fb_p2_prev_2==44) and not (current_player.fb_p2_loc_1==44 or current_player.fb_p2_prev_1==44)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2
+  fb_p2_at_44{(current_player.fb_p2_loc_2==44 or current_player.fb_p2_prev_2==44) and (current_player.fb_p2_loc_1==44 or current_player.fb_p2_prev_1==44)}:
+    - fb_p2_claim_2
+    - fb_p2_award_2|1s
+  fb_p2_at_44{(current_player.fb_p2_loc_3==44 or current_player.fb_p2_prev_3==44) and ((current_player.fb_p2_loc_1==44 or current_player.fb_p2_prev_1==44)) + ((current_player.fb_p2_loc_2==44 or current_player.fb_p2_prev_2==44)) == 0}:
+    - fb_p2_claim_3
+    - fb_p2_award_3
+  fb_p2_at_44{(current_player.fb_p2_loc_3==44 or current_player.fb_p2_prev_3==44) and ((current_player.fb_p2_loc_1==44 or current_player.fb_p2_prev_1==44)) + ((current_player.fb_p2_loc_2==44 or current_player.fb_p2_prev_2==44)) == 1}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|1s
+  fb_p2_at_44{(current_player.fb_p2_loc_3==44 or current_player.fb_p2_prev_3==44) and ((current_player.fb_p2_loc_1==44 or current_player.fb_p2_prev_1==44)) + ((current_player.fb_p2_loc_2==44 or current_player.fb_p2_prev_2==44)) == 2}:
+    - fb_p2_claim_3
+    - fb_p2_award_3|2s
+  fb_p2_at_44{((current_player.fb_p2_loc_1==44 or current_player.fb_p2_prev_1==44) or (current_player.fb_p2_loc_2==44 or current_player.fb_p2_prev_2==44) or (current_player.fb_p2_loc_3==44 or current_player.fb_p2_prev_3==44))}:
+    - fb_fanfare
+  fb_p2_at_44{((current_player.fb_p2_loc_1==44 or current_player.fb_p2_prev_1==44) or (current_player.fb_p2_loc_2==44 or current_player.fb_p2_prev_2==44) or (current_player.fb_p2_loc_3==44 or current_player.fb_p2_prev_3==44)) and not ((current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==44 or current_player.fb_p2_prev_1==44)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==44 or current_player.fb_p2_prev_2==44)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==44 or current_player.fb_p2_prev_3==44)))}:
+    - fb_p2_callout
+  # last missiles hit as a STACK: stop the timer while the 1s-apart awards land
+  # (a single last hit doesn't need it - that award evades the set at once)
+  fb_p2_at_44{((current_player.fb_p2_loc_1==44 or current_player.fb_p2_prev_1==44) or (current_player.fb_p2_loc_2==44 or current_player.fb_p2_prev_2==44) or (current_player.fb_p2_loc_3==44 or current_player.fb_p2_prev_3==44)) and (current_player.fb_p2_claim_1==1 or (current_player.fb_p2_loc_1==44 or current_player.fb_p2_prev_1==44)) and (current_player.fb_p2_claim_2==1 or (current_player.fb_p2_loc_2==44 or current_player.fb_p2_prev_2==44)) and (current_player.fb_p2_claim_3==1 or (current_player.fb_p2_loc_3==44 or current_player.fb_p2_prev_3==44)) and ((current_player.fb_p2_loc_1==44 or current_player.fb_p2_prev_1==44)) + ((current_player.fb_p2_loc_2==44 or current_player.fb_p2_prev_2==44)) + ((current_player.fb_p2_loc_3==44 or current_player.fb_p2_prev_3==44)) >= 2}:
+    - fb_p2_set_timer_stop
+  # Award (the original per-slot shot event)
+  fb_p2_award_1{current_player.fb_p2_state==1}:
+    - fb_p2_hit_1
+  fb_p2_award_2{current_player.fb_p2_state==1}:
+    - fb_p2_hit_2
+  fb_p2_award_3{current_player.fb_p2_state==1}:
+    - fb_p2_hit_3
+  # Each claim refreshes the lights itself. (MPF runs the events a handler
+  # posts depth-first, so a separate refresh posted next to the claims could
+  # run before them.)
+  fb_p2_claim_1:
+    - fb_p2_refresh
+  fb_p2_claim_2:
+    - fb_p2_refresh
+  fb_p2_claim_3:
+    - fb_p2_refresh
+  # Set 6: the Top Orbit missile (stays put) lowers the top ramp when hit
+  fb_p2_claim_3{current_player.fb_p2_set==6}:
+    - top_ramp_down
+  # Missiles perk: slot 1 completed automatically (no fanfare / callout)
+  fb_p2_perk_claim:
+    - fb_p2_claim_1
+    - fb_p2_award_1
+    - fb_p2_refresh_q
+  # Lights: one show per spot, speed by how many missiles are on it
+  fb_p2_refresh:
+    - fb_p2_rf_10
+    - fb_p2_rf_11
+    - fb_p2_rf_12
+    - fb_p2_rf_13
+    - fb_p2_rf_14
+    - fb_p2_rf_15
+    - fb_p2_rf_16
+    - fb_p2_rf_17
+    - fb_p2_rf_18
+    - fb_p2_rf_20
+    - fb_p2_rf_21
+    - fb_p2_rf_22
+    - fb_p2_rf_23
+    - fb_p2_rf_30
+    - fb_p2_rf_31
+    - fb_p2_rf_32
+    - fb_p2_rf_33
+    - fb_p2_rf_34
+    - fb_p2_rf_35
+    - fb_p2_rf_40
+    - fb_p2_rf_41
+    - fb_p2_rf_42
+    - fb_p2_rf_43
+    - fb_p2_rf_44
+  fb_p2_rf_10{(current_player.fb_p2_loc_1==10) + (current_player.fb_p2_loc_2==10) + (current_player.fb_p2_loc_3==10) == 0}:
+    - fb_p2_lk_10_off
+  fb_p2_rf_10{(current_player.fb_p2_loc_1==10) + (current_player.fb_p2_loc_2==10) + (current_player.fb_p2_loc_3==10) == 1}:
+    - fb_p2_lk_10_1
+  fb_p2_rf_10{(current_player.fb_p2_loc_1==10) + (current_player.fb_p2_loc_2==10) + (current_player.fb_p2_loc_3==10) == 2}:
+    - fb_p2_lk_10_2
+  fb_p2_rf_10{(current_player.fb_p2_loc_1==10) + (current_player.fb_p2_loc_2==10) + (current_player.fb_p2_loc_3==10) >= 3}:
+    - fb_p2_lk_10_3
+  fb_p2_rf_11{(current_player.fb_p2_loc_1==11) + (current_player.fb_p2_loc_2==11) + (current_player.fb_p2_loc_3==11) == 0}:
+    - fb_p2_lk_11_off
+  fb_p2_rf_11{(current_player.fb_p2_loc_1==11) + (current_player.fb_p2_loc_2==11) + (current_player.fb_p2_loc_3==11) == 1}:
+    - fb_p2_lk_11_1
+  fb_p2_rf_11{(current_player.fb_p2_loc_1==11) + (current_player.fb_p2_loc_2==11) + (current_player.fb_p2_loc_3==11) == 2}:
+    - fb_p2_lk_11_2
+  fb_p2_rf_11{(current_player.fb_p2_loc_1==11) + (current_player.fb_p2_loc_2==11) + (current_player.fb_p2_loc_3==11) >= 3}:
+    - fb_p2_lk_11_3
+  fb_p2_rf_12{(current_player.fb_p2_loc_1==12) + (current_player.fb_p2_loc_2==12) + (current_player.fb_p2_loc_3==12) == 0}:
+    - fb_p2_lk_12_off
+  fb_p2_rf_12{(current_player.fb_p2_loc_1==12) + (current_player.fb_p2_loc_2==12) + (current_player.fb_p2_loc_3==12) == 1}:
+    - fb_p2_lk_12_1
+  fb_p2_rf_12{(current_player.fb_p2_loc_1==12) + (current_player.fb_p2_loc_2==12) + (current_player.fb_p2_loc_3==12) == 2}:
+    - fb_p2_lk_12_2
+  fb_p2_rf_12{(current_player.fb_p2_loc_1==12) + (current_player.fb_p2_loc_2==12) + (current_player.fb_p2_loc_3==12) >= 3}:
+    - fb_p2_lk_12_3
+  fb_p2_rf_13{(current_player.fb_p2_loc_1==13) + (current_player.fb_p2_loc_2==13) + (current_player.fb_p2_loc_3==13) == 0}:
+    - fb_p2_lk_13_off
+  fb_p2_rf_13{(current_player.fb_p2_loc_1==13) + (current_player.fb_p2_loc_2==13) + (current_player.fb_p2_loc_3==13) == 1}:
+    - fb_p2_lk_13_1
+  fb_p2_rf_13{(current_player.fb_p2_loc_1==13) + (current_player.fb_p2_loc_2==13) + (current_player.fb_p2_loc_3==13) == 2}:
+    - fb_p2_lk_13_2
+  fb_p2_rf_13{(current_player.fb_p2_loc_1==13) + (current_player.fb_p2_loc_2==13) + (current_player.fb_p2_loc_3==13) >= 3}:
+    - fb_p2_lk_13_3
+  fb_p2_rf_14{(current_player.fb_p2_loc_1==14) + (current_player.fb_p2_loc_2==14) + (current_player.fb_p2_loc_3==14) == 0}:
+    - fb_p2_lk_14_off
+  fb_p2_rf_14{(current_player.fb_p2_loc_1==14) + (current_player.fb_p2_loc_2==14) + (current_player.fb_p2_loc_3==14) == 1}:
+    - fb_p2_lk_14_1
+  fb_p2_rf_14{(current_player.fb_p2_loc_1==14) + (current_player.fb_p2_loc_2==14) + (current_player.fb_p2_loc_3==14) == 2}:
+    - fb_p2_lk_14_2
+  fb_p2_rf_14{(current_player.fb_p2_loc_1==14) + (current_player.fb_p2_loc_2==14) + (current_player.fb_p2_loc_3==14) >= 3}:
+    - fb_p2_lk_14_3
+  fb_p2_rf_15{(current_player.fb_p2_loc_1==15) + (current_player.fb_p2_loc_2==15) + (current_player.fb_p2_loc_3==15) == 0}:
+    - fb_p2_lk_15_off
+  fb_p2_rf_15{(current_player.fb_p2_loc_1==15) + (current_player.fb_p2_loc_2==15) + (current_player.fb_p2_loc_3==15) == 1}:
+    - fb_p2_lk_15_1
+  fb_p2_rf_15{(current_player.fb_p2_loc_1==15) + (current_player.fb_p2_loc_2==15) + (current_player.fb_p2_loc_3==15) == 2}:
+    - fb_p2_lk_15_2
+  fb_p2_rf_15{(current_player.fb_p2_loc_1==15) + (current_player.fb_p2_loc_2==15) + (current_player.fb_p2_loc_3==15) >= 3}:
+    - fb_p2_lk_15_3
+  fb_p2_rf_16{(current_player.fb_p2_loc_1==16) + (current_player.fb_p2_loc_2==16) + (current_player.fb_p2_loc_3==16) == 0}:
+    - fb_p2_lk_16_off
+  fb_p2_rf_16{(current_player.fb_p2_loc_1==16) + (current_player.fb_p2_loc_2==16) + (current_player.fb_p2_loc_3==16) == 1}:
+    - fb_p2_lk_16_1
+  fb_p2_rf_16{(current_player.fb_p2_loc_1==16) + (current_player.fb_p2_loc_2==16) + (current_player.fb_p2_loc_3==16) == 2}:
+    - fb_p2_lk_16_2
+  fb_p2_rf_16{(current_player.fb_p2_loc_1==16) + (current_player.fb_p2_loc_2==16) + (current_player.fb_p2_loc_3==16) >= 3}:
+    - fb_p2_lk_16_3
+  fb_p2_rf_17{(current_player.fb_p2_loc_1==17) + (current_player.fb_p2_loc_2==17) + (current_player.fb_p2_loc_3==17) == 0}:
+    - fb_p2_lk_17_off
+  fb_p2_rf_17{(current_player.fb_p2_loc_1==17) + (current_player.fb_p2_loc_2==17) + (current_player.fb_p2_loc_3==17) == 1}:
+    - fb_p2_lk_17_1
+  fb_p2_rf_17{(current_player.fb_p2_loc_1==17) + (current_player.fb_p2_loc_2==17) + (current_player.fb_p2_loc_3==17) == 2}:
+    - fb_p2_lk_17_2
+  fb_p2_rf_17{(current_player.fb_p2_loc_1==17) + (current_player.fb_p2_loc_2==17) + (current_player.fb_p2_loc_3==17) >= 3}:
+    - fb_p2_lk_17_3
+  fb_p2_rf_18{(current_player.fb_p2_loc_1==18) + (current_player.fb_p2_loc_2==18) + (current_player.fb_p2_loc_3==18) == 0}:
+    - fb_p2_lk_18_off
+  fb_p2_rf_18{(current_player.fb_p2_loc_1==18) + (current_player.fb_p2_loc_2==18) + (current_player.fb_p2_loc_3==18) == 1}:
+    - fb_p2_lk_18_1
+  fb_p2_rf_18{(current_player.fb_p2_loc_1==18) + (current_player.fb_p2_loc_2==18) + (current_player.fb_p2_loc_3==18) == 2}:
+    - fb_p2_lk_18_2
+  fb_p2_rf_18{(current_player.fb_p2_loc_1==18) + (current_player.fb_p2_loc_2==18) + (current_player.fb_p2_loc_3==18) >= 3}:
+    - fb_p2_lk_18_3
+  fb_p2_rf_20{(current_player.fb_p2_loc_1==20) + (current_player.fb_p2_loc_2==20) + (current_player.fb_p2_loc_3==20) == 0}:
+    - fb_p2_lk_20_off
+  fb_p2_rf_20{(current_player.fb_p2_loc_1==20) + (current_player.fb_p2_loc_2==20) + (current_player.fb_p2_loc_3==20) == 1}:
+    - fb_p2_lk_20_1
+  fb_p2_rf_20{(current_player.fb_p2_loc_1==20) + (current_player.fb_p2_loc_2==20) + (current_player.fb_p2_loc_3==20) == 2}:
+    - fb_p2_lk_20_2
+  fb_p2_rf_20{(current_player.fb_p2_loc_1==20) + (current_player.fb_p2_loc_2==20) + (current_player.fb_p2_loc_3==20) >= 3}:
+    - fb_p2_lk_20_3
+  fb_p2_rf_21{(current_player.fb_p2_loc_1==21) + (current_player.fb_p2_loc_2==21) + (current_player.fb_p2_loc_3==21) == 0}:
+    - fb_p2_lk_21_off
+  fb_p2_rf_21{(current_player.fb_p2_loc_1==21) + (current_player.fb_p2_loc_2==21) + (current_player.fb_p2_loc_3==21) == 1}:
+    - fb_p2_lk_21_1
+  fb_p2_rf_21{(current_player.fb_p2_loc_1==21) + (current_player.fb_p2_loc_2==21) + (current_player.fb_p2_loc_3==21) == 2}:
+    - fb_p2_lk_21_2
+  fb_p2_rf_21{(current_player.fb_p2_loc_1==21) + (current_player.fb_p2_loc_2==21) + (current_player.fb_p2_loc_3==21) >= 3}:
+    - fb_p2_lk_21_3
+  fb_p2_rf_22{(current_player.fb_p2_loc_1==22) + (current_player.fb_p2_loc_2==22) + (current_player.fb_p2_loc_3==22) == 0}:
+    - fb_p2_lk_22_off
+  fb_p2_rf_22{(current_player.fb_p2_loc_1==22) + (current_player.fb_p2_loc_2==22) + (current_player.fb_p2_loc_3==22) == 1}:
+    - fb_p2_lk_22_1
+  fb_p2_rf_22{(current_player.fb_p2_loc_1==22) + (current_player.fb_p2_loc_2==22) + (current_player.fb_p2_loc_3==22) == 2}:
+    - fb_p2_lk_22_2
+  fb_p2_rf_22{(current_player.fb_p2_loc_1==22) + (current_player.fb_p2_loc_2==22) + (current_player.fb_p2_loc_3==22) >= 3}:
+    - fb_p2_lk_22_3
+  fb_p2_rf_23{(current_player.fb_p2_loc_1==23) + (current_player.fb_p2_loc_2==23) + (current_player.fb_p2_loc_3==23) == 0}:
+    - fb_p2_lk_23_off
+  fb_p2_rf_23{(current_player.fb_p2_loc_1==23) + (current_player.fb_p2_loc_2==23) + (current_player.fb_p2_loc_3==23) == 1}:
+    - fb_p2_lk_23_1
+  fb_p2_rf_23{(current_player.fb_p2_loc_1==23) + (current_player.fb_p2_loc_2==23) + (current_player.fb_p2_loc_3==23) == 2}:
+    - fb_p2_lk_23_2
+  fb_p2_rf_23{(current_player.fb_p2_loc_1==23) + (current_player.fb_p2_loc_2==23) + (current_player.fb_p2_loc_3==23) >= 3}:
+    - fb_p2_lk_23_3
+  fb_p2_rf_30{(current_player.fb_p2_loc_1==30) + (current_player.fb_p2_loc_2==30) + (current_player.fb_p2_loc_3==30) == 0}:
+    - fb_p2_lk_30_off
+  fb_p2_rf_30{(current_player.fb_p2_loc_1==30) + (current_player.fb_p2_loc_2==30) + (current_player.fb_p2_loc_3==30) == 1}:
+    - fb_p2_lk_30_1
+  fb_p2_rf_30{(current_player.fb_p2_loc_1==30) + (current_player.fb_p2_loc_2==30) + (current_player.fb_p2_loc_3==30) == 2}:
+    - fb_p2_lk_30_2
+  fb_p2_rf_30{(current_player.fb_p2_loc_1==30) + (current_player.fb_p2_loc_2==30) + (current_player.fb_p2_loc_3==30) >= 3}:
+    - fb_p2_lk_30_3
+  fb_p2_rf_31{(current_player.fb_p2_loc_1==31) + (current_player.fb_p2_loc_2==31) + (current_player.fb_p2_loc_3==31) == 0}:
+    - fb_p2_lk_31_off
+  fb_p2_rf_31{(current_player.fb_p2_loc_1==31) + (current_player.fb_p2_loc_2==31) + (current_player.fb_p2_loc_3==31) == 1}:
+    - fb_p2_lk_31_1
+  fb_p2_rf_31{(current_player.fb_p2_loc_1==31) + (current_player.fb_p2_loc_2==31) + (current_player.fb_p2_loc_3==31) == 2}:
+    - fb_p2_lk_31_2
+  fb_p2_rf_31{(current_player.fb_p2_loc_1==31) + (current_player.fb_p2_loc_2==31) + (current_player.fb_p2_loc_3==31) >= 3}:
+    - fb_p2_lk_31_3
+  fb_p2_rf_32{(current_player.fb_p2_loc_1==32) + (current_player.fb_p2_loc_2==32) + (current_player.fb_p2_loc_3==32) == 0}:
+    - fb_p2_lk_32_off
+  fb_p2_rf_32{(current_player.fb_p2_loc_1==32) + (current_player.fb_p2_loc_2==32) + (current_player.fb_p2_loc_3==32) == 1}:
+    - fb_p2_lk_32_1
+  fb_p2_rf_32{(current_player.fb_p2_loc_1==32) + (current_player.fb_p2_loc_2==32) + (current_player.fb_p2_loc_3==32) == 2}:
+    - fb_p2_lk_32_2
+  fb_p2_rf_32{(current_player.fb_p2_loc_1==32) + (current_player.fb_p2_loc_2==32) + (current_player.fb_p2_loc_3==32) >= 3}:
+    - fb_p2_lk_32_3
+  fb_p2_rf_33{(current_player.fb_p2_loc_1==33) + (current_player.fb_p2_loc_2==33) + (current_player.fb_p2_loc_3==33) == 0}:
+    - fb_p2_lk_33_off
+  fb_p2_rf_33{(current_player.fb_p2_loc_1==33) + (current_player.fb_p2_loc_2==33) + (current_player.fb_p2_loc_3==33) == 1}:
+    - fb_p2_lk_33_1
+  fb_p2_rf_33{(current_player.fb_p2_loc_1==33) + (current_player.fb_p2_loc_2==33) + (current_player.fb_p2_loc_3==33) == 2}:
+    - fb_p2_lk_33_2
+  fb_p2_rf_33{(current_player.fb_p2_loc_1==33) + (current_player.fb_p2_loc_2==33) + (current_player.fb_p2_loc_3==33) >= 3}:
+    - fb_p2_lk_33_3
+  fb_p2_rf_34{(current_player.fb_p2_loc_1==34) + (current_player.fb_p2_loc_2==34) + (current_player.fb_p2_loc_3==34) == 0}:
+    - fb_p2_lk_34_off
+  fb_p2_rf_34{(current_player.fb_p2_loc_1==34) + (current_player.fb_p2_loc_2==34) + (current_player.fb_p2_loc_3==34) == 1}:
+    - fb_p2_lk_34_1
+  fb_p2_rf_34{(current_player.fb_p2_loc_1==34) + (current_player.fb_p2_loc_2==34) + (current_player.fb_p2_loc_3==34) == 2}:
+    - fb_p2_lk_34_2
+  fb_p2_rf_34{(current_player.fb_p2_loc_1==34) + (current_player.fb_p2_loc_2==34) + (current_player.fb_p2_loc_3==34) >= 3}:
+    - fb_p2_lk_34_3
+  fb_p2_rf_35{(current_player.fb_p2_loc_1==35) + (current_player.fb_p2_loc_2==35) + (current_player.fb_p2_loc_3==35) == 0}:
+    - fb_p2_lk_35_off
+  fb_p2_rf_35{(current_player.fb_p2_loc_1==35) + (current_player.fb_p2_loc_2==35) + (current_player.fb_p2_loc_3==35) == 1}:
+    - fb_p2_lk_35_1
+  fb_p2_rf_35{(current_player.fb_p2_loc_1==35) + (current_player.fb_p2_loc_2==35) + (current_player.fb_p2_loc_3==35) == 2}:
+    - fb_p2_lk_35_2
+  fb_p2_rf_35{(current_player.fb_p2_loc_1==35) + (current_player.fb_p2_loc_2==35) + (current_player.fb_p2_loc_3==35) >= 3}:
+    - fb_p2_lk_35_3
+  fb_p2_rf_40{(current_player.fb_p2_loc_1==40) + (current_player.fb_p2_loc_2==40) + (current_player.fb_p2_loc_3==40) == 0}:
+    - fb_p2_lk_40_off
+  fb_p2_rf_40{(current_player.fb_p2_loc_1==40) + (current_player.fb_p2_loc_2==40) + (current_player.fb_p2_loc_3==40) == 1}:
+    - fb_p2_lk_40_1
+  fb_p2_rf_40{(current_player.fb_p2_loc_1==40) + (current_player.fb_p2_loc_2==40) + (current_player.fb_p2_loc_3==40) == 2}:
+    - fb_p2_lk_40_2
+  fb_p2_rf_40{(current_player.fb_p2_loc_1==40) + (current_player.fb_p2_loc_2==40) + (current_player.fb_p2_loc_3==40) >= 3}:
+    - fb_p2_lk_40_3
+  fb_p2_rf_41{(current_player.fb_p2_loc_1==41) + (current_player.fb_p2_loc_2==41) + (current_player.fb_p2_loc_3==41) == 0}:
+    - fb_p2_lk_41_off
+  fb_p2_rf_41{(current_player.fb_p2_loc_1==41) + (current_player.fb_p2_loc_2==41) + (current_player.fb_p2_loc_3==41) == 1}:
+    - fb_p2_lk_41_1
+  fb_p2_rf_41{(current_player.fb_p2_loc_1==41) + (current_player.fb_p2_loc_2==41) + (current_player.fb_p2_loc_3==41) == 2}:
+    - fb_p2_lk_41_2
+  fb_p2_rf_41{(current_player.fb_p2_loc_1==41) + (current_player.fb_p2_loc_2==41) + (current_player.fb_p2_loc_3==41) >= 3}:
+    - fb_p2_lk_41_3
+  fb_p2_rf_42{(current_player.fb_p2_loc_1==42) + (current_player.fb_p2_loc_2==42) + (current_player.fb_p2_loc_3==42) == 0}:
+    - fb_p2_lk_42_off
+  fb_p2_rf_42{(current_player.fb_p2_loc_1==42) + (current_player.fb_p2_loc_2==42) + (current_player.fb_p2_loc_3==42) == 1}:
+    - fb_p2_lk_42_1
+  fb_p2_rf_42{(current_player.fb_p2_loc_1==42) + (current_player.fb_p2_loc_2==42) + (current_player.fb_p2_loc_3==42) == 2}:
+    - fb_p2_lk_42_2
+  fb_p2_rf_42{(current_player.fb_p2_loc_1==42) + (current_player.fb_p2_loc_2==42) + (current_player.fb_p2_loc_3==42) >= 3}:
+    - fb_p2_lk_42_3
+  fb_p2_rf_43{(current_player.fb_p2_loc_1==43) + (current_player.fb_p2_loc_2==43) + (current_player.fb_p2_loc_3==43) == 0}:
+    - fb_p2_lk_43_off
+  fb_p2_rf_43{(current_player.fb_p2_loc_1==43) + (current_player.fb_p2_loc_2==43) + (current_player.fb_p2_loc_3==43) == 1}:
+    - fb_p2_lk_43_1
+  fb_p2_rf_43{(current_player.fb_p2_loc_1==43) + (current_player.fb_p2_loc_2==43) + (current_player.fb_p2_loc_3==43) == 2}:
+    - fb_p2_lk_43_2
+  fb_p2_rf_43{(current_player.fb_p2_loc_1==43) + (current_player.fb_p2_loc_2==43) + (current_player.fb_p2_loc_3==43) >= 3}:
+    - fb_p2_lk_43_3
+  fb_p2_rf_44{(current_player.fb_p2_loc_1==44) + (current_player.fb_p2_loc_2==44) + (current_player.fb_p2_loc_3==44) == 0}:
+    - fb_p2_lk_44_off
+  fb_p2_rf_44{(current_player.fb_p2_loc_1==44) + (current_player.fb_p2_loc_2==44) + (current_player.fb_p2_loc_3==44) == 1}:
+    - fb_p2_lk_44_1
+  fb_p2_rf_44{(current_player.fb_p2_loc_1==44) + (current_player.fb_p2_loc_2==44) + (current_player.fb_p2_loc_3==44) == 2}:
+    - fb_p2_lk_44_2
+  fb_p2_rf_44{(current_player.fb_p2_loc_1==44) + (current_player.fb_p2_loc_2==44) + (current_player.fb_p2_loc_3==44) >= 3}:
+    - fb_p2_lk_44_3
+
+show_player:
+  ##############################################
+  ## MOVING MISSILE SPOTS (speed 1 / 2 / 4 = one / two / three missiles)
+  ##############################################
+  fb_p2_lk_10_1:
+    sync_flash_mode:
+      key: fb_p2_loc_10
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_shot_left_lane
+        color: 0000FF
+  fb_p2_lk_10_2:
+    sync_flash_mode:
+      key: fb_p2_loc_10
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_shot_left_lane
+        color: 0000FF
+  fb_p2_lk_10_3:
+    sync_flash_mode:
+      key: fb_p2_loc_10
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_shot_left_lane
+        color: 0000FF
+  fb_p2_lk_10_off:
+    fb_p2_loc_10:
+      action: stop
+  fb_p2_lk_11_1:
+    sync_flash_mode:
+      key: fb_p2_loc_11
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_shot_left_orbit
+        color: 0000FF
+  fb_p2_lk_11_2:
+    sync_flash_mode:
+      key: fb_p2_loc_11
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_shot_left_orbit
+        color: 0000FF
+  fb_p2_lk_11_3:
+    sync_flash_mode:
+      key: fb_p2_loc_11
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_shot_left_orbit
+        color: 0000FF
+  fb_p2_lk_11_off:
+    fb_p2_loc_11:
+      action: stop
+  fb_p2_lk_12_1:
+    sync_flash_mode:
+      key: fb_p2_loc_12
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_shot_left_ramp
+        color: 0000FF
+  fb_p2_lk_12_2:
+    sync_flash_mode:
+      key: fb_p2_loc_12
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_shot_left_ramp
+        color: 0000FF
+  fb_p2_lk_12_3:
+    sync_flash_mode:
+      key: fb_p2_loc_12
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_shot_left_ramp
+        color: 0000FF
+  fb_p2_lk_12_off:
+    fb_p2_loc_12:
+      action: stop
+  fb_p2_lk_13_1:
+    sync_flash_mode:
+      key: fb_p2_loc_13
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_shot_spinner
+        color: 0000FF
+  fb_p2_lk_13_2:
+    sync_flash_mode:
+      key: fb_p2_loc_13
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_shot_spinner
+        color: 0000FF
+  fb_p2_lk_13_3:
+    sync_flash_mode:
+      key: fb_p2_loc_13
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_shot_spinner
+        color: 0000FF
+  fb_p2_lk_13_off:
+    fb_p2_loc_13:
+      action: stop
+  fb_p2_lk_14_1:
+    sync_flash_mode:
+      key: fb_p2_loc_14
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_shot_barrier
+        color: 0000FF
+  fb_p2_lk_14_2:
+    sync_flash_mode:
+      key: fb_p2_loc_14
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_shot_barrier
+        color: 0000FF
+  fb_p2_lk_14_3:
+    sync_flash_mode:
+      key: fb_p2_loc_14
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_shot_barrier
+        color: 0000FF
+  fb_p2_lk_14_off:
+    fb_p2_loc_14:
+      action: stop
+  fb_p2_lk_15_1:
+    sync_flash_mode:
+      key: fb_p2_loc_15
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_shot_tower_ramp
+        color: 0000FF
+  fb_p2_lk_15_2:
+    sync_flash_mode:
+      key: fb_p2_loc_15
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_shot_tower_ramp
+        color: 0000FF
+  fb_p2_lk_15_3:
+    sync_flash_mode:
+      key: fb_p2_loc_15
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_shot_tower_ramp
+        color: 0000FF
+  fb_p2_lk_15_off:
+    fb_p2_loc_15:
+      action: stop
+  fb_p2_lk_16_1:
+    sync_flash_mode:
+      key: fb_p2_loc_16
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: 0000FF
+  fb_p2_lk_16_2:
+    sync_flash_mode:
+      key: fb_p2_loc_16
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: 0000FF
+  fb_p2_lk_16_3:
+    sync_flash_mode:
+      key: fb_p2_loc_16
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: 0000FF
+  fb_p2_lk_16_off:
+    fb_p2_loc_16:
+      action: stop
+  fb_p2_lk_17_1:
+    sync_flash_mode:
+      key: fb_p2_loc_17
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: 0000FF
+  fb_p2_lk_17_2:
+    sync_flash_mode:
+      key: fb_p2_loc_17
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: 0000FF
+  fb_p2_lk_17_3:
+    sync_flash_mode:
+      key: fb_p2_loc_17
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: 0000FF
+  fb_p2_lk_17_off:
+    fb_p2_loc_17:
+      action: stop
+  fb_p2_lk_18_1:
+    sync_flash_mode:
+      key: fb_p2_loc_18
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_shot_right_orbit
+        color: 0000FF
+  fb_p2_lk_18_2:
+    sync_flash_mode:
+      key: fb_p2_loc_18
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_shot_right_orbit
+        color: 0000FF
+  fb_p2_lk_18_3:
+    sync_flash_mode:
+      key: fb_p2_loc_18
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_shot_right_orbit
+        color: 0000FF
+  fb_p2_lk_18_off:
+    fb_p2_loc_18:
+      action: stop
+  fb_p2_lk_20_1:
+    sync_flash_mode:
+      key: fb_p2_loc_20
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_lock_l
+        color: FFFFFF
+  fb_p2_lk_20_2:
+    sync_flash_mode:
+      key: fb_p2_loc_20
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_lock_l
+        color: FFFFFF
+  fb_p2_lk_20_3:
+    sync_flash_mode:
+      key: fb_p2_loc_20
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_lock_l
+        color: FFFFFF
+  fb_p2_lk_20_off:
+    fb_p2_loc_20:
+      action: stop
+  fb_p2_lk_21_1:
+    sync_flash_mode:
+      key: fb_p2_loc_21
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_lock_o
+        color: FFFFFF
+  fb_p2_lk_21_2:
+    sync_flash_mode:
+      key: fb_p2_loc_21
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_lock_o
+        color: FFFFFF
+  fb_p2_lk_21_3:
+    sync_flash_mode:
+      key: fb_p2_loc_21
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_lock_o
+        color: FFFFFF
+  fb_p2_lk_21_off:
+    fb_p2_loc_21:
+      action: stop
+  fb_p2_lk_22_1:
+    sync_flash_mode:
+      key: fb_p2_loc_22
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_lock_c
+        color: FFFFFF
+  fb_p2_lk_22_2:
+    sync_flash_mode:
+      key: fb_p2_loc_22
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_lock_c
+        color: FFFFFF
+  fb_p2_lk_22_3:
+    sync_flash_mode:
+      key: fb_p2_loc_22
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_lock_c
+        color: FFFFFF
+  fb_p2_lk_22_off:
+    fb_p2_loc_22:
+      action: stop
+  fb_p2_lk_23_1:
+    sync_flash_mode:
+      key: fb_p2_loc_23
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_lock_k
+        color: FFFFFF
+  fb_p2_lk_23_2:
+    sync_flash_mode:
+      key: fb_p2_loc_23
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_lock_k
+        color: FFFFFF
+  fb_p2_lk_23_3:
+    sync_flash_mode:
+      key: fb_p2_loc_23
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_lock_k
+        color: FFFFFF
+  fb_p2_lk_23_off:
+    fb_p2_loc_23:
+      action: stop
+  fb_p2_lk_30_1:
+    sync_flash_mode:
+      key: fb_p2_loc_30
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_iceman_i
+        color: 0000FF
+  fb_p2_lk_30_2:
+    sync_flash_mode:
+      key: fb_p2_loc_30
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_iceman_i
+        color: 0000FF
+  fb_p2_lk_30_3:
+    sync_flash_mode:
+      key: fb_p2_loc_30
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_iceman_i
+        color: 0000FF
+  fb_p2_lk_30_off:
+    fb_p2_loc_30:
+      action: stop
+  fb_p2_lk_31_1:
+    sync_flash_mode:
+      key: fb_p2_loc_31
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_iceman_c
+        color: 0000FF
+  fb_p2_lk_31_2:
+    sync_flash_mode:
+      key: fb_p2_loc_31
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_iceman_c
+        color: 0000FF
+  fb_p2_lk_31_3:
+    sync_flash_mode:
+      key: fb_p2_loc_31
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_iceman_c
+        color: 0000FF
+  fb_p2_lk_31_off:
+    fb_p2_loc_31:
+      action: stop
+  fb_p2_lk_32_1:
+    sync_flash_mode:
+      key: fb_p2_loc_32
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_iceman_e
+        color: 0000FF
+  fb_p2_lk_32_2:
+    sync_flash_mode:
+      key: fb_p2_loc_32
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_iceman_e
+        color: 0000FF
+  fb_p2_lk_32_3:
+    sync_flash_mode:
+      key: fb_p2_loc_32
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_iceman_e
+        color: 0000FF
+  fb_p2_lk_32_off:
+    fb_p2_loc_32:
+      action: stop
+  fb_p2_lk_33_1:
+    sync_flash_mode:
+      key: fb_p2_loc_33
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_iceman_m
+        color: 0000FF
+  fb_p2_lk_33_2:
+    sync_flash_mode:
+      key: fb_p2_loc_33
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_iceman_m
+        color: 0000FF
+  fb_p2_lk_33_3:
+    sync_flash_mode:
+      key: fb_p2_loc_33
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_iceman_m
+        color: 0000FF
+  fb_p2_lk_33_off:
+    fb_p2_loc_33:
+      action: stop
+  fb_p2_lk_34_1:
+    sync_flash_mode:
+      key: fb_p2_loc_34
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_iceman_a
+        color: 0000FF
+  fb_p2_lk_34_2:
+    sync_flash_mode:
+      key: fb_p2_loc_34
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_iceman_a
+        color: 0000FF
+  fb_p2_lk_34_3:
+    sync_flash_mode:
+      key: fb_p2_loc_34
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_iceman_a
+        color: 0000FF
+  fb_p2_lk_34_off:
+    fb_p2_loc_34:
+      action: stop
+  fb_p2_lk_35_1:
+    sync_flash_mode:
+      key: fb_p2_loc_35
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_iceman_n
+        color: 0000FF
+  fb_p2_lk_35_2:
+    sync_flash_mode:
+      key: fb_p2_loc_35
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_iceman_n
+        color: 0000FF
+  fb_p2_lk_35_3:
+    sync_flash_mode:
+      key: fb_p2_loc_35
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_iceman_n
+        color: 0000FF
+  fb_p2_lk_35_off:
+    fb_p2_loc_35:
+      action: stop
+  fb_p2_lk_40_1:
+    sync_flash_mode:
+      key: fb_p2_loc_40
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_goose_g
+        color: FFFFFF
+  fb_p2_lk_40_2:
+    sync_flash_mode:
+      key: fb_p2_loc_40
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_goose_g
+        color: FFFFFF
+  fb_p2_lk_40_3:
+    sync_flash_mode:
+      key: fb_p2_loc_40
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_goose_g
+        color: FFFFFF
+  fb_p2_lk_40_off:
+    fb_p2_loc_40:
+      action: stop
+  fb_p2_lk_41_1:
+    sync_flash_mode:
+      key: fb_p2_loc_41
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_goose_o_left
+        color: FFFFFF
+  fb_p2_lk_41_2:
+    sync_flash_mode:
+      key: fb_p2_loc_41
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_goose_o_left
+        color: FFFFFF
+  fb_p2_lk_41_3:
+    sync_flash_mode:
+      key: fb_p2_loc_41
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_goose_o_left
+        color: FFFFFF
+  fb_p2_lk_41_off:
+    fb_p2_loc_41:
+      action: stop
+  fb_p2_lk_42_1:
+    sync_flash_mode:
+      key: fb_p2_loc_42
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_goose_o_right
+        color: FFFFFF
+  fb_p2_lk_42_2:
+    sync_flash_mode:
+      key: fb_p2_loc_42
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_goose_o_right
+        color: FFFFFF
+  fb_p2_lk_42_3:
+    sync_flash_mode:
+      key: fb_p2_loc_42
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_goose_o_right
+        color: FFFFFF
+  fb_p2_lk_42_off:
+    fb_p2_loc_42:
+      action: stop
+  fb_p2_lk_43_1:
+    sync_flash_mode:
+      key: fb_p2_loc_43
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_goose_s
+        color: FFFFFF
+  fb_p2_lk_43_2:
+    sync_flash_mode:
+      key: fb_p2_loc_43
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_goose_s
+        color: FFFFFF
+  fb_p2_lk_43_3:
+    sync_flash_mode:
+      key: fb_p2_loc_43
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_goose_s
+        color: FFFFFF
+  fb_p2_lk_43_off:
+    fb_p2_loc_43:
+      action: stop
+  fb_p2_lk_44_1:
+    sync_flash_mode:
+      key: fb_p2_loc_44
+      loops: -1
+      sync_ms: 1000
+      speed: 1
+      show_tokens:
+        led: l_goose_e
+        color: FFFFFF
+  fb_p2_lk_44_2:
+    sync_flash_mode:
+      key: fb_p2_loc_44
+      loops: -1
+      sync_ms: 1000
+      speed: 2
+      show_tokens:
+        led: l_goose_e
+        color: FFFFFF
+  fb_p2_lk_44_3:
+    sync_flash_mode:
+      key: fb_p2_loc_44
+      loops: -1
+      sync_ms: 1000
+      speed: 4
+      show_tokens:
+        led: l_goose_e
+        color: FFFFFF
+  fb_p2_lk_44_off:
+    fb_p2_loc_44:
+      action: stop
+  fb_p2_slots_off:
+    fb_p2_slot_1:      # set 7 (scoop)
+      action: stop
+    fb_p2_loc_10:
+      action: stop
+    fb_p2_loc_11:
+      action: stop
+    fb_p2_loc_12:
+      action: stop
+    fb_p2_loc_13:
+      action: stop
+    fb_p2_loc_14:
+      action: stop
+    fb_p2_loc_15:
+      action: stop
+    fb_p2_loc_16:
+      action: stop
+    fb_p2_loc_17:
+      action: stop
+    fb_p2_loc_18:
+      action: stop
+    fb_p2_loc_20:
+      action: stop
+    fb_p2_loc_21:
+      action: stop
+    fb_p2_loc_22:
+      action: stop
+    fb_p2_loc_23:
+      action: stop
+    fb_p2_loc_30:
+      action: stop
+    fb_p2_loc_31:
+      action: stop
+    fb_p2_loc_32:
+      action: stop
+    fb_p2_loc_33:
+      action: stop
+    fb_p2_loc_34:
+      action: stop
+    fb_p2_loc_35:
+      action: stop
+    fb_p2_loc_40:
+      action: stop
+    fb_p2_loc_41:
+      action: stop
+    fb_p2_loc_42:
+      action: stop
+    fb_p2_loc_43:
+      action: stop
+    fb_p2_loc_44:
+      action: stop
+  fb_p2_lights_7:
+    sync_flash_mode:
+      key: fb_p2_slot_1
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        color: 0000FF
+  fb_p2_missile:
+    fb_fast_flash:
+      key: fb_p2_flare_spinner
+      loops: -1
+      show_tokens:
+        led: l_shot_spinner
+        color: FF0000
+    fb_gi_red_flash:
+      key: fb_p2_flare_gi
+      loops: -1
+      priority: 3
+  fb_p2_flare_stop:
+    fb_p2_flare_spinner:
+      action: stop
+    fb_p2_flare_gi:
+      action: stop
+  fb_p2_bank:
+    fb_fast_flash:
+      key: fb_p2_bank_tl
+      loops: -1
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: FF0000
+    fb_gi_red_flash:
+      key: fb_p2_flare_gi
+      loops: -1
+      priority: 3
+  fb_p2_bank_stop:
+    fb_p2_bank_tl:
+      action: stop
+    fb_p2_flare_gi:
+      action: stop
+
+shows:
+  fb_fast_flash:
+    - duration: 125ms
+      lights:
+        (led): (color)
+    - duration: 125ms
+      lights:
+        (led): off
+  fb_gi_red_flash:
+    - duration: 250ms
+      lights:
+        gi_lights: FF0000
+        l_gi_light_pop_left: FF0000
+        l_gi_light_pop_right: FF0000
+        l_gi_light_pop_bottom: FF0000
+    - duration: 250ms
+      lights:
+        gi_lights: off
+        l_gi_light_pop_left: off
+        l_gi_light_pop_right: off
+        l_gi_light_pop_bottom: off
+
+sound_player:
+  fb_p2_missile:
+    sfx_final_battle_missile_warning:
+      bus: effects
+      loops: -1
+    voice_final_battle_missile_lock:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_p2_flare_stop:
+    sfx_final_battle_missile_warning:
+      action: stop
+  fb_p2_bank:
+    sfx_final_battle_missile_warning:
+      bus: effects
+      loops: -1
+    voice_out_of_flares:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_p2_bank_stop:
+    sfx_final_battle_missile_warning:
+      action: stop
+  fb_p2_voice_evaded:
+    voice_final_battle_missile_evaded:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+
+  fb_p2_co_beautiful_shot:
+    voice_beautiful_shot:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_p2_co_bullseye:
+    voice_bullseye:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_p2_co_clean_hit:
+    voice_clean_hit:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_p2_co_direct_hit:
+    voice_direct_hit:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_p2_co_good_hit:
+    voice_good_hit:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_p2_co_nice_shot:
+    voice_nice_shot:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_p2_co_perfect:
+    voice_perfect:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_p2_co_right_on_target:
+    voice_right_on_target:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_p2_co_smooth:
+    voice_smooth:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_p2_co_solid_flying:
+    voice_solid_flying:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_p2_co_thats_a_great_shot:
+    voice_thats_a_great_shot:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_p2_co_thats_how_its_done:
+    voice_thats_how_its_done:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_p2_co_too_easy:
+    voice_too_easy:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_p2_co_you_nailed_it:
+    voice_you_nailed_it:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  fb_p2_co_youre_a_hell_of_a_pilot:
+    voice_youre_a_hell_of_a_pilot:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+
+##############################################################################
+## RANDOM EVENT PLAYER - shot callouts + missiles video between sets
+##############################################################################
+random_event_player:
+  # Missiles video after an evaded set (the next set is already live)
+  fb_p2_mvid_pick:
+    force_all: true
+    events:
+      - fb_p2_mvid_1
+      - fb_p2_mvid_2
+      - fb_p2_mvid_3
+  # Shot made callout (hits 1 and 2 of a set). The shot callout randomizer
+  # mode is stopped during Final Battle, so phase 2 has its own copy.
+  fb_p2_callout:
+    force_different: true
+    events:
+      - fb_p2_co_beautiful_shot
+      - fb_p2_co_bullseye
+      - fb_p2_co_clean_hit
+      - fb_p2_co_direct_hit
+      - fb_p2_co_good_hit
+      - fb_p2_co_nice_shot
+      - fb_p2_co_perfect
+      - fb_p2_co_right_on_target
+      - fb_p2_co_smooth
+      - fb_p2_co_solid_flying
+      - fb_p2_co_thats_a_great_shot
+      - fb_p2_co_thats_how_its_done
+      - fb_p2_co_too_easy
+      - fb_p2_co_you_nailed_it
+      - fb_p2_co_youre_a_hell_of_a_pilot
+  fb_p2_launch_missiles:
+    force_all: true
+    events:
+      - fb_p2_mvid_1
+      - fb_p2_mvid_2
+      - fb_p2_mvid_3

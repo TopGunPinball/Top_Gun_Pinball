@@ -1,0 +1,522 @@
+#config_version=6
+##############################################################################
+## FINAL BATTLE - PHASE 3: ESCAPE IN THE F-14   (runs inside final_battle)
+##
+## Single ball. GI light green, shots flash green. 180s (+30s Afterburner);
+## timer runs out or the ball drains -> lose a jet, fresh timer, progress kept.
+##
+## INTRO: ball held in the scoop while final_battle_phase3_intro (43s) plays
+##   (skippable, final_battle_phase3_instructions slide on top). Timer starts
+##   when the ball is released.
+## STAGE 1: any 4 of: Left Lane, Left Orbit, Left Ramp, Spinner, Barrier
+##   Target, Tower, Top Loop, Right Ramp.
+## STAGE 2 (step 5): every shot goes out, Top Ramp lit -> first lock, new ball.
+## STAGE 3: the 4 shots not yet made light again.
+## STAGE 4: Top Ramp -> second lock -> phase won (40.5s won video).
+##   Out of jets here -> final_battle_phase3_lost (18s)
+##   Right Ramp made -> right ramp rises; a Right Orbit shot then opens the
+##   left diverter so the ball feeds the Left Lane. Left Lane made -> right
+##   ramp lowers (or never rises if the Left Lane was made first).
+## SCORING: 750,000 per shot, 3,000,000 lock 1, 4,000,000 lock 2 (13,000,000)
+## MISSILES PERK: the Left Lane is completed at the start.
+##############################################################################
+
+mode:
+  start_events: fb_p3_begin
+  stop_events: fb_p4_begin, fb_stop_phases, ball_will_end
+  priority: 610
+  game_mode: true
+
+timers:
+  fb_p3_timer:
+    start_value: 180 + 30 * current_player.fb_perk_afterburner
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    control_events:
+      - event: fb_p3_go
+        action: restart
+      - event: fb_p3_pause
+        action: pause
+      - event: fb_p3_resume
+        action: start
+      - event: fb_jet_lost_normal
+        action: pause
+      - event: fb_p3_restart_timer
+        action: restart
+      - event: fb_p3_final
+        action: stop
+      - event: mode_timers_idle_pause
+        action: pause
+      - event: mode_timers_resume{current_player.fb_p3_stage>=1 and current_player.fb_p3_stage<=4 and current_player.fb_p3_serving==0 and current_player.fb_losing==0}
+        action: start
+  fb_p3_serve_fallback:
+    start_value: 0
+    end_value: 6
+    tick_interval: 1s
+    control_events:
+      - event: fb_p3_serve
+        action: restart
+      - event: fb_p3_resume
+        action: stop
+  # Fallback if the intro video never reports done
+  fb_p3_intro_fallback:
+    start_value: 0
+    end_value: 50
+    tick_interval: 1s
+    control_events:
+      - event: mode_final_battle_p3_started
+        action: restart
+      - event: fb_p3_go
+        action: stop
+  fb_p3_diverter:
+    start_value: 0
+    end_value: 3
+    tick_interval: 1s
+    control_events:
+      - event: fb_p3_open_diverter
+        action: restart
+
+variable_player:
+  mode_final_battle_p3_started:
+    fb_p3_stage: { action: set, int: 0 }
+    fb_p3_count: { action: set, int: 0 }
+    fb_p3_lock_wait: { action: set, int: 0 }
+    fb_p3_serving: { action: set, int: 0 }
+    fb_p3_ll_last: { action: set, int: 0 }
+    fb_grace_secs: { action: set, int: 10 }
+    fb_hud_count: { action: set, int: 0 }
+    fb_hud_count_label: { action: set, string: "SHOTS MADE" }
+    fb_objective: { action: set, string: "GET TO THE F-14" }
+    fb_p3_LL: { action: set, int: 0 }
+    fb_p3_LO: { action: set, int: 0 }
+    fb_p3_LR: { action: set, int: 0 }
+    fb_p3_SP: { action: set, int: 0 }
+    fb_p3_BAR: { action: set, int: 0 }
+    fb_p3_TWR: { action: set, int: 0 }
+    fb_p3_TL: { action: set, int: 0 }
+    fb_p3_RR: { action: set, int: 0 }
+  timer_fb_p3_timer_tick:
+    fb_timer: { action: set, int: ticks }
+  fb_p3_hit_LL:
+    fb_p3_LL: { action: set, int: 1 }
+    fb_p3_count: { action: add, int: 1 }
+    fb_hud_count: { action: add, int: 1 }
+  fb_p3_hit_LO:
+    fb_p3_LO: { action: set, int: 1 }
+    fb_p3_count: { action: add, int: 1 }
+    fb_hud_count: { action: add, int: 1 }
+  fb_p3_hit_LR:
+    fb_p3_LR: { action: set, int: 1 }
+    fb_p3_count: { action: add, int: 1 }
+    fb_hud_count: { action: add, int: 1 }
+  fb_p3_hit_SP:
+    fb_p3_SP: { action: set, int: 1 }
+    fb_p3_count: { action: add, int: 1 }
+    fb_hud_count: { action: add, int: 1 }
+  fb_p3_hit_BAR:
+    fb_p3_BAR: { action: set, int: 1 }
+    fb_p3_count: { action: add, int: 1 }
+    fb_hud_count: { action: add, int: 1 }
+  fb_p3_hit_TWR:
+    fb_p3_TWR: { action: set, int: 1 }
+    fb_p3_count: { action: add, int: 1 }
+    fb_hud_count: { action: add, int: 1 }
+  fb_p3_hit_TL:
+    fb_p3_TL: { action: set, int: 1 }
+    fb_p3_count: { action: add, int: 1 }
+    fb_hud_count: { action: add, int: 1 }
+  fb_p3_hit_RR:
+    fb_p3_RR: { action: set, int: 1 }
+    fb_p3_count: { action: add, int: 1 }
+    fb_hud_count: { action: add, int: 1 }
+  fb_p3_go:
+    fb_p3_stage: { action: set, int: 1 }
+    fb_objective: { action: set, string: "HIT ANY 4 GREEN SHOTS" }
+  fb_p3_ll_last:
+    fb_p3_ll_last: { action: set, int: 1 }
+    fb_objective: { action: set, string: "RIGHT ORBIT INTO THE LEFT LANE" }
+  fb_p3_stage2:
+    fb_p3_stage: { action: set, int: 2 }
+    fb_objective: { action: set, string: "SHOOT THE TOP RAMP TO LOCK" }
+  fb_p3_stage4:
+    fb_p3_stage: { action: set, int: 4 }
+    fb_objective: { action: set, string: "SHOOT THE TOP RAMP TO LOCK" }
+  fb_p3_lock_armed:
+    fb_p3_lock_wait: { action: set, int: 1 }
+  fb_p3_lock1:
+    fb_p3_lock_wait: { action: set, int: 0 }
+    fb_p3_stage: { action: set, int: 3 }
+    fb_p3_serving: { action: set, int: 1 }
+    fb_objective: { action: set, string: "HIT THE REST OF THE GREEN SHOTS" }
+  fb_p3_resume:
+    fb_p3_serving: { action: set, int: 0 }
+  fb_p3_final:
+    fb_p3_stage: { action: set, int: 9 }
+    fb_p3_lock_wait: { action: set, int: 0 }
+    fb_objective: { action: set, string: "WHEELS UP!" }
+
+event_player:
+  # Intro with the ball held in the scoop
+  mode_final_battle_p3_started:
+    - fb_vu_final_battle_phase3_intro
+  fb_video_done{video=="final_battle_phase3_intro" and current_player.fb_p3_stage==0}:
+    - fb_p3_go
+  timer_fb_p3_intro_fallback_complete{current_player.fb_p3_stage==0}:
+    - fb_p3_go
+  fb_p3_go:
+    - fb_scoop_out
+    - final_battle_lock_holds_reset
+    - lock_servo_to_held|200ms
+    - fb_grace_save_enable|100ms
+    - fb_p3_lights_on|300ms
+  fb_p3_go{current_player.fb_perk_missiles==1}:
+    - fb_p3_hit_LL|1500ms
+
+  ##############################################
+  ## STAGE 1 SHOTS (any order)
+  ##############################################
+  s_lane_left_active{(current_player.fb_p3_stage==1 or current_player.fb_p3_stage==3) and current_player.fb_p3_LL==0}:
+    - fb_p3_hit_LL
+  left_orbit_shot_hit{(current_player.fb_p3_stage==1 or current_player.fb_p3_stage==3) and current_player.fb_p3_LO==0}:
+    - fb_p3_hit_LO
+  s_ramp_left_exit_active{(current_player.fb_p3_stage==1 or current_player.fb_p3_stage==3) and current_player.fb_p3_LR==0}:
+    - fb_p3_hit_LR
+  spinner_shot_made{(current_player.fb_p3_stage==1 or current_player.fb_p3_stage==3) and current_player.fb_p3_SP==0}:
+    - fb_p3_hit_SP
+  s_barrier_target_active{(current_player.fb_p3_stage==1 or current_player.fb_p3_stage==3) and current_player.fb_p3_BAR==0}:
+    - fb_p3_hit_BAR
+  s_ramp_tower_exit_active{(current_player.fb_p3_stage==1 or current_player.fb_p3_stage==3) and current_player.fb_p3_TWR==0}:
+    - fb_p3_hit_TWR
+  s_orbit_upper_active{(current_player.fb_p3_stage==1 or current_player.fb_p3_stage==3) and current_player.fb_p3_TL==0}:
+    - fb_p3_hit_TL
+  s_ramp_right_exit_active{(current_player.fb_p3_stage==1 or current_player.fb_p3_stage==3) and current_player.fb_p3_RR==0}:
+    - fb_p3_hit_RR
+  fb_p3_hit_LL:
+    fb_step_made: {}
+    fb_p3_off_LL: {}
+    fb_p3_check: {}
+    fb_points_add:
+      phase: 3
+      points:
+        value: current_player.fb_shot_value
+        type: int
+  fb_p3_hit_LO:
+    fb_step_made: {}
+    fb_p3_off_LO: {}
+    fb_p3_check: {}
+    fb_points_add:
+      phase: 3
+      points:
+        value: current_player.fb_shot_value
+        type: int
+  fb_p3_hit_LR:
+    fb_step_made: {}
+    fb_p3_off_LR: {}
+    fb_p3_check: {}
+    fb_points_add:
+      phase: 3
+      points:
+        value: current_player.fb_shot_value
+        type: int
+  fb_p3_hit_SP:
+    fb_step_made: {}
+    fb_p3_off_SP: {}
+    fb_p3_check: {}
+    fb_points_add:
+      phase: 3
+      points:
+        value: current_player.fb_shot_value
+        type: int
+  fb_p3_hit_BAR:
+    fb_step_made: {}
+    fb_p3_off_BAR: {}
+    fb_p3_check: {}
+    fb_points_add:
+      phase: 3
+      points:
+        value: current_player.fb_shot_value
+        type: int
+  fb_p3_hit_TWR:
+    fb_step_made: {}
+    fb_p3_off_TWR: {}
+    fb_p3_check: {}
+    fb_points_add:
+      phase: 3
+      points:
+        value: current_player.fb_shot_value
+        type: int
+  fb_p3_hit_TL:
+    fb_step_made: {}
+    fb_p3_off_TL: {}
+    fb_p3_check: {}
+    fb_points_add:
+      phase: 3
+      points:
+        value: current_player.fb_shot_value
+        type: int
+  fb_p3_hit_RR:
+    fb_step_made: {}
+    fb_p3_off_RR: {}
+    fb_p3_check: {}
+    fb_points_add:
+      phase: 3
+      points:
+        value: current_player.fb_shot_value
+        type: int
+  # Right Ramp raises the right ramp (only if the Left Lane is still needed)
+  fb_p3_hit_RR{current_player.fb_p3_LL==0}:
+    - right_ramp_up
+  fb_p3_hit_LL{current_player.fb_p3_RR==1 and current_player.fb_p3_ll_last==0}:
+    - right_ramp_down
+  # Right Orbit with the right ramp up -> left diverter feeds the Left Lane,
+  # and the right ramp comes back down
+  s_orbit_right_active{(current_player.fb_p3_stage==1 or current_player.fb_p3_stage==3) and current_player.fb_p3_RR==1 and current_player.fb_p3_LL==0 and current_player.fb_p3_ll_last==0}:
+    - fb_p3_open_diverter
+    - right_ramp_down
+  # LEFT LANE IS THE ONLY SHOT LEFT: right ramp up and the right orbit light
+  # flashes; every Right Orbit opens the left diverter for 3s until the Left
+  # Lane is made (the ramp stays up)
+  fb_p3_check{current_player.fb_p3_count>=7 and current_player.fb_p3_LL==0 and current_player.fb_p3_stage==3 and current_player.fb_p3_ll_last==0}:
+    - fb_p3_ll_last
+  fb_p3_ll_last:
+    - right_ramp_up
+  s_orbit_right_active{current_player.fb_p3_stage==3 and current_player.fb_p3_LL==0 and current_player.fb_p3_ll_last==1}:
+    - fb_p3_open_diverter
+  fb_p3_hit_LL{current_player.fb_p3_ll_last==1}:
+    - right_ramp_down
+    - fb_p3_ro_help_off
+  fb_p3_open_diverter:
+    - left_orbit_diverter_open
+  timer_fb_p3_diverter_complete:
+    - left_orbit_diverter_closed
+
+  # Step 5 = first lock: after 4 shots everything goes out but the Top Ramp
+  fb_p3_check{current_player.fb_p3_count>=4 and current_player.fb_p3_stage==1}:
+    - fb_p3_stage2
+  fb_p3_stage2:
+    - fb_p3_shots_off
+    - fb_p3_tr_on
+  fb_p3_check{current_player.fb_p3_count>=8 and current_player.fb_p3_stage==3}:
+    - fb_p3_stage4
+  fb_p3_stage4:
+    - fb_p3_shots_off
+    - right_ramp_down
+    - fb_p3_tr_on
+  # Stage 3: relight only the shots not made yet
+  fb_p3_relight_LL{current_player.fb_p3_LL==0}:
+    - fb_p3_on_LL
+  fb_p3_relight_LO{current_player.fb_p3_LO==0}:
+    - fb_p3_on_LO
+  fb_p3_relight_LR{current_player.fb_p3_LR==0}:
+    - fb_p3_on_LR
+  fb_p3_relight_SP{current_player.fb_p3_SP==0}:
+    - fb_p3_on_SP
+  fb_p3_relight_BAR{current_player.fb_p3_BAR==0}:
+    - fb_p3_on_BAR
+  fb_p3_relight_TWR{current_player.fb_p3_TWR==0}:
+    - fb_p3_on_TWR
+  fb_p3_relight_TL{current_player.fb_p3_TL==0}:
+    - fb_p3_on_TL
+  fb_p3_relight_RR{current_player.fb_p3_RR==0}:
+    - fb_p3_on_RR
+  fb_p3_relight:
+    - fb_p3_relight_LL
+    - fb_p3_relight_LO
+    - fb_p3_relight_LR
+    - fb_p3_relight_SP
+    - fb_p3_relight_BAR
+    - fb_p3_relight_TWR
+    - fb_p3_relight_TL
+    - fb_p3_relight_RR
+
+  ##############################################
+  ## STAGES 2-3: two top ramp locks
+  ##############################################
+  s_ramp_inner_exit_active{(current_player.fb_p3_stage==2 or current_player.fb_p3_stage==4) and current_player.fb_p3_serving==0}:
+    - lock_diverter_fired
+    - fb_p3_lock_armed
+  ball_hold_lock_goose_hold_held_ball{current_player.fb_p3_lock_wait==1 and current_player.fb_p3_stage==2}:
+    - fb_p3_lock1
+  ball_hold_lock_mav_hold_held_ball{current_player.fb_p3_lock_wait==1 and current_player.fb_p3_stage==2}:
+    - fb_p3_lock1
+  ball_hold_lock_goose_hold_held_ball{current_player.fb_p3_lock_wait==1 and current_player.fb_p3_stage==4}:
+    - fb_p3_final
+  ball_hold_lock_mav_hold_held_ball{current_player.fb_p3_lock_wait==1 and current_player.fb_p3_stage==4}:
+    - fb_p3_final
+  fb_p3_lock1:
+    fb_step_made: {}
+    fb_p3_pause: {}
+    fb_p3_tr_off: {}
+    fb_p3_lock_sound: {}
+    fb_p3_serve|3s: {}
+    fb_points_add:
+      phase: 3
+      points: 3000000
+  fb_p3_serve:
+    - lock_serve_new_ball
+    - fb_p3_relight
+  # right ramp back up if the Right Ramp is made but the Left Lane isn't yet
+  fb_p3_serve{current_player.fb_p3_RR==1 and current_player.fb_p3_LL==0}:
+    - right_ramp_up
+  plunger_eject_confirmed{current_player.fb_p3_serving==1}:
+    - fb_p3_resume
+  timer_fb_p3_serve_fallback_complete{current_player.fb_p3_serving==1}:
+    - fb_p3_resume
+  fb_p3_final:
+    fb_p3_tr_off: {}
+    fb_p3_lock_sound: {}
+    fb_p3_complete: {}
+    fb_points_add:
+      phase: 3
+      points: 4000000
+
+  ##############################################
+  ## TIMER / JETS
+  ##############################################
+  timer_fb_p3_timer_tick{ticks==10}:
+    - fb_voice_10_seconds
+  timer_fb_p3_timer_complete{current_player.fb_p3_stage>=1 and current_player.fb_p3_stage<=4}:
+    - fb_loss_timer
+    - fb_lose_jet
+  fb_jet_continue{current_player.fb_phase==3 and current_player.fb_p3_stage>=1 and current_player.fb_p3_stage<=4}:
+    - fb_p3_restart_timer
+
+  fb_p3_lights_on:
+    - fb_p3_on_LL
+    - fb_p3_on_LO
+    - fb_p3_on_LR
+    - fb_p3_on_SP
+    - fb_p3_on_BAR
+    - fb_p3_on_TWR
+    - fb_p3_on_TL
+    - fb_p3_on_RR
+
+show_player:
+  fb_p3_on_LL:
+    sync_flash_mode:
+      key: fb_p3_lit_LL
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_left_lane
+        color: 00FF00
+  fb_p3_off_LL:
+    fb_p3_lit_LL:
+      action: stop
+  fb_p3_on_LO:
+    sync_flash_mode:
+      key: fb_p3_lit_LO
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_left_orbit
+        color: 00FF00
+  fb_p3_off_LO:
+    fb_p3_lit_LO:
+      action: stop
+  fb_p3_on_LR:
+    sync_flash_mode:
+      key: fb_p3_lit_LR
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_left_ramp
+        color: 00FF00
+  fb_p3_off_LR:
+    fb_p3_lit_LR:
+      action: stop
+  fb_p3_on_SP:
+    sync_flash_mode:
+      key: fb_p3_lit_SP
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_spinner
+        color: 00FF00
+  fb_p3_off_SP:
+    fb_p3_lit_SP:
+      action: stop
+  fb_p3_on_BAR:
+    sync_flash_mode:
+      key: fb_p3_lit_BAR
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_barrier
+        color: 00FF00
+  fb_p3_off_BAR:
+    fb_p3_lit_BAR:
+      action: stop
+  fb_p3_on_TWR:
+    sync_flash_mode:
+      key: fb_p3_lit_TWR
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_tower_ramp
+        color: 00FF00
+  fb_p3_off_TWR:
+    fb_p3_lit_TWR:
+      action: stop
+  fb_p3_on_TL:
+    sync_flash_mode:
+      key: fb_p3_lit_TL
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_upper_orbit
+        color: 00FF00
+  fb_p3_off_TL:
+    fb_p3_lit_TL:
+      action: stop
+  fb_p3_on_RR:
+    sync_flash_mode:
+      key: fb_p3_lit_RR
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_right_orbit
+        color: 00FF00
+  fb_p3_off_RR:
+    fb_p3_lit_RR:
+      action: stop
+  fb_p3_shots_off:
+    fb_p3_lit_LL:
+      action: stop
+    fb_p3_lit_LO:
+      action: stop
+    fb_p3_lit_LR:
+      action: stop
+    fb_p3_lit_SP:
+      action: stop
+    fb_p3_lit_BAR:
+      action: stop
+    fb_p3_lit_TWR:
+      action: stop
+    fb_p3_lit_TL:
+      action: stop
+    fb_p3_lit_RR:
+      action: stop
+  fb_p3_ll_last:
+    sync_flash_mode:
+      key: fb_p3_ro_help
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_right_orbit
+        color: 00FF00
+  fb_p3_ro_help_off:
+    fb_p3_ro_help:
+      action: stop
+  fb_p3_tr_on:
+    sync_flash_mode:
+      key: fb_p3_lit_tr
+      loops: -1
+      sync_ms: 1000
+      show_tokens:
+        led: l_shot_middle_ramp
+        color: 00FF00
+  fb_p3_tr_off:
+    fb_p3_lit_tr:
+      action: stop

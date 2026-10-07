@@ -378,9 +378,9 @@ event_player:
   ## Timer restarts each time both are held; cancels if either releases alone.
   ## Guards: not during bonus, not if status mode already running.
   ##############################################
-  s_flipper_left_active{device.switches.s_flipper_right.state==1 and mode.bonus.active==False and mode.status_mode.active==False}:
+  s_flipper_left_active{device.switches.s_flipper_right.state==1 and mode.bonus.active==False and mode.status_mode.active==False and mode.final_battle.active==False}:
     - status_mode_entry_both_held
-  s_flipper_right_active{device.switches.s_flipper_left.state==1 and mode.bonus.active==False and mode.status_mode.active==False}:
+  s_flipper_right_active{device.switches.s_flipper_left.state==1 and mode.bonus.active==False and mode.status_mode.active==False and mode.final_battle.active==False}:
     - status_mode_entry_both_held
   s_flipper_left_inactive{device.timers.status_mode_entry.running==True}:
     - status_mode_entry_cancel
@@ -1808,7 +1808,7 @@ sound_player:
   # great_balls_of_fire (Phase 2 super jackpot scoop must not cut music),
   # hard_deck_honoring_iceman (winning shot, video keeps playing through full mode),
   # and hard_deck_charlie (stage 1 barrier shot, music plays through stages 1/2/3 won/lost)
-  s_mode_start_active{(mode.battle_jester.active==False or current_player.battle_jester_step!=5) and (mode.hard_deck_playing_with_the_boys.active==False or current_player.ptb_step!=7) and mode.mystery_award.active==False and mode.no_points_for_second_place.active==False and mode.great_balls_of_fire.active==False and mode.hard_deck_honoring_iceman.active==False and mode.hard_deck_charlie.active==False}:
+  s_mode_start_active{(mode.battle_jester.active==False or current_player.battle_jester_step!=5) and (mode.hard_deck_playing_with_the_boys.active==False or current_player.ptb_step!=7) and mode.mystery_award.active==False and mode.no_points_for_second_place.active==False and mode.great_balls_of_fire.active==False and mode.hard_deck_honoring_iceman.active==False and mode.hard_deck_charlie.active==False and mode.final_battle.active==False}:
     silence:
       bus: music
       loops: 0
@@ -1862,13 +1862,6 @@ sound_player:
   # When mystery started the video mode, mystery is still running here and
   # restarts Danger Zone itself when it stops.
   mode_carrier_landing_stopped{mode.mystery_award.active==False and current_player.qualified_mode_number==0 and current_player.multiball_qualified==0}:
-    music_danger_zone:
-      bus: music
-      loops: -1
-
-  # FINAL BATTLE STUB: music back on after the placeholder. Remove once the
-  # real Final Battle ends the game.
-  mode_final_battle_stopped:
     music_danger_zone:
       bus: music
       loops: -1

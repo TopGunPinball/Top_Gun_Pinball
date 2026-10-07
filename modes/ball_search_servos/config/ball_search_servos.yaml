@@ -100,9 +100,10 @@ event_player:
   # FLIPPER HOLD: keep ball search blocked while a flipper is held
   timer_ball_search_flipper_hold_complete{device.switches.s_flipper_left.state or device.switches.s_flipper_right.state}:
     - ball_search_block
-  s_flipper_left_inactive{device.switches.s_flipper_right.state==0}:
+  # (not while Final Battle holds a ball at a lane post - machine.fb_holding)
+  s_flipper_left_inactive{device.switches.s_flipper_right.state==0 and machine.fb_holding==0}:
     - ball_search_flippers_released
-  s_flipper_right_inactive{device.switches.s_flipper_left.state==0}:
+  s_flipper_right_inactive{device.switches.s_flipper_left.state==0 and machine.fb_holding==0}:
     - ball_search_flippers_released
 
   # TRIGGER: Start sequence when ball search begins and on each repeat
