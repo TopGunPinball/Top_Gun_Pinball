@@ -1,0 +1,113 @@
+#config_version=6
+
+##############################################################################
+## PRACTICE FINAL BATTLE (Final Battle practice from the attract menu)
+##############################################################################
+##
+## START:  attract practice menu -> "Final Battle Practice" -> START
+##         attract sets machine.practice_fb_game = 1 and a normal game starts.
+##         config.yaml limits that game to 1 player (max_players).
+##         This mode starts on ball_started and starts Final Battle 2s later.
+##
+## WHY THE 2s WAIT + INTRO RETRY:
+##   Final Battle asks Godot for its intro video 1s after it starts. At a
+##   fresh game start Godot is still building the base / qualifier slides,
+##   so the final_battle_video slide can be created AFTER that request and
+##   miss it (no video, intro stuck until its 65s fallback, nothing to skip).
+##   So: Final Battle starts 2s after the ball starts, and if Godot hasn't
+##   answered with fb_video_started for the intro within 2s of the request,
+##   the request is sent again (until the intro is over).
+##
+## THE BALL:
+##   The game serves its ball to the shooter lane as usual. Final Battle's own
+##   one-more-try flag (fb_omt_hold = 1) keeps it parked there through the
+##   intro - no auto-plunge. When phase 1 begins (the moment Final Battle
+##   would normally kick the ball out of the scoop) fb_omt_hold goes back to
+##   0 and fb_omt_release makes Final Battle's fb_plunge_delay timer
+##   auto-plunge it. The scoop is empty, so phase 1's fb_scoop_out just makes
+##   sure the barrier is up.
+##   If the player plunges by hand during the intro (flippers are off), the
+##   intro save below returns the ball to the shooter lane.
+##
+## SCORING: kept (Final Battle's own scoring). NO high score entry and no
+##   end-of-game screen (high_score / end_of_game_attract skip practice games).
+##   Final Battle ends the game itself; config.yaml then posts
+##   practice_fb_game_finished -> attract, Normal Game selected.
+##
+## Music: base.yaml silences the music when Final Battle starts here.
+##############################################################################
+
+mode:
+  start_events: ball_started{machine.practice_fb_game==1}
+  priority: 650
+  game_mode: true
+  # stops at ball end like any game mode
+
+##############################################################################
+## TIMERS
+##############################################################################
+timers:
+  # Intro video request not answered by Godot within 2s -> ask again
+  practice_fb_intro_check:
+    start_value: 0
+    end_value: 2
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: fb_vu_final_battle_intro
+        action: restart
+      - event: fb_video_started{video=="final_battle_intro"}
+        action: stop
+      - event: fb_intro_done
+        action: stop
+
+##############################################################################
+## BALL SAVE - intro only (flippers are off during the intro)
+## only_last_ball: lock balls Final Battle releases during the intro are meant
+## to drain - only the practice ball is saved. auto_launch false = it goes
+## back to the shooter lane and waits (fb_omt_hold).
+##############################################################################
+ball_saves:
+  practice_fb_intro_save:
+    active_time: 0              # 0 = until disabled
+    only_last_ball: true
+    balls_to_save: -1
+    auto_launch: false
+    enable_events: mode_practice_final_battle_started
+    disable_events: fb_p1_begin, ball_will_end, tilt, mode_practice_final_battle_will_stop
+
+##############################################################################
+## EVENT PLAYER
+##############################################################################
+event_player:
+  # The 20s new-ball save is off (Final Battle has its own saves), the
+  # flippers go off now (Final Battle keeps them off for its intro), and
+  # Final Battle starts once Godot has settled (see header)
+  mode_practice_final_battle_started:
+    - ball_save_new_ball_disable
+    - disable_normal_flippers
+    - start_mode_final_battle|2s
+
+  # Intro video never started on screen -> request it again
+  timer_practice_fb_intro_check_complete{current_player.fb_intro_over==0 and current_player.fb_phase==0}:
+    - fb_vu_final_battle_intro
+
+  # Posted (not handled on mode_final_battle_started directly) so the hold
+  # flag is set AFTER Final Battle's own mode_final_battle_started reset
+  # (which sets fb_omt_hold to 0)
+  mode_final_battle_started:
+    - practice_fb_ball_hold
+
+  # Phase 1 begins: plunge the waiting ball (fb_plunge_delay, final_battle.yaml)
+  fb_p1_begin:
+    - fb_omt_release
+
+##############################################################################
+## VARIABLE PLAYER
+##############################################################################
+variable_player:
+  practice_fb_ball_hold:
+    fb_omt_hold: { action: set, int: 1 }
+  fb_p1_begin:
+    fb_omt_hold: { action: set, int: 0 }

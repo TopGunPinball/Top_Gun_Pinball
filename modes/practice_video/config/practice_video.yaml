@@ -1,0 +1,174 @@
+#config_version=6
+
+##############################################################################
+## PRACTICE VIDEO MODE (Carrier Landing practice from the attract menu)
+##############################################################################
+##
+## START:  attract practice menu -> "Video Mode Practice" -> START
+##         (attract posts practice_video_start and stops on it)
+##
+## NO GAME IS RUNNING. No ball moves, no player exists, nothing is scored,
+## no bonus / high score / end-of-game screen. Flippers and autofires are
+## already off outside a game, so the flipper buttons only steer the jet.
+##
+## Reuses the carrier_landing slide (modes/carrier_landing/slides) and its
+## sounds. The slide only needs landing_begin + the flipper switch events.
+## Always Level 1.
+##
+## END:    landing_done (result screen finished) -> mode stops -> attract
+##         restarts on mode_practice_video_stopped with Normal Game selected.
+##
+## Music lives here (not base.yaml) because base only runs during a game.
+## NOTE: carrier_landing.yaml is NOT used here - that mode is a game mode
+## (scoring, ball hold, rank merit) and never starts outside a game.
+##############################################################################
+
+mode:
+  start_events: practice_video_start
+  stop_events:
+    - practice_video_done
+    - mode_top_gun_service_started
+  priority: 600
+  game_mode: false
+
+##############################################################################
+## TIMERS
+##############################################################################
+timers:
+  # Failsafe: if Godot never reports landing_done, go back to attract anyway
+  practice_video_safety:
+    start_value: 0
+    end_value: 90
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: mode_practice_video_started
+        action: start
+      - event: landing_done
+        action: stop
+
+##############################################################################
+## EVENT PLAYER
+##############################################################################
+event_player:
+  # 1.5s lets the slide load and register its handlers (same as carrier_landing)
+  mode_practice_video_started:
+    landing_begin|1500ms:
+      level:
+        value: 1
+        type: int
+
+  landing_done:
+    - practice_video_done
+
+  timer_practice_video_safety_complete:
+    - practice_video_done
+
+##############################################################################
+## SLIDE PLAYER
+##############################################################################
+slide_player:
+  mode_practice_video_started:
+    carrier_landing:
+      action: play
+      priority: 1000
+  mode_practice_video_will_stop:
+    carrier_landing:
+      action: remove
+
+##############################################################################
+## SOUND PLAYER (same effects as carrier_landing.yaml + music)
+##############################################################################
+sound_player:
+  # Attract music off, instructions voice on
+  mode_practice_video_started:
+    silence:
+      bus: music
+      loops: 0
+    voice_video_mode_instructions:
+      bus: voice
+      loops: 0
+
+  landing_sfx_engine_start:
+    landing_engine_loop:
+      bus: effects
+      loops: -1
+    music_carrier_landing:
+      bus: music
+      loops: -1
+
+  landing_result_wire_1:
+    landing_engine_loop:
+      action: stop
+  landing_result_wire_2:
+    landing_engine_loop:
+      action: stop
+  landing_result_wire_3:
+    landing_engine_loop:
+      action: stop
+  landing_result_wire_4:
+    landing_engine_loop:
+      action: stop
+  landing_result_crash:
+    landing_engine_loop:
+      action: stop
+  landing_result_bolter:
+    landing_engine_loop:
+      action: stop
+  landing_result_waveoff:
+    landing_engine_loop:
+      action: stop
+  landing_result_splash:
+    landing_engine_loop:
+      action: stop
+
+  mode_practice_video_will_stop:
+    landing_engine_loop:
+      action: stop
+    silence:
+      bus: music
+      loops: 0
+
+  landing_sfx_warning:
+    landing_warning:
+      bus: effects
+      loops: 0
+  landing_sfx_call_ball:
+    landing_call_ball:
+      bus: effects
+      loops: 0
+  landing_sfx_call_ball_voice:
+    voice_call_the_ball:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.5
+        attack: 200ms
+        release: 500ms
+        release_point: 0
+  landing_sfx_hook:
+    landing_hook:
+      bus: effects
+      loops: 0
+  landing_sfx_trap:
+    landing_trap:
+      bus: effects
+      loops: 0
+  landing_sfx_perfect:
+    landing_perfect:
+      bus: effects
+      loops: 0
+  landing_sfx_bolter:
+    landing_bolter:
+      bus: effects
+      loops: 0
+  landing_sfx_crash:
+    landing_crash:
+      bus: effects
+      loops: 0
+  landing_sfx_splash:
+    landing_splash:
+      bus: effects
+      loops: 0

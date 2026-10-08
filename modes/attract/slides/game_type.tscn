@@ -1,0 +1,180 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" uid="uid://dru3usokwlhd3" path="res://addons/mpf-gmc/classes/mpf_slide.gd" id="1_slide"]
+[ext_resource type="FontFile" uid="uid://bmeoubu4ga0gt" path="res://fonts/ITCMachine-Medium Medium.ttf" id="2_font"]
+
+[sub_resource type="GDScript" id="GDScript_gametype"]
+script/source = "extends Control
+
+## Practice menu: highlights the option in machine var practice_game_type
+## (0 Normal Game, 1 Video Mode Practice, 2 Final Battle Practice).
+## MPF (attract.yaml) owns the selection; this only draws it.
+
+const NAMES := [\"NORMAL GAME\", \"VIDEO MODE PRACTICE\", \"FINAL BATTLE PRACTICE\"]
+const ON_COLOR := Color(1.0, 0.74, 0.2, 1)
+const OFF_COLOR := Color(0.5, 0.56, 0.58, 1)
+
+var _sel: int = 0
+
+func _ready() -> void:
+	_sel = int(MPF.game.machine_vars.get(\"practice_game_type\", 0))
+	MPF.game.connect(\"machine_update\", _on_machine_update)
+	_refresh()
+
+func _exit_tree() -> void:
+	if MPF.game.is_connected(\"machine_update\", _on_machine_update):
+		MPF.game.disconnect(\"machine_update\", _on_machine_update)
+
+func _on_machine_update(var_name: String, value: Variant) -> void:
+	if var_name == \"practice_game_type\":
+		_sel = int(value)
+		_refresh()
+
+func _refresh() -> void:
+	for i in range(3):
+		var lbl := get_node_or_null(\"Option%d\" % i) as Label
+		if lbl == null:
+			continue
+		if i == _sel:
+			lbl.text = \"> \" + NAMES[i] + \" <\"
+			lbl.add_theme_color_override(\"font_color\", ON_COLOR)
+		else:
+			lbl.text = NAMES[i]
+			lbl.add_theme_color_override(\"font_color\", OFF_COLOR)
+"
+
+[node name="Base" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_slide")
+
+[node name="Dim" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.7)
+
+[node name="Frame" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -406.0
+offset_top = -276.0
+offset_right = 406.0
+offset_bottom = 276.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.2235, 0.6157, 0.6353, 1)
+
+[node name="Panel" type="ColorRect" parent="Frame"]
+layout_mode = 0
+offset_left = 6.0
+offset_top = 6.0
+offset_right = 806.0
+offset_bottom = 546.0
+color = Color(0.03, 0.06, 0.09, 0.97)
+
+[node name="Title" type="Label" parent="Frame/Panel"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 30.0
+offset_right = 800.0
+offset_bottom = 130.0
+theme_override_colors/font_color = Color(0.2235, 0.6157, 0.6353, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 72
+text = "GAME TYPE"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Divider" type="ColorRect" parent="Frame/Panel"]
+layout_mode = 0
+offset_left = 120.0
+offset_top = 140.0
+offset_right = 680.0
+offset_bottom = 144.0
+color = Color(0.2235, 0.6157, 0.6353, 0.6)
+
+[node name="Menu" type="Control" parent="Frame/Panel"]
+layout_mode = 0
+offset_top = 170.0
+offset_right = 800.0
+offset_bottom = 430.0
+script = SubResource("GDScript_gametype")
+
+[node name="Option0" type="Label" parent="Frame/Panel/Menu"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 800.0
+offset_bottom = 80.0
+theme_override_colors/font_color = Color(1, 0.74, 0.2, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 46
+text = "> NORMAL GAME <"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Option1" type="Label" parent="Frame/Panel/Menu"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 90.0
+offset_right = 800.0
+offset_bottom = 170.0
+theme_override_colors/font_color = Color(0.5, 0.56, 0.58, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 46
+text = "VIDEO MODE PRACTICE"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Option2" type="Label" parent="Frame/Panel/Menu"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 180.0
+offset_right = 800.0
+offset_bottom = 260.0
+theme_override_colors/font_color = Color(0.5, 0.56, 0.58, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 46
+text = "FINAL BATTLE PRACTICE"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Hint" type="Label" parent="Frame/Panel"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 460.0
+offset_right = 800.0
+offset_bottom = 520.0
+theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 26
+text = "FLIPPERS TO CHANGE      START TO PLAY"
+horizontal_alignment = 1
+vertical_alignment = 1

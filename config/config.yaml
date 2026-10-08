@@ -72,6 +72,9 @@ modes:
   - pilot_mission_qualifier
   - status_mode
   - high_score
+  # PRACTICE (attract menu: hold both flippers 5s)
+  - practice_video
+  - practice_final_battle
 
 player_vars:
   mach_level:
@@ -533,6 +536,28 @@ machine_vars:
     value_type: int
     persist: false
 
+  ##############################################################################
+  # PRACTICE MENU (attract: hold both flippers 5s -> game_type slide)
+  ##############################################################################
+  # 1 while the game_type slide is showing
+  practice_menu_open:
+    initial_value: 0
+    value_type: int
+    persist: false
+  # Selection on the slide: 0 Normal Game, 1 Video Mode Practice,
+  # 2 Final Battle Practice (read by game_type.tscn)
+  practice_game_type:
+    initial_value: 0
+    value_type: int
+    persist: false
+  # 1 for the whole of a Final Battle Practice game (set on START in attract,
+  # cleared on game_ended below). Skips high score entry, the end-of-game
+  # screen and the skillshot; limits the game to 1 player.
+  practice_fb_game:
+    initial_value: 0
+    value_type: int
+    persist: false
+
 playfields:
   playfield:
     default_source_device: bd_plunger
@@ -583,7 +608,9 @@ machine:
 
 game:
   balls_per_game: 3
-  max_players: 4
+  # Final Battle Practice games are 1 player only (4 - 3 = 1).
+  # Evaluated once when the game starts.
+  max_players: 4 - 3 * machine.practice_fb_game
 
 virtual_platform_start_active_switches:
   - s_trough_1
@@ -614,11 +641,26 @@ event_player:
   ball_started{current_player.final_battle_game_over==1}:
     - end_ball|1s
 
+  ##############################################################################
+  # PRACTICE: a Final Battle Practice game ended -> straight back to attract
+  # (end_of_game_attract and high_score don't start for practice games).
+  # Posted, so the game_ended start conditions see practice_fb_game==1 first.
+  ##############################################################################
+  game_ended{machine.practice_fb_game==1}:
+    - practice_fb_game_finished
+
 ##############################################################################
 # VOLUME CONTROL
 # Only active when NOT in service mode
 ##############################################################################
 variable_player:
+  # PRACTICE: clear the Final Battle Practice flag (attract restarts on this
+  # same event - see attract.yaml start_events)
+  practice_fb_game_finished:
+    practice_fb_game:
+      action: set_machine
+      int: 0
+
   s_coin_door_service_3_active{mode.top_gun_service.active==False}:
     fast_audio_main_volume:
       action: add_machine

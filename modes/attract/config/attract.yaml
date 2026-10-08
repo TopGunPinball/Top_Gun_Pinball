@@ -5,8 +5,21 @@
 # Added stop/start events for custom service mode
 ##############################################################################
 mode:
-  start_events: mode_end_of_game_attract_stopped, machine_reset_phase_3, mode_top_gun_service_stopped
-  stop_events: game_starting, mode_top_gun_service_started, mode_end_of_game_attract_started
+  start_events:
+    - mode_end_of_game_attract_stopped
+    - machine_reset_phase_3
+    - mode_top_gun_service_stopped
+    # PRACTICE: back to attract after Video Mode Practice (no game was run)
+    - mode_practice_video_stopped{mode.top_gun_service.active==False}
+    # PRACTICE: back to attract after a Final Battle Practice game
+    # (end_of_game_attract is skipped for practice games)
+    - practice_fb_game_finished
+  stop_events:
+    - game_starting
+    - mode_top_gun_service_started
+    - mode_end_of_game_attract_started
+    # PRACTICE: Video Mode Practice runs without a game
+    - practice_video_start
   priority: 10
 
 mode_settings:
@@ -21,8 +34,12 @@ mode_settings:
     - last_scores_2p{machine.player2_score and not machine.player3_score}
     - last_scores_3p{machine.player3_score and not machine.player4_score}
     - last_scores_4p{machine.player4_score}
-  next_item_events: s_flipper_right_active, timer_attract_carousel_timer_complete
-  previous_item_events: s_flipper_left_active
+  # Flippers don't move the carousel while the practice (game type) menu is open
+  next_item_events:
+    - s_flipper_right_active{machine.practice_menu_open==0}
+    - timer_attract_carousel_timer_complete
+  previous_item_events:
+    - s_flipper_left_active{machine.practice_menu_open==0}
 
 light_player:
   mode_attract_started:
@@ -177,6 +194,15 @@ light_player:
 slide_player:
   mode_attract_started: attract
 
+  # PRACTICE MENU (game_type slide) - see PRACTICE MENU in event_player
+  practice_menu_opened:
+    game_type:
+      action: play
+      priority: 1000
+  practice_menu_closed:
+    game_type:
+      action: remove
+
 sound_player:
   mode_attract_started:
     top_gun_pinball_attract_scene_music:
@@ -204,6 +230,59 @@ event_player:
   # After delay, raise barrier back up
   timer_attract_scoop_clear_delay_complete:
     - attract_scoop_clear_done
+
+  ##############################################################################
+  ## PRACTICE MENU (game_type slide)
+  ##   Hold BOTH flippers 5s           -> menu opens on "Normal Game"
+  ##   Left / right flipper            -> cycle Normal / Video Mode / Final Battle
+  ##   No flipper for 5s               -> menu closes, back to Normal Game
+  ##   START while the menu is open:
+  ##     Normal Game        -> normal game (attract starts it as usual)
+  ##     Video Mode Practice-> practice_video_start: attract stops, NO game is
+  ##                           started, modes/practice_video plays the carrier
+  ##                           landing, then attract comes back
+  ##     Final Battle       -> practice_fb_game = 1 (variable_player below),
+  ##                           attract starts a normal 1-player game and
+  ##                           modes/practice_final_battle starts Final Battle
+  ##   machine.practice_game_type: 0 Normal, 1 Video Mode, 2 Final Battle
+  ##############################################################################
+  s_flipper_left_active{device.switches.s_flipper_right.state and machine.practice_menu_open==0}:
+    - practice_both_flippers_held
+  s_flipper_right_active{device.switches.s_flipper_left.state and machine.practice_menu_open==0}:
+    - practice_both_flippers_held
+
+  timer_practice_hold_timer_complete{machine.practice_menu_open==0}:
+    - practice_menu_opened
+
+  # Right flipper: Normal -> Video -> Final Battle -> Normal
+  s_flipper_right_active{machine.practice_menu_open==1 and machine.practice_game_type==0}:
+    - practice_select_1
+    - practice_menu_flip
+  s_flipper_right_active{machine.practice_menu_open==1 and machine.practice_game_type==1}:
+    - practice_select_2
+    - practice_menu_flip
+  s_flipper_right_active{machine.practice_menu_open==1 and machine.practice_game_type==2}:
+    - practice_select_0
+    - practice_menu_flip
+  # Left flipper: the other way round
+  s_flipper_left_active{machine.practice_menu_open==1 and machine.practice_game_type==0}:
+    - practice_select_2
+    - practice_menu_flip
+  s_flipper_left_active{machine.practice_menu_open==1 and machine.practice_game_type==1}:
+    - practice_select_0
+    - practice_menu_flip
+  s_flipper_left_active{machine.practice_menu_open==1 and machine.practice_game_type==2}:
+    - practice_select_1
+    - practice_menu_flip
+
+  # No flipper for 5s -> close, back to Normal Game
+  timer_practice_menu_timer_complete:
+    - practice_menu_closed
+
+  # START on Video Mode Practice -> attract stops (stop_events) before the
+  # start button is released, so no game is requested
+  s_start_active{machine.practice_menu_open==1 and machine.practice_game_type==1}:
+    - practice_video_start
 
 ##############################################
 ## Start Button LED - Slow flash in attract mode
@@ -292,6 +371,39 @@ show_player:                                            # Light Shows being play
     start_button_flash: stop
 
 timers:
+  ##############################################################################
+  ## PRACTICE MENU TIMERS
+  ##############################################################################
+  # Both flippers held 5s -> open the menu. Either flipper let go -> cancel.
+  practice_hold_timer:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: practice_both_flippers_held
+        action: restart
+      - event: s_flipper_left_inactive
+        action: stop
+      - event: s_flipper_right_inactive
+        action: stop
+
+  # Menu closes 5s after it opened / after the last flipper press
+  practice_menu_timer:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: practice_menu_opened
+        action: restart
+      - event: practice_menu_flip
+        action: restart
+      - event: practice_menu_closed
+        action: stop
+
   attract_carousel_timer:
     end_value: 1
     tick_interval: 7s
@@ -341,3 +453,35 @@ shows:
     - duration: 1s
       coils:
         c_start_button_led: disable
+
+##############################################################################
+## PRACTICE MENU - selection (machine variables, defined in config.yaml)
+##############################################################################
+variable_player:
+  practice_menu_opened:
+    practice_menu_open: { action: set_machine, int: 1 }
+    practice_game_type: { action: set_machine, int: 0 }
+  practice_select_0:
+    practice_game_type: { action: set_machine, int: 0 }
+  practice_select_1:
+    practice_game_type: { action: set_machine, int: 1 }
+  practice_select_2:
+    practice_game_type: { action: set_machine, int: 2 }
+
+  # Timed out: menu gone, back to Normal Game (also drops a Final Battle
+  # pick whose game start was refused)
+  practice_menu_closed:
+    practice_menu_open: { action: set_machine, int: 0 }
+    practice_game_type: { action: set_machine, int: 0 }
+    practice_fb_game: { action: set_machine, int: 0 }
+
+  # START on Final Battle Practice: flag the game that is about to start.
+  # Cleared when that game ends (config.yaml).
+  s_start_active{machine.practice_menu_open==1 and machine.practice_game_type==2}:
+    practice_fb_game: { action: set_machine, int: 1 }
+
+  # Attract leaving for any reason: menu closed, Normal Game selected again.
+  # (practice_fb_game is NOT cleared here - the game is starting.)
+  mode_attract_stopping:
+    practice_menu_open: { action: set_machine, int: 0 }
+    practice_game_type: { action: set_machine, int: 0 }
