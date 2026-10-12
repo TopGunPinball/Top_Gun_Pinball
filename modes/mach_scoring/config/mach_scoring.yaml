@@ -1,5 +1,6 @@
 #config_version=6
 # Mach Scoring Mode - Global scoring multiplier system
+# Resets to Mach 1 (base) at the end of every ball - never carries over.
 # Requires 2 ramp hits within 10s to activate, then 40s countdown timer (80s with inverted perk)
 # Slides at Layer 49(Timer and Mach Level) & 48 (Videos)
 
@@ -43,6 +44,8 @@ timers:
         event: mach_first_hit
       - action: stop
         event: mach_qualified
+      - action: stop
+        event: mach_reset
 
   # Main countdown timer - 40 seconds at active mach level
   # Inverted perk extends by +40s (total 80s) via mach_inverted_extend_timer
@@ -62,6 +65,9 @@ timers:
         event: mach_max_hit
       - action: stop
         event: timer_mach_timer_complete
+      # Any reset (drain, qualify timeout) ends the countdown too
+      - action: stop
+        event: mach_reset
       - action: add
         event: mach_inverted_extend_timer
         value: 40
@@ -71,6 +77,20 @@ timers:
         event: mach_timer_resume
 
 event_player:
+  ##############################################################################
+  # NEW BALL = BASE MACH LEVEL
+  # Mach scoring never carries over to the next ball: the level, step and any
+  # half-finished qualification reset when the ball drains (or tilts).
+  # Safety net: if a ball ever starts above Mach 1 anyway, reset it then.
+  ##############################################################################
+  ball_will_end:
+    - mach_reset
+  # A reset always clears the countdown slides (the timers stop on mach_reset)
+  mach_reset:
+    - remove_timer_slides
+  mode_mach_scoring_started{current_player.mach_level!=1.0 or current_player.mach_step!=0}:
+    - mach_reset
+
   # Pause mach timer when ball held in scoop or left lane — only when mach is active
   s_mode_start_active{current_player.mach_step>=2}:
     - mach_timer_pause
@@ -238,116 +258,346 @@ show_player:
       sync_ms: true
 
 slide_player:
-  # Show default mach_1 image when mode starts
-  mode_mach_scoring_started:
-    mach_1:
-      action: play
-      priority: 200
-  
-  # Update slides as mach level changes
-  player_mach_level{value==1.25}:
-    mach_1:
-      action: remove
-    mach_1_25:
-      action: play
-      priority: 200
-  
-  # Show video when reaching mach 1.25
-  show_mach_1_25_video:
-    mach_1_25_video:
-      action: play
-      priority: 300
-      
-  player_mach_level{value==1.50}:
+  ##############################################################################
+  # MACH LEVEL SLIDES
+  # Exactly ONE level slide may be up at a time. Every level change removes
+  # every other level slide (and level video), not just the one below it, and
+  # the mode starts on the slide for the CURRENT level. (Before: the mode always
+  # started on mach_1, so a ball that began above Mach 1 left mach_1 stuck
+  # under the next level's slide - two level graphics drawn on top of each
+  # other.)
+  ##############################################################################
+  mode_mach_scoring_started{current_player.mach_level==1.0}:
     mach_1_25:
       action: remove
     mach_1_25_video:
       action: remove
     mach_1_5:
-      action: play
-      priority: 200
-    mach_1_5_video:
-      action: play
-      priority: 200
-      
-  player_mach_level{value==1.75}:
-    mach_1_5:
       action: remove
     mach_1_5_video:
       action: remove
-    mach_1_75:
-      action: play
-      priority: 200
-    mach_1_75_video:
-      action: play
-      priority: 200
-      
-  player_mach_level{value==2.0}:
     mach_1_75:
       action: remove
     mach_1_75_video:
       action: remove
     mach_2:
-      action: play
-      priority: 200
-    mach_2_video:
-      action: play
-      priority: 200
-      
-  player_mach_level{value==2.25}:
-    mach_2:
       action: remove
     mach_2_video:
       action: remove
-    mach_2_25:
-      action: play
-      priority: 200
-    mach_2_25_video:
-      action: play
-      priority: 200
-      
-  player_mach_level{value==2.50}:
     mach_2_25:
       action: remove
     mach_2_25_video:
       action: remove
     mach_2_5:
-      action: play
-      priority: 200
-    mach_2_5_video:
-      action: play
-      priority: 200
-      
-  player_mach_level{value==2.75}:
-    mach_2_5:
       action: remove
     mach_2_5_video:
       action: remove
-    mach_2_75:
-      action: play
-      priority: 200
-    mach_2_75_video:
-      action: play
-      priority: 200
-      
-  player_mach_level{value==3.0}:
     mach_2_75:
       action: remove
     mach_2_75_video:
       action: remove
     mach_3:
+      action: remove
+    mach_3_video:
+      action: remove
+    mach_1:
       action: play
       priority: 200
+  mode_mach_scoring_started{current_player.mach_level==1.25}:
+    mach_1:
+      action: remove
+    mach_1_25_video:
+      action: remove
+    mach_1_5:
+      action: remove
+    mach_1_5_video:
+      action: remove
+    mach_1_75:
+      action: remove
+    mach_1_75_video:
+      action: remove
+    mach_2:
+      action: remove
+    mach_2_video:
+      action: remove
+    mach_2_25:
+      action: remove
+    mach_2_25_video:
+      action: remove
+    mach_2_5:
+      action: remove
+    mach_2_5_video:
+      action: remove
+    mach_2_75:
+      action: remove
+    mach_2_75_video:
+      action: remove
+    mach_3:
+      action: remove
     mach_3_video:
+      action: remove
+    mach_1_25:
+      action: play
+      priority: 200
+  mode_mach_scoring_started{current_player.mach_level==1.5}:
+    mach_1:
+      action: remove
+    mach_1_25:
+      action: remove
+    mach_1_25_video:
+      action: remove
+    mach_1_5_video:
+      action: remove
+    mach_1_75:
+      action: remove
+    mach_1_75_video:
+      action: remove
+    mach_2:
+      action: remove
+    mach_2_video:
+      action: remove
+    mach_2_25:
+      action: remove
+    mach_2_25_video:
+      action: remove
+    mach_2_5:
+      action: remove
+    mach_2_5_video:
+      action: remove
+    mach_2_75:
+      action: remove
+    mach_2_75_video:
+      action: remove
+    mach_3:
+      action: remove
+    mach_3_video:
+      action: remove
+    mach_1_5:
+      action: play
+      priority: 200
+  mode_mach_scoring_started{current_player.mach_level==1.75}:
+    mach_1:
+      action: remove
+    mach_1_25:
+      action: remove
+    mach_1_25_video:
+      action: remove
+    mach_1_5:
+      action: remove
+    mach_1_5_video:
+      action: remove
+    mach_1_75_video:
+      action: remove
+    mach_2:
+      action: remove
+    mach_2_video:
+      action: remove
+    mach_2_25:
+      action: remove
+    mach_2_25_video:
+      action: remove
+    mach_2_5:
+      action: remove
+    mach_2_5_video:
+      action: remove
+    mach_2_75:
+      action: remove
+    mach_2_75_video:
+      action: remove
+    mach_3:
+      action: remove
+    mach_3_video:
+      action: remove
+    mach_1_75:
+      action: play
+      priority: 200
+  mode_mach_scoring_started{current_player.mach_level==2.0}:
+    mach_1:
+      action: remove
+    mach_1_25:
+      action: remove
+    mach_1_25_video:
+      action: remove
+    mach_1_5:
+      action: remove
+    mach_1_5_video:
+      action: remove
+    mach_1_75:
+      action: remove
+    mach_1_75_video:
+      action: remove
+    mach_2_video:
+      action: remove
+    mach_2_25:
+      action: remove
+    mach_2_25_video:
+      action: remove
+    mach_2_5:
+      action: remove
+    mach_2_5_video:
+      action: remove
+    mach_2_75:
+      action: remove
+    mach_2_75_video:
+      action: remove
+    mach_3:
+      action: remove
+    mach_3_video:
+      action: remove
+    mach_2:
+      action: play
+      priority: 200
+  mode_mach_scoring_started{current_player.mach_level==2.25}:
+    mach_1:
+      action: remove
+    mach_1_25:
+      action: remove
+    mach_1_25_video:
+      action: remove
+    mach_1_5:
+      action: remove
+    mach_1_5_video:
+      action: remove
+    mach_1_75:
+      action: remove
+    mach_1_75_video:
+      action: remove
+    mach_2:
+      action: remove
+    mach_2_video:
+      action: remove
+    mach_2_25_video:
+      action: remove
+    mach_2_5:
+      action: remove
+    mach_2_5_video:
+      action: remove
+    mach_2_75:
+      action: remove
+    mach_2_75_video:
+      action: remove
+    mach_3:
+      action: remove
+    mach_3_video:
+      action: remove
+    mach_2_25:
+      action: play
+      priority: 200
+  mode_mach_scoring_started{current_player.mach_level==2.5}:
+    mach_1:
+      action: remove
+    mach_1_25:
+      action: remove
+    mach_1_25_video:
+      action: remove
+    mach_1_5:
+      action: remove
+    mach_1_5_video:
+      action: remove
+    mach_1_75:
+      action: remove
+    mach_1_75_video:
+      action: remove
+    mach_2:
+      action: remove
+    mach_2_video:
+      action: remove
+    mach_2_25:
+      action: remove
+    mach_2_25_video:
+      action: remove
+    mach_2_5_video:
+      action: remove
+    mach_2_75:
+      action: remove
+    mach_2_75_video:
+      action: remove
+    mach_3:
+      action: remove
+    mach_3_video:
+      action: remove
+    mach_2_5:
+      action: play
+      priority: 200
+  mode_mach_scoring_started{current_player.mach_level==2.75}:
+    mach_1:
+      action: remove
+    mach_1_25:
+      action: remove
+    mach_1_25_video:
+      action: remove
+    mach_1_5:
+      action: remove
+    mach_1_5_video:
+      action: remove
+    mach_1_75:
+      action: remove
+    mach_1_75_video:
+      action: remove
+    mach_2:
+      action: remove
+    mach_2_video:
+      action: remove
+    mach_2_25:
+      action: remove
+    mach_2_25_video:
+      action: remove
+    mach_2_5:
+      action: remove
+    mach_2_5_video:
+      action: remove
+    mach_2_75_video:
+      action: remove
+    mach_3:
+      action: remove
+    mach_3_video:
+      action: remove
+    mach_2_75:
+      action: play
+      priority: 200
+  mode_mach_scoring_started{current_player.mach_level==3.0}:
+    mach_1:
+      action: remove
+    mach_1_25:
+      action: remove
+    mach_1_25_video:
+      action: remove
+    mach_1_5:
+      action: remove
+    mach_1_5_video:
+      action: remove
+    mach_1_75:
+      action: remove
+    mach_1_75_video:
+      action: remove
+    mach_2:
+      action: remove
+    mach_2_video:
+      action: remove
+    mach_2_25:
+      action: remove
+    mach_2_25_video:
+      action: remove
+    mach_2_5:
+      action: remove
+    mach_2_5_video:
+      action: remove
+    mach_2_75:
+      action: remove
+    mach_2_75_video:
+      action: remove
+    mach_3_video:
+      action: remove
+    mach_3:
       action: play
       priority: 200
 
-  show_explosion_video:
-    mach_scoring_expired_video:
+  # Show video when reaching mach 1.25
+  show_mach_1_25_video:
+    mach_1_25_video:
       action: play
       priority: 300
-      expire: 2s
-  
+
   # Reset to mach_1 when timer expires
   player_mach_level{value==1.0}:
     mach_1_25:
@@ -385,7 +635,316 @@ slide_player:
     mach_1:
       action: play
       priority: 200
-  
+
+  player_mach_level{value==1.25}:
+    mach_1:
+      action: remove
+    mach_1_25_video:
+      action: remove
+    mach_1_5:
+      action: remove
+    mach_1_5_video:
+      action: remove
+    mach_1_75:
+      action: remove
+    mach_1_75_video:
+      action: remove
+    mach_2:
+      action: remove
+    mach_2_video:
+      action: remove
+    mach_2_25:
+      action: remove
+    mach_2_25_video:
+      action: remove
+    mach_2_5:
+      action: remove
+    mach_2_5_video:
+      action: remove
+    mach_2_75:
+      action: remove
+    mach_2_75_video:
+      action: remove
+    mach_3:
+      action: remove
+    mach_3_video:
+      action: remove
+    mach_1_25:
+      action: play
+      priority: 200
+
+  player_mach_level{value==1.5}:
+    mach_1:
+      action: remove
+    mach_1_25:
+      action: remove
+    mach_1_25_video:
+      action: remove
+    mach_1_75:
+      action: remove
+    mach_1_75_video:
+      action: remove
+    mach_2:
+      action: remove
+    mach_2_video:
+      action: remove
+    mach_2_25:
+      action: remove
+    mach_2_25_video:
+      action: remove
+    mach_2_5:
+      action: remove
+    mach_2_5_video:
+      action: remove
+    mach_2_75:
+      action: remove
+    mach_2_75_video:
+      action: remove
+    mach_3:
+      action: remove
+    mach_3_video:
+      action: remove
+    mach_1_5:
+      action: play
+      priority: 200
+    mach_1_5_video:
+      action: play
+      priority: 200
+
+  player_mach_level{value==1.75}:
+    mach_1:
+      action: remove
+    mach_1_25:
+      action: remove
+    mach_1_25_video:
+      action: remove
+    mach_1_5:
+      action: remove
+    mach_1_5_video:
+      action: remove
+    mach_2:
+      action: remove
+    mach_2_video:
+      action: remove
+    mach_2_25:
+      action: remove
+    mach_2_25_video:
+      action: remove
+    mach_2_5:
+      action: remove
+    mach_2_5_video:
+      action: remove
+    mach_2_75:
+      action: remove
+    mach_2_75_video:
+      action: remove
+    mach_3:
+      action: remove
+    mach_3_video:
+      action: remove
+    mach_1_75:
+      action: play
+      priority: 200
+    mach_1_75_video:
+      action: play
+      priority: 200
+
+  player_mach_level{value==2.0}:
+    mach_1:
+      action: remove
+    mach_1_25:
+      action: remove
+    mach_1_25_video:
+      action: remove
+    mach_1_5:
+      action: remove
+    mach_1_5_video:
+      action: remove
+    mach_1_75:
+      action: remove
+    mach_1_75_video:
+      action: remove
+    mach_2_25:
+      action: remove
+    mach_2_25_video:
+      action: remove
+    mach_2_5:
+      action: remove
+    mach_2_5_video:
+      action: remove
+    mach_2_75:
+      action: remove
+    mach_2_75_video:
+      action: remove
+    mach_3:
+      action: remove
+    mach_3_video:
+      action: remove
+    mach_2:
+      action: play
+      priority: 200
+    mach_2_video:
+      action: play
+      priority: 200
+
+  player_mach_level{value==2.25}:
+    mach_1:
+      action: remove
+    mach_1_25:
+      action: remove
+    mach_1_25_video:
+      action: remove
+    mach_1_5:
+      action: remove
+    mach_1_5_video:
+      action: remove
+    mach_1_75:
+      action: remove
+    mach_1_75_video:
+      action: remove
+    mach_2:
+      action: remove
+    mach_2_video:
+      action: remove
+    mach_2_5:
+      action: remove
+    mach_2_5_video:
+      action: remove
+    mach_2_75:
+      action: remove
+    mach_2_75_video:
+      action: remove
+    mach_3:
+      action: remove
+    mach_3_video:
+      action: remove
+    mach_2_25:
+      action: play
+      priority: 200
+    mach_2_25_video:
+      action: play
+      priority: 200
+
+  player_mach_level{value==2.5}:
+    mach_1:
+      action: remove
+    mach_1_25:
+      action: remove
+    mach_1_25_video:
+      action: remove
+    mach_1_5:
+      action: remove
+    mach_1_5_video:
+      action: remove
+    mach_1_75:
+      action: remove
+    mach_1_75_video:
+      action: remove
+    mach_2:
+      action: remove
+    mach_2_video:
+      action: remove
+    mach_2_25:
+      action: remove
+    mach_2_25_video:
+      action: remove
+    mach_2_75:
+      action: remove
+    mach_2_75_video:
+      action: remove
+    mach_3:
+      action: remove
+    mach_3_video:
+      action: remove
+    mach_2_5:
+      action: play
+      priority: 200
+    mach_2_5_video:
+      action: play
+      priority: 200
+
+  player_mach_level{value==2.75}:
+    mach_1:
+      action: remove
+    mach_1_25:
+      action: remove
+    mach_1_25_video:
+      action: remove
+    mach_1_5:
+      action: remove
+    mach_1_5_video:
+      action: remove
+    mach_1_75:
+      action: remove
+    mach_1_75_video:
+      action: remove
+    mach_2:
+      action: remove
+    mach_2_video:
+      action: remove
+    mach_2_25:
+      action: remove
+    mach_2_25_video:
+      action: remove
+    mach_2_5:
+      action: remove
+    mach_2_5_video:
+      action: remove
+    mach_3:
+      action: remove
+    mach_3_video:
+      action: remove
+    mach_2_75:
+      action: play
+      priority: 200
+    mach_2_75_video:
+      action: play
+      priority: 200
+
+  player_mach_level{value==3.0}:
+    mach_1:
+      action: remove
+    mach_1_25:
+      action: remove
+    mach_1_25_video:
+      action: remove
+    mach_1_5:
+      action: remove
+    mach_1_5_video:
+      action: remove
+    mach_1_75:
+      action: remove
+    mach_1_75_video:
+      action: remove
+    mach_2:
+      action: remove
+    mach_2_video:
+      action: remove
+    mach_2_25:
+      action: remove
+    mach_2_25_video:
+      action: remove
+    mach_2_5:
+      action: remove
+    mach_2_5_video:
+      action: remove
+    mach_2_75:
+      action: remove
+    mach_2_75_video:
+      action: remove
+    mach_3:
+      action: play
+      priority: 200
+    mach_3_video:
+      action: play
+      priority: 200
+
+  show_explosion_video:
+    mach_scoring_expired_video:
+      action: play
+      priority: 300
+      expire: 2s
+
   # Remove all timer slides when timer restarts
   remove_timer_slides:
     timer1:

@@ -1,0 +1,344 @@
+#config_version=6
+
+##############################################################################
+## HIGH SCORE TRACKING
+##
+## FILE NAME: modes/high_score_tracking/config/high_score_tracking.yaml
+##
+## Keeps the player variables the extra high score tables are built from.
+## It only WATCHES other modes (mode started/stopped events, player variable
+## change events) - no other mode file needs editing for these tables.
+##
+## Runs for every ball, including Final Battle Practice games.
+##   start: ball_started     stop: ball_ended
+## (ball_ended, not ball_will_end: mission drains, the bonus total and the
+## Final Battle tally all happen while ball_ending is held, and must be seen.)
+##
+## PLAYER VARIABLES (per game, start at 0 - MPF creates them on first use)
+##   Table value (= high_score category name)   Tie-breaker / extra column
+##   hs_final_battle           FB points         -
+##   hs_final_battle_practice  FB points         -    (practice games only)
+##   hs_migs                   MIGs destroyed    hs_migs_time  (TGMB seconds,
+##                                                lower wins)
+##   hs_pilot_missions         missions won      hs_pilot_mission_points
+##                                                (higher wins)
+##   hs_training_missions      missions won      hs_training_mission_points
+##                                                (higher wins)
+##   hs_bonus                  best single bonus -
+##   hs_pilots                 pilots collected  hs_pilots_time (ball seconds,
+##                                                lower wins)
+##   hs_pwtb                   best PWTB run     -
+##   hs_pilot_jackpot          best pilot jackpot -  (tie: first one keeps it)
+##   hs_fb_fastest             Final Battle win time in seconds (LOWER wins)
+##                             phase 1 start -> landing (fb_victory), normal
+##                             games only; 0 = never won (no entry)
+##   hs_tgmb_jackpots          best single Top Gun Multiball: MIG jackpots +
+##                             super jackpots, exactly as scored (multipliers
+##                             included). Run total: hs_tgmb_jp_run
+##
+## CLOCKS
+##   hs_play_seconds  - this player's ball time (1s ticks while their ball is
+##                      in play; stops at ball_will_end, so bonus/other
+##                      players' turns don't count)
+##   hs_fb_seconds    - Final Battle time, from phase 1 starting (after the
+##                      intro) to the landing; videos between phases count
+##   hs_tgmb_seconds  - Top Gun Multiball time only (runs while the TGMB mode
+##                      runs, pauses between multiballs, carries on in the
+##                      next one)
+##
+## MISSION POINTS = everything scored while the mission was running (score
+##   snapshot at mode start, difference added at mode stop). Won or lost.
+##############################################################################
+
+mode:
+  start_events: ball_started
+  stop_events: ball_ended
+  priority: 105
+  game_mode: true
+
+##############################################################################
+## TIMERS
+##############################################################################
+timers:
+  # Player ball time (used for the Pilots Collected time)
+  hs_play_clock:
+    start_value: 0
+    end_value: 99999
+    direction: up
+    tick_interval: 1s
+    start_running: true
+    control_events:
+      - event: ball_will_end
+        action: stop
+
+  # Top Gun Multiball time (used for the MIGs Destroyed time)
+  hs_tgmb_clock:
+    start_value: 0
+    end_value: 99999
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: mode_top_gun_multiball_started
+        action: restart
+      # Ball started while TGMB was already running (see event_player)
+      - event: hs_tgmb_clock_resume
+        action: restart
+      - event: mode_top_gun_multiball_will_stop
+        action: stop
+      - event: ball_will_end
+        action: stop
+
+  # Final Battle time (used for Fastest Final Battle win)
+  hs_fb_clock:
+    start_value: 0
+    end_value: 99999
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: fb_p1_begin
+        action: start
+      - event: fb_victory
+        action: stop
+      - event: fb_failed
+        action: stop
+      - event: ball_will_end
+        action: stop
+
+##############################################################################
+## EVENT PLAYER
+##############################################################################
+event_player:
+  # TGMB already running when this mode starts (ball started mid-multiball)
+  mode_high_score_tracking_started{mode.top_gun_multiball.active==True}:
+    - hs_tgmb_clock_resume
+
+##############################################################################
+## VARIABLE PLAYER
+##############################################################################
+variable_player:
+
+  # ---------------------------------------------------------------- CLOCKS
+  timer_hs_play_clock_tick:
+    hs_play_seconds: { action: add, int: 1 }
+  timer_hs_tgmb_clock_tick:
+    hs_tgmb_seconds: { action: add, int: 1 }
+  timer_hs_fb_clock_tick:
+    hs_fb_seconds: { action: add, int: 1 }
+
+  # ---------------------------------------------------------------- MIGS
+  # Every MIG destroyed in TGMB (scored or during the 10% penalty). This is a
+  # whole-game count - the progress-reset penalty does NOT take MIGs away here.
+  radar_mig_destroyed{mode.top_gun_multiball.active==True}:
+    hs_migs: { action: add, int: 1 }
+    hs_migs_time: { action: set, int: current_player.hs_tgmb_seconds }
+    # same amount top_gun_multiball.yaml scores for this MIG
+    hs_tgmb_jp_run: { action: add, int: current_player.multiball_last_jackpot * current_player.total_scoring_multiplier }
+  radar_mig_destroyed_no_score{mode.top_gun_multiball.active==True}:
+    hs_migs: { action: add, int: 1 }
+    hs_migs_time: { action: set, int: current_player.hs_tgmb_seconds }
+
+  # ---------------------------------------------------------------- TGMB JACKPOTS
+  # New multiball -> new run total
+  mode_top_gun_multiball_started:
+    hs_tgmb_jp_run: { action: set, int: 0 }
+  # Super jackpot: top_gun_multiball.yaml scores it, sets mode_points_scored
+  # to the amount and adds 1 to super_jackpots_collected in one block, then
+  # empties the bank. This change event is processed after that block, so
+  # mode_points_scored holds the amount just paid.
+  player_super_jackpots_collected{change > 0 and mode.top_gun_multiball.active==True}:
+    hs_tgmb_jp_run: { action: add, int: current_player.mode_points_scored }
+  # Best single multiball
+  player_hs_tgmb_jp_run{value > current_player.hs_tgmb_jackpots}:
+    hs_tgmb_jackpots: { action: set, int: value }
+
+  # ---------------------------------------------------------------- PILOTS
+  # Each pilot flag only ever goes 0 -> 1 once per game. Count = sum of flags
+  # (same sum the bonus uses); time = ball time when the latest one landed.
+  player_pilot_goose_collected{value==1 and prev_value==0}:
+    hs_pilots:
+      action: set
+      int: current_player.pilot_bob_collected + current_player.pilot_coyote_collected + current_player.pilot_fanboy_collected + current_player.pilot_goose_collected + current_player.pilot_hangman_collected + current_player.pilot_hollywood_collected + current_player.pilot_hondo_collected + current_player.pilot_iceman_collected + current_player.pilot_maverick_collected + current_player.pilot_phoenix_collected + current_player.pilot_rooster_collected + current_player.pilot_slider_collected + current_player.pilot_viper_collected + current_player.pilot_wolfman_collected
+    hs_pilots_time: { action: set, int: current_player.hs_play_seconds }
+  player_pilot_hollywood_collected{value==1 and prev_value==0}:
+    hs_pilots:
+      action: set
+      int: current_player.pilot_bob_collected + current_player.pilot_coyote_collected + current_player.pilot_fanboy_collected + current_player.pilot_goose_collected + current_player.pilot_hangman_collected + current_player.pilot_hollywood_collected + current_player.pilot_hondo_collected + current_player.pilot_iceman_collected + current_player.pilot_maverick_collected + current_player.pilot_phoenix_collected + current_player.pilot_rooster_collected + current_player.pilot_slider_collected + current_player.pilot_viper_collected + current_player.pilot_wolfman_collected
+    hs_pilots_time: { action: set, int: current_player.hs_play_seconds }
+  player_pilot_iceman_collected{value==1 and prev_value==0}:
+    hs_pilots:
+      action: set
+      int: current_player.pilot_bob_collected + current_player.pilot_coyote_collected + current_player.pilot_fanboy_collected + current_player.pilot_goose_collected + current_player.pilot_hangman_collected + current_player.pilot_hollywood_collected + current_player.pilot_hondo_collected + current_player.pilot_iceman_collected + current_player.pilot_maverick_collected + current_player.pilot_phoenix_collected + current_player.pilot_rooster_collected + current_player.pilot_slider_collected + current_player.pilot_viper_collected + current_player.pilot_wolfman_collected
+    hs_pilots_time: { action: set, int: current_player.hs_play_seconds }
+  player_pilot_maverick_collected{value==1 and prev_value==0}:
+    hs_pilots:
+      action: set
+      int: current_player.pilot_bob_collected + current_player.pilot_coyote_collected + current_player.pilot_fanboy_collected + current_player.pilot_goose_collected + current_player.pilot_hangman_collected + current_player.pilot_hollywood_collected + current_player.pilot_hondo_collected + current_player.pilot_iceman_collected + current_player.pilot_maverick_collected + current_player.pilot_phoenix_collected + current_player.pilot_rooster_collected + current_player.pilot_slider_collected + current_player.pilot_viper_collected + current_player.pilot_wolfman_collected
+    hs_pilots_time: { action: set, int: current_player.hs_play_seconds }
+  player_pilot_slider_collected{value==1 and prev_value==0}:
+    hs_pilots:
+      action: set
+      int: current_player.pilot_bob_collected + current_player.pilot_coyote_collected + current_player.pilot_fanboy_collected + current_player.pilot_goose_collected + current_player.pilot_hangman_collected + current_player.pilot_hollywood_collected + current_player.pilot_hondo_collected + current_player.pilot_iceman_collected + current_player.pilot_maverick_collected + current_player.pilot_phoenix_collected + current_player.pilot_rooster_collected + current_player.pilot_slider_collected + current_player.pilot_viper_collected + current_player.pilot_wolfman_collected
+    hs_pilots_time: { action: set, int: current_player.hs_play_seconds }
+  player_pilot_viper_collected{value==1 and prev_value==0}:
+    hs_pilots:
+      action: set
+      int: current_player.pilot_bob_collected + current_player.pilot_coyote_collected + current_player.pilot_fanboy_collected + current_player.pilot_goose_collected + current_player.pilot_hangman_collected + current_player.pilot_hollywood_collected + current_player.pilot_hondo_collected + current_player.pilot_iceman_collected + current_player.pilot_maverick_collected + current_player.pilot_phoenix_collected + current_player.pilot_rooster_collected + current_player.pilot_slider_collected + current_player.pilot_viper_collected + current_player.pilot_wolfman_collected
+    hs_pilots_time: { action: set, int: current_player.hs_play_seconds }
+  player_pilot_wolfman_collected{value==1 and prev_value==0}:
+    hs_pilots:
+      action: set
+      int: current_player.pilot_bob_collected + current_player.pilot_coyote_collected + current_player.pilot_fanboy_collected + current_player.pilot_goose_collected + current_player.pilot_hangman_collected + current_player.pilot_hollywood_collected + current_player.pilot_hondo_collected + current_player.pilot_iceman_collected + current_player.pilot_maverick_collected + current_player.pilot_phoenix_collected + current_player.pilot_rooster_collected + current_player.pilot_slider_collected + current_player.pilot_viper_collected + current_player.pilot_wolfman_collected
+    hs_pilots_time: { action: set, int: current_player.hs_play_seconds }
+  player_pilot_bob_collected{value==1 and prev_value==0}:
+    hs_pilots:
+      action: set
+      int: current_player.pilot_bob_collected + current_player.pilot_coyote_collected + current_player.pilot_fanboy_collected + current_player.pilot_goose_collected + current_player.pilot_hangman_collected + current_player.pilot_hollywood_collected + current_player.pilot_hondo_collected + current_player.pilot_iceman_collected + current_player.pilot_maverick_collected + current_player.pilot_phoenix_collected + current_player.pilot_rooster_collected + current_player.pilot_slider_collected + current_player.pilot_viper_collected + current_player.pilot_wolfman_collected
+    hs_pilots_time: { action: set, int: current_player.hs_play_seconds }
+  player_pilot_coyote_collected{value==1 and prev_value==0}:
+    hs_pilots:
+      action: set
+      int: current_player.pilot_bob_collected + current_player.pilot_coyote_collected + current_player.pilot_fanboy_collected + current_player.pilot_goose_collected + current_player.pilot_hangman_collected + current_player.pilot_hollywood_collected + current_player.pilot_hondo_collected + current_player.pilot_iceman_collected + current_player.pilot_maverick_collected + current_player.pilot_phoenix_collected + current_player.pilot_rooster_collected + current_player.pilot_slider_collected + current_player.pilot_viper_collected + current_player.pilot_wolfman_collected
+    hs_pilots_time: { action: set, int: current_player.hs_play_seconds }
+  player_pilot_fanboy_collected{value==1 and prev_value==0}:
+    hs_pilots:
+      action: set
+      int: current_player.pilot_bob_collected + current_player.pilot_coyote_collected + current_player.pilot_fanboy_collected + current_player.pilot_goose_collected + current_player.pilot_hangman_collected + current_player.pilot_hollywood_collected + current_player.pilot_hondo_collected + current_player.pilot_iceman_collected + current_player.pilot_maverick_collected + current_player.pilot_phoenix_collected + current_player.pilot_rooster_collected + current_player.pilot_slider_collected + current_player.pilot_viper_collected + current_player.pilot_wolfman_collected
+    hs_pilots_time: { action: set, int: current_player.hs_play_seconds }
+  player_pilot_hangman_collected{value==1 and prev_value==0}:
+    hs_pilots:
+      action: set
+      int: current_player.pilot_bob_collected + current_player.pilot_coyote_collected + current_player.pilot_fanboy_collected + current_player.pilot_goose_collected + current_player.pilot_hangman_collected + current_player.pilot_hollywood_collected + current_player.pilot_hondo_collected + current_player.pilot_iceman_collected + current_player.pilot_maverick_collected + current_player.pilot_phoenix_collected + current_player.pilot_rooster_collected + current_player.pilot_slider_collected + current_player.pilot_viper_collected + current_player.pilot_wolfman_collected
+    hs_pilots_time: { action: set, int: current_player.hs_play_seconds }
+  player_pilot_hondo_collected{value==1 and prev_value==0}:
+    hs_pilots:
+      action: set
+      int: current_player.pilot_bob_collected + current_player.pilot_coyote_collected + current_player.pilot_fanboy_collected + current_player.pilot_goose_collected + current_player.pilot_hangman_collected + current_player.pilot_hollywood_collected + current_player.pilot_hondo_collected + current_player.pilot_iceman_collected + current_player.pilot_maverick_collected + current_player.pilot_phoenix_collected + current_player.pilot_rooster_collected + current_player.pilot_slider_collected + current_player.pilot_viper_collected + current_player.pilot_wolfman_collected
+    hs_pilots_time: { action: set, int: current_player.hs_play_seconds }
+  player_pilot_phoenix_collected{value==1 and prev_value==0}:
+    hs_pilots:
+      action: set
+      int: current_player.pilot_bob_collected + current_player.pilot_coyote_collected + current_player.pilot_fanboy_collected + current_player.pilot_goose_collected + current_player.pilot_hangman_collected + current_player.pilot_hollywood_collected + current_player.pilot_hondo_collected + current_player.pilot_iceman_collected + current_player.pilot_maverick_collected + current_player.pilot_phoenix_collected + current_player.pilot_rooster_collected + current_player.pilot_slider_collected + current_player.pilot_viper_collected + current_player.pilot_wolfman_collected
+    hs_pilots_time: { action: set, int: current_player.hs_play_seconds }
+  player_pilot_rooster_collected{value==1 and prev_value==0}:
+    hs_pilots:
+      action: set
+      int: current_player.pilot_bob_collected + current_player.pilot_coyote_collected + current_player.pilot_fanboy_collected + current_player.pilot_goose_collected + current_player.pilot_hangman_collected + current_player.pilot_hollywood_collected + current_player.pilot_hondo_collected + current_player.pilot_iceman_collected + current_player.pilot_maverick_collected + current_player.pilot_phoenix_collected + current_player.pilot_rooster_collected + current_player.pilot_slider_collected + current_player.pilot_viper_collected + current_player.pilot_wolfman_collected
+    hs_pilots_time: { action: set, int: current_player.hs_play_seconds }
+
+  # ---------------------------------------------------------------- MISSIONS WON
+  # Mirror the existing counters (each mission already adds to these)
+  player_pilot_missions_won:
+    hs_pilot_missions: { action: set, int: value }
+  player_training_missions_won:
+    hs_training_missions: { action: set, int: value }
+
+  # ---------------------------------------------------------------- MISSION POINTS
+  # Pilot missions (10): snapshot score at start, add the difference at stop
+  mode_rescue_cougar_started:
+    hs_pilot_mission_score_start: { action: set, int: current_player.score }
+  mode_rise_of_phoenix_started:
+    hs_pilot_mission_score_start: { action: set, int: current_player.score }
+  mode_battle_jester_started:
+    hs_pilot_mission_score_start: { action: set, int: current_player.score }
+  mode_canyon_run_started:
+    hs_pilot_mission_score_start: { action: set, int: current_player.score }
+  mode_no_margin_for_error_started:
+    hs_pilot_mission_score_start: { action: set, int: current_player.score }
+  mode_below_the_hard_deck_started:
+    hs_pilot_mission_score_start: { action: set, int: current_player.score }
+  mode_edge_of_space_started:
+    hs_pilot_mission_score_start: { action: set, int: current_player.score }
+  mode_great_balls_of_fire_started:
+    hs_pilot_mission_score_start: { action: set, int: current_player.score }
+  mode_no_points_for_second_place_started:
+    hs_pilot_mission_score_start: { action: set, int: current_player.score }
+  mode_cool_under_pressure_started:
+    hs_pilot_mission_score_start: { action: set, int: current_player.score }
+
+  mode_rescue_cougar_stopped:
+    hs_pilot_mission_points: { action: add, int: current_player.score - current_player.hs_pilot_mission_score_start }
+  mode_rise_of_phoenix_stopped:
+    hs_pilot_mission_points: { action: add, int: current_player.score - current_player.hs_pilot_mission_score_start }
+  mode_battle_jester_stopped:
+    hs_pilot_mission_points: { action: add, int: current_player.score - current_player.hs_pilot_mission_score_start }
+  mode_canyon_run_stopped:
+    hs_pilot_mission_points: { action: add, int: current_player.score - current_player.hs_pilot_mission_score_start }
+  mode_no_margin_for_error_stopped:
+    hs_pilot_mission_points: { action: add, int: current_player.score - current_player.hs_pilot_mission_score_start }
+  mode_below_the_hard_deck_stopped:
+    hs_pilot_mission_points: { action: add, int: current_player.score - current_player.hs_pilot_mission_score_start }
+  mode_edge_of_space_stopped:
+    hs_pilot_mission_points: { action: add, int: current_player.score - current_player.hs_pilot_mission_score_start }
+  mode_great_balls_of_fire_stopped:
+    hs_pilot_mission_points: { action: add, int: current_player.score - current_player.hs_pilot_mission_score_start }
+  mode_no_points_for_second_place_stopped:
+    hs_pilot_mission_points: { action: add, int: current_player.score - current_player.hs_pilot_mission_score_start }
+  mode_cool_under_pressure_stopped:
+    hs_pilot_mission_points: { action: add, int: current_player.score - current_player.hs_pilot_mission_score_start }
+
+  # Training missions (5)
+  mode_pilot_training_mission_inverted_started:
+    hs_training_mission_score_start: { action: set, int: current_player.score }
+  mode_pilot_training_mission_missiles_started:
+    hs_training_mission_score_start: { action: set, int: current_player.score }
+  mode_pilot_training_mission_afterburner_started:
+    hs_training_mission_score_start: { action: set, int: current_player.score }
+  mode_pilot_training_mission_wingman_started:
+    hs_training_mission_score_start: { action: set, int: current_player.score }
+  mode_pilot_training_mission_dogfight_started:
+    hs_training_mission_score_start: { action: set, int: current_player.score }
+
+  mode_pilot_training_mission_inverted_stopped:
+    hs_training_mission_points: { action: add, int: current_player.score - current_player.hs_training_mission_score_start }
+  mode_pilot_training_mission_missiles_stopped:
+    hs_training_mission_points: { action: add, int: current_player.score - current_player.hs_training_mission_score_start }
+  mode_pilot_training_mission_afterburner_stopped:
+    hs_training_mission_points: { action: add, int: current_player.score - current_player.hs_training_mission_score_start }
+  mode_pilot_training_mission_wingman_stopped:
+    hs_training_mission_points: { action: add, int: current_player.score - current_player.hs_training_mission_score_start }
+  mode_pilot_training_mission_dogfight_stopped:
+    hs_training_mission_points: { action: add, int: current_player.score - current_player.hs_training_mission_score_start }
+
+  # ---------------------------------------------------------------- PLAYING WITH THE BOYS
+  # Best single run (points scored while the mode ran)
+  mode_hard_deck_playing_with_the_boys_started:
+    hs_pwtb_score_start: { action: set, int: current_player.score }
+  mode_hard_deck_playing_with_the_boys_stopped:
+    hs_pwtb_last: { action: set, int: current_player.score - current_player.hs_pwtb_score_start }
+  player_hs_pwtb_last{value > current_player.hs_pwtb}:
+    hs_pwtb: { action: set, int: value }
+
+  # ---------------------------------------------------------------- BONUS
+  # Biggest single end-of-ball bonus (MPF's total, after the multiplier)
+  bonus_entry{entry=="total" and score > current_player.hs_bonus}:
+    hs_bonus: { action: set, int: score }
+
+  # ---------------------------------------------------------------- PILOT JACKPOT
+  # pilot_awards cashes the bank at the gear target and adds 1 to
+  # pilot_jackpots_collected. That change event is processed BEFORE
+  # pilot_bank_payout gets recalculated (it's queued after), so the payout
+  # still holds the amount just paid.
+  player_pilot_jackpots_collected{change > 0}:
+    hs_pilot_jackpot_last: { action: set, int: current_player.pilot_bank_payout }
+  player_hs_pilot_jackpot_last{value > current_player.hs_pilot_jackpot}:
+    hs_pilot_jackpot: { action: set, int: value }
+
+  # ---------------------------------------------------------------- FINAL BATTLE
+  # Win time. hs_fb_seconds restarts with each Final Battle (one per game).
+  mode_final_battle_started:
+    hs_fb_seconds: { action: set, int: 0 }
+  fb_victory{machine.practice_fb_game==0}:
+    hs_fb_fastest: { action: set, int: current_player.hs_fb_seconds }
+
+  # Same amount final_battle.yaml awards (mission points x jets left, x1 if
+  # no jets left). Tilt awards nothing, so nothing is recorded.
+  player_fb_points_awarded{value==1 and machine.practice_fb_game==0 and current_player.fb_jets>=1}:
+    hs_final_battle: { action: set, int: current_player.fb_mission_points * current_player.fb_jets }
+  player_fb_points_awarded{value==1 and machine.practice_fb_game==0 and current_player.fb_jets<1}:
+    hs_final_battle: { action: set, int: current_player.fb_mission_points }
+  player_fb_points_awarded{value==1 and machine.practice_fb_game==1 and current_player.fb_jets>=1}:
+    hs_final_battle_practice: { action: set, int: current_player.fb_mission_points * current_player.fb_jets }
+  player_fb_points_awarded{value==1 and machine.practice_fb_game==1 and current_player.fb_jets<1}:
+    hs_final_battle_practice: { action: set, int: current_player.fb_mission_points }

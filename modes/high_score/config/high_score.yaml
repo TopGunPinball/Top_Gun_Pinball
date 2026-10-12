@@ -4,37 +4,67 @@
 ## HIGH SCORE MODE
 ##############################################################################
 ##
-## One category (score), 15 entries split across two attract slides:
-##   Positions 1–5  → high_score_top_5.tscn   (name + score)
-##   Positions 6–15 → high_score_alternates.tscn (name only)
+## TABLES (high_score categories). The category name IS the player variable
+## the table ranks by (MPF rule). All but "score" are kept by
+## modes/high_score_tracking.
 ##
-## MACHINE VARIABLES created automatically by MPF (use in Godot MPFVariable nodes):
-##   score1_name   … score15_name    — player name strings
-##   score1_value  … score15_value   — score integers
-##   score1_label  … score15_label   — rank label strings
+##   score                     Top score - 15 entries (top 5 + alternates 6-15)
+##   hs_final_battle           Final Battle points (normal games)       top 5
+##   hs_final_battle_practice  Final Battle points (practice games)     top 5
+##   hs_fb_fastest             Fastest Final Battle WIN (seconds, LOWER wins,
+##                             shown as m:ss; normal games only)
+##   hs_migs                   MIGs destroyed in TGMB; tie = less TGMB time
+##   hs_tgmb_jackpots          Most jackpot points in ONE Top Gun Multiball
+##                             (MIG jackpots + super jackpots, as scored)
+##   hs_pilot_missions         Pilot missions won; tie = more mission points
+##   hs_training_missions      Training missions won; tie = more mission pts
+##   hs_bonus                  Biggest single bonus
+##   hs_pilots                 Pilots collected; tie = less ball time
+##   hs_pwtb                   Playing With the Boys - best run
+##   hs_pilot_jackpot          Biggest pilot jackpot; tie = first one keeps it
+##   Any exact tie (value AND tie-breaker): the earlier entry keeps the spot.
 ##
-## FLOW:
-##   high_score_enter_initials fires → high_score_entry slide plays
-##     MPF also sets hs_player_num, hs_score_value, hs_award_text machine vars
-##     Godot drives letter selection via hs_letter_index machine var
-##     20s Godot timer → posts text_input_high_score_complete{text: "NAME"}
-##   high_score_award_display fires → high_score_award slide plays 4s
-##   Repeat for each qualifying player, then mode stops
+## Per-table settings (title, slide layout, tie-breaker) are in
+## mode_settings: tables: below. Code: code/top_gun_high_score.py
 ##
-## TO RESET DEFAULTS (e.g. after each show):
-##   Delete: <machine>/data/high_scores.yaml  and restart MPF
-##   OR post: reset_high_scores event (service mode / remote)
+## MACHINE VARIABLES (Godot MPFVariable nodes):
+##   <category><n>_name / _value / _label   (stock MPF, n = 1..5, score 1..15)
+##   <category><n>_extra                    time column, e.g. hs_migs1_extra "5:12"
+##   hs_chart_title, hs_chart<n>_name / _value / _extra
+##       = the table currently shown on high_score_top_5 /
+##         high_score_top_5_3_lines (end of game charts + attract carousel)
+##   hs_entry_title   title of the table the player is entering a name for
 ##
-## TO UPDATE DEFAULT SCORES:
-##   Edit the defaults: section below. Scores must be in descending order.
-##   Names can be up to 20 characters.
+## FLOW (game_ending):
+##   Each player who made ANY table enters their name ONCE (high_score_entry).
+##   Practice games only check hs_final_battle_practice; normal games check
+##   every other table.
+##   No award slide: the tables made are queued, and end_of_game_attract shows
+##   them as charts, 5s each, with the high score music:
+##     every table made         -> its top 5 chart
+##     main score alternates    -> right after the score top 5, when the main
+##                                 score is the only table made OR a player
+##                                 landed in 6th-15th
+##   then the normal end-of-game screen (or attract after a practice game).
+##
+## TO RESET (e.g. before a show):
+##   Delete <machine>/data/high_scores.yaml and restart MPF
+##   OR post: reset_high_scores
+##
+## ADDING / REMOVING A TABLE:
+##   Adding one is safe - it is filled from its defaults on the next boot.
+##   REMOVING one (or changing a table's number of entries) makes MPF reject
+##   the saved file and reset EVERY table to the defaults.
+##
+## DEFAULTS: must be in ranking order. Names up to 20 characters, uppercase.
 ##############################################################################
 
 mode:
-  code: mpf.modes.high_score.code.high_score.HighScore
+  # Stock MPF high score + tie-breakers, practice table, chart queue
+  code: top_gun_high_score.TopGunHighScore
   priority: 1500
-  # Practice games (Final Battle Practice) never reach the high score tables
-  start_events: game_ending{machine.practice_fb_game==0}
+  # Every game, practice included (the code picks the tables to check)
+  start_events: game_ending
   game_mode: false
   use_wait_queue: true
 
@@ -43,12 +73,15 @@ high_score:
   # MPF's internal timeout — always longer than our 20s Godot timer.
   # Godot always fires text_input_high_score_complete before this.
   enter_initials_timeout: 60
-  # Award display time after name entered (milliseconds)
-  award_slide_display_time: 4000
+  # Not used - the award slide is replaced by the end-of-game charts
+  award_slide_display_time: 0
   # Safety filler if MPF timeout somehow fires before Godot does
   filler_initials:
     - LFS
   reset_high_scores_events: reset_high_scores
+  # Tables where the LOWER value ranks higher
+  reverse_sort:
+    - hs_fb_fastest
 
   categories:
     score:
@@ -69,6 +102,83 @@ high_score:
       - 13th Place
       - 14th Place
       - 15th Place
+
+    hs_final_battle:
+      - Final Battle Ace!
+      - Final Battle 2nd
+      - Final Battle 3rd
+      - Final Battle 4th
+      - Final Battle 5th
+
+    hs_final_battle_practice:
+      - Practice Ace!
+      - Practice 2nd
+      - Practice 3rd
+      - Practice 4th
+      - Practice 5th
+
+    hs_fb_fastest:
+      - Fastest Final Battle!
+      - Fastest FB 2nd
+      - Fastest FB 3rd
+      - Fastest FB 4th
+      - Fastest FB 5th
+
+    hs_migs:
+      - Top MIG Killer!
+      - MIG Killer 2nd
+      - MIG Killer 3rd
+      - MIG Killer 4th
+      - MIG Killer 5th
+
+    hs_tgmb_jackpots:
+      - Jackpot Ace!
+      - MB Jackpots 2nd
+      - MB Jackpots 3rd
+      - MB Jackpots 4th
+      - MB Jackpots 5th
+
+    hs_pilot_missions:
+      - Top Mission Pilot!
+      - Missions 2nd
+      - Missions 3rd
+      - Missions 4th
+      - Missions 5th
+
+    hs_training_missions:
+      - Top Trainee!
+      - Training 2nd
+      - Training 3rd
+      - Training 4th
+      - Training 5th
+
+    hs_bonus:
+      - Biggest Bonus!
+      - Bonus 2nd
+      - Bonus 3rd
+      - Bonus 4th
+      - Bonus 5th
+
+    hs_pilots:
+      - Squadron Leader!
+      - Pilots 2nd
+      - Pilots 3rd
+      - Pilots 4th
+      - Pilots 5th
+
+    hs_pwtb:
+      - Beach Volleyball MVP!
+      - Playing w/ Boys 2nd
+      - Playing w/ Boys 3rd
+      - Playing w/ Boys 4th
+      - Playing w/ Boys 5th
+
+    hs_pilot_jackpot:
+      - Biggest Jackpot!
+      - Jackpot 2nd
+      - Jackpot 3rd
+      - Jackpot 4th
+      - Jackpot 5th
 
   defaults:
     score:
@@ -95,6 +205,155 @@ high_score:
       - LFS: 1500000
       - LFS: 1000000
 
+    # ── EXTRA TABLES (top 5 each) ────────────────────────────────────────
+    # Tables with a tie-breaker take their default tie-breakers from
+    # mode_settings: tables: <table>: default_tiebreaks (same order).
+    hs_final_battle:
+      - MAVERICK: 60000000
+      - ROOSTER: 45000000
+      - HANGMAN: 30000000
+      - PHOENIX: 20000000
+      - BOB: 10000000
+
+    hs_final_battle_practice:
+      - MAVERICK: 60000000
+      - ROOSTER: 45000000
+      - HANGMAN: 30000000
+      - PHOENIX: 20000000
+      - BOB: 10000000
+
+    hs_fb_fastest:            # seconds, FASTEST FIRST (8:00, 9:00 ...)
+      - MAVERICK: 480
+      - ROOSTER: 540
+      - HANGMAN: 600
+      - PHOENIX: 720
+      - BOB: 840
+
+    hs_migs:                  # MIGs destroyed
+      - MAVERICK: 30
+      - ICEMAN: 25
+      - HANGMAN: 20
+      - ROOSTER: 15
+      - COYOTE: 10
+
+    hs_tgmb_jackpots:         # jackpot points in one multiball
+      - MAVERICK: 40000000
+      - ICEMAN: 30000000
+      - GOOSE: 20000000
+      - HANGMAN: 12000000
+      - COYOTE: 6000000
+
+    hs_pilot_missions:        # pilot missions won
+      - MAVERICK: 8
+      - ICEMAN: 6
+      - ROOSTER: 4
+      - PHOENIX: 3
+      - PAYBACK: 2
+
+    hs_training_missions:     # training missions won
+      - MAVERICK: 5
+      - ICEMAN: 4
+      - ROOSTER: 3
+      - HANGMAN: 2
+      - FANBOY: 1
+
+    hs_bonus:
+      - ICEMAN: 15000000
+      - MAVERICK: 12000000
+      - GOOSE: 9000000
+      - SLIDER: 6000000
+      - WOLFMAN: 3000000
+
+    hs_pilots:                # pilots collected
+      - MAVERICK: 12
+      - ROOSTER: 10
+      - HANGMAN: 8
+      - PHOENIX: 6
+      - BOB: 4
+
+    hs_pwtb:
+      - GOOSE: 20000000
+      - MAVERICK: 15000000
+      - ICEMAN: 10000000
+      - SLIDER: 7500000
+      - HOLLYWOOD: 5000000
+
+    hs_pilot_jackpot:
+      - MAVERICK: 25000000
+      - ICEMAN: 16000000
+      - ROOSTER: 9000000
+      - HANGMAN: 4000000
+      - PHOENIX: 1000000
+
+##############################################################################
+## TABLE SETTINGS (read by code/top_gun_high_score.py)
+##   title              shown on the chart / attract page (hs_chart_title)
+##   layout             2_lines -> high_score_top_5 slide (name, value)
+##                      3_lines -> high_score_top_5_3_lines (name, value, extra)
+##   practice           true = only Final Battle Practice games feed this table
+##   tiebreak           player variable that breaks ties on the value
+##   tiebreak_order     lowest | highest wins the tie
+##   extra              third column: time (m:ss of the tie-breaker)
+##   value_format       time = show the VALUE itself as m:ss (seconds)
+##   default_tiebreaks  tie-breakers for the default entries, in order
+##                      (seconds for times)
+## The attract carousel page for a table is named after the table (category).
+##############################################################################
+mode_settings:
+  tables:
+    score:
+      title: "TOP GUN HIGH SCORES"
+      layout: 2_lines
+    hs_final_battle:
+      title: "FINAL BATTLE"
+      layout: 2_lines
+    hs_final_battle_practice:
+      title: "FINAL BATTLE PRACTICE"
+      layout: 2_lines
+      practice: true
+    hs_fb_fastest:
+      title: "FASTEST FINAL BATTLE WIN"
+      layout: 2_lines
+      value_format: time
+    hs_migs:
+      title: "MOST MIGS DESTROYED"
+      layout: 3_lines
+      tiebreak: hs_migs_time
+      tiebreak_order: lowest
+      extra: time
+      default_tiebreaks: [900, 840, 720, 600, 480]
+    hs_tgmb_jackpots:
+      title: "TOP GUN MULTIBALL JACKPOTS"
+      layout: 2_lines
+    hs_pilot_missions:
+      title: "MOST PILOT MISSIONS WON"
+      layout: 2_lines
+      tiebreak: hs_pilot_mission_points
+      tiebreak_order: highest
+      default_tiebreaks: [80000000, 60000000, 40000000, 30000000, 20000000]
+    hs_training_missions:
+      title: "MOST TRAINING MISSIONS WON"
+      layout: 2_lines
+      tiebreak: hs_training_mission_points
+      tiebreak_order: highest
+      default_tiebreaks: [40000000, 30000000, 20000000, 10000000, 5000000]
+    hs_bonus:
+      title: "BIGGEST BONUS"
+      layout: 2_lines
+    hs_pilots:
+      title: "MOST PILOTS COLLECTED"
+      layout: 3_lines
+      tiebreak: hs_pilots_time
+      tiebreak_order: lowest
+      extra: time
+      default_tiebreaks: [1200, 1080, 960, 840, 720]
+    hs_pwtb:
+      title: "PLAYING WITH THE BOYS"
+      layout: 2_lines
+    hs_pilot_jackpot:
+      title: "BIGGEST PILOT JACKPOT"
+      layout: 2_lines
+
 ##############################################################################
 ## EVENT PLAYER
 ##############################################################################
@@ -115,6 +374,20 @@ event_player:
   # MPF jumps letter cursor to FINISH position (index 28).
   hs_name_full:
     - hs_set_finish
+
+  # Carousel navigation: decide step vs. wrap HERE, against the index as it
+  # is BEFORE any change. (Two conditional variable_player handlers on the
+  # same event chain into each other: 27 -> 28 -> wrap to 0 skipped FINISH,
+  # and 1 -> 0 -> wrap to 28 skipped A.) Posted events are queued, so both
+  # conditions below see the same, unchanged index.
+  hs_nav_prev{machine.hs_letter_index > 0}:
+    - hs_nav_prev_step
+  hs_nav_prev{machine.hs_letter_index == 0}:
+    - hs_nav_prev_wrap
+  hs_nav_next{machine.hs_letter_index < 28}:
+    - hs_nav_next_step
+  hs_nav_next{machine.hs_letter_index >= 28}:
+    - hs_nav_next_wrap
 
 ##############################################################################
 ## VARIABLE PLAYER
@@ -153,20 +426,21 @@ variable_player:
   ##------------------------------------------------------------------------
   ## Letter carousel navigation — wraps at both ends
   ##------------------------------------------------------------------------
-  hs_nav_prev{machine.hs_letter_index > 0}:
+  ## (step/wrap decided once in event_player - see hs_nav_prev/hs_nav_next)
+  hs_nav_prev_step:
     hs_letter_index:
       action: add_machine
       int: -1
-  hs_nav_prev{machine.hs_letter_index == 0}:
+  hs_nav_prev_wrap:
     hs_letter_index:
       action: set_machine
       int: 28    # wrap A → FINISH
 
-  hs_nav_next{machine.hs_letter_index < 28}:
+  hs_nav_next_step:
     hs_letter_index:
       action: add_machine
       int: 1
-  hs_nav_next{machine.hs_letter_index == 28}:
+  hs_nav_next_wrap:
     hs_letter_index:
       action: set_machine
       int: 0     # wrap FINISH → A
@@ -200,13 +474,8 @@ slide_player:
     high_score_award:
       action: remove
 
-  # Award display: brief congratulations slide
-  high_score_award_display:
-    high_score_award:
-      action: play
-      priority: 1600
-    high_score_entry:
-      action: remove
+  # (No award slide any more - the tables made are shown as charts by
+  #  end_of_game_attract once every name is in.)
 
   # Cleanup when mode ends
   mode_high_score_stopped:
@@ -227,13 +496,8 @@ sound_player:
       bus: music
       loops: -1
 
-  # Voice congrats fires when award slide displays (after name submitted)
-
-  # Voice congrats fires when award slide displays (after name submitted)
-  high_score_award_display:
-    voice_high_score_congrats:
-      bus: voice
-      loops: 0
+  # Voice congrats now plays in end_of_game_attract when the charts start
+  # (this mode stops right after the last name, which would cut it off).
 
 ##############################################################################
 ## SHOW PLAYER
@@ -243,12 +507,6 @@ show_player:
   high_score_enter_initials:
     high_score_entry_lights:
       loops: -1
-      speed: 1
-      priority: 1500
-
-  high_score_award_display:
-    high_score_award_lights:
-      loops: 3
       speed: 1
       priority: 1500
 

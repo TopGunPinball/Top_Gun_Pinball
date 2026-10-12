@@ -57,7 +57,7 @@
 ##   Phoenix   3 LO shots in a row                           10s, no switch limit
 ##
 ## ACHIEVEMENTS:
-##   Goose      Finish GOOSE within 30 flips of the first letter (flipper
+##   Goose      Finish GOOSE within 25 flips of the first letter (flipper
 ##              buttons s_flipper_left + s_flipper_right). Not in multiball.
 ##              After a miss, GOOSE must be finished to try again.
 ##   Bob        Hit all 4 LOCK targets within 30s of the first. Repeats don't
@@ -77,8 +77,23 @@
 ##   (If the ball drains during a delay, the pilot still counts - only the
 ##    announcement is skipped.)
 ##
-## POINT VALUES: every pilot banks 1,000,000 (PLACEHOLDER - set real values later
-##   in the pilot_<name>_awarded blocks).
+## POINT VALUES (base, set in the pilot_<name>_awarded blocks) and BUILD
+## (added while the pilot sits in the bank, until it's cashed at the pilot
+## gear target or lost on drain - see "BUILD" in variable_player):
+##   Hangman    1,500,000   +150K each TR (top ramp)
+##   Iceman     1,250,000   +50K each I/C/E/M/A/N target
+##   Maverick   2,500,000   +150K each TR
+##   Phoenix      750,000   +50K each LO shot
+##   Rooster      750,000   +100K each TR or TL (top loop)
+##   Slider     1,500,000   +150K each TL
+##   Bob        1,000,000   +50K each LOCK target
+##   Coyote     2,000,000   +100K each LR, TR or RR
+##   Fanboy       750,000   +250K each skillshot
+##   Goose      1,350,000   +75K each GOOSE letter lit
+##   Hollywood  2,000,000   +1,000,000 each ejection seat success
+##   Hondo      2,500,000   +200K each TL, TR or TO while Mach is active
+##   Viper      1,500,000   +500K each pilot or training mission won
+##   Wolfman    1,250,000   +12.5K each spinner spin
 ##############################################################################
 
 mode:
@@ -236,6 +251,34 @@ variable_player:
     pilot_bank_multiplier: { action: add, int: 0 }
     pilot_bank_payout: { action: add, int: 0 }
     pilot_jackpots_collected: { action: add, int: 0 }
+    pilot_hangman_banked: { action: add, int: 0 }
+    pilot_hangman_value: { action: add, int: 0 }
+    pilot_iceman_banked: { action: add, int: 0 }
+    pilot_iceman_value: { action: add, int: 0 }
+    pilot_maverick_banked: { action: add, int: 0 }
+    pilot_maverick_value: { action: add, int: 0 }
+    pilot_phoenix_banked: { action: add, int: 0 }
+    pilot_phoenix_value: { action: add, int: 0 }
+    pilot_rooster_banked: { action: add, int: 0 }
+    pilot_rooster_value: { action: add, int: 0 }
+    pilot_slider_banked: { action: add, int: 0 }
+    pilot_slider_value: { action: add, int: 0 }
+    pilot_bob_banked: { action: add, int: 0 }
+    pilot_bob_value: { action: add, int: 0 }
+    pilot_coyote_banked: { action: add, int: 0 }
+    pilot_coyote_value: { action: add, int: 0 }
+    pilot_fanboy_banked: { action: add, int: 0 }
+    pilot_fanboy_value: { action: add, int: 0 }
+    pilot_goose_banked: { action: add, int: 0 }
+    pilot_goose_value: { action: add, int: 0 }
+    pilot_hollywood_banked: { action: add, int: 0 }
+    pilot_hollywood_value: { action: add, int: 0 }
+    pilot_hondo_banked: { action: add, int: 0 }
+    pilot_hondo_value: { action: add, int: 0 }
+    pilot_viper_banked: { action: add, int: 0 }
+    pilot_viper_value: { action: add, int: 0 }
+    pilot_wolfman_banked: { action: add, int: 0 }
+    pilot_wolfman_value: { action: add, int: 0 }
     # Per-ball progress resets
     pilot_maverick_step: { action: set, int: 0 }
     pilot_maverick_switches: { action: set, int: 0 }
@@ -382,7 +425,7 @@ variable_player:
   s_flipper_right_active{current_player.pilot_goose_state==1}:
     pilot_goose_flips: { action: add, int: 1 }
   # 31st flip = missed; finish GOOSE to try again
-  player_pilot_goose_flips{value>30 and current_player.pilot_goose_state==1}:
+  player_pilot_goose_flips{value>25 and current_player.pilot_goose_state==1}:
     pilot_goose_state: { action: set, int: 2 }
   # Multiball started mid-attempt: attempt void
   player_multiball_active{value==1 and current_player.pilot_goose_state==1}:
@@ -450,72 +493,207 @@ variable_player:
   ##############################################
   pilot_goose_awarded:
     pilot_goose_collected: { action: set, int: 1 }
-    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_value: { action: add, int: 1350000 }    # base value
+    pilot_goose_value: { action: set, int: 1350000 }
+    pilot_goose_banked: { action: set, int: 1 }
     pilot_bank_multiplier: { action: add, int: 1 }
   pilot_hollywood_awarded:
     pilot_hollywood_collected: { action: set, int: 1 }
-    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_value: { action: add, int: 2000000 }    # base value
+    pilot_hollywood_value: { action: set, int: 2000000 }
+    pilot_hollywood_banked: { action: set, int: 1 }
     pilot_bank_multiplier: { action: add, int: 1 }
   pilot_iceman_awarded:
     pilot_iceman_collected: { action: set, int: 1 }
-    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_value: { action: add, int: 1250000 }    # base value
+    pilot_iceman_value: { action: set, int: 1250000 }
+    pilot_iceman_banked: { action: set, int: 1 }
     pilot_bank_multiplier: { action: add, int: 1 }
     pilot_iceman_step: { action: set, int: 0 }
     pilot_iceman_switches: { action: set, int: 0 }
   pilot_maverick_awarded:
     pilot_maverick_collected: { action: set, int: 1 }
-    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_value: { action: add, int: 2500000 }    # base value
+    pilot_maverick_value: { action: set, int: 2500000 }
+    pilot_maverick_banked: { action: set, int: 1 }
     pilot_bank_multiplier: { action: add, int: 1 }
     pilot_maverick_step: { action: set, int: 0 }
     pilot_maverick_switches: { action: set, int: 0 }
   pilot_slider_awarded:
     pilot_slider_collected: { action: set, int: 1 }
-    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_value: { action: add, int: 1500000 }    # base value
+    pilot_slider_value: { action: set, int: 1500000 }
+    pilot_slider_banked: { action: set, int: 1 }
     pilot_bank_multiplier: { action: add, int: 1 }
     pilot_slider_step: { action: set, int: 0 }
     pilot_slider_switches: { action: set, int: 0 }
   pilot_viper_awarded:
     pilot_viper_collected: { action: set, int: 1 }
-    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_value: { action: add, int: 1500000 }    # base value
+    pilot_viper_value: { action: set, int: 1500000 }
+    pilot_viper_banked: { action: set, int: 1 }
     pilot_bank_multiplier: { action: add, int: 1 }
   pilot_wolfman_awarded:
     pilot_wolfman_collected: { action: set, int: 1 }
-    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_value: { action: add, int: 1250000 }    # base value
+    pilot_wolfman_value: { action: set, int: 1250000 }
+    pilot_wolfman_banked: { action: set, int: 1 }
     pilot_bank_multiplier: { action: add, int: 1 }
   pilot_bob_awarded:
     pilot_bob_collected: { action: set, int: 1 }
-    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_value: { action: add, int: 1000000 }    # base value
+    pilot_bob_value: { action: set, int: 1000000 }
+    pilot_bob_banked: { action: set, int: 1 }
     pilot_bank_multiplier: { action: add, int: 1 }
   pilot_coyote_awarded:
     pilot_coyote_collected: { action: set, int: 1 }
-    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_value: { action: add, int: 2000000 }    # base value
+    pilot_coyote_value: { action: set, int: 2000000 }
+    pilot_coyote_banked: { action: set, int: 1 }
     pilot_bank_multiplier: { action: add, int: 1 }
   pilot_fanboy_awarded:
     pilot_fanboy_collected: { action: set, int: 1 }
-    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_value: { action: add, int: 750000 }    # base value
+    pilot_fanboy_value: { action: set, int: 750000 }
+    pilot_fanboy_banked: { action: set, int: 1 }
     pilot_bank_multiplier: { action: add, int: 1 }
   pilot_hangman_awarded:
     pilot_hangman_collected: { action: set, int: 1 }
-    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_value: { action: add, int: 1500000 }    # base value
+    pilot_hangman_value: { action: set, int: 1500000 }
+    pilot_hangman_banked: { action: set, int: 1 }
     pilot_bank_multiplier: { action: add, int: 1 }
     pilot_hangman_step: { action: set, int: 0 }
     pilot_hangman_switches: { action: set, int: 0 }
   pilot_hondo_awarded:
     pilot_hondo_collected: { action: set, int: 1 }
-    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_value: { action: add, int: 2500000 }    # base value
+    pilot_hondo_value: { action: set, int: 2500000 }
+    pilot_hondo_banked: { action: set, int: 1 }
     pilot_bank_multiplier: { action: add, int: 1 }
   pilot_phoenix_awarded:
     pilot_phoenix_collected: { action: set, int: 1 }
-    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_value: { action: add, int: 750000 }    # base value
+    pilot_phoenix_value: { action: set, int: 750000 }
+    pilot_phoenix_banked: { action: set, int: 1 }
     pilot_bank_multiplier: { action: add, int: 1 }
     pilot_phoenix_step: { action: set, int: 0 }
     pilot_phoenix_switches: { action: set, int: 0 }
   pilot_rooster_awarded:
     pilot_rooster_collected: { action: set, int: 1 }
-    pilot_bank_value: { action: add, int: 1000000 }    # PLACEHOLDER value
+    pilot_bank_value: { action: add, int: 750000 }    # base value
+    pilot_rooster_value: { action: set, int: 750000 }
+    pilot_rooster_banked: { action: set, int: 1 }
     pilot_bank_multiplier: { action: add, int: 1 }
     pilot_rooster_step: { action: set, int: 0 }
     pilot_rooster_switches: { action: set, int: 0 }
+
+  ##############################################
+  ## BUILD - a banked pilot grows until it's paid
+  ##############################################
+  # While a pilot is in the bank (earned, not yet cashed at the pilot gear
+  # target) its shots add to its value AND to pilot_bank_value, so the payout
+  # (value x multiplier x 2X) grows. Cashing or draining sets
+  # pilot_<name>_banked back to 0: no more building for that pilot.
+  # The shot that EARNS a pilot never builds it (the pilot is banked by a
+  # later event), so only additional shots count.
+  # pilot_<name>_value = that pilot's current value (base + builds).
+  s_ramp_inner_exit_active{current_player.pilot_hangman_banked==1}:
+    pilot_hangman_value: { action: add, int: 150000 }
+    pilot_bank_value: { action: add, int: 150000 }
+  s_i_iceman_target_active{current_player.pilot_iceman_banked==1}:
+    pilot_iceman_value: { action: add, int: 50000 }
+    pilot_bank_value: { action: add, int: 50000 }
+  s_c_iceman_target_active{current_player.pilot_iceman_banked==1}:
+    pilot_iceman_value: { action: add, int: 50000 }
+    pilot_bank_value: { action: add, int: 50000 }
+  s_e_iceman_target_active{current_player.pilot_iceman_banked==1}:
+    pilot_iceman_value: { action: add, int: 50000 }
+    pilot_bank_value: { action: add, int: 50000 }
+  s_m_iceman_target_active{current_player.pilot_iceman_banked==1}:
+    pilot_iceman_value: { action: add, int: 50000 }
+    pilot_bank_value: { action: add, int: 50000 }
+  s_a_iceman_target_active{current_player.pilot_iceman_banked==1}:
+    pilot_iceman_value: { action: add, int: 50000 }
+    pilot_bank_value: { action: add, int: 50000 }
+  s_n_iceman_target_active{current_player.pilot_iceman_banked==1}:
+    pilot_iceman_value: { action: add, int: 50000 }
+    pilot_bank_value: { action: add, int: 50000 }
+  s_ramp_inner_exit_active{current_player.pilot_maverick_banked==1}:
+    pilot_maverick_value: { action: add, int: 150000 }
+    pilot_bank_value: { action: add, int: 150000 }
+  left_orbit_shot_hit{current_player.pilot_phoenix_banked==1}:
+    pilot_phoenix_value: { action: add, int: 50000 }
+    pilot_bank_value: { action: add, int: 50000 }
+  s_ramp_inner_exit_active{current_player.pilot_rooster_banked==1}:
+    pilot_rooster_value: { action: add, int: 100000 }
+    pilot_bank_value: { action: add, int: 100000 }
+  s_orbit_upper_active{current_player.pilot_rooster_banked==1}:
+    pilot_rooster_value: { action: add, int: 100000 }
+    pilot_bank_value: { action: add, int: 100000 }
+  s_orbit_upper_active{current_player.pilot_slider_banked==1}:
+    pilot_slider_value: { action: add, int: 150000 }
+    pilot_bank_value: { action: add, int: 150000 }
+  s_l_lock_target_active{current_player.pilot_bob_banked==1}:
+    pilot_bob_value: { action: add, int: 50000 }
+    pilot_bank_value: { action: add, int: 50000 }
+  s_o_lock_target_active{current_player.pilot_bob_banked==1}:
+    pilot_bob_value: { action: add, int: 50000 }
+    pilot_bank_value: { action: add, int: 50000 }
+  s_c_lock_target_active{current_player.pilot_bob_banked==1}:
+    pilot_bob_value: { action: add, int: 50000 }
+    pilot_bank_value: { action: add, int: 50000 }
+  s_k_lock_target_active{current_player.pilot_bob_banked==1}:
+    pilot_bob_value: { action: add, int: 50000 }
+    pilot_bank_value: { action: add, int: 50000 }
+  s_ramp_left_exit_active{current_player.pilot_coyote_banked==1}:
+    pilot_coyote_value: { action: add, int: 100000 }
+    pilot_bank_value: { action: add, int: 100000 }
+  s_ramp_inner_exit_active{current_player.pilot_coyote_banked==1}:
+    pilot_coyote_value: { action: add, int: 100000 }
+    pilot_bank_value: { action: add, int: 100000 }
+  s_ramp_right_exit_active{current_player.pilot_coyote_banked==1}:
+    pilot_coyote_value: { action: add, int: 100000 }
+    pilot_bank_value: { action: add, int: 100000 }
+  skillshot_show_points{current_player.pilot_fanboy_banked==1}:
+    pilot_fanboy_value: { action: add, int: 250000 }
+    pilot_bank_value: { action: add, int: 250000 }
+  s_outlane_left_active{current_player.pilot_goose_banked==1 and current_player.goose_letter_g==0 and current_player.goose_completing==0 and current_player.npfsp_wave4_active!=1}:
+    pilot_goose_value: { action: add, int: 75000 }
+    pilot_bank_value: { action: add, int: 75000 }
+  s_inlane_left_active{current_player.pilot_goose_banked==1 and current_player.goose_letter_o_left==0 and current_player.goose_completing==0 and current_player.npfsp_wave4_active!=1}:
+    pilot_goose_value: { action: add, int: 75000 }
+    pilot_bank_value: { action: add, int: 75000 }
+  s_outlane_right_active{current_player.pilot_goose_banked==1 and current_player.goose_letter_e==0 and current_player.goose_completing==0 and current_player.npfsp_wave4_active!=1}:
+    pilot_goose_value: { action: add, int: 75000 }
+    pilot_bank_value: { action: add, int: 75000 }
+  s_inner_inlane_right_active{current_player.pilot_goose_banked==1 and current_player.goose_letter_o_right==0 and current_player.goose_completing==0 and current_player.npfsp_wave4_active!=1}:
+    pilot_goose_value: { action: add, int: 75000 }
+    pilot_bank_value: { action: add, int: 75000 }
+  s_outer_inlane_right_active{current_player.pilot_goose_banked==1 and current_player.goose_letter_s==0 and current_player.goose_completing==0 and current_player.npfsp_wave4_active!=1}:
+    pilot_goose_value: { action: add, int: 75000 }
+    pilot_bank_value: { action: add, int: 75000 }
+  ejection_success{current_player.pilot_hollywood_banked==1}:
+    pilot_hollywood_value: { action: add, int: 1000000 }
+    pilot_bank_value: { action: add, int: 1000000 }
+  s_orbit_upper_active{current_player.pilot_hondo_banked==1 and current_player.mach_step>=2}:
+    pilot_hondo_value: { action: add, int: 200000 }
+    pilot_bank_value: { action: add, int: 200000 }
+  s_ramp_inner_exit_active{current_player.pilot_hondo_banked==1 and current_player.mach_step>=2}:
+    pilot_hondo_value: { action: add, int: 200000 }
+    pilot_bank_value: { action: add, int: 200000 }
+  s_orbit_lower_active{current_player.pilot_hondo_banked==1 and current_player.mach_step>=2}:
+    pilot_hondo_value: { action: add, int: 200000 }
+    pilot_bank_value: { action: add, int: 200000 }
+  player_pilot_missions_won{current_player.pilot_viper_banked==1 and change>0}:
+    pilot_viper_value: { action: add, int: 500000 }
+    pilot_bank_value: { action: add, int: 500000 }
+  player_training_missions_won{current_player.pilot_viper_banked==1 and change>0}:
+    pilot_viper_value: { action: add, int: 500000 }
+    pilot_bank_value: { action: add, int: 500000 }
+  s_spinner_active{current_player.pilot_wolfman_banked==1}:
+    pilot_wolfman_value: { action: add, int: 12500 }
+    pilot_bank_value: { action: add, int: 12500 }
 
   ##############################################
   ## BANK
@@ -537,10 +715,39 @@ variable_player:
     pilot_jackpots_collected: { action: add, int: 1 }
     pilot_bank_value: { action: set, int: 0 }
     pilot_bank_multiplier: { action: set, int: 0 }
-  # Drain: bank is lost
+    # Paid: these pilots can't build any more
+    pilot_hangman_banked: { action: set, int: 0 }
+    pilot_iceman_banked: { action: set, int: 0 }
+    pilot_maverick_banked: { action: set, int: 0 }
+    pilot_phoenix_banked: { action: set, int: 0 }
+    pilot_rooster_banked: { action: set, int: 0 }
+    pilot_slider_banked: { action: set, int: 0 }
+    pilot_bob_banked: { action: set, int: 0 }
+    pilot_coyote_banked: { action: set, int: 0 }
+    pilot_fanboy_banked: { action: set, int: 0 }
+    pilot_goose_banked: { action: set, int: 0 }
+    pilot_hollywood_banked: { action: set, int: 0 }
+    pilot_hondo_banked: { action: set, int: 0 }
+    pilot_viper_banked: { action: set, int: 0 }
+    pilot_wolfman_banked: { action: set, int: 0 }
+  # Drain: bank is lost (and its pilots with it - collected once per game)
   ball_will_end:
     pilot_bank_value: { action: set, int: 0 }
     pilot_bank_multiplier: { action: set, int: 0 }
+    pilot_hangman_banked: { action: set, int: 0 }
+    pilot_iceman_banked: { action: set, int: 0 }
+    pilot_maverick_banked: { action: set, int: 0 }
+    pilot_phoenix_banked: { action: set, int: 0 }
+    pilot_rooster_banked: { action: set, int: 0 }
+    pilot_slider_banked: { action: set, int: 0 }
+    pilot_bob_banked: { action: set, int: 0 }
+    pilot_coyote_banked: { action: set, int: 0 }
+    pilot_fanboy_banked: { action: set, int: 0 }
+    pilot_goose_banked: { action: set, int: 0 }
+    pilot_hollywood_banked: { action: set, int: 0 }
+    pilot_hondo_banked: { action: set, int: 0 }
+    pilot_viper_banked: { action: set, int: 0 }
+    pilot_wolfman_banked: { action: set, int: 0 }
 
 ##############################################################################
 ## EVENT PLAYER

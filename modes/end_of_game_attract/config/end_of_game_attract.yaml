@@ -15,11 +15,27 @@
 #   - Last scores shown for 15 seconds on mode start
 #   - Either flipper re-shows scores for 5 seconds (stops 15s timer if still running)
 #   - Start button flashes and game can be started throughout
+#
+# HIGH SCORE CHARTS (only when a name was entered this game):
+#   hs_display_start -> high score music + congrats voice -> hs_chart_next
+#   The high score code (modes/high_score/code/top_gun_high_score.py) answers
+#   hs_chart_next with the next chart the players made:
+#     hs_chart_show_top_5          -> high_score_top_5 slide
+#     hs_chart_show_top_5_3_lines  -> high_score_top_5_3_lines slide
+#     hs_chart_show_alternates     -> high_score_alternates slide
+#   Each chart stays 5s (hs_chart_timer), then hs_chart_next again, until the
+#   code posts hs_charts_done:
+#     normal game   -> hs_display_skip (end-of-game video, lights, scores)
+#     practice game -> end_of_game_skip (straight back to attract)
+#   This mode's own 2:11 timer only starts at hs_display_skip, so it waits
+#   for however many charts there are.
 ##############################################################################
 
 mode:
   # Not after a Final Battle Practice game (attract starts directly then)
-  start_events: game_ended{machine.practice_fb_game==0}
+  # UNLESS it made the practice high score table - then this mode shows that
+  # chart and goes straight back to attract (hs_charts_practice).
+  start_events: game_ended{machine.practice_fb_game==0 or machine.hs_entry_made==1}
   stop_events: 
     - game_starting
     - end_of_game_carousel_complete
@@ -42,27 +58,35 @@ timers:
       - event: hs_display_skip
         action: start
 
-  # ── HS LEADERBOARD TIMERS ──────────────────────────────────────────────────
+  # ── HS CHART TIMER ─────────────────────────────────────────────────────────
   # Only used when a player entered a high score this game.
-  # top5 fires first (10s), then alternates (10s), then hs_display_skip
-  # which triggers the normal video + light sequence.
-  hs_top5_timer:
+  # Each chart shows for 5s, then hs_chart_next asks for the next one.
+  hs_chart_timer:
     start_value: 0
-    end_value: 10
+    end_value: 5
     direction: up
     tick_interval: 1s
+    start_running: false
     control_events:
-      - event: hs_display_start
-        action: start
-
-  hs_alternates_timer:
-    start_value: 0
-    end_value: 10
-    direction: up
-    tick_interval: 1s
-    control_events:
-      - event: timer_hs_top5_timer_complete
-        action: start
+      - event: hs_chart_show_top_5
+        action: restart
+      - event: hs_chart_show_top_5_3_lines
+        action: restart
+      - event: hs_chart_show_alternates
+        action: restart
+      # ...and again when Godot actually puts the slide up. A big slide that is
+      # loaded for the first time can take seconds to appear; this makes sure
+      # every chart is on screen for the full 5s. (Consecutive charts on the
+      # SAME slide only change its text - no new slide event - so the
+      # hs_chart_show_* restarts above still cover those.)
+      - event: slide_high_score_top_5_active
+        action: restart
+      - event: slide_high_score_top_5_3_lines_active
+        action: restart
+      - event: slide_high_score_alternates_active
+        action: restart
+      - event: hs_charts_done
+        action: stop
 
   # Show scores for 15 seconds on mode start.
   # Stopped early if player presses a flipper (5s timer takes over).
@@ -118,11 +142,16 @@ event_player:
   mode_end_of_game_attract_started{machine.hs_entry_made==0}:
     - hs_display_skip
 
-  # HS slides advance: top5 → alternates → video
-  timer_hs_top5_timer_complete:
-    - hs_show_alternates
-  timer_hs_alternates_timer_complete:
+  # HS charts: first chart, then one every 5s until the queue is empty
+  hs_display_start:
+    - hs_chart_next
+  timer_hs_chart_timer_complete:
+    - hs_chart_next
+  hs_charts_done{machine.hs_charts_practice==0}:
     - hs_display_skip
+  # Practice game: back to attract once its chart has been shown
+  hs_charts_done{machine.hs_charts_practice==1}:
+    - end_of_game_skip
 
   # hs_display_skip is the gate that starts the video sequence
   hs_display_skip:
@@ -164,22 +193,39 @@ event_player:
 ##############################################################################
 
 slide_player:
-  # HS leaderboard slides — only play if hs_entry_made was set
-  hs_display_start:
+  # HS charts — only play if hs_entry_made was set. The chart's data
+  # (title, names, values, times) is already loaded into the hs_chart_*
+  # machine vars by the high score code when these events arrive.
+  hs_chart_show_top_5:
     high_score_top_5:
       action: play
       priority: 150
-
-  hs_show_alternates:
+    high_score_top_5_3_lines:
+      action: remove
+    high_score_alternates:
+      action: remove
+  hs_chart_show_top_5_3_lines:
+    high_score_top_5_3_lines:
+      action: play
+      priority: 150
     high_score_top_5:
       action: remove
     high_score_alternates:
+      action: remove
+  hs_chart_show_alternates:
+    high_score_alternates:
       action: play
       priority: 150
+    high_score_top_5:
+      action: remove
+    high_score_top_5_3_lines:
+      action: remove
 
   # hs_display_skip: clean up any HS slides and start the video slide
   hs_display_skip:
     high_score_top_5:
+      action: remove
+    high_score_top_5_3_lines:
       action: remove
     high_score_alternates:
       action: remove
@@ -219,6 +265,8 @@ slide_player:
   mode_end_of_game_attract_stopping:
     high_score_top_5:
       action: remove
+    high_score_top_5_3_lines:
+      action: remove
     high_score_alternates:
       action: remove
     last_scores_1p:
@@ -252,6 +300,11 @@ sound_player:
     music_high_score:
       bus: music
       loops: -1
+    # (moved here from high_score.yaml - that mode stops right after the
+    #  last name is entered, which would cut the callout off)
+    voice_high_score_congrats:
+      bus: voice
+      loops: 0
 
   # Silence music bus when video slide starts (after any HS leaderboard slides)
   # so the video audio plays cleanly. High score music plays up until this point.
