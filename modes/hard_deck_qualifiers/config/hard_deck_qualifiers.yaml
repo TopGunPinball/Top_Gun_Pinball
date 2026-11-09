@@ -547,7 +547,7 @@ variable_player:
       action: add
       int: 1
 
-  mode_hard_deck_maverick_and_penny_started:
+  mode_hard_deck_penny_started:
     hard_deck_active:
       action: set
       int: 1
@@ -622,7 +622,7 @@ variable_player:
       action: set
       int: 0
 
-  mode_hard_deck_maverick_and_penny_stopped:
+  mode_hard_deck_penny_stopped:
     hard_deck_active:
       action: set
       int: 0
@@ -706,12 +706,13 @@ event_player:
     - hd_qualify_playing_with_the_boys
 
   # --- MAVERICK AND PENNY (mode 3) ---
-  # BLOCKED: Mode not yet coded
-  # player_hard_deck_missions_played{value>=1 and current_player.hd_switches_completed>=31 and current_player.hd_mp_qualified==0 and current_player.hd_mp_played==0}:
-  #   - hd_qualify_maverick_and_penny
+  # Either order: the 31st switch completed after a Hard Deck has been played,
+  # or the first Hard Deck played after all 31 switches are done.
+  player_hard_deck_missions_played{value>=1 and current_player.hd_switches_completed>=31 and current_player.hd_mp_qualified==0 and current_player.hd_mp_played==0}:
+    - hd_qualify_maverick_and_penny
 
-  # player_hd_switches_completed{value==31 and current_player.hard_deck_missions_played>=1 and current_player.hd_mp_qualified==0 and current_player.hd_mp_played==0}:
-  #   - hd_qualify_maverick_and_penny
+  player_hd_switches_completed{value==31 and current_player.hard_deck_missions_played>=1 and current_player.hd_mp_qualified==0 and current_player.hd_mp_played==0}:
+    - hd_qualify_maverick_and_penny
 
   # --- HONORING ICEMAN (mode 4) ---
   player_iceman_total_completions{value==5 and current_player.hd_hi_qualified==0 and current_player.hd_hi_played==0}:
@@ -811,7 +812,7 @@ event_player:
     - start_mode_hard_deck_playing_with_the_boys
 
   hd_training_choice_hard_deck{current_player.hard_deck_qualified_mode==3}:
-    - start_mode_hard_deck_maverick_and_penny
+    - start_mode_hard_deck_penny
 
   hd_training_choice_hard_deck{current_player.hard_deck_qualified_mode==4}:
     - start_mode_hard_deck_honoring_iceman
@@ -826,7 +827,7 @@ event_player:
     - start_mode_hard_deck_playing_with_the_boys
 
   hd_start_qualified_mode{current_player.hard_deck_qualified_mode==3}:
-    - start_mode_hard_deck_maverick_and_penny
+    - start_mode_hard_deck_penny
 
   hd_start_qualified_mode{current_player.hard_deck_qualified_mode==4}:
     - start_mode_hard_deck_honoring_iceman
@@ -870,7 +871,7 @@ event_player:
     - hd_check_requalify
     - hd_restore_qualified_light
 
-  mode_hard_deck_maverick_and_penny_stopped:
+  mode_hard_deck_penny_stopped:
     - hd_check_requalify
     - hd_restore_qualified_light
 
@@ -883,7 +884,7 @@ event_player:
     - hd_stop_pulse_show
   mode_hard_deck_playing_with_the_boys_started:
     - hd_stop_pulse_show
-  mode_hard_deck_maverick_and_penny_started:
+  mode_hard_deck_penny_started:
     - hd_stop_pulse_show
   mode_hard_deck_honoring_iceman_started:
     - hd_stop_pulse_show

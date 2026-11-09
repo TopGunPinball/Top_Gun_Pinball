@@ -36,7 +36,15 @@ servos:
     reset_events: machine_reset_phase_3
     positions:
       0.33: right_ramp_down
-      0.52: right_ramp_up
+      0.48: right_ramp_up
+      # BALL SEARCH PROBE positions (used only by ball_search_servos.yaml).
+      # Separate events so probe moves never touch right_ramp_true_state,
+      # the elevator sounds, or the right orbit diverter link in base.yaml.
+      # Kept 0.005 (~1 deg) INSIDE the normal range so the probe never
+      # pushes past a hard stop. If you change the real positions above,
+      # move these with them.
+      0.335: bs_right_ramp_down
+      0.475: bs_right_ramp_up
     platform_settings:
       min_us: 500
       home_us: 1500
@@ -56,11 +64,16 @@ servos:
     # reset_events removed — staggered via base.yaml mode_base_started (500ms after right ramp)
     positions:
       0.65: top_ramp_down
-      0.58: top_ramp_up
+      0.56: top_ramp_up
+      # BALL SEARCH PROBE positions (see right ramp note above).
+      # Reversed servo: "inside the range" means 0.645 down / 0.565 up.
+      0.645: bs_top_ramp_down
+      0.565: bs_top_ramp_up
     platform_settings:
       min_us: 500
       home_us: 1500
       max_us: 2500
+      max_runtime: 65535ms
 
   ##############################################
   # LOCK RELEASE SERVO - Port 4

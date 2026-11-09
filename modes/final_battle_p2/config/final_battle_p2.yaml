@@ -37,7 +37,7 @@
 ##     6  Right Ramp, Left Orbit, Top Orbit        (top ramp up until it's hit)
 ##   (the list above is where each missile STARTS - see MOVING MISSILES)
 ## MOVING MISSILES: every 2.5s the missiles move one spot. The spot just left
-##   still counts for 2s (dark).
+##   still counts for 1s (dark).
 ##   Main shots, left to right: LL LO LR SP CNT TWR TL TR/TO RR/RO
 ##     1 main shot in the set  -> starts moving LEFT, bounces end to end
 ##     2 main shots            -> leftmost starts RIGHT, rightmost starts LEFT
@@ -57,7 +57,9 @@
 ##   fired (same flare rules) -> set 7 starts over, until the scoop is made or
 ##   the jets run out. Scoop made -> ball held, flippers off, the other balls
 ##   drain, phase won.
-## ALL BALLS DRAINED: lose a jet, 4 balls back in play with a 20s save.
+## ALL BALLS DRAINED: lose a jet, ONE new ball (the new jet) with a 10s save
+##   (fb_jet_save in final_battle.yaml). More balls come back the normal way:
+##   one per evaded set.
 ## SCORING: 500,000 per shot, 2,000,000 per set completed in time,
 ##   1,000,000 for the scoop  (18 + 6 + 1 = 22,000,000 max)
 ## MISSILES PERK: the first shot of every set is completed automatically.
@@ -160,10 +162,10 @@ timers:
         action: pause
       - event: mode_timers_resume{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}
         action: start
-  # Grace: the spot a missile just left still counts for 2s (dark)
+  # Grace: the spot a missile just left still counts for 1s (dark)
   fb_p2_grace_timer:
     start_value: 0
-    end_value: 2
+    end_value: 1
     tick_interval: 1s
     control_events:
       - event: fb_p2_move
@@ -266,7 +268,7 @@ variable_player:
   ##   fb_p2_loc_N  : where slot N's missile is (location code, 0 = gone)
   ##                  10-18 main shots LL..RR/RO, 20-23 LOCK, 30-35 ICEMAN,
   ##                  40-44 GOOSE (G, O left, O right, S, E)
-  ##   fb_p2_prev_N : spot it just left (counts for 2s), 0 = none
+  ##   fb_p2_prev_N : spot it just left (counts for 1s), 0 = none
   ##   fb_p2_dir_N  : +1 right / -1 left     fb_p2_mov_N : 1 = moves on the timer
   ##   fb_p2_min_N / fb_p2_max_N : ends of its row (bounce points)
   ##   fb_p2_claim_N: 1 = hit (award may still be pending the 1s stack delay)
@@ -488,6 +490,10 @@ event_player:
     - fb_vu_final_battle_phase2_intro
     - fb_left_post_release
     - lock_mech_release
+    # Ramp cleanup: phase 1 can end (one more try) with either ramp still up.
+    # Staggered after the lock servo (lock_mech_release) - never two servos at once.
+    - right_ramp_down|500ms
+    - top_ramp_down|1000ms
     - scoop_ball_release
     - fb_p2_multiball_start
     - fb_scoop_hold_reset|3s   # the multiball took the scoop jet out
@@ -743,10 +749,9 @@ event_player:
     - fb_p2_complete
 
   ##############################################
-  ## ALL BALLS DRAINED -> jet lost -> 4 balls again
+  ## ALL BALLS DRAINED -> jet lost -> ONE new ball (final_battle.yaml's
+  ## fb_save_eject sends it, fb_jet_save gives it 10s). No multiball relaunch.
   ##############################################
-  fb_jet_continue{current_player.fb_phase==2 and current_player.fb_loss_reason==1 and current_player.fb_p2_state<=3}:
-    - fb_p2_relaunch
   fb_jet_continue{current_player.fb_phase==2 and current_player.fb_loss_reason==1 and current_player.fb_p2_state==1}:
     - fb_p2_set_go
 
@@ -766,7 +771,7 @@ event_player:
   ##############################################
   ## MOVING MISSILES
   ##   Main shots (LL LO LR SP CNT TWR TL TR/TO RR/RO) and LOCK / ICEMAN bounce
-  ##   end to end, one spot every 2.5s. The spot just left still counts for 2s
+  ##   end to end, one spot every 2.5s. The spot just left still counts for 1s
   ##   (dark). GOOSE moves with the flippers (ring, like the GOOSE letters).
   ##   Several missiles on one spot: one hit takes them all - awarded 1s apart,
   ##   one fanfare, one callout. The insert flashes 2x (two) / 4x (three).
@@ -810,6 +815,10 @@ event_player:
   # Switches -> spot hit (only while a missile set is live)
   s_lane_left_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
     - fb_p2_at_10
+  # Lit Left Orbit: arm base.yaml's left orbit safe return (right lane post
+  # catches the ball coming down the right lane, then the outlane save)
+  s_orbit_left_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6 and (current_player.fb_p2_loc_1==11 or current_player.fb_p2_prev_1==11 or current_player.fb_p2_loc_2==11 or current_player.fb_p2_prev_2==11 or current_player.fb_p2_loc_3==11 or current_player.fb_p2_prev_3==11)}:
+    - right_lane_safe_return_armed
   left_orbit_shot_hit{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:
     - fb_p2_at_11
   s_ramp_left_exit_active{current_player.fb_p2_state==1 and current_player.fb_p2_set<=6}:

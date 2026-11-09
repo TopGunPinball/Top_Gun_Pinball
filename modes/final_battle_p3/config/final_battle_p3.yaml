@@ -160,6 +160,9 @@ event_player:
   # Intro with the ball held in the scoop
   mode_final_battle_p3_started:
     - fb_vu_final_battle_phase3_intro
+    # Ramp cleanup: start the phase with both ramps down (staggered)
+    - right_ramp_down
+    - top_ramp_down|500ms
   fb_video_done{video=="final_battle_phase3_intro" and current_player.fb_p3_stage==0}:
     - fb_p3_go
   timer_fb_p3_intro_fallback_complete{current_player.fb_p3_stage==0}:
@@ -178,6 +181,10 @@ event_player:
   ##############################################
   s_lane_left_active{(current_player.fb_p3_stage==1 or current_player.fb_p3_stage==3) and current_player.fb_p3_LL==0}:
     - fb_p3_hit_LL
+  # Lit Left Orbit: arm base.yaml's left orbit safe return (right lane post
+  # catches the ball coming down the right lane, then the outlane save)
+  s_orbit_left_active{(current_player.fb_p3_stage==1 or current_player.fb_p3_stage==3) and current_player.fb_p3_LO==0}:
+    - right_lane_safe_return_armed
   left_orbit_shot_hit{(current_player.fb_p3_stage==1 or current_player.fb_p3_stage==3) and current_player.fb_p3_LO==0}:
     - fb_p3_hit_LO
   s_ramp_left_exit_active{(current_player.fb_p3_stage==1 or current_player.fb_p3_stage==3) and current_player.fb_p3_LR==0}:

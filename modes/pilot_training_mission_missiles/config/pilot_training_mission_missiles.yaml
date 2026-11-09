@@ -32,10 +32,10 @@
 #     future Phase 1 and Phase 3). Hit anything else -> bad shot.
 #
 # SCORING (locate / destroy per round):
-#   Round 1: 500,000 / 750,000
-#   Round 2: 650,000 / 900,000
-#   Round 3: 800,000 / 1,050,000   (destroy value is our own pick — see notes)
-#   Round 4: 1,000,000 / 1,250,000 + 2,500,000 mode-complete bonus
+#   Round 1: 650,000 / 950,000
+#   Round 2: 800,000 / 1,150,000
+#   Round 3: 950,000 / 1,350,000   (destroy value is our own pick — see notes)
+#   Round 4: 1,150,000 / 1,500,000 + 3,500,000 mode-complete bonus  (total 12,000,000)
 #
 # VIDEO ASSET MAPPING (only 3 sets of round-specific "destroy" scenes exist):
 #   Round 1 destroy -> missiles_step_3 slide/video
@@ -464,20 +464,20 @@ variable_player:
 
   # Locate scoring + sweep width per round (merged into one block per round)
   missiles_locate_success{current_player.missiles_round==1}:
-    score: 500000 * current_player.total_scoring_multiplier
-    mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
-    missiles_sweep_width: { action: set, int: 4 }
-  missiles_locate_success{current_player.missiles_round==2}:
     score: 650000 * current_player.total_scoring_multiplier
     mode_points_scored: { action: set, int: 650000 * current_player.total_scoring_multiplier }
-    missiles_sweep_width: { action: set, int: 3 }
-  missiles_locate_success{current_player.missiles_round==3}:
+    missiles_sweep_width: { action: set, int: 4 }
+  missiles_locate_success{current_player.missiles_round==2}:
     score: 800000 * current_player.total_scoring_multiplier
     mode_points_scored: { action: set, int: 800000 * current_player.total_scoring_multiplier }
+    missiles_sweep_width: { action: set, int: 3 }
+  missiles_locate_success{current_player.missiles_round==3}:
+    score: 950000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 950000 * current_player.total_scoring_multiplier }
     missiles_sweep_width: { action: set, int: 2 }
   missiles_locate_success{current_player.missiles_round==4}:
-    score: 1000000 * current_player.total_scoring_multiplier
-    mode_points_scored: { action: set, int: 1000000 * current_player.total_scoring_multiplier }
+    score: 1150000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 1150000 * current_player.total_scoring_multiplier }
     missiles_sweep_width: { action: set, int: 1 }
 
   missiles_locate_success:
@@ -513,21 +513,21 @@ variable_player:
   ## PHASE 3 - DESTROY: scoring per round
   ##############################################
   missiles_destroy_success{current_player.missiles_round==1}:
-    score: 750000 * current_player.total_scoring_multiplier
-    mode_points_scored: { action: set, int: 750000 * current_player.total_scoring_multiplier }
+    score: 950000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 950000 * current_player.total_scoring_multiplier }
   missiles_destroy_success{current_player.missiles_round==2}:
-    score: 900000 * current_player.total_scoring_multiplier
-    mode_points_scored: { action: set, int: 900000 * current_player.total_scoring_multiplier }
+    score: 1150000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 1150000 * current_player.total_scoring_multiplier }
   missiles_destroy_success{current_player.missiles_round==3}:
-    score: 1050000 * current_player.total_scoring_multiplier
-    mode_points_scored: { action: set, int: 1050000 * current_player.total_scoring_multiplier }
+    score: 1350000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 1350000 * current_player.total_scoring_multiplier }
   missiles_destroy_success{current_player.missiles_round==4}:
-    score: 1250000 * current_player.total_scoring_multiplier
-    mode_points_scored: { action: set, int: 1250000 * current_player.total_scoring_multiplier }
+    score: 1500000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 1500000 * current_player.total_scoring_multiplier }
 
   missiles_complete_bonus:
-    score: 2500000 * current_player.total_scoring_multiplier
-    mode_points_scored: { action: set, int: 2500000 * current_player.total_scoring_multiplier }
+    score: 3500000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 3500000 * current_player.total_scoring_multiplier }
 
   # Burn whichever shot was this round's target
   missiles_burn_target{current_player.missiles_target==1}:

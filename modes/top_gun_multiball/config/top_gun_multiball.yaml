@@ -1187,7 +1187,13 @@ event_player:
     - radar_penalty_no_hold_ended
 
   # ===== PENALTY: REVERSED FLIPPERS =====
+  # Callout plays immediately (sound_player: radar_penalty_reversed), the
+  # flippers actually reverse 3s later so the player hears the warning and
+  # can let go of any trapped balls first. The 20s penalty timer starts
+  # when the flippers reverse (see penalty_reversed_timer).
   radar_penalty_reversed:
+    - mb_penalty_reversed_engage|3s
+  mb_penalty_reversed_engage:
     - disable_normal_flippers
     - enable_reversed_flippers
   timer_penalty_reversed_timer_complete:
@@ -1404,7 +1410,7 @@ timers:
     tick_interval: 1s
     start_running: false
     control_events:
-      - event: radar_penalty_reversed
+      - event: mb_penalty_reversed_engage    # 3s after radar_penalty_reversed (callout first)
         action: restart
 
   penalty_gi_off_timer:

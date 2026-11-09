@@ -36,6 +36,7 @@ modes:
   - goose_letters
   - hard_deck_charlie
   - hard_deck_honoring_iceman
+  - hard_deck_penny
   - hard_deck_playing_with_the_boys
   - hard_deck_qualifiers
   - iceman_letters
@@ -502,6 +503,18 @@ machine_vars:
     initial_value: 0
     value_type: int
     persist: false
+  # Ball hold guard (ball_search_servos.yaml): 1 while c_left_lane_up_post /
+  # c_right_lane_post is holding a ball. MUST default to 0 — the flipper
+  # release unblock checks ==0, and an undefined (None) var would make that
+  # check fail and leave ball search blocked forever.
+  left_lane_post_held:
+    initial_value: 0
+    value_type: int
+    persist: false
+  right_lane_post_held:
+    initial_value: 0
+    value_type: int
+    persist: false
 
   ##############################################################################
   # HIGH SCORE NAME ENTRY — machine vars for Godot carousel communication
@@ -587,6 +600,8 @@ playfields:
       - mode_hard_deck_playing_with_the_boys_started
       # Honoring Iceman - left lane post hold during intro
       - mode_hard_deck_honoring_iceman_started
+      # Maverick & Penny - left lane post hold during intro
+      - mode_hard_deck_penny_started
       # Flipper holds - block ball search while flippers are held
       - s_flipper_left_active
       - s_flipper_right_active
@@ -607,6 +622,9 @@ playfields:
       # Honoring Iceman - post releases when ball is released from intro hold
       - honoring_iceman_ball_released
       - mode_hard_deck_honoring_iceman_stopped
+      # Maverick & Penny - post releases when the intro ends
+      - penny_ball_released
+      - mode_hard_deck_penny_stopped
       # Flipper releases - unblock only once BOTH flippers are released
       # (posted by ball_search_servos.yaml). Unblocking on either flipper's
       # release let a tap on one flipper restart the 15s countdown while the

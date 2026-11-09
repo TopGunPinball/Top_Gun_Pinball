@@ -97,6 +97,10 @@ timers:
     direction: down
     tick_interval: 1s
     control_events:
+      # Ball drained: stop the clock so it can't expire during the drain
+      # video and re-post battle_jester_failed (double fail / double payout).
+      - event: battle_jester_ball_ending_hold
+        action: stop
       - event: battle_jester_start_timer
         action: start
       # Main clock starts on ball release (intro skip / intro complete, both
@@ -281,7 +285,7 @@ timers:
     control_events:
       - event: battle_jester_drain_detected
         action: start
-      - event: battle_jester_skip_end_video
+      - event: battle_jester_skip_end_video{device.timers.battle_jester_drain_delay.running}
         action: jump
         value: 5
 
@@ -294,7 +298,7 @@ timers:
     control_events:
       - event: battle_jester_complete
         action: start
-      - event: battle_jester_skip_end_video
+      - event: battle_jester_skip_end_video{device.timers.battle_jester_complete_delay.running}
         action: jump
         value: 5
 
@@ -307,7 +311,7 @@ timers:
     control_events:
       - event: battle_jester_failed
         action: start
-      - event: battle_jester_skip_end_video
+      - event: battle_jester_skip_end_video{device.timers.battle_jester_failed_delay.running}
         action: jump
         value: 5
         
@@ -320,7 +324,7 @@ timers:
     control_events:
       - event: battle_jester_tower_won
         action: start
-      - event: battle_jester_skip_end_video
+      - event: battle_jester_skip_end_video{device.timers.battle_jester_tower_won_delay.running}
         action: jump
         value: 5
         
@@ -333,7 +337,7 @@ timers:
     control_events:
       - event: battle_jester_tower_lost
         action: start
-      - event: battle_jester_skip_end_video
+      - event: battle_jester_skip_end_video{device.timers.battle_jester_tower_lost_delay.running}
         action: jump
         value: 5
 
@@ -1211,8 +1215,8 @@ event_player:
   s_lane_left_active{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks >= 20 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
 
-  spinner_shot_made{current_player.battle_jester_step==0 and device.timers.battle_jester_step_1_timer.ticks >= 10 and device.timers.battle_jester_spinner_lockout.running==False and current_player.battle_jester_step_locked==0}:
-    - battle_jester_subtract_time_red
+  # (spinner red/penalty handler removed - the spinner is never a penalty;
+  #  it's the path to TR/TL/TO shots. Timed-out or off-step spinner = neutral.)
 
   ##############################################
   ## STEP 2 - Green: upper_orbit, spinner, barrier, tower
@@ -1244,8 +1248,8 @@ event_player:
   s_orbit_upper_active{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks >= 10 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
 
-  spinner_shot_made{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks >= 20 and device.timers.battle_jester_spinner_lockout.running==False and current_player.battle_jester_step_locked==0}:
-    - battle_jester_subtract_time_red
+  # (spinner red/penalty handler removed - the spinner is never a penalty;
+  #  it's the path to TR/TL/TO shots. Timed-out or off-step spinner = neutral.)
 
   s_barrier_target_active{current_player.battle_jester_step==1 and device.timers.battle_jester_step_2_timer.ticks >= 30 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
@@ -1309,8 +1313,8 @@ event_player:
     - orbit_left_safe_return_clear|700ms
 
   # RED shots
-  spinner_shot_made{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks >= 10 and device.timers.battle_jester_spinner_lockout.running==False and current_player.battle_jester_step_locked==0}:
-    - battle_jester_subtract_time_red
+  # (spinner red/penalty handler removed - the spinner is never a penalty;
+  #  it's the path to TR/TL/TO shots. Timed-out or off-step spinner = neutral.)
 
   left_orbit_shot_hit{current_player.battle_jester_step==3 and device.timers.battle_jester_step_4_timer.ticks >= 20 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
@@ -1572,8 +1576,8 @@ event_player:
     - battle_jester_subtract_time_red
   s_ramp_left_exit_active{current_player.battle_jester_step==2 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  spinner_shot_made{current_player.battle_jester_step==2 and device.timers.battle_jester_spinner_lockout.running==False and current_player.battle_jester_step_locked==0}:
-    - battle_jester_subtract_time_red
+  # (spinner red/penalty handler removed - the spinner is never a penalty;
+  #  it's the path to TR/TL/TO shots. Timed-out or off-step spinner = neutral.)
   s_barrier_target_active{current_player.battle_jester_step==2 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
   s_ramp_tower_exit_active{current_player.battle_jester_step==2 and current_player.battle_jester_step_locked==0}:
@@ -1606,8 +1610,8 @@ event_player:
     - battle_jester_subtract_time_red
   s_ramp_left_exit_active{current_player.battle_jester_step==4 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  spinner_shot_made{current_player.battle_jester_step==4 and device.timers.battle_jester_spinner_lockout.running==False and current_player.battle_jester_step_locked==0}:
-    - battle_jester_subtract_time_red
+  # (spinner red/penalty handler removed - the spinner is never a penalty;
+  #  it's the path to TR/TL/TO shots. Timed-out or off-step spinner = neutral.)
   s_barrier_target_active{current_player.battle_jester_step==4 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
   s_ramp_tower_exit_active{current_player.battle_jester_step==4 and current_player.battle_jester_step_locked==0}:
@@ -1628,8 +1632,8 @@ event_player:
     - battle_jester_subtract_time_red
   s_flight_gear_target_active{current_player.battle_jester_step==6 and current_player.battle_jester_step_locked==0}:
     - battle_jester_subtract_time_red
-  spinner_shot_made{current_player.battle_jester_step==6 and device.timers.battle_jester_spinner_lockout.running==False and current_player.battle_jester_step_locked==0}:
-    - battle_jester_subtract_time_red
+  # (spinner red/penalty handler removed - the spinner is never a penalty;
+  #  it's the path to TR/TL/TO shots. Timed-out or off-step spinner = neutral.)
 
   # Step 10 red shots (after ramps complete, trying to hit left lane)
   # Green: left_lane (goal), spinner & right_orbit (helpers - activate diverter)
@@ -2323,7 +2327,7 @@ show_player:
 
   battle_jester_step_1_tick_10:
     flash_step1_spinner:
-      show: jester_solid_red
+      show: jester_off   # spinner never a penalty - goes dark (neutral)
       key: mode_l_shot_spinner
       loops: -1
       show_tokens:
@@ -2439,7 +2443,7 @@ show_player:
 
   timer_battle_jester_step_2_timer_tick{ticks==20}:
     flash_step2_spinner:
-      show: jester_solid_red
+      show: jester_off   # spinner never a penalty - goes dark (neutral)
       key: mode_l_shot_spinner
       loops: -1
       show_tokens:
@@ -2607,7 +2611,7 @@ show_player:
 
   timer_battle_jester_step_4_timer_tick{ticks==10}:
     flash_step4_spinner:
-      show: jester_solid_red
+      show: jester_off   # spinner never a penalty - goes dark (neutral)
       key: mode_l_shot_spinner
       loops: -1
       show_tokens:
@@ -3130,7 +3134,7 @@ light_player:
   # Spinner: orange → red at 20s
   timer_battle_jester_step_2_timer_tick{ticks==20}:
     l_shot_spinner:
-      color: red
+      color: off   # spinner never a penalty
 
   # Barrier: green → orange at 28s
   timer_battle_jester_step_2_timer_tick{ticks==27}:
@@ -3194,7 +3198,7 @@ light_player:
       color: red
       fade: 0ms
     l_shot_spinner:
-      color: red
+      color: off   # spinner never a penalty
       fade: 0ms
     l_shot_barrier:
       color: red
@@ -3304,7 +3308,7 @@ light_player:
   # Spinner: orange → red at 10s
   timer_battle_jester_step_4_timer_tick{ticks==10}:
     l_shot_spinner:
-      color: red
+      color: off   # spinner never a penalty
 
   # NOTE: ramp_left never turns orange/red — it's the "always available" shot for step 4
   # (matches event_player which has no time condition for s_ramp_left_exit in step 4)
@@ -3368,7 +3372,7 @@ light_player:
       color: red
       fade: 0ms
     l_shot_spinner:
-      color: red
+      color: off   # spinner never a penalty
       fade: 0ms
     l_shot_barrier:
       color: red
@@ -3469,7 +3473,7 @@ light_player:
       color: red
       fade: 0ms
     l_shot_spinner:
-      color: red
+      color: off   # spinner never a penalty
       fade: 0ms
 
   ##############################################

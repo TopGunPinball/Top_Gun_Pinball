@@ -4,12 +4,16 @@
 # GREAT BALLS OF FIRE - PILOT MISSION MODE
 # Priority: 600
 #
-# PHASE 1 (this file): 60s collection phase.
+# PHASE 1 (this file): 120s collection phase.
 #   Hit LO, LR, TWR, or RR 3x to forge a multiball ball.
 #   Insert colors:  0 hits=green flash | 1 hit=yellow flash
 #                   2 hits=orange flash | 3 hits=fire anim (stays lit)
 #   Timer expires with 0 balls → LOST (42s video, skippable).
-#   Timer expires with 1-4 balls → TRANSITION to Phase 2 multiball.
+#   Timer expires with 1-4 balls → barrier drops, shoot the scoop to start
+#   the Phase 2 multiball (12s intro hold in the scoop).
+#   DRAIN with 1+ balls forged (any time before the scoop shot, including
+#   after the timer ran out) → forge ball save returns the ball and the MB
+#   starts straight away with forged+1 balls (gbof_drain_to_phase2).
 #
 # PHASE 2 (next session): Multiball using gbof_mb_ball_count balls.
 #   Ball count: balls_collected+1, capped at 4 if 2 in TGMB lock, else 5.
@@ -55,7 +59,9 @@ multiballs:
     ball_count_type: total
     shoot_again: 15s
     start_events: gbof_mb_start
-    stop_events: mode_great_balls_of_fire_will_stop
+    # No mode_xxx_will_stop stop_event: MPF stops a RUNNING multiball itself when
+    # the mode ends. An explicit stop on a multiball that never started leaves a
+    # stray ball_drain handler (posts multiball_xxx_ended on a later drain).
     add_a_ball_events: gbof_add_a_ball
     ball_locks:
     source_playfield: playfield
@@ -112,9 +118,18 @@ ball_saves:
   # gbof_collection_complete), so the save can safely hand off there. This
   # covers the entire "ball still loose on the playfield after barrier drop"
   # window that was previously unprotected.
+  #
+  # NO TIME LIMIT (was active_time: 130s): the 130s countdown started at the
+  # FIRST forged ball, so forging early left little or no protection during the
+  # "shoot the scoop" wait after the timer ran out — a drain there failed the
+  # mode and lost the MB despite forged balls. active_time: 0 = MPF keeps the
+  # save on until a disable event. Rule now: once at least 1 ball is forged, a
+  # drain at ANY point before the scoop shot starts the MB with forged+1 balls.
+  # gbof_mb_start is a safety disable so this save can never be live during
+  # the MB itself (balls_to_save: 1 already turns it off after one save).
   gbof_phase1_forge_save:
-    active_time: 130s                # covers the full 120s Phase 1 timer + buffer
-    hurry_up_time: 2s
+    active_time: 0                   # no timeout — on until scoop hit / MB start / ball end
+    hurry_up_time: 0
     grace_period: 500ms
     auto_launch: false    # CHANGED: was true. Same reason as gbof_launch_ball_save above.
     balls_to_save: 1
@@ -122,6 +137,7 @@ ball_saves:
       - gbof_ball_forged
     disable_events:
       - gbof_scoop_hit_for_mb
+      - gbof_mb_start
       - ball_will_end
 
 ####################################################################################
@@ -260,7 +276,7 @@ timers:
     control_events:
       - event: gbof_failed
         action: start
-      - event: gbof_skip_end_video
+      - event: gbof_skip_end_video{device.timers.gbof_failed_delay.running}
         action: jump
         value: 42
 
@@ -274,7 +290,7 @@ timers:
     control_events:
       - event: gbof_complete
         action: start
-      - event: gbof_skip_end_video
+      - event: gbof_skip_end_video{device.timers.gbof_complete_delay.running}
         action: jump
         value: 30
 
@@ -288,7 +304,7 @@ timers:
     control_events:
       - event: gbof_drain_detected
         action: start
-      - event: gbof_skip_end_video
+      - event: gbof_skip_end_video{device.timers.gbof_drain_delay.running}
         action: jump
         value: 5
 
@@ -736,51 +752,51 @@ variable_player:
     gbof_p2_lo_hits: { action: set, int: 1 }
     score: { action: add, int: 150000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 150000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 150000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 75000 * current_player.total_scoring_multiplier }
   gbof_p2_lo_hit_2:
     gbof_p2_lo_hits: { action: set, int: 2 }
     score: { action: add, int: 300000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 300000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 300000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 150000 * current_player.total_scoring_multiplier }
   gbof_p2_lo_jp:
     gbof_p2_lo_hits: { action: set, int: 3 }
     gbof_p2_lo_complete: { action: set, int: 1 }
     gbof_p2_shots_completed: { action: add, int: 1 }
     score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 500000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 250000 * current_player.total_scoring_multiplier }
 
   # LR — 250K / 500K / 750K
   gbof_p2_lr_hit_1:
     gbof_p2_lr_hits: { action: set, int: 1 }
     score: { action: add, int: 250000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 250000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 125000 * current_player.total_scoring_multiplier }
   gbof_p2_lr_hit_2:
     gbof_p2_lr_hits: { action: set, int: 2 }
     score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 500000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 250000 * current_player.total_scoring_multiplier }
   gbof_p2_lr_jp:
     gbof_p2_lr_hits: { action: set, int: 3 }
     gbof_p2_lr_complete: { action: set, int: 1 }
     gbof_p2_shots_completed: { action: add, int: 1 }
     score: { action: add, int: 750000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 750000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 750000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 375000 * current_player.total_scoring_multiplier }
 
   # SP — 150K / 300K / 500K
   gbof_p2_sp_hit_1:
     gbof_p2_sp_hits: { action: set, int: 1 }
     score: { action: add, int: 150000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 150000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 150000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 75000 * current_player.total_scoring_multiplier }
     gbof_p2_sp_lockout: { action: set, int: 1 }
   gbof_p2_sp_hit_2:
     gbof_p2_sp_hits: { action: set, int: 2 }
     score: { action: add, int: 300000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 300000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 300000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 150000 * current_player.total_scoring_multiplier }
     gbof_p2_sp_lockout: { action: set, int: 1 }
   gbof_p2_sp_jp:
     gbof_p2_sp_hits: { action: set, int: 3 }
@@ -788,7 +804,7 @@ variable_player:
     gbof_p2_shots_completed: { action: add, int: 1 }
     score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 500000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 250000 * current_player.total_scoring_multiplier }
     gbof_p2_sp_lockout: { action: set, int: 1 }
 
   # Spinner settle timer expired → clear lockout so next 3-spin sequence can count
@@ -800,76 +816,76 @@ variable_player:
     gbof_p2_twr_hits: { action: set, int: 1 }
     score: { action: add, int: 250000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 250000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 125000 * current_player.total_scoring_multiplier }
   gbof_p2_twr_hit_2:
     gbof_p2_twr_hits: { action: set, int: 2 }
     score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 500000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 250000 * current_player.total_scoring_multiplier }
   gbof_p2_twr_jp:
     gbof_p2_twr_hits: { action: set, int: 3 }
     gbof_p2_twr_complete: { action: set, int: 1 }
     gbof_p2_shots_completed: { action: add, int: 1 }
     score: { action: add, int: 750000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 750000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 750000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 375000 * current_player.total_scoring_multiplier }
 
   # TL (Top Loop) — 500K / 750K / 1M
   gbof_p2_tl_hit_1:
     gbof_p2_tl_hits: { action: set, int: 1 }
     score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 500000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 250000 * current_player.total_scoring_multiplier }
   gbof_p2_tl_hit_2:
     gbof_p2_tl_hits: { action: set, int: 2 }
     score: { action: add, int: 750000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 750000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 750000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 375000 * current_player.total_scoring_multiplier }
   gbof_p2_tl_jp:
     gbof_p2_tl_hits: { action: set, int: 3 }
     gbof_p2_tl_complete: { action: set, int: 1 }
     gbof_p2_shots_completed: { action: add, int: 1 }
     score: { action: add, int: 1000000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 1000000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 1000000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 500000 * current_player.total_scoring_multiplier }
 
   # TR (Top Ramp) — 500K / 750K / 1M
   gbof_p2_tr_hit_1:
     gbof_p2_tr_hits: { action: set, int: 1 }
     score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 500000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 250000 * current_player.total_scoring_multiplier }
   gbof_p2_tr_hit_2:
     gbof_p2_tr_hits: { action: set, int: 2 }
     score: { action: add, int: 750000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 750000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 750000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 375000 * current_player.total_scoring_multiplier }
   gbof_p2_tr_jp:
     gbof_p2_tr_hits: { action: set, int: 3 }
     gbof_p2_tr_complete: { action: set, int: 1 }
     gbof_p2_shots_completed: { action: add, int: 1 }
     score: { action: add, int: 1000000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 1000000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 1000000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 500000 * current_player.total_scoring_multiplier }
 
   # RR — 250K / 500K / 750K
   gbof_p2_rr_hit_1:
     gbof_p2_rr_hits: { action: set, int: 1 }
     score: { action: add, int: 250000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 250000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 125000 * current_player.total_scoring_multiplier }
   gbof_p2_rr_hit_2:
     gbof_p2_rr_hits: { action: set, int: 2 }
     score: { action: add, int: 500000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 500000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 500000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 250000 * current_player.total_scoring_multiplier }
   gbof_p2_rr_jp:
     gbof_p2_rr_hits: { action: set, int: 3 }
     gbof_p2_rr_complete: { action: set, int: 1 }
     gbof_p2_shots_completed: { action: add, int: 1 }
     score: { action: add, int: 750000 * current_player.total_scoring_multiplier }
     mode_points_scored: { action: set, int: 750000 * current_player.total_scoring_multiplier }
-    gbof_super_jackpot_value: { action: add, int: 750000 * current_player.total_scoring_multiplier }
+    gbof_super_jackpot_value: { action: add, int: 375000 * current_player.total_scoring_multiplier }
 
   # ── SUPER JACKPOT STATE ────────────────────────────────────────────────────────
   gbof_super_now_lit:
@@ -878,6 +894,8 @@ variable_player:
       int: 1
 
   # ── SUPER JACKPOT COLLECTED: score + full reset ─────────────────────────────────
+  # Super jackpot = HALF the Phase 2 shot total (each shot adds half its
+  # score to gbof_super_jackpot_value above). Was the full total.
   gbof_super_jackpot_collected:
     score:
       action: add
@@ -1222,6 +1240,14 @@ event_player:
   # the longer trough → shooter → playfield round trip).
   ball_save_gbof_phase1_forge_save_saving_ball:
     - gbof_drain_to_phase2
+
+  # Drain during the "shoot the scoop" wait (step 2): the barrier is already
+  # DOWN and flashing (normal path dropped it). The drain-recovery MB runs with
+  # the barrier UP, so raise it now — before the saved ball is relaunched — and
+  # stop the flash (show_player, same event). The start_mb slide and
+  # gbof_mb_intro_hold are already cleared by gbof_mb_start.
+  ball_save_gbof_phase1_forge_save_saving_ball{current_player.gbof_step==2}:
+    - barrier_raise
 
   gbof_drain_to_phase2:
     - gbof_collection_complete       # step=2, init p2 vars, disable forge save, kill p1 timer
@@ -2064,6 +2090,14 @@ show_player:
   # ── SCOOP HIT FOR MB: stop intro barrier flash the instant ball is captured ───────
   gbof_scoop_hit_for_mb:
     stop_intro_barrier_on_hit:
+      show: sync_flash_mode
+      action: stop
+      key: gbof_intro_barrier_flash
+
+  # ── DRAIN DURING SCOOP WAIT: stop intro barrier flash (barrier raised in
+  # event_player on the same event; MB starts via the drain-recovery path) ──────
+  ball_save_gbof_phase1_forge_save_saving_ball{current_player.gbof_step==2}:
+    stop_intro_barrier_on_drain:
       show: sync_flash_mode
       action: stop
       key: gbof_intro_barrier_flash

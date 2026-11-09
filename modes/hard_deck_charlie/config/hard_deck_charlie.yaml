@@ -13,7 +13,7 @@
 # 4 non-final any-order: LO, LR, TWR, RR (right ramp DOWN)
 # Each insert turns off when hit. Scoring: 350K / 600K / 800K / 1M × multiplier.
 # After 4: barrier drops, l_shot_barrier lights pink (500ms flash).
-# Final: s_mode_start (5M × multiplier). Won 10s, lost 7s.
+# Final: s_mode_start (2.5M × multiplier). Won 10s, lost 7s.
 # Decision: left/timeout = continue → stage 2; right = exit.
 #
 # === STAGE 2 ===   GI: yellow
@@ -847,14 +847,14 @@ variable_player:
   ##############################################
   ## FINAL SHOT HITS - Stage perks
   ##############################################
-  # Stage 1 final (barrier scoop): 5M
+  # Stage 1 final (barrier scoop): 2.5M
   charlie_stage_1_final_shot_hit:
     charlie_timer_live:
       action: set
       int: 0
     score:
       action: add
-      int: 5000000 * current_player.total_scoring_multiplier
+      int: 2500000 * current_player.total_scoring_multiplier
     charlie_stage_1_final_shot_lit:
       action: set
       int: 0
@@ -863,7 +863,7 @@ variable_player:
       int: -1
     mode_points_scored:
       action: set
-      int: 5000000 * current_player.total_scoring_multiplier
+      int: 2500000 * current_player.total_scoring_multiplier
     # Clearing stage 1 counts as BEATING Charlie (rank merit + 5th-win video).
     # Set once; never cleared, so a later stage loss doesn't undo it.
     mode_hard_deck_charlie_won:
@@ -924,8 +924,8 @@ variable_player:
       action: set
       int: 5000000 * current_player.total_scoring_multiplier
 
-  # Stage 4 final (scoop captured): 5M + extra ball (light_extra_ball)
-  # Stage 4 final (scoop captured): 5M + extra ball award.
+  # Stage 4 final (scoop captured): 2.5M + extra ball (light_extra_ball)
+  # Stage 4 final (scoop captured): 2.5M + extra ball award.
   # We set extra_ball_lit directly here instead of firing light_extra_ball
   # in event_player, because that event triggers goose_letters to play the
   # extra_ball_lit_video slide on top of the charlie stage 4 won video.
@@ -938,7 +938,7 @@ variable_player:
       int: 0
     score:
       action: add
-      int: 5000000 * current_player.total_scoring_multiplier
+      int: 2500000 * current_player.total_scoring_multiplier
     charlie_stage_4_final_shot_lit:
       action: set
       int: 0
@@ -950,7 +950,7 @@ variable_player:
       int: 1                  # Stage 4 = mode fully complete
     mode_points_scored:
       action: set
-      int: 5000000 * current_player.total_scoring_multiplier
+      int: 2500000 * current_player.total_scoring_multiplier
     extra_ball_lit:
       action: set
       int: 1                  # Direct award — bypasses light_extra_ball event chain

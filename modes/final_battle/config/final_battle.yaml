@@ -29,6 +29,9 @@
 ##     the single-ball grace save, every multiball device, auto-plunge
 ##   - lights: every letter / shot insert off at priority 600 (phase modes
 ##     light their own shots at 610); GI color per phase; explosion GI
+##   - VIDEO LIGHT SHOWS: every intro and won video plays its insert show
+##     (modes/final_battle/shows/final_battle_<video>.yaml) + solid GI
+##     (fb_gi_solid_color) in the phase color - see show_player
 ##   - SHOT FANFARE: fb_fanfare (every shot made) -> 1s GI flicker in the
 ##     phase color + one of 8 random light shows (final_battle_fanfare_01..08
 ##     in modes/final_battle/shows/)
@@ -123,6 +126,19 @@ ball_saves:
     auto_launch: false
     enable_events: fb_grace_save_enable
     disable_events: fb_grace_save_disable, fb_end_game, tilt, ball_will_end
+  # NEW JET save: 15s after a lost jet's replacement is plunged (every
+  # phase + the landing; a lost jet is always ONE new ball, never a
+  # multiball relaunch). Enabled on fb_jet_continue; the 10s only start counting when
+  # the ball leaves the shooter lane (8s fallback if that's never seen).
+  # >>> Length: active_time below + fb_sa_off_at (2s less) further down.
+  # Also turned off everywhere the grace save is (fb_grace_save_disable).
+  fb_jet_save:
+    active_time: 15
+    balls_to_save: -1
+    auto_launch: false
+    enable_events: fb_jet_save_enable
+    timer_start_events: balldevice_bd_plunger_ball_eject_success, fb_jet_save_fallback
+    disable_events: fb_jet_save_disable, fb_grace_save_disable, fb_end_game, tilt, ball_will_end
 
 ##############################################################################
 ## MULTIBALLS (all here so the last-ball save can check their shoot-again)
@@ -159,7 +175,8 @@ multiballs:
     add_a_ball_shoot_again: 7s
     start_or_add_a_ball_events: fb_p2_add_ball
     stop_events: fb_mb_stop_saves, fb_end_game
-  # All jets drained -> jet lost -> 4 balls again, 20s save
+  # NOT USED any more (a lost jet = one ball + fb_jet_save). Kept so
+  # the shoot_again checks below still resolve.
   fb_p2_relaunch:
     ball_count: 4
     ball_count_type: total
@@ -181,6 +198,7 @@ multiballs:
     add_a_ball_shoot_again: 30s
     start_or_add_a_ball_events: fb_p4_add_ball
     stop_events: fb_mb_stop_saves, fb_end_game
+  # NOT USED any more either (same reason)
   fb_p4_relaunch:
     ball_count: 2
     ball_count_type: total
@@ -518,6 +536,8 @@ variable_player:
   # Shoot Again light: when to turn it off (save length - 2s)
   fb_grace_save_enable:
     fb_sa_off_at: { action: set, int: current_player.fb_grace_secs - 2 }
+  ball_save_fb_jet_save_timer_start:
+    fb_sa_off_at: { action: set, int: 13 }
   multiball_fb_p2_multiball_started:
     fb_sa_off_at: { action: set, int: 18 }
   multiball_fb_p2_relaunch_started:
@@ -587,6 +607,10 @@ event_player:
   ##############################################
   fb_grace_save_enable:
     - fb_sa_start
+  ball_save_fb_jet_save_timer_start:
+    - fb_sa_start
+  ball_save_fb_jet_save_disabled:
+    - fb_sa_off
   multiball_fb_p2_multiball_started:
     - fb_sa_start
   multiball_fb_p2_relaunch_started:
@@ -1075,7 +1099,7 @@ event_player:
   ## phase modes post fb_lose_jet themselves for timer / missile losses.
   ##############################################
   # (MPF posts this with balls=0 when it declines to save during multiball)
-  ball_save_fb_last_ball_save_saving_ball{balls>0 and current_player.fb_phase>=1 and current_player.fb_phase<=5 and current_player.fb_losing==0 and device.multiballs.fb_p2_multiball.shoot_again==False and device.multiballs.fb_p2_adder.shoot_again==False and device.multiballs.fb_p2_relaunch.shoot_again==False and device.multiballs.fb_p4_multiball.shoot_again==False and device.multiballs.fb_p4_adder.shoot_again==False and device.multiballs.fb_p4_relaunch.shoot_again==False and device.ball_saves.fb_grace_save.enabled==False}:
+  ball_save_fb_last_ball_save_saving_ball{balls>0 and current_player.fb_phase>=1 and current_player.fb_phase<=5 and current_player.fb_losing==0 and device.multiballs.fb_p2_multiball.shoot_again==False and device.multiballs.fb_p2_adder.shoot_again==False and device.multiballs.fb_p2_relaunch.shoot_again==False and device.multiballs.fb_p4_multiball.shoot_again==False and device.multiballs.fb_p4_adder.shoot_again==False and device.multiballs.fb_p4_relaunch.shoot_again==False and device.ball_saves.fb_grace_save.enabled==False and device.ball_saves.fb_jet_save.enabled==False}:
     - fb_loss_drain
     - fb_lose_jet
   # The save caught a drain that does NOT cost a jet (grace save running, a
@@ -1083,7 +1107,7 @@ event_player:
   # straight back out, like before the save held balls in the trough. Only
   # one more try keeps it waiting (fb_omt_hold). Without this the ball sat in
   # the trough with nothing to release it - no ball, and later two at once.
-  ball_save_fb_last_ball_save_saving_ball{balls>0 and current_player.fb_omt_hold==0 and not (current_player.fb_phase>=1 and current_player.fb_phase<=5 and current_player.fb_losing==0 and device.multiballs.fb_p2_multiball.shoot_again==False and device.multiballs.fb_p2_adder.shoot_again==False and device.multiballs.fb_p2_relaunch.shoot_again==False and device.multiballs.fb_p4_multiball.shoot_again==False and device.multiballs.fb_p4_adder.shoot_again==False and device.multiballs.fb_p4_relaunch.shoot_again==False and device.ball_saves.fb_grace_save.enabled==False)}:
+  ball_save_fb_last_ball_save_saving_ball{balls>0 and current_player.fb_omt_hold==0 and not (current_player.fb_phase>=1 and current_player.fb_phase<=5 and current_player.fb_losing==0 and device.multiballs.fb_p2_multiball.shoot_again==False and device.multiballs.fb_p2_adder.shoot_again==False and device.multiballs.fb_p2_relaunch.shoot_again==False and device.multiballs.fb_p4_multiball.shoot_again==False and device.multiballs.fb_p4_adder.shoot_again==False and device.multiballs.fb_p4_relaunch.shoot_again==False and device.ball_saves.fb_grace_save.enabled==False and device.ball_saves.fb_jet_save.enabled==False)}:
     - fb_save_eject
   fb_lose_jet{current_player.fb_losing==0 and current_player.fb_phase<=5 and current_player.fb_jets>2}:
     - fb_jet_lost_normal
@@ -1115,6 +1139,10 @@ event_player:
   fb_jet_continue:
     - fb_save_eject
     - fb_save_check     # (not changed while a loss is in progress)
+  # New jet launched after a DRAIN (one ball out): 15s ball save
+  fb_jet_continue{current_player.fb_loss_reason==1 and current_player.fb_phase>=1 and current_player.fb_phase<=5}:
+    - fb_jet_save_enable
+    - fb_jet_save_fallback|8s
 
   # LAST-BALL SAVE ON THE LAST JET: off, so the final drain ends the ball
   # (nothing is ever ejected for it). Back on if a phase 1 lock makes the
@@ -3324,9 +3352,145 @@ show_player:
   fb_sa_off:
     fb_sa_light:
       action: stop
+  ##############################################
+  ## VIDEO LIGHT SHOWS - intro and won videos
+  ##   Inserts: modes/final_battle/shows/final_battle_<video>.yaml (inserts
+  ##     only - no GI, no MAV / GOOSE lock lights), priority 5 = above the
+  ##     "everything off" lights and the shot fanfare, BELOW the phase modes'
+  ##     lit shots (610), so live shots still show through.
+  ##     EXCEPTION: final_battle_phase3_intro carries its own green-fade GI.
+  ##   GI: fb_gi_solid_color = every GI + apron light solid in the phase
+  ##     color, priority 4 (under the jet-lost explosion, 5).
+  ##   speed: 25 = 25 show steps (frames) per second (phase 3 intro: 10).
+  ##     >>> If a show runs too fast / slow, change speed: here (each entry).
+  ##   ALL shows start on fb_video_started (Godot confirms the video is on
+  ##   screen). Do NOT start them on the fb_vu_* request: an urgent intro
+  ##   cuts off the won video before it, and Godot reports that won video's
+  ##   fb_video_done AFTER the request - which stopped the new intro show.
+  ##   They stop when that video finishes / is skipped, or another starts.
+  ##############################################
+  # intro (white, the phase 1 GI color)
+  fb_video_started{video=="final_battle_intro"}:
+    final_battle_intro:
+      key: fb_vid_inserts
+      loops: -1
+      speed: 25
+      priority: 5
+    fb_gi_solid_color:
+      key: fb_vid_gi
+      priority: 4
+      show_tokens:
+        color: FFFFFF
+  # phase 1 won (white)
+  fb_video_started{video=="final_battle_phase1_won"}:
+    final_battle_phase1_won:
+      key: fb_vid_inserts
+      loops: -1
+      speed: 25
+      priority: 5
+    fb_gi_solid_color:
+      key: fb_vid_gi
+      priority: 4
+      show_tokens:
+        color: FFFFFF
+  # phase 2 intro (light blue)
+  fb_video_started{video=="final_battle_phase2_intro"}:
+    final_battle_phase2_intro:
+      key: fb_vid_inserts
+      loops: -1
+      speed: 25
+      priority: 5
+    fb_gi_solid_color:
+      key: fb_vid_gi
+      priority: 4
+      show_tokens:
+        color: 66CCFF
+  # phase 2 won (light blue)
+  fb_video_started{video=="final_battle_phase2_won"}:
+    final_battle_phase2_won:
+      key: fb_vid_inserts
+      loops: -1
+      speed: 25
+      priority: 5
+    fb_gi_solid_color:
+      key: fb_vid_gi
+      priority: 4
+      show_tokens:
+        color: 66CCFF
+  # phase 3 intro - the show has its own green-fade GI, so no solid GI
+  fb_video_started{video=="final_battle_phase3_intro"}:
+    final_battle_phase3_intro:
+      key: fb_vid_inserts
+      loops: -1
+      speed: 10   # phase 3 intro stays at 10
+      priority: 5
+    fb_vid_gi:
+      action: stop
+  # phase 3 won (green)
+  fb_video_started{video=="final_battle_phase3_won"}:
+    final_battle_phase3_won:
+      key: fb_vid_inserts
+      loops: -1
+      speed: 25
+      priority: 5
+    fb_gi_solid_color:
+      key: fb_vid_gi
+      priority: 4
+      show_tokens:
+        color: 66FF66
+  # phase 4 intro (orange)
+  fb_video_started{video=="final_battle_phase4_intro"}:
+    final_battle_phase4_intro:
+      key: fb_vid_inserts
+      loops: -1
+      speed: 25
+      priority: 5
+    fb_gi_solid_color:
+      key: fb_vid_gi
+      priority: 4
+      show_tokens:
+        color: FFAA33
+  # phase 4 won = phase4_step_9 (orange)
+  fb_video_started{video=="final_battle_phase4_step_9"}:
+    final_battle_phase4_won:
+      key: fb_vid_inserts
+      loops: -1
+      speed: 25
+      priority: 5
+    fb_gi_solid_color:
+      key: fb_vid_gi
+      priority: 4
+      show_tokens:
+        color: FFAA33
+  # Video over (finished or skipped)
+  fb_video_done{video=="final_battle_intro" or video=="final_battle_phase1_won" or video=="final_battle_phase2_intro" or video=="final_battle_phase2_won" or video=="final_battle_phase3_intro" or video=="final_battle_phase3_won" or video=="final_battle_phase4_intro" or video=="final_battle_phase4_step_9"}:
+    fb_vid_inserts:
+      action: stop
+    fb_vid_gi:
+      action: stop
+  # Something else took over the screen (jet explosion, step video, ...)
+  fb_video_started{video!="final_battle_intro" and video!="final_battle_phase1_won" and video!="final_battle_phase2_intro" and video!="final_battle_phase2_won" and video!="final_battle_phase3_intro" and video!="final_battle_phase3_won" and video!="final_battle_phase4_intro" and video!="final_battle_phase4_step_9"}:
+    fb_vid_inserts:
+      action: stop
+    fb_vid_gi:
+      action: stop
+  fb_failed:
+    fb_vid_inserts:
+      action: stop
+    fb_vid_gi:
+      action: stop
+  tilt:
+    fb_vid_inserts:
+      action: stop
+    fb_vid_gi:
+      action: stop
   # Victory GI + insert sparkle (tally + victory video)
   # fb_insert_sparkle: modes/final_battle/shows/fb_insert_sparkle.yaml
   fb_victory:
+    fb_vid_inserts:
+      action: stop
+    fb_vid_gi:
+      action: stop
     fb_gi_sparkle:
       key: fb_gi_sparkle
       loops: -1
@@ -3341,6 +3505,20 @@ show_player:
       key: fb_gi_explosion
       loops: 4
       priority: 5
+  # Points tally after a LOSS: "debrief" light show timed to the tally rows
+  # (shows/fb_tally_lights.yaml). A win uses the victory sparkle instead.
+  fb_tally_start{current_player.fb_result==2}:
+    fb_tally_lights:
+      key: fb_tally_lights
+      loops: 0
+      priority: 4
+  fb_end_game:
+    fb_tally_lights:
+      action: stop
+    fb_vid_inserts:
+      action: stop
+    fb_vid_gi:
+      action: stop
 
 ##############################################################################
 ## RANDOM EVENT PLAYER - shot fanfare light show (never the same twice in a row)
@@ -3553,3 +3731,15 @@ sound_player:
         attack: 150ms
         release: 600ms
         release_point: 0
+  # Points tally after a LOSS: tally music (the lost video has already
+  # silenced the phase music). A win doesn't need it - the victory video
+  # carries its own audio. Silenced when the game ends.
+  # >>> music_final_battle_tally is a NEW sound - add the file (see notes).
+  fb_tally_start{current_player.fb_result==2}:
+    music_final_battle_tally:
+      bus: music
+      loops: -1
+  fb_end_game:
+    silence:
+      bus: music
+      loops: 0

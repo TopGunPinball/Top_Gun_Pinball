@@ -42,6 +42,30 @@ timers:
       - event: wingman_post_win_plunge_start
         action: start
 
+  ##############################################
+  ## PILOT MISSION AUTO-PLUNGE (5 seconds)
+  ## Skillshot is killed during pilot missions (stop_mode_skillshot in
+  ## event_player), so a ball served to the shooter lane mid-mission
+  ## (e.g. the replacement ball after a TGMB lock) would otherwise sit there.
+  ## Fires c_plunger via coil_player: timer_pilot_mode_auto_plunge_delay_complete.
+  ## Skipped for: saved balls (ball_save.yaml auto-plunges those), multiball
+  ## (each MB mode runs its own auto-plunger), ejection seat, Final Battle.
+  ## Stops if the player plunges by hand first.
+  ##############################################
+  pilot_mode_auto_plunge_delay:
+    start_value: 0
+    end_value: 5
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: s_shooter_lane_active{current_player.pilot_mode_active==1 and current_player.ball_just_saved==0 and current_player.multiball_active==0 and mode.ejection_seat.active==False and mode.final_battle.active==False}
+        action: restart
+      - event: s_shooter_lane_inactive
+        action: stop
+      - event: ball_will_end
+        action: stop
+
   # Wingman post-win: 1 second delay after plunge before MiG fires
   wingman_post_win_mig_delay:
     start_value: 0
@@ -250,6 +274,31 @@ timers:
       - event: mode_base_will_stop
         action: stop
 
+  ##############################################
+  ## TOP RAMP HOLD REFRESH
+  ## servo_top_ramp_lifter has max_runtime: 65535ms (config_servos.yaml).
+  ## The FAST board stops sending pulses after that, the servo goes limp,
+  ## and the metal ramp sags. Re-send top_ramp_up every 50s while the ramp
+  ## is up to restart the hold. The ramp is already in position, so nothing
+  ## moves and there's no current spike - safe even if it lands at the same
+  ## moment as a right ramp move.
+  ## Restarted by every top_ramp_up (including the refresh itself and the
+  ## ball search restore); stopped by top_ramp_down and end of ball.
+  ##############################################
+  top_ramp_hold_refresh:
+    start_value: 0
+    end_value: 50
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: top_ramp_up
+        action: restart
+      - event: top_ramp_down
+        action: stop
+      - event: mode_base_will_stop
+        action: stop
+
 event_player:
   mode_base_started:
     - start_mode_bumpers
@@ -262,8 +311,11 @@ event_player:
   ##    ramp's tracked state (ramp_snd_*_state, 0=down 1=up) differs.
   ##    State is updated in the derived *_moved_* events (variable_player),
   ##    never on the servo event itself, so there's no same-event race.
-  ## 2) Ignored during ball search (probe movements stay silent; state
-  ##    stays frozen at the pre-search value, matching the restore).
+  ## 2) Ball search probes are silent: they use their own bs_* servo
+  ##    events (config_servos.yaml), so they never reach these handlers.
+  ##    A real ramp command during a search still plays its sound and
+  ##    updates the state; the restore afterwards then matches and stays
+  ##    silent.
   ## 3) Arbitration:
   ##    - Up move: play elevator_up unless one played <1s ago; cancel any
   ##      pending down sound.
@@ -271,13 +323,13 @@ event_player:
   ##      pending/just played; otherwise wait 700ms, then play elevator_down.
   ##    Result: mixed pair = up only; same-direction pair = one sound.
   ##############################################
-  right_ramp_up{machine.ball_search_active_flag==0 and machine.ramp_snd_right_state==0}:
+  right_ramp_up{machine.ramp_snd_right_state==0}:
     - ramp_snd_right_moved_up
-  right_ramp_down{machine.ball_search_active_flag==0 and machine.ramp_snd_right_state==1}:
+  right_ramp_down{machine.ramp_snd_right_state==1}:
     - ramp_snd_right_moved_down
-  top_ramp_up{machine.ball_search_active_flag==0 and machine.ramp_snd_top_state==0}:
+  top_ramp_up{machine.ramp_snd_top_state==0}:
     - ramp_snd_top_moved_up
-  top_ramp_down{machine.ball_search_active_flag==0 and machine.ramp_snd_top_state==1}:
+  top_ramp_down{machine.ramp_snd_top_state==1}:
     - ramp_snd_top_moved_down
 
   ramp_snd_right_moved_up:
@@ -295,6 +347,16 @@ event_player:
     - ramp_snd_down_pending_start
   timer_ramp_snd_down_pending_complete:
     - ramp_snd_play_down
+
+  ##############################################
+  ## TOP RAMP HOLD REFRESH (see timer above)
+  ## Skipped during ball search so it can't fight the search's servo probes.
+  ## Ball search restores the ramp with top_ramp_up (ball_search_servos.yaml
+  ## ball_search_restore_top), which restarts the timer.
+  ## Silent: ramp_snd_top_state is already 1, so no elevator sound plays.
+  ##############################################
+  timer_top_ramp_hold_refresh_complete{machine.ball_search_active_flag==0}:
+    - top_ramp_up
 
   ##############################################
   ## COMPOSITE SHOT EVENTS
@@ -559,6 +621,11 @@ variable_player:
   ## Track whether a mode has requested the diverter ON
   ## so we can restore it after shooter lane suppression
   ##############################################
+  ##############################################
+  ## RAMP TRUE-STATE TRACKING (for ball search recovery) is merged into
+  ## the two right ramp blocks here and the top ramp blocks below — see
+  ## RAMP TRUE-STATE TRACKING.
+  ##############################################
   right_ramp_up:
     right_orbit_diverter_requested:
       action: set
@@ -566,6 +633,9 @@ variable_player:
     diverter_temporarily_disabled:
       action: set
       int: 0
+    right_ramp_true_state:
+      action: set_machine
+      int: 1
 
   right_ramp_down:
     right_orbit_diverter_requested:
@@ -574,33 +644,29 @@ variable_player:
     diverter_temporarily_disabled:
       action: set
       int: 0
-
-  ##############################################
-  ## RAMP TRUE-STATE TRACKING (for ball search recovery)
-  ## Tracks what each ramp servo is actually supposed to be commanded to,
-  ## per the active mode/game logic. Gated on ball_search_active_flag==0
-  ## so ball_search_servos.yaml's own probe movements during a search
-  ## never overwrite this — it stays frozen at the pre-search value for
-  ## the whole search (including repeat cycles), and ball_search_servos.yaml
-  ## reads it on ball_search_stopped to restore the correct position instead
-  ## of blindly forcing both ramps down.
-  ##############################################
-  right_ramp_up{machine.ball_search_active_flag==0}:
-    right_ramp_true_state:
-      action: set_machine
-      int: 1
-
-  right_ramp_down{machine.ball_search_active_flag==0}:
     right_ramp_true_state:
       action: set_machine
       int: 0
 
-  top_ramp_up{machine.ball_search_active_flag==0}:
+  ##############################################
+  ## RAMP TRUE-STATE TRACKING (for ball search recovery)
+  ## Tracks the last position the GAME asked each ramp to be in.
+  ## ball_search_servos.yaml reads it when ball search stops and puts each
+  ## ramp back there.
+  ## NOT gated on ball search any more: the search probes now use their own
+  ## bs_* events (config_servos.yaml), so right_ramp_up/top_ramp_up/etc. only
+  ## ever come from the game. The old gate is what lost PTB's right_ramp_up:
+  ## it was sent while the search was still flagged active, got ignored, and
+  ## the restore lowered the ramp 3ms later.
+  ## (Right ramp entries are in the right_ramp_up/right_ramp_down blocks
+  ## above — a second right_ramp_up key here would be a duplicate.)
+  ##############################################
+  top_ramp_up:
     top_ramp_true_state:
       action: set_machine
       int: 1
 
-  top_ramp_down{machine.ball_search_active_flag==0}:
+  top_ramp_down:
     top_ramp_true_state:
       action: set_machine
       int: 0
@@ -1167,7 +1233,8 @@ coil_player:
     c_plunger:
       action: pulse
 
-  # Pilot/training mode auto-plunge after 500ms
+  # Pilot mission auto-plunge 5s after a ball lands in the shooter lane
+  # (timer: pilot_mode_auto_plunge_delay in timers above)
   timer_pilot_mode_auto_plunge_delay_complete:
     c_plunger:
       action: pulse
@@ -1690,6 +1757,13 @@ slide_player:
     great_balls_of_fire_ball_4:
       action: remove
 
+  # Maverick & Penny (Hard Deck) — mode points scored slide
+  penny_show_points:
+    mode_points_scored:
+      action: play
+      priority: 840
+      expire: 2s
+
   # Great Balls of Fire — mode points scored slide
   gbof_show_points:
     mode_points_scored:
@@ -1808,7 +1882,7 @@ sound_player:
   # great_balls_of_fire (Phase 2 super jackpot scoop must not cut music),
   # hard_deck_honoring_iceman (winning shot, video keeps playing through full mode),
   # and hard_deck_charlie (stage 1 barrier shot, music plays through stages 1/2/3 won/lost)
-  s_mode_start_active{(mode.battle_jester.active==False or current_player.battle_jester_step!=5) and (mode.hard_deck_playing_with_the_boys.active==False or current_player.ptb_step!=7) and mode.mystery_award.active==False and mode.no_points_for_second_place.active==False and mode.great_balls_of_fire.active==False and mode.hard_deck_honoring_iceman.active==False and mode.hard_deck_charlie.active==False and mode.final_battle.active==False}:
+  s_mode_start_active{(mode.battle_jester.active==False or current_player.battle_jester_step!=5) and (mode.hard_deck_playing_with_the_boys.active==False or current_player.ptb_step!=7) and mode.mystery_award.active==False and mode.no_points_for_second_place.active==False and mode.great_balls_of_fire.active==False and mode.hard_deck_honoring_iceman.active==False and mode.hard_deck_penny.active==False and mode.hard_deck_charlie.active==False and mode.final_battle.active==False}:
     silence:
       bus: music
       loops: 0
@@ -2211,6 +2285,28 @@ sound_player:
 
   # Restart base music when mode stops (but NOT if drain pending — bonus will handle it)
   mode_hard_deck_honoring_iceman_stopped{current_player.pilot_mode_drain_pending==0}:
+    music_danger_zone:
+      bus: music
+      loops: -1
+
+####################################################################################
+  # Maverick & Penny (Hard Deck) Music Handler
+####################################################################################
+
+  # Music starts when the balls are released (after the intro video)
+  penny_ball_released:
+    music_hard_deck_penny:
+      bus: music
+      loops: -1
+
+  # Silence for the lost video
+  penny_failed:
+    silence:
+      bus: music
+      loops: 0
+
+  # Restart base music when mode stops (but NOT if drain pending — bonus will handle it)
+  mode_hard_deck_penny_stopped{current_player.pilot_mode_drain_pending==0}:
     music_danger_zone:
       bus: music
       loops: -1

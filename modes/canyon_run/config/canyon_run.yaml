@@ -543,6 +543,10 @@ timers:
     tick_interval: 1s
     start_running: false
     control_events:
+      # Ball drained: stop the clock so it can't expire during the drain
+      # video and re-post canyon_run_failed (double fail / double payout).
+      - event: canyon_run_ball_ending_hold
+        action: stop
       - event: canyon_run_ball_released
         action: start
       - event: timer_canyon_run_complete_delay_start
@@ -611,7 +615,7 @@ timers:
     control_events:
       - event: timer_canyon_run_failed_delay_start
         action: start
-      - event: canyon_run_skip_end_video
+      - event: canyon_run_skip_end_video{device.timers.canyon_run_failed_delay.running}
         action: jump
         value: 0
 
@@ -624,7 +628,7 @@ timers:
     control_events:
       - event: canyon_run_drain_detected
         action: start
-      - event: canyon_run_skip_end_video
+      - event: canyon_run_skip_end_video{device.timers.canyon_run_drain_delay.running}
         action: jump
         value: 12
 

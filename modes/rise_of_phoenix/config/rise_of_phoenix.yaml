@@ -161,10 +161,10 @@ variable_player:
     rise_of_phoenix_step:
       action: set
       int: 1
-    score: 150000 * current_player.total_scoring_multiplier
+    score: 400000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 150000 * current_player.total_scoring_multiplier
+      int: 400000 * current_player.total_scoring_multiplier
     shots_remaining_phoenix:
       action: add
       int: -1
@@ -174,10 +174,10 @@ variable_player:
     rise_of_phoenix_step:
       action: set
       int: 2
-    score: 250000 * current_player.total_scoring_multiplier
+    score: 550000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 250000 * current_player.total_scoring_multiplier
+      int: 550000 * current_player.total_scoring_multiplier
     shots_remaining_phoenix:
       action: add
       int: -1
@@ -187,10 +187,10 @@ variable_player:
     rise_of_phoenix_step:
       action: set
       int: 3
-    score: 350000 * current_player.total_scoring_multiplier
+    score: 700000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 350000 * current_player.total_scoring_multiplier
+      int: 700000 * current_player.total_scoring_multiplier
     shots_remaining_phoenix:
       action: add
       int: -1
@@ -200,10 +200,10 @@ variable_player:
     rise_of_phoenix_step:
       action: set
       int: 4
-    score: 450000 * current_player.total_scoring_multiplier
+    score: 850000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 450000 * current_player.total_scoring_multiplier
+      int: 850000 * current_player.total_scoring_multiplier
     shots_remaining_phoenix:
       action: add
       int: -1
@@ -213,10 +213,10 @@ variable_player:
     rise_of_phoenix_step:
       action: set
       int: 5
-    score: 550000 * current_player.total_scoring_multiplier
+    score: 1000000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 550000 * current_player.total_scoring_multiplier
+      int: 1000000 * current_player.total_scoring_multiplier
     shots_remaining_phoenix:
       action: add
       int: -1
@@ -226,10 +226,10 @@ variable_player:
     rise_of_phoenix_step:
       action: set
       int: 6
-    score: 650000 * current_player.total_scoring_multiplier
+    score: 1100000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 650000 * current_player.total_scoring_multiplier
+      int: 1100000 * current_player.total_scoring_multiplier
     shots_remaining_phoenix:
       action: add
       int: -1
@@ -239,10 +239,10 @@ variable_player:
     rise_of_phoenix_step:
       action: set
       int: 7
-    score: 500000 * current_player.total_scoring_multiplier
+    score: 750000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 500000 * current_player.total_scoring_multiplier
+      int: 750000 * current_player.total_scoring_multiplier
     shots_remaining_phoenix:
       action: add
       int: -1
@@ -255,10 +255,10 @@ variable_player:
     missiles_perk_blocked:
       action: set
       int: 1
-    score: 800000 * current_player.total_scoring_multiplier
+    score: 1400000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 800000 * current_player.total_scoring_multiplier
+      int: 1400000 * current_player.total_scoring_multiplier
     shots_remaining_phoenix:
       action: add
       int: -1
@@ -268,10 +268,10 @@ variable_player:
     rise_of_phoenix_step:
       action: set
       int: 9
-    score: 1000000 * current_player.total_scoring_multiplier
+    score: 1750000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 1000000 * current_player.total_scoring_multiplier
+      int: 1750000 * current_player.total_scoring_multiplier
     shots_remaining_phoenix:
       action: set
       int: 0
@@ -331,37 +331,37 @@ variable_player:
     rise_of_phoenix_lock_l:
       action: set
       int: 1
-    score: 200000 * current_player.total_scoring_multiplier
+    score: 250000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 200000 * current_player.total_scoring_multiplier
+      int: 250000 * current_player.total_scoring_multiplier
 
   rise_of_phoenix_lock_o_hit:
     rise_of_phoenix_lock_o:
       action: set
       int: 1
-    score: 200000 * current_player.total_scoring_multiplier
+    score: 250000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 200000 * current_player.total_scoring_multiplier
+      int: 250000 * current_player.total_scoring_multiplier
 
   rise_of_phoenix_lock_c_hit:
     rise_of_phoenix_lock_c:
       action: set
       int: 1
-    score: 200000 * current_player.total_scoring_multiplier
+    score: 250000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 200000 * current_player.total_scoring_multiplier
+      int: 250000 * current_player.total_scoring_multiplier
 
   rise_of_phoenix_lock_k_hit:
     rise_of_phoenix_lock_k:
       action: set
       int: 1
-    score: 200000 * current_player.total_scoring_multiplier
+    score: 250000 * current_player.total_scoring_multiplier
     mode_points_scored:
       action: set
-      int: 200000 * current_player.total_scoring_multiplier
+      int: 250000 * current_player.total_scoring_multiplier
 
   rise_of_phoenix_lock_target_hit:
     rise_of_phoenix_lock_count:
@@ -408,6 +408,10 @@ timers:
     tick_interval: 1s
     start_running: false
     control_events:
+      # Ball drained: stop the clock so it can't expire during the drain
+      # video and re-post rise_of_phoenix_failed (double fail / double payout).
+      - event: rise_of_phoenix_ball_ending_hold
+        action: stop
       - event: rise_of_phoenix_ball_released
         action: start
       - event: timer_rise_of_phoenix_complete_delay_start
@@ -454,7 +458,7 @@ timers:
     control_events:
       - event: timer_rise_of_phoenix_complete_delay_start
         action: start
-      - event: rise_of_phoenix_skip_end_video
+      - event: rise_of_phoenix_skip_end_video{device.timers.rise_of_phoenix_complete_delay.running}
         action: jump
         value: 0
 
@@ -467,7 +471,7 @@ timers:
     control_events:
       - event: timer_rise_of_phoenix_failed_delay_start
         action: start
-      - event: rise_of_phoenix_skip_end_video
+      - event: rise_of_phoenix_skip_end_video{device.timers.rise_of_phoenix_failed_delay.running}
         action: jump
         value: 0
 
@@ -481,7 +485,7 @@ timers:
     control_events:
       - event: rise_of_phoenix_drain_detected
         action: start
-      - event: rise_of_phoenix_skip_end_video
+      - event: rise_of_phoenix_skip_end_video{device.timers.rise_of_phoenix_drain_delay.running}
         action: jump
         value: 4
 

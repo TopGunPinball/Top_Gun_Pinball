@@ -495,11 +495,23 @@ variable_player:
       action: set
       string: Won
 
-  # Maverick & Penny (not coded yet - no mode)
-  status_set_penny_hd_not_coded:
+  # Maverick & Penny (hard_deck_penny - CODED)
+  status_set_penny_hd_not_qualified:
     status_penny_hd:
       action: set
-      string: Not Coded Yet
+      string: Not Qualified
+  status_set_penny_hd_qualified:
+    status_penny_hd:
+      action: set
+      string: Qualified!
+  status_set_penny_hd_lost:
+    status_penny_hd:
+      action: set
+      string: Lost
+  status_set_penny_hd_won:
+    status_penny_hd:
+      action: set
+      string: Won
 
   ##############################################
   ## PAGE 4: Current hard deck mode lit
@@ -661,7 +673,7 @@ variable_player:
   ## Rank chart thresholds read machine vars rank_threshold_1..5 directly.
   ## Merit chart values: the amount, or "Collected" once it can't be earned
   ## again (numbers here must match rank_promotions.yaml).
-  ## NOTE: the "18" mission counts become 19 when Penny is added.
+  ## Mission counts are 19 (10 pilot + 5 training + 4 hard deck incl. Penny).
   ##############################################
   mode_status_mode_started{current_player.rank_level==0}:
     status_rank_next:
@@ -716,19 +728,19 @@ variable_player:
     status_merit_remaining:
       action: set
       int: 0
-  mode_status_mode_started{(current_player.rank_played_rescue_cougar + current_player.rank_played_balls_of_fire + current_player.rank_played_cool_under_pressure + current_player.rank_played_battle_jester + current_player.rank_played_no_points_for_second_place + current_player.rank_played_no_margin_for_error + current_player.rank_played_rise_of_phoenix + current_player.rank_played_canyon_run + current_player.rank_played_below_the_hard_deck + current_player.rank_played_edge_of_space + current_player.rank_played_inverted + current_player.rank_played_missiles + current_player.rank_played_wingman + current_player.rank_played_afterburner + current_player.rank_played_dogfight + current_player.rank_played_charlie + current_player.rank_played_ptb + current_player.rank_played_iceman)<18}:
+  mode_status_mode_started{(current_player.rank_played_rescue_cougar + current_player.rank_played_balls_of_fire + current_player.rank_played_cool_under_pressure + current_player.rank_played_battle_jester + current_player.rank_played_no_points_for_second_place + current_player.rank_played_no_margin_for_error + current_player.rank_played_rise_of_phoenix + current_player.rank_played_canyon_run + current_player.rank_played_below_the_hard_deck + current_player.rank_played_edge_of_space + current_player.rank_played_inverted + current_player.rank_played_missiles + current_player.rank_played_wingman + current_player.rank_played_afterburner + current_player.rank_played_dogfight + current_player.rank_played_charlie + current_player.rank_played_ptb + current_player.rank_played_iceman + current_player.rank_played_penny)<19}:
     status_merit_played:
       action: set
       string: "2 each"
-  mode_status_mode_started{(current_player.rank_played_rescue_cougar + current_player.rank_played_balls_of_fire + current_player.rank_played_cool_under_pressure + current_player.rank_played_battle_jester + current_player.rank_played_no_points_for_second_place + current_player.rank_played_no_margin_for_error + current_player.rank_played_rise_of_phoenix + current_player.rank_played_canyon_run + current_player.rank_played_below_the_hard_deck + current_player.rank_played_edge_of_space + current_player.rank_played_inverted + current_player.rank_played_missiles + current_player.rank_played_wingman + current_player.rank_played_afterburner + current_player.rank_played_dogfight + current_player.rank_played_charlie + current_player.rank_played_ptb + current_player.rank_played_iceman)>=18}:
+  mode_status_mode_started{(current_player.rank_played_rescue_cougar + current_player.rank_played_balls_of_fire + current_player.rank_played_cool_under_pressure + current_player.rank_played_battle_jester + current_player.rank_played_no_points_for_second_place + current_player.rank_played_no_margin_for_error + current_player.rank_played_rise_of_phoenix + current_player.rank_played_canyon_run + current_player.rank_played_below_the_hard_deck + current_player.rank_played_edge_of_space + current_player.rank_played_inverted + current_player.rank_played_missiles + current_player.rank_played_wingman + current_player.rank_played_afterburner + current_player.rank_played_dogfight + current_player.rank_played_charlie + current_player.rank_played_ptb + current_player.rank_played_iceman + current_player.rank_played_penny)>=19}:
     status_merit_played:
       action: set
       string: "Collected"
-  mode_status_mode_started{current_player.rank_modes_beaten<18}:
+  mode_status_mode_started{current_player.rank_modes_beaten<19}:
     status_merit_beaten:
       action: set
       string: "5 each"
-  mode_status_mode_started{current_player.rank_modes_beaten>=18}:
+  mode_status_mode_started{current_player.rank_modes_beaten>=19}:
     status_merit_beaten:
       action: set
       string: "Collected"
@@ -1061,7 +1073,6 @@ event_player:
   ## hd_*_played / hd_*_qualified are set in hard_deck_qualifiers (persist).
   ## Each mode's OWN won flag is used (hard_deck_missions_won is shared by
   ## PTB and Honoring Iceman, so it can't tell them apart).
-  ## Penny: no mode yet → Not Coded Yet
   ##############################################
 
   # Playing With The Boys
@@ -1094,9 +1105,15 @@ event_player:
   mode_status_mode_started{current_player.hd_mc_played==0 and current_player.hd_mc_qualified==0}:
     - status_set_charlie_hd_not_qualified
 
-  # Penny (NOT CODED)
-  mode_status_mode_started{current_player.hd_penny_actually_played==0}:
-    - status_set_penny_hd_not_coded
+  # Maverick & Penny (CODED)
+  mode_status_mode_started{current_player.hd_mp_played==1 and current_player.mode_hard_deck_penny_won==1}:
+    - status_set_penny_hd_won
+  mode_status_mode_started{current_player.hd_mp_played==1 and current_player.mode_hard_deck_penny_won==0}:
+    - status_set_penny_hd_lost
+  mode_status_mode_started{current_player.hd_mp_played==0 and current_player.hd_mp_qualified==1}:
+    - status_set_penny_hd_qualified
+  mode_status_mode_started{current_player.hd_mp_played==0 and current_player.hd_mp_qualified==0}:
+    - status_set_penny_hd_not_qualified
 
   # Current hard deck lit (hard_deck_qualified_mode: 0=none, 1=Charlie, 2=PTB, 3=Penny, 4=ICEMAN)
   mode_status_mode_started{current_player.hard_deck_qualified_mode==0}:

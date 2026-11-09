@@ -12,15 +12,19 @@
 # PERK: Earned when step 6 jackpot collected, stays active for rest of ball
 #
 # MODE PROGRESSION:
-# Step 1: Collect 50 switches (2,500 pts each to bank)
-# Step 2: Jackpot at CNT target (collects bank)
-# Step 3: Collect 100 switches (3,000 pts each)
+# Step 1: Collect 25 switches  (40,000 each to the jackpot)  -> J1 ~1,000,000
+# Step 2: Jackpot at CNT target (switches keep adding 40,000 until it's shot)
+# Step 3: Collect 50 switches  (45,000 each)                 -> J2 ~2,250,000
 # Step 4: Jackpot at CNT target
-# Step 5: Collect 150 switches (3,500 pts each)
+# Step 5: Collect 100 switches (50,000 each)                 -> J3 ~5,000,000
 # Step 6: Jackpot at CNT target - MODE WON, perk active
-# Step 7: Collect 200 switches (5,000 pts each)
+# Step 7: Collect 150 switches (25,000 each)                 -> J4 ~3,750,000
 # Step 8: Jackpot at CNT target
 # Step 9: Super jackpot at LL (sum of 4 jackpots), then restart at step 1
+# (All values x total_scoring_multiplier.)
+# TARGET: a normal win (3 jackpots, plus the extra switches while each jackpot
+# is lit) is about 9.4M, plus about 2.6M from ~8 progressive mode-shot hits
+# (150K, 200K ... 500K) = about 12M. Values were 10K/12.5K/15K/17.5K.
 #
 # MODE SHOTS: All-shots-lit progressive (LO, LR, SP, TWR, TL, TR, RR all lit
 # together)
@@ -72,7 +76,9 @@ multiballs:
     ball_count_type: total
     shoot_again: 15s
     start_events: pilot_training_mission_inverted_start_multiball
-    stop_events: mode_pilot_training_mission_inverted_will_stop
+    # No mode_xxx_will_stop stop_event: MPF stops a RUNNING multiball itself when
+    # the mode ends. An explicit stop on a multiball that never started leaves a
+    # stray ball_drain handler (posts multiball_xxx_ended on a later drain).
     add_a_ball_events: pilot_training_mission_inverted_add_a_ball
     ball_locks: 
     source_playfield: playfield
@@ -334,10 +340,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_bumper_center_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -348,10 +354,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_bumper_right_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -362,10 +368,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_slingshot_left_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -376,10 +382,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_slingshot_right_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -390,10 +396,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_spinner_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -404,10 +410,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_inlane_left_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -418,10 +424,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_inner_inlane_right_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -432,10 +438,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_outer_inlane_right_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -446,10 +452,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_outlane_left_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -460,10 +466,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_outlane_right_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -474,10 +480,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_mig_lane_left_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -488,10 +494,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_mig_lane_right_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -502,10 +508,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_lane_left_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -516,10 +522,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_orbit_left_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -530,10 +536,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_orbit_upper_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -544,10 +550,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_orbit_lower_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -558,10 +564,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_orbit_right_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -572,10 +578,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_i_iceman_target_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -586,10 +592,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_c_iceman_target_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -600,10 +606,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_e_iceman_target_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -614,10 +620,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_m_iceman_target_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -628,10 +634,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_a_iceman_target_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -642,10 +648,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_n_iceman_target_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -656,10 +662,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_l_lock_target_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -670,10 +676,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_o_lock_target_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -684,10 +690,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_c_lock_target_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -698,10 +704,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_k_lock_target_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -712,10 +718,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_flight_gear_target_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -726,10 +732,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_ramp_left_exit_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -740,10 +746,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_ramp_right_exit_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -754,10 +760,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_ramp_inner_exit_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -768,10 +774,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_ramp_tower_exit_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -782,10 +788,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_lock_mav_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -796,10 +802,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_lock_goose_active{current_player.pilot_training_mission_inverted_step==1}:
     pilot_training_mission_inverted_switches_hit:
@@ -810,10 +816,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   ##############################################
   ## Step 2: Jackpot Lit - Continue adding to jackpot value (2,500 pts each)
@@ -823,177 +829,177 @@ variable_player:
   s_bumper_left_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_bumper_center_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_bumper_right_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_slingshot_left_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_slingshot_right_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_spinner_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_inlane_left_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_inner_inlane_right_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_outer_inlane_right_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_outlane_left_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_outlane_right_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_mig_lane_left_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_mig_lane_right_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_lane_left_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_orbit_left_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_orbit_upper_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_orbit_lower_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_orbit_right_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_i_iceman_target_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_c_iceman_target_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_e_iceman_target_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_m_iceman_target_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_a_iceman_target_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_n_iceman_target_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_l_lock_target_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_o_lock_target_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_c_lock_target_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_k_lock_target_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_flight_gear_target_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_ramp_left_exit_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_ramp_right_exit_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_ramp_inner_exit_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_ramp_tower_exit_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_lock_mav_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   s_lock_goose_active{current_player.pilot_training_mission_inverted_step==2}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 10000 * current_player.total_scoring_multiplier
+      int: 40000 * current_player.total_scoring_multiplier
 
   ##############################################
   ## Step 3: 3,000 points per switch (100 switches needed)
@@ -1008,10 +1014,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_bumper_center_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1022,10 +1028,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_bumper_right_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1036,10 +1042,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_slingshot_left_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1050,10 +1056,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_slingshot_right_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1064,10 +1070,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_spinner_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1078,10 +1084,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_inlane_left_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1092,10 +1098,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_inner_inlane_right_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1106,10 +1112,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_outer_inlane_right_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1120,10 +1126,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_outlane_left_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1134,10 +1140,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_outlane_right_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1148,10 +1154,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_mig_lane_left_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1162,10 +1168,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_mig_lane_right_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1176,10 +1182,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_lane_left_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1190,10 +1196,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_orbit_left_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1204,10 +1210,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_orbit_upper_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1218,10 +1224,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_orbit_lower_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1232,10 +1238,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_orbit_right_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1246,10 +1252,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_i_iceman_target_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1260,10 +1266,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_c_iceman_target_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1274,10 +1280,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_e_iceman_target_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1288,10 +1294,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_m_iceman_target_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1302,10 +1308,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_a_iceman_target_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1316,10 +1322,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_n_iceman_target_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1330,10 +1336,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_l_lock_target_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1344,10 +1350,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_o_lock_target_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1358,10 +1364,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_c_lock_target_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1372,10 +1378,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_k_lock_target_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1386,10 +1392,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_flight_gear_target_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1400,10 +1406,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_ramp_left_exit_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1414,10 +1420,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_ramp_right_exit_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1428,10 +1434,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_ramp_inner_exit_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1442,10 +1448,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_ramp_tower_exit_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1456,10 +1462,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_lock_mav_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1470,10 +1476,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_lock_goose_active{current_player.pilot_training_mission_inverted_step==3}:
     pilot_training_mission_inverted_switches_hit:
@@ -1484,10 +1490,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   ##############################################
   ## Step 4: Jackpot Lit - Continue adding to jackpot value (3,000 pts each)
@@ -1497,177 +1503,177 @@ variable_player:
   s_bumper_left_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_bumper_center_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_bumper_right_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_slingshot_left_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_slingshot_right_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_spinner_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_inlane_left_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_inner_inlane_right_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_outer_inlane_right_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_outlane_left_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_outlane_right_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_mig_lane_left_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_mig_lane_right_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_lane_left_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_orbit_left_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_orbit_upper_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_orbit_lower_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_orbit_right_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_i_iceman_target_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_c_iceman_target_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_e_iceman_target_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_m_iceman_target_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_a_iceman_target_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_n_iceman_target_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_l_lock_target_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_o_lock_target_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_c_lock_target_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_k_lock_target_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_flight_gear_target_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_ramp_left_exit_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_ramp_right_exit_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_ramp_inner_exit_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_ramp_tower_exit_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_lock_mav_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   s_lock_goose_active{current_player.pilot_training_mission_inverted_step==4}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 12500 * current_player.total_scoring_multiplier
+      int: 45000 * current_player.total_scoring_multiplier
 
   ##############################################
   ## Step 5: 3,500 points per switch (150 switches needed)
@@ -1682,10 +1688,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_bumper_center_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1696,10 +1702,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_bumper_right_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1710,10 +1716,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_slingshot_left_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1724,10 +1730,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_slingshot_right_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1738,10 +1744,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_spinner_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1752,10 +1758,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_inlane_left_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1766,10 +1772,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_inner_inlane_right_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1780,10 +1786,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_outer_inlane_right_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1794,10 +1800,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_outlane_left_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1808,10 +1814,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_outlane_right_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1822,10 +1828,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_mig_lane_left_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1836,10 +1842,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_mig_lane_right_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1850,10 +1856,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_lane_left_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1864,10 +1870,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_orbit_left_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1878,10 +1884,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_orbit_upper_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1892,10 +1898,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_orbit_lower_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1906,10 +1912,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_orbit_right_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1920,10 +1926,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_i_iceman_target_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1934,10 +1940,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_c_iceman_target_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1948,10 +1954,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_e_iceman_target_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1962,10 +1968,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_m_iceman_target_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1976,10 +1982,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_a_iceman_target_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -1990,10 +1996,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_n_iceman_target_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -2004,10 +2010,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_l_lock_target_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -2018,10 +2024,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_o_lock_target_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -2032,10 +2038,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_c_lock_target_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -2046,10 +2052,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_k_lock_target_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -2060,10 +2066,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_flight_gear_target_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -2074,10 +2080,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_ramp_left_exit_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -2088,10 +2094,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_ramp_right_exit_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -2102,10 +2108,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_ramp_inner_exit_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -2116,10 +2122,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_ramp_tower_exit_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -2130,10 +2136,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_lock_mav_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -2144,10 +2150,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_lock_goose_active{current_player.pilot_training_mission_inverted_step==5}:
     pilot_training_mission_inverted_switches_hit:
@@ -2158,10 +2164,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   ##############################################
   ## Step 6: Jackpot Lit - Continue adding to jackpot value (3,500 pts each)
@@ -2171,177 +2177,177 @@ variable_player:
   s_bumper_left_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_bumper_center_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_bumper_right_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_slingshot_left_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_slingshot_right_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_spinner_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_inlane_left_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_inner_inlane_right_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_outer_inlane_right_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_outlane_left_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_outlane_right_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_mig_lane_left_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_mig_lane_right_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_lane_left_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_orbit_left_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_orbit_upper_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_orbit_lower_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_orbit_right_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_i_iceman_target_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_c_iceman_target_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_e_iceman_target_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_m_iceman_target_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_a_iceman_target_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_n_iceman_target_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_l_lock_target_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_o_lock_target_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_c_lock_target_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_k_lock_target_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_flight_gear_target_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_ramp_left_exit_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_ramp_right_exit_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_ramp_inner_exit_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_ramp_tower_exit_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_lock_mav_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   s_lock_goose_active{current_player.pilot_training_mission_inverted_step==6}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 15000 * current_player.total_scoring_multiplier
+      int: 50000 * current_player.total_scoring_multiplier
 
   ##############################################
   ## Step 7: 5,000 points per switch (200 switches needed)
@@ -2356,10 +2362,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_bumper_center_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2370,10 +2376,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_bumper_right_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2384,10 +2390,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_slingshot_left_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2398,10 +2404,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_slingshot_right_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2412,10 +2418,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_spinner_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2426,10 +2432,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_inlane_left_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2440,10 +2446,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_inner_inlane_right_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2454,10 +2460,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_outer_inlane_right_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2468,10 +2474,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_outlane_left_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2482,10 +2488,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_outlane_right_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2496,10 +2502,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_mig_lane_left_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2510,10 +2516,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_mig_lane_right_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2524,10 +2530,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_lane_left_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2538,10 +2544,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_orbit_left_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2552,10 +2558,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_orbit_upper_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2566,10 +2572,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_orbit_lower_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2580,10 +2586,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_orbit_right_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2594,10 +2600,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_i_iceman_target_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2608,10 +2614,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_c_iceman_target_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2622,10 +2628,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_e_iceman_target_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2636,10 +2642,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_m_iceman_target_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2650,10 +2656,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_a_iceman_target_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2664,10 +2670,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_n_iceman_target_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2678,10 +2684,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_l_lock_target_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2692,10 +2698,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_o_lock_target_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2706,10 +2712,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_c_lock_target_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2720,10 +2726,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_k_lock_target_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2734,10 +2740,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_flight_gear_target_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2748,10 +2754,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_ramp_left_exit_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2762,10 +2768,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_ramp_right_exit_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2776,10 +2782,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_ramp_inner_exit_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2790,10 +2796,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_ramp_tower_exit_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2804,10 +2810,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_lock_mav_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2818,10 +2824,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_lock_goose_active{current_player.pilot_training_mission_inverted_step==7}:
     pilot_training_mission_inverted_switches_hit:
@@ -2832,10 +2838,10 @@ variable_player:
       int: -1
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
     pilot_training_mission_inverted_switch_bank_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   ##############################################
   ## Step 8: Jackpot Lit - Continue adding to jackpot value (5,000 pts each)
@@ -2845,177 +2851,177 @@ variable_player:
   s_bumper_left_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_bumper_center_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_bumper_right_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_slingshot_left_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_slingshot_right_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_spinner_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_inlane_left_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_inner_inlane_right_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_outer_inlane_right_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_outlane_left_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_outlane_right_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_mig_lane_left_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_mig_lane_right_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_lane_left_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_orbit_left_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_orbit_upper_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_orbit_lower_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_orbit_right_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_i_iceman_target_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_c_iceman_target_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_e_iceman_target_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_m_iceman_target_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_a_iceman_target_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_n_iceman_target_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_l_lock_target_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_o_lock_target_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_c_lock_target_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_k_lock_target_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_flight_gear_target_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_ramp_left_exit_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_ramp_right_exit_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_ramp_inner_exit_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_ramp_tower_exit_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_lock_mav_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   s_lock_goose_active{current_player.pilot_training_mission_inverted_step==8}:
     pilot_training_mission_inverted_jackpot_value:
       action: add
-      int: 17500 * current_player.total_scoring_multiplier
+      int: 25000 * current_player.total_scoring_multiplier
 
   ##############################################
   ## JACKPOT COLLECTION SCORING

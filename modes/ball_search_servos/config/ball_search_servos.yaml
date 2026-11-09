@@ -1,18 +1,30 @@
 #config_version=6
 
 ####################################################################################
-# BALL SEARCH SERVO SEQUENCER
+# BALL SEARCH SERVO SEQUENCER + BALL HOLD GUARD
 #
 # Cycles servos in a power-safe order during ball search to prevent brown-out
 # from simultaneous servo movement.
 #
 # SEQUENCE (500ms between each step):
-#   1. right_ramp_up
-#   2. top_ramp_up
+#   1. bs_right_ramp_up
+#   2. bs_top_ramp_up
 #   3. [lock_released — 3rd run and beyond only]
-#   4. right_ramp_down
-#   5. top_ramp_down
+#   4. bs_right_ramp_down
+#   5. bs_top_ramp_down
 #   6. [lock_held — only if lock switches still occupied after release]
+#
+# PROBE EVENTS: the ramps are probed with bs_* events (extra positions in
+# config_servos.yaml), NOT right_ramp_up/top_ramp_up/etc. That keeps probe
+# movement completely separate from what the game asked for, so:
+#   - right_ramp_true_state / top_ramp_true_state (base.yaml) always hold the
+#     last position a MODE asked for — even if the mode asks during a search
+#   - probes don't play elevator sounds, toggle the right orbit diverter
+#     link, or restart the top ramp hold refresh
+#
+# Every step after the first is delayed 500ms, so each step re-checks
+# ball_search_active_flag when it fires. Without that guard, steps queued
+# before the ball was found kept moving the ramps AFTER the restore below.
 #
 # The lock servo is excluded from the first two runs to avoid releasing locked
 # balls prematurely. It joins on the 3rd run (counter >= 2) when a truly stuck
@@ -24,11 +36,32 @@
 # FLIPPER HOLD: ball search is blocked while either flipper is held
 # (config.yaml playfield: block on s_flipper_*_active, unblock only on
 # ball_search_flippers_released, which is posted here once BOTH flippers are
-# up). While a flipper stays held, ball_search_block is re-posted every 5s in
-# case a mode unblocked ball search in the meantime.
+# up AND no ball is being held — see BALL HOLD GUARD). While a flipper stays
+# held, ball_search_block is re-posted every 5s in case a mode unblocked
+# ball search in the meantime.
 # NOTE: MPF has no "reset countdown" event for the playfield - posting
 # ball_search_reset does nothing. Blocking is what stops the countdown, and
 # unblocking restarts it from the full 15s.
+#
+# BALL HOLD GUARD: ball search must never run while a ball is held for a
+# video. A ball is "held" when any of these is true:
+#   - c_left_lane_up_post is enabled   (machine.left_lane_post_held == 1)
+#   - c_right_lane_post is enabled     (machine.right_lane_post_held == 1)
+#   - s_mode_start is active           (ball sitting in the mode scoop)
+# MPF can't read a coil's on/off state in a condition, so the two post flags
+# are tracked here from every event that enables/disables those coils in the
+# modes (list below). While anything is held:
+#   - ball_search_block is posted the moment the hold starts
+#   - flipper releases do NOT unblock (that was the bug: a flipper release
+#     during an intro unblocked ball search while the ball sat on the post)
+#   - a guard timer re-posts ball_search_block every 2s, catching any other
+#     unblock (a mode's ball_search_unblock, the config.yaml unblock list)
+# When the last hold ends (and no flipper is held), ball search is unblocked
+# so a ball that gets stuck afterwards is still found.
+#
+# >>> MAINTENANCE: if a mode adds a NEW event that enables or disables
+# >>> c_left_lane_up_post or c_right_lane_post, add it to the matching list
+# >>> in the variable_player below, or ball search won't know about the hold.
 ####################################################################################
 
 mode:
@@ -61,8 +94,202 @@ variable_player:
       action: add_machine
       int: 1
 
+  ##############################################
+  ## BALL HOLD GUARD — left lane post (c_left_lane_up_post) ENABLED
+  ## Every coil_player "enable" of c_left_lane_up_post in the modes.
+  ##############################################
+  battle_jester_activate_left_lane_post:
+    left_lane_post_held: {action: set_machine, int: 1}
+  bthd_complete:
+    left_lane_post_held: {action: set_machine, int: 1}
+  edge_of_space_activate_left_lane_post:
+    left_lane_post_held: {action: set_machine, int: 1}
+  extra_ball_shot_hit:
+    left_lane_post_held: {action: set_machine, int: 1}
+  fb_left_post_hold:
+    left_lane_post_held: {action: set_machine, int: 1}
+  mode_hard_deck_charlie_started:
+    left_lane_post_held: {action: set_machine, int: 1}
+  charlie_stage_2_left_lane_post_enable:
+    left_lane_post_held: {action: set_machine, int: 1}
+  charlie_stage_3_left_lane_post_enable:
+    left_lane_post_held: {action: set_machine, int: 1}
+  mode_hard_deck_honoring_iceman_started:
+    left_lane_post_held: {action: set_machine, int: 1}
+  mode_hard_deck_penny_started:
+    left_lane_post_held: {action: set_machine, int: 1}
+  penny_ll_locked:
+    left_lane_post_held: {action: set_machine, int: 1}
+  penny_ll_reassert{current_player.penny_ll_held==1}:
+    left_lane_post_held: {action: set_machine, int: 1}
+  mode_hard_deck_playing_with_the_boys_started:
+    left_lane_post_held: {action: set_machine, int: 1}
+  hd_training_choice_start:
+    left_lane_post_held: {action: set_machine, int: 1}
+  nmfe_activate_won_catch:
+    left_lane_post_held: {action: set_machine, int: 1}
+  no_points_for_second_place_wave2_final_shot_hit:
+    left_lane_post_held: {action: set_machine, int: 1}
+  no_points_for_second_place_wave3_final_shot_hit:
+    left_lane_post_held: {action: set_machine, int: 1}
+  mode_pilot_training_mission_afterburner_started:
+    left_lane_post_held: {action: set_machine, int: 1}
+  mode_pilot_training_mission_dogfight_started:
+    left_lane_post_held: {action: set_machine, int: 1}
+  dogfight_complete:
+    left_lane_post_held: {action: set_machine, int: 1}
+  mode_pilot_training_mission_inverted_started:
+    left_lane_post_held: {action: set_machine, int: 1}
+  mode_pilot_training_mission_missiles_started:
+    left_lane_post_held: {action: set_machine, int: 1}
+  mode_pilot_training_mission_wingman_started:
+    left_lane_post_held: {action: set_machine, int: 1}
+  rescue_cougar_activate_left_lane_post:
+    left_lane_post_held: {action: set_machine, int: 1}
+
+  ##############################################
+  ## BALL HOLD GUARD — left lane post DISABLED
+  ## Every coil_player "disable" of c_left_lane_up_post in the modes,
+  ## plus end-of-ball / tilt safety resets.
+  ##############################################
+  battle_jester_deactivate_left_lane_post:
+    left_lane_post_held: {action: set_machine, int: 0}
+  battle_jester_cleanup:
+    left_lane_post_held: {action: set_machine, int: 0}
+  bthd_cleanup:
+    left_lane_post_held: {action: set_machine, int: 0}
+  mode_below_the_hard_deck_will_stop:
+    left_lane_post_held: {action: set_machine, int: 0}
+  cup_cleanup:
+    left_lane_post_held: {action: set_machine, int: 0}
+  edge_of_space_deactivate_left_lane_post:
+    left_lane_post_held: {action: set_machine, int: 0}
+  mode_edge_of_space_will_stop:
+    left_lane_post_held: {action: set_machine, int: 0}
+  timer_extra_ball_hold_complete{current_player.training_mission_qualified==0 and current_player.hard_deck_qualified_mode==0}:
+    left_lane_post_held: {action: set_machine, int: 0}
+  extra_ball_drain_cleanup:
+    left_lane_post_held: {action: set_machine, int: 0}
+  fb_left_post_release:
+    left_lane_post_held: {action: set_machine, int: 0}
+  hard_deck_charlie_ball_released:
+    left_lane_post_held: {action: set_machine, int: 0}
+  charlie_stage_2_left_lane_post_drop:
+    left_lane_post_held: {action: set_machine, int: 0}
+  charlie_stage_3_left_lane_post_drop:
+    left_lane_post_held: {action: set_machine, int: 0}
+  mode_hard_deck_charlie_will_stop:
+    left_lane_post_held: {action: set_machine, int: 0}
+  honoring_iceman_ball_released:
+    left_lane_post_held: {action: set_machine, int: 0}
+  mode_hard_deck_honoring_iceman_will_stop:
+    left_lane_post_held: {action: set_machine, int: 0}
+  penny_ball_released:
+    left_lane_post_held: {action: set_machine, int: 0}
+  penny_ll_free{current_player.penny_ll_held==0}:
+    left_lane_post_held: {action: set_machine, int: 0}
+  penny_window_release_ll:
+    left_lane_post_held: {action: set_machine, int: 0}
+  penny_escape_release:
+    left_lane_post_held: {action: set_machine, int: 0}
+  penny_vsj_release:
+    left_lane_post_held: {action: set_machine, int: 0}
+  penny_failed:
+    left_lane_post_held: {action: set_machine, int: 0}
+  mode_hard_deck_penny_will_stop:
+    left_lane_post_held: {action: set_machine, int: 0}
+  ptb_ball_released:
+    left_lane_post_held: {action: set_machine, int: 0}
+  mode_hard_deck_playing_with_the_boys_will_stop:
+    left_lane_post_held: {action: set_machine, int: 0}
+  hd_training_choice_training:
+    left_lane_post_held: {action: set_machine, int: 0}
+  hd_training_choice_hard_deck:
+    left_lane_post_held: {action: set_machine, int: 0}
+  mode_hard_deck_qualifiers_will_stop:
+    left_lane_post_held: {action: set_machine, int: 0}
+  timer_nmfe_complete_delay_complete:
+    left_lane_post_held: {action: set_machine, int: 0}
+  nmfe_cleanup:
+    left_lane_post_held: {action: set_machine, int: 0}
+  no_points_for_second_place_wave2_left_lane_post_deactivate:
+    left_lane_post_held: {action: set_machine, int: 0}
+  no_points_for_second_place_wave3_left_lane_post_deactivate:
+    left_lane_post_held: {action: set_machine, int: 0}
+  afterburner_ball_released:
+    left_lane_post_held: {action: set_machine, int: 0}
+  afterburner_cleanup:
+    left_lane_post_held: {action: set_machine, int: 0}
+  mode_pilot_training_mission_afterburner_will_stop:
+    left_lane_post_held: {action: set_machine, int: 0}
+  dogfight_ball_released:
+    left_lane_post_held: {action: set_machine, int: 0}
+  dogfight_release_victory_ball:
+    left_lane_post_held: {action: set_machine, int: 0}
+  dogfight_cleanup:
+    left_lane_post_held: {action: set_machine, int: 0}
+  mode_pilot_training_mission_dogfight_will_stop:
+    left_lane_post_held: {action: set_machine, int: 0}
+  pilot_training_mission_inverted_ball_released:
+    left_lane_post_held: {action: set_machine, int: 0}
+  pilot_training_mission_inverted_cleanup:
+    left_lane_post_held: {action: set_machine, int: 0}
+  mode_pilot_training_mission_inverted_will_stop:
+    left_lane_post_held: {action: set_machine, int: 0}
+  missiles_ball_released:
+    left_lane_post_held: {action: set_machine, int: 0}
+  missiles_cleanup:
+    left_lane_post_held: {action: set_machine, int: 0}
+  mode_pilot_training_mission_missiles_will_stop:
+    left_lane_post_held: {action: set_machine, int: 0}
+  wingman_ball_released:
+    left_lane_post_held: {action: set_machine, int: 0}
+  wingman_cleanup:
+    left_lane_post_held: {action: set_machine, int: 0}
+  mode_pilot_training_mission_wingman_will_stop:
+    left_lane_post_held: {action: set_machine, int: 0}
+  rescue_cougar_deactivate_left_lane_post:
+    left_lane_post_held: {action: set_machine, int: 0}
+  mode_rescue_cougar_stopping:
+    left_lane_post_held: {action: set_machine, int: 0}
+
+  ##############################################
+  ## BALL HOLD GUARD — right lane post (c_right_lane_post)
+  ## base.yaml left-orbit safe return (1s hold).
+  ## NOT tracked: final_battle's fb_right_post_hold. Final Battle leaves the
+  ## right post up until fb_end_game, so tracking it would block ball search
+  ## for the rest of Final Battle. FB manages its own holds with
+  ## machine.fb_holding, which the flipper-release unblock already respects.
+  ##############################################
+  right_lane_post_triggered:
+    right_lane_post_held: {action: set_machine, int: 1}
+  timer_right_lane_post_hold_complete:
+    right_lane_post_held: {action: set_machine, int: 0}
+
+  ##############################################
+  ## BALL HOLD GUARD — clear BOTH posts (events that drop both, plus safety)
+  ##############################################
+  fb_end_game:
+    left_lane_post_held: {action: set_machine, int: 0}
+    right_lane_post_held: {action: set_machine, int: 0}
+  mode_final_battle_will_stop:
+    left_lane_post_held: {action: set_machine, int: 0}
+    right_lane_post_held: {action: set_machine, int: 0}
+  tilt:
+    left_lane_post_held: {action: set_machine, int: 0}
+    right_lane_post_held: {action: set_machine, int: 0}
+  # Safety: no hold survives the end of a ball (extra_ball also drops
+  # the left post here)
+  ball_will_end:
+    left_lane_post_held: {action: set_machine, int: 0}
+    right_lane_post_held: {action: set_machine, int: 0}
+  # Safety: nothing is held between games
+  game_ended:
+    left_lane_post_held: {action: set_machine, int: 0}
+    right_lane_post_held: {action: set_machine, int: 0}
+
 ####################################################################################
-# TIMERS - Repeat servo sequence every 10s (matches ball_search_wait_after_iteration)
+# TIMERS
 ####################################################################################
 timers:
   # Re-blocks every 5s while either flipper is held (see FLIPPER HOLD above)
@@ -81,6 +308,7 @@ timers:
       - event: ball_search_flippers_released
         action: stop
 
+  # Repeat servo sequence every 10s (matches ball_search_wait_after_iteration)
   ball_search_servo_repeat:
     start_value: 0
     end_value: 1
@@ -92,20 +320,82 @@ timers:
       - event: ball_search_stopped
         action: stop
 
+  # BALL HOLD GUARD: re-posts ball_search_block every 2s while a ball is
+  # held (see event_player). Started by any hold, stopped once nothing is
+  # held. 2s is far inside the 15s ball search timeout, so even if something
+  # unblocks mid-hold, the countdown can never reach 15s.
+  ball_hold_guard:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 2s
+    start_running: false
+    restart_on_complete: true
+    control_events:
+      - event: ball_hold_started
+        action: restart
+      - event: ball_hold_all_clear
+        action: stop
+
 ####################################################################################
-# EVENT PLAYER - Staggered servo sequence
+# EVENT PLAYER
 ####################################################################################
 event_player:
 
   # FLIPPER HOLD: keep ball search blocked while a flipper is held
   timer_ball_search_flipper_hold_complete{device.switches.s_flipper_left.state or device.switches.s_flipper_right.state}:
     - ball_search_block
-  # (not while Final Battle holds a ball at a lane post - machine.fb_holding)
-  s_flipper_left_inactive{device.switches.s_flipper_right.state==0 and machine.fb_holding==0}:
+
+  # Both flippers up -> unblock, but ONLY if no ball is being held for a
+  # video (lane posts / scoop). This was the ball-search-during-video bug:
+  # releasing the flippers during an intro unblocked ball search while the
+  # ball sat on the post, and it fired 15s later.
+  # (Final Battle's own hold flag machine.fb_holding is still respected.)
+  s_flipper_left_inactive{device.switches.s_flipper_right.state==0 and machine.fb_holding==0 and machine.left_lane_post_held==0 and machine.right_lane_post_held==0 and device.switches.s_mode_start.state==0}:
     - ball_search_flippers_released
-  s_flipper_right_inactive{device.switches.s_flipper_left.state==0 and machine.fb_holding==0}:
+  s_flipper_right_inactive{device.switches.s_flipper_left.state==0 and machine.fb_holding==0 and machine.left_lane_post_held==0 and machine.right_lane_post_held==0 and device.switches.s_mode_start.state==0}:
     - ball_search_flippers_released
 
+  ##############################################
+  ## BALL HOLD GUARD
+  ##############################################
+  # A hold just started: block now and start the 2s re-block guard.
+  # player_/machine_var change events fire after the variable_player above
+  # has set the flag, so these can't race the flag update.
+  machine_var_left_lane_post_held{value==1}:
+    - ball_hold_started
+  machine_var_right_lane_post_held{value==1}:
+    - ball_hold_started
+  s_mode_start_active:
+    - ball_hold_started
+  ball_hold_started:
+    - ball_search_block
+
+  # Guard tick: still holding -> re-block (catches any unblock in between)
+  timer_ball_hold_guard_complete{machine.left_lane_post_held==1 or machine.right_lane_post_held==1 or device.switches.s_mode_start.state==1}:
+    - ball_search_block
+
+  # A hold ended: if NOTHING is held any more, stop the guard and, if no
+  # flipper is held either, unblock so a later stuck ball is still found.
+  machine_var_left_lane_post_held{value==0}:
+    - ball_hold_check
+  machine_var_right_lane_post_held{value==0}:
+    - ball_hold_check
+  s_mode_start_inactive:
+    - ball_hold_check
+  # Guard tick with nothing held (e.g. a release event was missed) also
+  # cleans up
+  timer_ball_hold_guard_complete{machine.left_lane_post_held==0 and machine.right_lane_post_held==0 and device.switches.s_mode_start.state==0}:
+    - ball_hold_check
+
+  ball_hold_check{machine.left_lane_post_held==0 and machine.right_lane_post_held==0 and device.switches.s_mode_start.state==0}:
+    - ball_hold_all_clear
+  ball_hold_all_clear{device.switches.s_flipper_left.state==0 and device.switches.s_flipper_right.state==0 and machine.fb_holding==0}:
+    - ball_search_unblock
+
+  ##############################################
+  ## SERVO PROBE SEQUENCE
+  ##############################################
   # TRIGGER: Start sequence when ball search begins and on each repeat
   ball_search_started:
     - ball_search_seq_start
@@ -113,63 +403,72 @@ event_player:
   timer_ball_search_servo_repeat_complete{machine.ball_search_active_flag==1}:
     - ball_search_seq_start
 
-  # STEP 1: Right ramp up
-  ball_search_seq_start:
-    - right_ramp_up
+  # STEP 1: Right ramp up (probe position)
+  ball_search_seq_start{machine.ball_search_active_flag==1}:
+    - bs_right_ramp_up
     - ball_search_seq_2|500ms
 
-  # STEP 2: Top ramp up
-  ball_search_seq_2:
-    - top_ramp_up
+  # STEPS 2-6 are delayed, so every one re-checks the flag when it fires.
+  # If the ball was found in the meantime, the sequence stops right there
+  # and can't undo the restore below.
+
+  # STEP 2: Top ramp up (probe position)
+  ball_search_seq_2{machine.ball_search_active_flag==1}:
+    - bs_top_ramp_up
     - ball_search_seq_3|500ms
 
   # STEP 3: Lock release on 3rd run+; always advance to step 4
-  ball_search_seq_3:
+  ball_search_seq_3{machine.ball_search_active_flag==1}:
     - ball_search_seq_4|500ms
 
-  ball_search_seq_3{machine.ball_search_servo_count>=2}:
+  ball_search_seq_3{machine.ball_search_active_flag==1 and machine.ball_search_servo_count>=2}:
     - lock_released
 
-  # STEP 4: Right ramp down
-  ball_search_seq_4:
-    - right_ramp_down
+  # STEP 4: Right ramp down (probe position)
+  ball_search_seq_4{machine.ball_search_active_flag==1}:
+    - bs_right_ramp_down
     - ball_search_seq_5|500ms
 
-  # STEP 5: Top ramp down
-  ball_search_seq_5:
-    - top_ramp_down
+  # STEP 5: Top ramp down (probe position)
+  ball_search_seq_5{machine.ball_search_active_flag==1}:
+    - bs_top_ramp_down
     - ball_search_seq_6|500ms
 
   # STEP 6: Re-lock if balls still in locks (only relevant after lock release)
-  ball_search_seq_6:
+  ball_search_seq_6{machine.ball_search_active_flag==1}:
     - ball_search_seq_done|500ms
 
-  ball_search_seq_6{machine.ball_search_servo_count>=2 and (device.switches.s_lock_goose.state or device.switches.s_lock_mav.state)}:
+  ball_search_seq_6{machine.ball_search_active_flag==1 and machine.ball_search_servo_count>=2 and (device.switches.s_lock_goose.state or device.switches.s_lock_mav.state)}:
     - lock_held
 
   # DONE: Increment counter and restart 10s repeat timer
-  # Guard with flag — delayed events can fire after ball_search_stopped
   ball_search_seq_done{machine.ball_search_active_flag==1}:
     - ball_search_servo_seq_complete
 
-  # CLEANUP: Ball found — restore each ramp to its actual pre-search
-  # commanded position (tracked in base.yaml as right_ramp_true_state /
-  # top_ramp_true_state) instead of blindly forcing both down. That old
-  # unconditional reset is what left a mode's ramp in the wrong position
-  # after a search, stranding the player on a shot that had become
-  # physically unreachable.
-  # Staggered 500ms apart either way to avoid simultaneous servo movement.
-  ball_search_stopped{machine.right_ramp_true_state==1}:
-    - right_ramp_up
+  ##############################################
+  ## RESTORE — ball found
+  ## Put each ramp back where the game last asked for it
+  ## (right_ramp_true_state / top_ramp_true_state, tracked in base.yaml from
+  ## the REAL ramp events only — probes use bs_* events and never touch it).
+  ## The state is read when each restore step FIRES, not when ball search
+  ## stops, so a mode command that lands in the same moment (e.g. a ramp
+  ## raised as the intro ends) is honoured instead of overwritten.
+  ## Staggered 500ms apart to avoid simultaneous servo movement.
+  ##############################################
+  ball_search_stopped:
+    - ball_search_restore_right
+    - ball_search_restore_top|500ms
 
-  ball_search_stopped{machine.right_ramp_true_state==0}:
+  ball_search_restore_right{machine.right_ramp_true_state==1}:
+    - right_ramp_up
+  ball_search_restore_right{machine.right_ramp_true_state==0}:
     - right_ramp_down
 
-  ball_search_stopped{machine.top_ramp_true_state==1}:
-    - top_ramp_up|500ms
-
-  ball_search_stopped{machine.top_ramp_true_state==0}:
-    - top_ramp_down|500ms
+  # Skip if a new search started in the meantime (it will restore again)
+  ball_search_restore_top{machine.ball_search_active_flag==0 and machine.top_ramp_true_state==1}:
+    - top_ramp_up
+  ball_search_restore_top{machine.ball_search_active_flag==0 and machine.top_ramp_true_state==0}:
+    - top_ramp_down
 
   ball_search_stopped{device.switches.s_lock_goose.state or device.switches.s_lock_mav.state}:
     - lock_held

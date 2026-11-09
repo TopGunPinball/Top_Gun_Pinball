@@ -841,7 +841,7 @@ event_player:
     stop_all_training_pulse_shows
   mode_hard_deck_charlie_started:
     stop_all_training_pulse_shows
-  mode_hard_deck_maverick_and_penny_started:
+  mode_hard_deck_penny_started:
     stop_all_training_pulse_shows
   mode_hard_deck_honoring_iceman_started:
     stop_all_training_pulse_shows
@@ -877,7 +877,7 @@ event_player:
     restore_training_mission_light
   mode_hard_deck_charlie_stopped{current_player.training_mission_qualified>0}:
     restore_training_mission_light
-  mode_hard_deck_maverick_and_penny_stopped{current_player.training_mission_qualified>0}:
+  mode_hard_deck_penny_stopped{current_player.training_mission_qualified>0}:
     restore_training_mission_light
   mode_hard_deck_honoring_iceman_stopped{current_player.training_mission_qualified>0}:
     restore_training_mission_light
@@ -939,6 +939,34 @@ coil_player:
   mode_pilot_training_mission_dogfight_started:
     c_mode_barrier:
       action: off
+
+  ##############################################
+  ## LEFT LANE POST — raise IMMEDIATELY when a training mission starts
+  ## Same 5 conditions as the start_mode_* handlers in event_player.
+  ## The training modes also enable the post on their own mode_started, but
+  ## that arrives ~45ms after the switch (mode start latency) — logs
+  ## 2026-11-08: switch 20:42:28.537, post 28.584, ball off the switch at
+  ## 28.598 → ball already past the post. Firing it here, on the switch
+  ## event itself, raises it ~2ms after the switch like the hard deck
+  ## choice path (hd_training_choice_start), which catches reliably.
+  ## The training mode keeps owning the release (its *_ball_released /
+  ## cleanup / will_stop disable the post as before).
+  ##############################################
+  s_lane_left_active{current_player.training_mission_qualified==1 and current_player.training_inverted_complete==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_qualified_mode==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and current_player.extra_ball_lit==0}:
+    c_left_lane_up_post:
+      action: enable
+  s_lane_left_active{current_player.training_mission_qualified==2 and current_player.training_missles_complete==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_qualified_mode==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and current_player.extra_ball_lit==0}:
+    c_left_lane_up_post:
+      action: enable
+  s_lane_left_active{current_player.training_mission_qualified==3 and current_player.training_afterburner_complete==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_qualified_mode==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and current_player.extra_ball_lit==0}:
+    c_left_lane_up_post:
+      action: enable
+  s_lane_left_active{current_player.training_mission_qualified==4 and current_player.training_wingman_complete==0 and current_player.pilot_mode_active==0 and current_player.hard_deck_qualified_mode==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and current_player.extra_ball_lit==0}:
+    c_left_lane_up_post:
+      action: enable
+  s_lane_left_active{current_player.training_mission_qualified==5 and current_player.dogfight_ready==1 and current_player.pilot_mode_active==0 and current_player.hard_deck_qualified_mode==0 and current_player.training_mission_active==0 and current_player.hard_deck_active==0 and current_player.multiball_active==0 and current_player.extra_ball_lit==0}:
+    c_left_lane_up_post:
+      action: enable
 
   ##############################################
   ## MIG Post Control

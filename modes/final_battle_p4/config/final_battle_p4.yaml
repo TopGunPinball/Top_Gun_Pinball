@@ -6,14 +6,14 @@
 ##   final_battle_phase4_instructions slide; the multiball starts after it.
 ## 2-ball multiball (both locked jets), 30s ball save, GI light orange,
 ## bandit shots flash red. No time limit: every ball draining -> lose a jet,
-## 2 balls back in play (30s save), progress kept. Scoop made -> flippers off
+## ONE new ball (15s save, fb_jet_save in final_battle.yaml), progress kept. Scoop made -> flippers off
 ## until the landing ball is released (landing is single ball).
 ##
-## STAGE 1 - two slow bandits, move every 7.5s (2s grace: the spot it just left
+## STAGE 1 - two slow bandits, move every 7.5s (1s grace: the spot it just left
 ##   still counts). 3 hits total. Each hit moves that bandit on immediately.
 ##     Bandit A: LO, LR, I, SP, C, E, SP, LR, LO, LL
 ##     Bandit B: RR, TR, N, TL, A, TWR, M, BAR, M, TWR, A, TL, N, TR
-## STAGE 2 - one fast bandit (+1 ball, 30s save), moves every 3.75s (2s grace),
+## STAGE 2 - one fast bandit (+1 ball, 30s save), moves every 3.75s (1s grace),
 ##   starting at the Spinner. Each hit jumps it 3 spots. 5 hits.
 ##   Path (83 spots, then repeats): SP BAR TWR BAR SP LR SP BAR TWR TL TWR BAR SP LR LO LR SP BAR TWR TL TR TL TWR BAR SP LR LO LR SP BAR TWR TL TR RR TR TL TWR BAR SP LR LO LR SP BAR TWR TL TR RR TR TL TWR BAR SP LR LO LR SP BAR TWR TL TR RR TR TL TWR BAR SP LR LO LR SP BAR TWR TL TR RR TR TL TWR BAR SP LR LO
 ## STAGE 3 - barrier drops, shoot the scoop. Ball held, flippers off, other
@@ -96,7 +96,7 @@ timers:
         action: stop
   fb_p4_grace:
     start_value: 0
-    end_value: 2
+    end_value: 1
     tick_interval: 1s
     control_events:
       - event: fb_p4_grace_start
@@ -130,7 +130,7 @@ variable_player:
   fb_p4_go:
     fb_p4_stage: { action: set, int: 1 }
     fb_objective: { action: set, string: "SHOOT THE RED BANDITS - 3 HITS" }
-  # Bandit moves (prev = where it was, for the 2s grace)
+  # Bandit moves (prev = where it was, for the 1s grace)
   fb_p4_a_step:
     fb_p4_a_prev: { action: set, int: current_player.fb_p4_a }
     fb_p4_a: { action: add, int: 1 }
@@ -215,6 +215,10 @@ event_player:
   # Intro first (both jets are still in the lock, nothing on the playfield)
   mode_final_battle_p4_started:
     - fb_vu_final_battle_phase4_intro
+    # Ramp cleanup: start the phase with both ramps down (staggered; the lock
+    # servo doesn't move until fb_p4_go after the intro)
+    - right_ramp_down
+    - top_ramp_down|500ms
   fb_video_done{video=="final_battle_phase4_intro" and current_player.fb_p4_stage==0}:
     - fb_p4_go
   timer_fb_p4_intro_fallback_complete{current_player.fb_p4_stage==0}:
@@ -269,6 +273,10 @@ event_player:
   fb_p4_ll_catch:
     - fb_left_post_hold
     - fb_left_post_release|1500ms
+  # Lit Left Orbit: arm base.yaml's left orbit safe return (right lane post
+  # catches the ball coming down the right lane, then the outlane save)
+  s_orbit_left_active{current_player.fb_p4_stage==1 and ((current_player.fb_p4_a==0 or current_player.fb_p4_a==8) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_a_prev==0 or current_player.fb_p4_a_prev==8)))}:
+    - right_lane_safe_return_armed
   left_orbit_shot_hit{current_player.fb_p4_stage==1 and ((current_player.fb_p4_a==0 or current_player.fb_p4_a==8) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_a_prev==0 or current_player.fb_p4_a_prev==8)))}:
     - fb_p4_a_hit
   s_ramp_left_exit_active{current_player.fb_p4_stage==1 and ((current_player.fb_p4_a==1 or current_player.fb_p4_a==7) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_a_prev==1 or current_player.fb_p4_a_prev==7)))}:
@@ -337,6 +345,10 @@ event_player:
     - fb_p4_refresh_f
   s_barrier_target_active{current_player.fb_p4_stage==2 and ((current_player.fb_p4_f==1 or current_player.fb_p4_f==3 or current_player.fb_p4_f==7 or current_player.fb_p4_f==11 or current_player.fb_p4_f==17 or current_player.fb_p4_f==23 or current_player.fb_p4_f==29 or current_player.fb_p4_f==37 or current_player.fb_p4_f==43 or current_player.fb_p4_f==51 or current_player.fb_p4_f==57 or current_player.fb_p4_f==65 or current_player.fb_p4_f==71 or current_player.fb_p4_f==79) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_f_prev==1 or current_player.fb_p4_f_prev==3 or current_player.fb_p4_f_prev==7 or current_player.fb_p4_f_prev==11 or current_player.fb_p4_f_prev==17 or current_player.fb_p4_f_prev==23 or current_player.fb_p4_f_prev==29 or current_player.fb_p4_f_prev==37 or current_player.fb_p4_f_prev==43 or current_player.fb_p4_f_prev==51 or current_player.fb_p4_f_prev==57 or current_player.fb_p4_f_prev==65 or current_player.fb_p4_f_prev==71 or current_player.fb_p4_f_prev==79)))}:
     - fb_p4_fast_scored
+  # Lit Left Orbit: arm base.yaml's left orbit safe return (right lane post
+  # catches the ball coming down the right lane, then the outlane save)
+  s_orbit_left_active{current_player.fb_p4_stage==2 and ((current_player.fb_p4_f==14 or current_player.fb_p4_f==26 or current_player.fb_p4_f==40 or current_player.fb_p4_f==54 or current_player.fb_p4_f==68 or current_player.fb_p4_f==82) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_f_prev==14 or current_player.fb_p4_f_prev==26 or current_player.fb_p4_f_prev==40 or current_player.fb_p4_f_prev==54 or current_player.fb_p4_f_prev==68 or current_player.fb_p4_f_prev==82)))}:
+    - right_lane_safe_return_armed
   left_orbit_shot_hit{current_player.fb_p4_stage==2 and ((current_player.fb_p4_f==14 or current_player.fb_p4_f==26 or current_player.fb_p4_f==40 or current_player.fb_p4_f==54 or current_player.fb_p4_f==68 or current_player.fb_p4_f==82) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_f_prev==14 or current_player.fb_p4_f_prev==26 or current_player.fb_p4_f_prev==40 or current_player.fb_p4_f_prev==54 or current_player.fb_p4_f_prev==68 or current_player.fb_p4_f_prev==82)))}:
     - fb_p4_fast_scored
   s_ramp_left_exit_active{current_player.fb_p4_stage==2 and ((current_player.fb_p4_f==5 or current_player.fb_p4_f==13 or current_player.fb_p4_f==15 or current_player.fb_p4_f==25 or current_player.fb_p4_f==27 or current_player.fb_p4_f==39 or current_player.fb_p4_f==41 or current_player.fb_p4_f==53 or current_player.fb_p4_f==55 or current_player.fb_p4_f==67 or current_player.fb_p4_f==69 or current_player.fb_p4_f==81) or (device.timers.fb_p4_grace.running and (current_player.fb_p4_f_prev==5 or current_player.fb_p4_f_prev==13 or current_player.fb_p4_f_prev==15 or current_player.fb_p4_f_prev==25 or current_player.fb_p4_f_prev==27 or current_player.fb_p4_f_prev==39 or current_player.fb_p4_f_prev==41 or current_player.fb_p4_f_prev==53 or current_player.fb_p4_f_prev==55 or current_player.fb_p4_f_prev==67 or current_player.fb_p4_f_prev==69 or current_player.fb_p4_f_prev==81)))}:
@@ -401,9 +413,9 @@ event_player:
   ##############################################
   ## TIMER / JETS
   ##############################################
-  # No time limit on the bandits: a jet is only lost when every ball drains
-  fb_jet_continue{current_player.fb_phase==4 and current_player.fb_p4_stage<=3}:
-    - fb_p4_relaunch
+  # No time limit on the bandits: a jet is only lost when every ball drains.
+  # The new jet is ONE ball (final_battle.yaml's fb_save_eject sends it,
+  # fb_jet_save gives it 15s). No multiball relaunch.
 
   ##############################################
   ## LANDING

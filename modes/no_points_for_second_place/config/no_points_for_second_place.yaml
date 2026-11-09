@@ -951,6 +951,10 @@ timers:
     tick_interval: 1s
     start_running: false
     control_events:
+      # Ball drained: stop the clock so it can't expire during the drain
+      # video and re-post no_points_for_second_place_failed (double fail / double payout).
+      - event: no_points_for_second_place_ball_ending_hold
+        action: stop
       - event: no_points_for_second_place_ball_released    # Wave 1 start
         action: start
       - event: no_points_for_second_place_wave1_final_shot_hit
@@ -1079,7 +1083,7 @@ timers:
     control_events:
       - event: timer_no_points_for_second_place_complete_delay_start
         action: start
-      - event: no_points_for_second_place_skip_end_video
+      - event: no_points_for_second_place_skip_end_video{device.timers.no_points_for_second_place_complete_delay.running}
         action: jump
         value: 0
 
@@ -1093,7 +1097,7 @@ timers:
     control_events:
       - event: timer_no_points_for_second_place_failed_delay_start
         action: start
-      - event: no_points_for_second_place_skip_end_video
+      - event: no_points_for_second_place_skip_end_video{device.timers.no_points_for_second_place_failed_delay.running}
         action: jump
         value: 0
 
@@ -1107,7 +1111,7 @@ timers:
     control_events:
       - event: no_points_for_second_place_drain_detected
         action: start
-      - event: no_points_for_second_place_skip_end_video
+      - event: no_points_for_second_place_skip_end_video{device.timers.no_points_for_second_place_drain_delay.running}
         action: jump
         value: 8
 

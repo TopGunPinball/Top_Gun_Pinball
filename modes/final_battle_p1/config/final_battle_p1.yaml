@@ -8,8 +8,8 @@
 ##
 ##   Jet 1: Spinner -> barrier drops -> Scoop (jet held in the scoop)
 ##   Jet 2: Left Ramp -> Right Ramp -> Spinner -> Top Ramp (lock)
-##   Jet 3: Left Orbit -> Left Ramp (right ramp rises) -> Right Orbit (top
-##          ramp rises) -> Top Orbit -> ramps lower -> Top Ramp (lock)
+##   Jet 3: Left Orbit -> Left Ramp (right ramp rises) -> Right Orbit ->
+##          Top Loop (right ramp lowers) -> Top Ramp (lock)
 ##   (The scoop lock comes first so it's the easy one to get.)
 ## LOCK LIGHTS (final_battle.yaml): scoop jet = Final Battle light green,
 ##   1st top ramp lock = Maverick green, 2nd = Goose green.
@@ -143,7 +143,7 @@ variable_player:
   fb_p1_show_3_2:
     fb_objective: { action: set, string: "JET 3 OF 4 - SHOOT THE RIGHT ORBIT" }
   fb_p1_show_3_3:
-    fb_objective: { action: set, string: "JET 3 OF 4 - SHOOT THE TOP ORBIT" }
+    fb_objective: { action: set, string: "JET 3 OF 4 - SHOOT THE TOP LOOP" }
   fb_p1_show_3_4:
     fb_objective: { action: set, string: "JET 3 OF 4 - SHOOT THE TOP RAMP TO LOCK THE JET" }
   fb_p1_show_4_0:
@@ -198,6 +198,10 @@ event_player:
   s_ramp_inner_exit_active{current_player.fb_p1_ball==2 and current_player.fb_p1_idx==3 and current_player.fb_p1_state==1}:
     - lock_diverter_fired
     - fb_p1_lock_armed
+  # Lit Left Orbit: arm base.yaml's left orbit safe return (right lane post
+  # catches the ball coming down the right lane, then the outlane save)
+  s_orbit_left_active{current_player.fb_p1_ball==3 and current_player.fb_p1_idx==0 and current_player.fb_p1_state==1}:
+    - right_lane_safe_return_armed
   left_orbit_shot_hit{current_player.fb_p1_ball==3 and current_player.fb_p1_idx==0 and current_player.fb_p1_state==1}:
     - fb_p1_hit
   # Right Orbit is next: raise the right ramp now (not before)
@@ -206,12 +210,11 @@ event_player:
     - right_ramp_up
   right_orbit_shot_hit{current_player.fb_p1_ball==3 and current_player.fb_p1_idx==2 and current_player.fb_p1_state==1}:
     - fb_p1_hit
-    - top_ramp_up
-  # Top Orbit made: both ramps lower so the Top Ramp lock can be made
-  s_orbit_lower_active{current_player.fb_p1_ball==3 and current_player.fb_p1_idx==3 and current_player.fb_p1_state==1}:
+  # Top Loop made (top ramp stays down the whole time): the right ramp
+  # lowers so the Top Ramp lock can be made
+  s_orbit_upper_active{current_player.fb_p1_ball==3 and current_player.fb_p1_idx==3 and current_player.fb_p1_state==1}:
     - fb_p1_hit
     - right_ramp_down
-    - top_ramp_down|500ms
   s_ramp_inner_exit_active{current_player.fb_p1_ball==3 and current_player.fb_p1_idx==4 and current_player.fb_p1_state==1}:
     - lock_diverter_fired
     - fb_p1_lock_armed
@@ -326,8 +329,7 @@ event_player:
     - fb_lose_jet
   fb_jet_continue{current_player.fb_phase==1 and current_player.fb_p1_state<=2}:
     - fb_p1_restart_timer
-  fb_jet_continue{current_player.fb_phase==1 and current_player.fb_loss_reason==1}:
-    - fb_grace_save_enable
+  # (New jet after a drain: the 10s fb_jet_save in final_battle.yaml)
 
   ##############################################
   ## LIGHTS + objective text
@@ -446,7 +448,7 @@ show_player:
       loops: -1
       sync_ms: 1000
       show_tokens:
-        led: l_shot_middle_ramp
+        led: l_shot_upper_orbit
         color: FFDD00
   fb_p1_show_3_4:
     sync_flash_mode:

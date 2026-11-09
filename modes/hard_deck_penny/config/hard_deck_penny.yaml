@@ -1,0 +1,2232 @@
+#config_version=6
+####################################################################################
+# HARD DECK: MAVERICK & PENNY  (Hard Deck slot 3, purple insert)
+# Priority 600 | 2-ball multiball | No mode timer | 30s multiball ball save
+#
+# QUALIFY (hard_deck_qualifiers.yaml): play 1 Hard Deck mission + hit the 31
+#   tracked switches twice each. START: Left Lane while Penny is the lit
+#   Hard Deck (ball held by c_left_lane_up_post through the intro).
+#
+# INTRO (17s, both flippers skip): penny_intro video + voice_penny_instructions.
+#   Release -> post drops, 2-ball multiball starts (penny_multiball, shoot_again 30s).
+#
+# PART 1 - "FINDING PENNY" (purple):  15 shots lit SOLID
+#   LL LO LR SP CNT(barrier target) TWR TL TR RR + ICEMAN I C E M A N
+#   (Pilot Gear is NOT a Penny shot. Ramps stay DOWN the whole mode.)
+#   1st hit : 250,000 x mult, insert flashes FAST, value starts at 1,500,000
+#             and counts down 4,000 every 80ms -> 500,000 floor after 20s
+#             (insert flashes SLOW at the floor)
+#   2nd hit : current value x mult, insert OFF, shot-made callout (no per-shot videos)
+#             raw value banked: penny_<key>_banked + penny_banked_total
+#   The 2nd hit only counts 1s after the 1st (2s for the spinner) so a
+#   bounce/double-switch can't collect the full 1,500,000 instantly.
+#
+# PART 2 - "OUT THE WINDOW" (all 15 collected):
+#   Super jackpot value = penny_banked_total // 10 (10%), x mult when collected.
+#   1st attempt : barrier drops, SCOOP lit -> ball held -> LEFT LANE lit (30s).
+#   Time out    : held ball released, SCOOP + LEFT LANE both lit, either first;
+#                 each first lock restarts the 30s. Repeats until a drain.
+#                 penny_dont_break_heart video + voice_penny_window_retry (the
+#                 callout's duck wins - that video doesn't duck the music).
+#   Both locked : SUPER JACKPOT - both balls stay locked while the 33s
+#                 penny_super_jackpot video plays (both flippers skip), then both
+#                 are released -> PART 3.
+#
+# PART 3 - VICTORY (pink, penny_victory_background slide): all 15 lit, ONE hit
+#   each = VICTORY JACKPOT (that shot's banked value // 5 = 20%, x mult).
+#   All 15 made -> VICTORY LOCK (penny_phase 4): SCOOP + LEFT LANE lit, either
+#   order, NO timer. Both locked -> VICTORY SUPER JACKPOT (same value as the
+#   window super jackpot, x mult) + voice_penny_victory_super_jackpot -> both
+#   released 3s later, all 15 relit. Repeats.
+#
+# LEFT LANE GATE: only when the Left Lane is the LAST shot still needed (part 1:
+#   the other 14 collected | window/victory lock: the scoop ball already held |
+#   part 3: the other 14 victory shots made) the Top Loop insert pulses and a
+#   Top Loop hit opens the left orbit diverter for 3s (closes as soon as
+#   the ball reaches the left lane). Never from the spinner / right orbit.
+#
+# SLIDES: penny_background (looping video) behind part 1; penny_victory_background
+#   (static image - load it in the editor) behind parts 3/4.
+#
+# END: multiball drops to 1 ball (or the last ball drains)
+#   escaped (penny_complete_flag==1) -> mode ends, back to the regular game (WIN)
+#   not escaped -> penny_failed -> penny_lost video, mode ends when it finishes
+#   (both flippers skip it). Points already scored are kept.
+#
+# VIDEOS: one queued player (penny_video slide, penny_video_queue.gd) - like Final
+#   Battle: a shot video waits if one is playing (only the newest waits),
+#   urgent videos (intro / super jackpot / lost) interrupt. Missing files show
+#   a placeholder card. Files: res://addons/artwork/videos/hard_deck_penny/<name>.ogv
+#   MPF -> Godot: penny_video (video, urgent)  penny_video_clear
+#   Godot -> MPF: penny_video_started (video)  penny_video_done (video)
+#
+# MUSIC (base.yaml): music_hard_deck_penny on penny_ball_released, silence on
+#   penny_failed, Danger Zone when the mode stops.
+# NOT IN THIS FILE: hard_deck_active / letter_collection_paused / hd_mp_played
+#   (hard_deck_qualifiers.yaml), multiball_active clear on stop (pilot_mission_qualifier.yaml)
+####################################################################################
+
+mode:
+  start_events: start_mode_hard_deck_penny
+  stop_events:
+    - penny_mode_end          # every end path funnels through this one event
+  priority: 600
+  game_mode: true
+  use_wait_queue: true
+
+mode_settings:
+  can_stack_with_multiball: false
+
+####################################################################################
+# MULTIBALL - 2 balls total (the post-held ball + 1 from the trough)
+####################################################################################
+# No mode_xxx_will_stop stop_event: MPF stops a RUNNING multiball itself when
+# the mode ends (an explicit stop on a never-started multiball leaves a stray
+# ball_drain handler behind).
+# multiball_penny_multiball_ended fires when the 2nd-to-last ball drains
+# (a ball held in the scoop / at the left lane post still counts as in play).
+multiballs:
+  penny_multiball:
+    ball_count: 2
+    ball_count_type: total
+    shoot_again: 30s
+    start_events: penny_mb_start
+
+####################################################################################
+# BALL HOLD - scoop half of the 'Out the Window' lock (part 2 only)
+####################################################################################
+ball_holds:
+  penny_scoop_hold:
+    balls_to_hold: 1
+    hold_devices: bd_mode_scoop
+    enable_events: penny_scoop_arm
+    disable_events: penny_scoop_disarm
+    release_one_events: penny_scoop_release
+    release_all_events: mode_hard_deck_penny_will_stop
+
+####################################################################################
+# BALL SAVE - short save when both balls are released after the super jackpot
+####################################################################################
+# auto_launch false: penny_plunge_delay (below) pulses c_plunger for every ball
+# that reaches the shooter lane during the mode (bd_plunger has no eject coil).
+ball_saves:
+  penny_victory_save:
+    active_time: 10s
+    hurry_up_time: 2s
+    grace_period: 1s
+    auto_launch: false
+    balls_to_save: -1
+    enable_events: penny_escape_release, penny_vsj_release
+    disable_events: mode_hard_deck_penny_will_stop
+
+####################################################################################
+# QUEUE RELAY - hold ball_ending until the lost video is done
+####################################################################################
+queue_relay_player:
+  ball_ending{mode.hard_deck_penny.active==True}:
+    post: penny_ball_ending_hold
+    wait_for: penny_drain_cleanup_complete
+    priority: 1000
+
+####################################################################################
+# TIMERS
+####################################################################################
+timers:
+  # Intro (17s) - ball held at the left lane post; both flippers skip
+  penny_intro_delay:
+    start_value: 0
+    end_value: 17
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: mode_hard_deck_penny_started
+        action: start
+      - event: penny_skip_intro
+        action: stop
+
+  # Points countdown clock for part 1 (every 80ms each counting shot drops
+  # 4,000 -> 1,500,000 to 500,000 in exactly 20s). No end value.
+  penny_decay:
+    start_value: 0
+    direction: up
+    tick_interval: 80ms
+    start_running: false
+    control_events:
+      - event: penny_ball_released
+        action: start
+      - event: penny_window_start
+        action: stop
+      - event: penny_failed
+        action: stop
+
+  # Auto-plunge: 1s after any ball reaches the shooter lane during the mode
+  penny_plunge_delay:
+    start_value: 0
+    end_value: 1
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: s_shooter_lane_active{current_player.penny_phase>=1}
+        action: restart
+      - event: s_shooter_lane_inactive
+        action: stop
+
+  # Out the Window: 30s from the first lock of an attempt.
+  # Slide variable: player var hard_deck_penny_penny_window_timer_tick
+  penny_window_timer:
+    start_value: 30
+    end_value: 0
+    direction: down
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: penny_window_timer_start
+        action: restart
+      - event: penny_escape
+        action: stop
+      - event: penny_failed
+        action: stop
+
+  # Safety: releases the escape balls if the super jackpot video never reports done
+  penny_escape_fallback:
+    start_value: 0
+    end_value: 36
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: penny_escape
+        action: start
+      - event: penny_escape_release
+        action: stop
+
+  # Left orbit diverter open time (Top Loop -> Left Lane gate)
+  penny_diverter_hold:
+    start_value: 0
+    end_value: 3
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: penny_gate_open
+        action: restart
+      - event: penny_gate_close
+        action: stop
+
+  # Safety: ends the mode if the lost video never reports done
+  penny_lost_fallback:
+    start_value: 0
+    end_value: 30
+    direction: up
+    tick_interval: 1s
+    start_running: false
+    control_events:
+      - event: penny_failed
+        action: start
+
+####################################################################################
+# VARIABLE PLAYER
+####################################################################################
+variable_player:
+
+  ##############################################
+  ## INIT (hard_deck_active / letter_collection_paused / hd_mp_played are
+  ## set by hard_deck_qualifiers.yaml - not duplicated here)
+  ##############################################
+  mode_hard_deck_penny_started:
+    penny_phase: { action: set, int: 0 }
+    penny_step_locked: { action: set, int: 0 }
+    penny_complete_flag: { action: set, int: 0 }
+    penny_seq: { action: set, int: 0 }
+    penny_collected_count: { action: set, int: 0 }
+    penny_banked_total: { action: set, int: 0 }
+    penny_super_value: { action: set, int: 0 }
+    penny_super_jackpot_value: { action: set, int: 0 }
+    penny_victory_jackpot_value: { action: set, int: 0 }
+    penny_vic_count: { action: set, int: 0 }
+    penny_scoop_held: { action: set, int: 0 }
+    penny_ll_held: { action: set, int: 0 }
+    penny_ll_lit: { action: set, int: 0 }
+    penny_window_attempt: { action: set, int: 0 }
+    penny_window_timer_on: { action: set, int: 0 }
+    mode_points_scored: { action: set, int: 0 }
+    penny_ll_state: { action: set, int: 0 }
+    penny_ll_value: { action: set, int: 0 }
+    penny_ll_banked: { action: set, int: 0 }
+    penny_ll_armed: { action: set, int: 0 }
+    penny_ll_order: { action: set, int: 0 }
+    penny_ll_vic: { action: set, int: 0 }
+    penny_lo_state: { action: set, int: 0 }
+    penny_lo_value: { action: set, int: 0 }
+    penny_lo_banked: { action: set, int: 0 }
+    penny_lo_armed: { action: set, int: 0 }
+    penny_lo_order: { action: set, int: 0 }
+    penny_lo_vic: { action: set, int: 0 }
+    penny_lr_state: { action: set, int: 0 }
+    penny_lr_value: { action: set, int: 0 }
+    penny_lr_banked: { action: set, int: 0 }
+    penny_lr_armed: { action: set, int: 0 }
+    penny_lr_order: { action: set, int: 0 }
+    penny_lr_vic: { action: set, int: 0 }
+    penny_sp_state: { action: set, int: 0 }
+    penny_sp_value: { action: set, int: 0 }
+    penny_sp_banked: { action: set, int: 0 }
+    penny_sp_armed: { action: set, int: 0 }
+    penny_sp_order: { action: set, int: 0 }
+    penny_sp_vic: { action: set, int: 0 }
+    penny_cnt_state: { action: set, int: 0 }
+    penny_cnt_value: { action: set, int: 0 }
+    penny_cnt_banked: { action: set, int: 0 }
+    penny_cnt_armed: { action: set, int: 0 }
+    penny_cnt_order: { action: set, int: 0 }
+    penny_cnt_vic: { action: set, int: 0 }
+    penny_twr_state: { action: set, int: 0 }
+    penny_twr_value: { action: set, int: 0 }
+    penny_twr_banked: { action: set, int: 0 }
+    penny_twr_armed: { action: set, int: 0 }
+    penny_twr_order: { action: set, int: 0 }
+    penny_twr_vic: { action: set, int: 0 }
+    penny_tl_state: { action: set, int: 0 }
+    penny_tl_value: { action: set, int: 0 }
+    penny_tl_banked: { action: set, int: 0 }
+    penny_tl_armed: { action: set, int: 0 }
+    penny_tl_order: { action: set, int: 0 }
+    penny_tl_vic: { action: set, int: 0 }
+    penny_tr_state: { action: set, int: 0 }
+    penny_tr_value: { action: set, int: 0 }
+    penny_tr_banked: { action: set, int: 0 }
+    penny_tr_armed: { action: set, int: 0 }
+    penny_tr_order: { action: set, int: 0 }
+    penny_tr_vic: { action: set, int: 0 }
+    penny_rr_state: { action: set, int: 0 }
+    penny_rr_value: { action: set, int: 0 }
+    penny_rr_banked: { action: set, int: 0 }
+    penny_rr_armed: { action: set, int: 0 }
+    penny_rr_order: { action: set, int: 0 }
+    penny_rr_vic: { action: set, int: 0 }
+    penny_i_state: { action: set, int: 0 }
+    penny_i_value: { action: set, int: 0 }
+    penny_i_banked: { action: set, int: 0 }
+    penny_i_armed: { action: set, int: 0 }
+    penny_i_order: { action: set, int: 0 }
+    penny_i_vic: { action: set, int: 0 }
+    penny_c_state: { action: set, int: 0 }
+    penny_c_value: { action: set, int: 0 }
+    penny_c_banked: { action: set, int: 0 }
+    penny_c_armed: { action: set, int: 0 }
+    penny_c_order: { action: set, int: 0 }
+    penny_c_vic: { action: set, int: 0 }
+    penny_e_state: { action: set, int: 0 }
+    penny_e_value: { action: set, int: 0 }
+    penny_e_banked: { action: set, int: 0 }
+    penny_e_armed: { action: set, int: 0 }
+    penny_e_order: { action: set, int: 0 }
+    penny_e_vic: { action: set, int: 0 }
+    penny_m_state: { action: set, int: 0 }
+    penny_m_value: { action: set, int: 0 }
+    penny_m_banked: { action: set, int: 0 }
+    penny_m_armed: { action: set, int: 0 }
+    penny_m_order: { action: set, int: 0 }
+    penny_m_vic: { action: set, int: 0 }
+    penny_a_state: { action: set, int: 0 }
+    penny_a_value: { action: set, int: 0 }
+    penny_a_banked: { action: set, int: 0 }
+    penny_a_armed: { action: set, int: 0 }
+    penny_a_order: { action: set, int: 0 }
+    penny_a_vic: { action: set, int: 0 }
+    penny_n_state: { action: set, int: 0 }
+    penny_n_value: { action: set, int: 0 }
+    penny_n_banked: { action: set, int: 0 }
+    penny_n_armed: { action: set, int: 0 }
+    penny_n_order: { action: set, int: 0 }
+    penny_n_vic: { action: set, int: 0 }
+    mode_hard_deck_penny_played: { action: set, int: 1 }
+
+  penny_ball_released:
+    penny_phase: { action: set, int: 1 }
+    # Blocks TGMB locking (lock diverter) + skillshot during the multiball.
+    # Cleared on multiball end below and on mode stop (pilot_mission_qualifier).
+    multiball_active: { action: set, int: 1 }
+
+  multiball_penny_multiball_ended:
+    multiball_active: { action: set, int: 0 }
+
+  ball_will_end{mode.hard_deck_penny.active==True}:
+    pilot_mode_drain_pending: { action: set, int: 1 }
+
+  ##############################################
+  ## PART 1 - per shot: first hit / arm / countdown / collect
+  ##############################################
+  # LEFT LANE
+  penny_ll_first:
+    score: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
+    penny_ll_state: { action: set, int: 1 }
+    penny_ll_value: { action: set, int: 1500000 }
+    penny_ll_armed: { action: set, int: 0 }
+    penny_seq: { action: add, int: 1 }
+    penny_ll_order: { action: set, int: current_player.penny_seq }
+  penny_ll_arm:
+    penny_ll_armed: { action: set, int: 1 }
+  penny_ll_second:
+    score: current_player.penny_ll_value * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: current_player.penny_ll_value * current_player.total_scoring_multiplier }
+    penny_ll_banked: { action: set, int: current_player.penny_ll_value }
+    penny_banked_total: { action: add, int: current_player.penny_ll_value }
+    penny_ll_state: { action: set, int: 2 }
+    penny_collected_count: { action: add, int: 1 }
+  timer_penny_decay_tick{current_player.penny_ll_state==1 and current_player.penny_ll_value>500000}:
+    penny_ll_value: { action: add, int: -4000 }
+
+  # LEFT ORBIT
+  penny_lo_first:
+    score: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
+    penny_lo_state: { action: set, int: 1 }
+    penny_lo_value: { action: set, int: 1500000 }
+    penny_lo_armed: { action: set, int: 0 }
+    penny_seq: { action: add, int: 1 }
+    penny_lo_order: { action: set, int: current_player.penny_seq }
+  penny_lo_arm:
+    penny_lo_armed: { action: set, int: 1 }
+  penny_lo_second:
+    score: current_player.penny_lo_value * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: current_player.penny_lo_value * current_player.total_scoring_multiplier }
+    penny_lo_banked: { action: set, int: current_player.penny_lo_value }
+    penny_banked_total: { action: add, int: current_player.penny_lo_value }
+    penny_lo_state: { action: set, int: 2 }
+    penny_collected_count: { action: add, int: 1 }
+  timer_penny_decay_tick{current_player.penny_lo_state==1 and current_player.penny_lo_value>500000}:
+    penny_lo_value: { action: add, int: -4000 }
+
+  # LEFT RAMP
+  penny_lr_first:
+    score: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
+    penny_lr_state: { action: set, int: 1 }
+    penny_lr_value: { action: set, int: 1500000 }
+    penny_lr_armed: { action: set, int: 0 }
+    penny_seq: { action: add, int: 1 }
+    penny_lr_order: { action: set, int: current_player.penny_seq }
+  penny_lr_arm:
+    penny_lr_armed: { action: set, int: 1 }
+  penny_lr_second:
+    score: current_player.penny_lr_value * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: current_player.penny_lr_value * current_player.total_scoring_multiplier }
+    penny_lr_banked: { action: set, int: current_player.penny_lr_value }
+    penny_banked_total: { action: add, int: current_player.penny_lr_value }
+    penny_lr_state: { action: set, int: 2 }
+    penny_collected_count: { action: add, int: 1 }
+  timer_penny_decay_tick{current_player.penny_lr_state==1 and current_player.penny_lr_value>500000}:
+    penny_lr_value: { action: add, int: -4000 }
+
+  # SPINNER
+  penny_sp_first:
+    score: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
+    penny_sp_state: { action: set, int: 1 }
+    penny_sp_value: { action: set, int: 1500000 }
+    penny_sp_armed: { action: set, int: 0 }
+    penny_seq: { action: add, int: 1 }
+    penny_sp_order: { action: set, int: current_player.penny_seq }
+  penny_sp_arm:
+    penny_sp_armed: { action: set, int: 1 }
+  penny_sp_second:
+    score: current_player.penny_sp_value * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: current_player.penny_sp_value * current_player.total_scoring_multiplier }
+    penny_sp_banked: { action: set, int: current_player.penny_sp_value }
+    penny_banked_total: { action: add, int: current_player.penny_sp_value }
+    penny_sp_state: { action: set, int: 2 }
+    penny_collected_count: { action: add, int: 1 }
+  timer_penny_decay_tick{current_player.penny_sp_state==1 and current_player.penny_sp_value>500000}:
+    penny_sp_value: { action: add, int: -4000 }
+
+  # CENTER TARGET
+  penny_cnt_first:
+    score: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
+    penny_cnt_state: { action: set, int: 1 }
+    penny_cnt_value: { action: set, int: 1500000 }
+    penny_cnt_armed: { action: set, int: 0 }
+    penny_seq: { action: add, int: 1 }
+    penny_cnt_order: { action: set, int: current_player.penny_seq }
+  penny_cnt_arm:
+    penny_cnt_armed: { action: set, int: 1 }
+  penny_cnt_second:
+    score: current_player.penny_cnt_value * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: current_player.penny_cnt_value * current_player.total_scoring_multiplier }
+    penny_cnt_banked: { action: set, int: current_player.penny_cnt_value }
+    penny_banked_total: { action: add, int: current_player.penny_cnt_value }
+    penny_cnt_state: { action: set, int: 2 }
+    penny_collected_count: { action: add, int: 1 }
+  timer_penny_decay_tick{current_player.penny_cnt_state==1 and current_player.penny_cnt_value>500000}:
+    penny_cnt_value: { action: add, int: -4000 }
+
+  # TOWER
+  penny_twr_first:
+    score: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
+    penny_twr_state: { action: set, int: 1 }
+    penny_twr_value: { action: set, int: 1500000 }
+    penny_twr_armed: { action: set, int: 0 }
+    penny_seq: { action: add, int: 1 }
+    penny_twr_order: { action: set, int: current_player.penny_seq }
+  penny_twr_arm:
+    penny_twr_armed: { action: set, int: 1 }
+  penny_twr_second:
+    score: current_player.penny_twr_value * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: current_player.penny_twr_value * current_player.total_scoring_multiplier }
+    penny_twr_banked: { action: set, int: current_player.penny_twr_value }
+    penny_banked_total: { action: add, int: current_player.penny_twr_value }
+    penny_twr_state: { action: set, int: 2 }
+    penny_collected_count: { action: add, int: 1 }
+  timer_penny_decay_tick{current_player.penny_twr_state==1 and current_player.penny_twr_value>500000}:
+    penny_twr_value: { action: add, int: -4000 }
+
+  # TOP LOOP
+  penny_tl_first:
+    score: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
+    penny_tl_state: { action: set, int: 1 }
+    penny_tl_value: { action: set, int: 1500000 }
+    penny_tl_armed: { action: set, int: 0 }
+    penny_seq: { action: add, int: 1 }
+    penny_tl_order: { action: set, int: current_player.penny_seq }
+  penny_tl_arm:
+    penny_tl_armed: { action: set, int: 1 }
+  penny_tl_second:
+    score: current_player.penny_tl_value * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: current_player.penny_tl_value * current_player.total_scoring_multiplier }
+    penny_tl_banked: { action: set, int: current_player.penny_tl_value }
+    penny_banked_total: { action: add, int: current_player.penny_tl_value }
+    penny_tl_state: { action: set, int: 2 }
+    penny_collected_count: { action: add, int: 1 }
+  timer_penny_decay_tick{current_player.penny_tl_state==1 and current_player.penny_tl_value>500000}:
+    penny_tl_value: { action: add, int: -4000 }
+
+  # TOP RAMP
+  penny_tr_first:
+    score: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
+    penny_tr_state: { action: set, int: 1 }
+    penny_tr_value: { action: set, int: 1500000 }
+    penny_tr_armed: { action: set, int: 0 }
+    penny_seq: { action: add, int: 1 }
+    penny_tr_order: { action: set, int: current_player.penny_seq }
+  penny_tr_arm:
+    penny_tr_armed: { action: set, int: 1 }
+  penny_tr_second:
+    score: current_player.penny_tr_value * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: current_player.penny_tr_value * current_player.total_scoring_multiplier }
+    penny_tr_banked: { action: set, int: current_player.penny_tr_value }
+    penny_banked_total: { action: add, int: current_player.penny_tr_value }
+    penny_tr_state: { action: set, int: 2 }
+    penny_collected_count: { action: add, int: 1 }
+  timer_penny_decay_tick{current_player.penny_tr_state==1 and current_player.penny_tr_value>500000}:
+    penny_tr_value: { action: add, int: -4000 }
+
+  # RIGHT RAMP
+  penny_rr_first:
+    score: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
+    penny_rr_state: { action: set, int: 1 }
+    penny_rr_value: { action: set, int: 1500000 }
+    penny_rr_armed: { action: set, int: 0 }
+    penny_seq: { action: add, int: 1 }
+    penny_rr_order: { action: set, int: current_player.penny_seq }
+  penny_rr_arm:
+    penny_rr_armed: { action: set, int: 1 }
+  penny_rr_second:
+    score: current_player.penny_rr_value * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: current_player.penny_rr_value * current_player.total_scoring_multiplier }
+    penny_rr_banked: { action: set, int: current_player.penny_rr_value }
+    penny_banked_total: { action: add, int: current_player.penny_rr_value }
+    penny_rr_state: { action: set, int: 2 }
+    penny_collected_count: { action: add, int: 1 }
+  timer_penny_decay_tick{current_player.penny_rr_state==1 and current_player.penny_rr_value>500000}:
+    penny_rr_value: { action: add, int: -4000 }
+
+  # ICEMAN - I
+  penny_i_first:
+    score: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
+    penny_i_state: { action: set, int: 1 }
+    penny_i_value: { action: set, int: 1500000 }
+    penny_i_armed: { action: set, int: 0 }
+    penny_seq: { action: add, int: 1 }
+    penny_i_order: { action: set, int: current_player.penny_seq }
+  penny_i_arm:
+    penny_i_armed: { action: set, int: 1 }
+  penny_i_second:
+    score: current_player.penny_i_value * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: current_player.penny_i_value * current_player.total_scoring_multiplier }
+    penny_i_banked: { action: set, int: current_player.penny_i_value }
+    penny_banked_total: { action: add, int: current_player.penny_i_value }
+    penny_i_state: { action: set, int: 2 }
+    penny_collected_count: { action: add, int: 1 }
+  timer_penny_decay_tick{current_player.penny_i_state==1 and current_player.penny_i_value>500000}:
+    penny_i_value: { action: add, int: -4000 }
+
+  # ICEMAN - C
+  penny_c_first:
+    score: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
+    penny_c_state: { action: set, int: 1 }
+    penny_c_value: { action: set, int: 1500000 }
+    penny_c_armed: { action: set, int: 0 }
+    penny_seq: { action: add, int: 1 }
+    penny_c_order: { action: set, int: current_player.penny_seq }
+  penny_c_arm:
+    penny_c_armed: { action: set, int: 1 }
+  penny_c_second:
+    score: current_player.penny_c_value * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: current_player.penny_c_value * current_player.total_scoring_multiplier }
+    penny_c_banked: { action: set, int: current_player.penny_c_value }
+    penny_banked_total: { action: add, int: current_player.penny_c_value }
+    penny_c_state: { action: set, int: 2 }
+    penny_collected_count: { action: add, int: 1 }
+  timer_penny_decay_tick{current_player.penny_c_state==1 and current_player.penny_c_value>500000}:
+    penny_c_value: { action: add, int: -4000 }
+
+  # ICEMAN - E
+  penny_e_first:
+    score: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
+    penny_e_state: { action: set, int: 1 }
+    penny_e_value: { action: set, int: 1500000 }
+    penny_e_armed: { action: set, int: 0 }
+    penny_seq: { action: add, int: 1 }
+    penny_e_order: { action: set, int: current_player.penny_seq }
+  penny_e_arm:
+    penny_e_armed: { action: set, int: 1 }
+  penny_e_second:
+    score: current_player.penny_e_value * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: current_player.penny_e_value * current_player.total_scoring_multiplier }
+    penny_e_banked: { action: set, int: current_player.penny_e_value }
+    penny_banked_total: { action: add, int: current_player.penny_e_value }
+    penny_e_state: { action: set, int: 2 }
+    penny_collected_count: { action: add, int: 1 }
+  timer_penny_decay_tick{current_player.penny_e_state==1 and current_player.penny_e_value>500000}:
+    penny_e_value: { action: add, int: -4000 }
+
+  # ICEMAN - M
+  penny_m_first:
+    score: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
+    penny_m_state: { action: set, int: 1 }
+    penny_m_value: { action: set, int: 1500000 }
+    penny_m_armed: { action: set, int: 0 }
+    penny_seq: { action: add, int: 1 }
+    penny_m_order: { action: set, int: current_player.penny_seq }
+  penny_m_arm:
+    penny_m_armed: { action: set, int: 1 }
+  penny_m_second:
+    score: current_player.penny_m_value * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: current_player.penny_m_value * current_player.total_scoring_multiplier }
+    penny_m_banked: { action: set, int: current_player.penny_m_value }
+    penny_banked_total: { action: add, int: current_player.penny_m_value }
+    penny_m_state: { action: set, int: 2 }
+    penny_collected_count: { action: add, int: 1 }
+  timer_penny_decay_tick{current_player.penny_m_state==1 and current_player.penny_m_value>500000}:
+    penny_m_value: { action: add, int: -4000 }
+
+  # ICEMAN - A
+  penny_a_first:
+    score: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
+    penny_a_state: { action: set, int: 1 }
+    penny_a_value: { action: set, int: 1500000 }
+    penny_a_armed: { action: set, int: 0 }
+    penny_seq: { action: add, int: 1 }
+    penny_a_order: { action: set, int: current_player.penny_seq }
+  penny_a_arm:
+    penny_a_armed: { action: set, int: 1 }
+  penny_a_second:
+    score: current_player.penny_a_value * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: current_player.penny_a_value * current_player.total_scoring_multiplier }
+    penny_a_banked: { action: set, int: current_player.penny_a_value }
+    penny_banked_total: { action: add, int: current_player.penny_a_value }
+    penny_a_state: { action: set, int: 2 }
+    penny_collected_count: { action: add, int: 1 }
+  timer_penny_decay_tick{current_player.penny_a_state==1 and current_player.penny_a_value>500000}:
+    penny_a_value: { action: add, int: -4000 }
+
+  # ICEMAN - N
+  penny_n_first:
+    score: 250000 * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: 250000 * current_player.total_scoring_multiplier }
+    penny_n_state: { action: set, int: 1 }
+    penny_n_value: { action: set, int: 1500000 }
+    penny_n_armed: { action: set, int: 0 }
+    penny_seq: { action: add, int: 1 }
+    penny_n_order: { action: set, int: current_player.penny_seq }
+  penny_n_arm:
+    penny_n_armed: { action: set, int: 1 }
+  penny_n_second:
+    score: current_player.penny_n_value * current_player.total_scoring_multiplier
+    mode_points_scored: { action: set, int: current_player.penny_n_value * current_player.total_scoring_multiplier }
+    penny_n_banked: { action: set, int: current_player.penny_n_value }
+    penny_banked_total: { action: add, int: current_player.penny_n_value }
+    penny_n_state: { action: set, int: 2 }
+    penny_collected_count: { action: add, int: 1 }
+  timer_penny_decay_tick{current_player.penny_n_state==1 and current_player.penny_n_value>500000}:
+    penny_n_value: { action: add, int: -4000 }
+
+  ##############################################
+  ## PART 2 - OUT THE WINDOW
+  ##############################################
+  penny_window_start:
+    penny_phase: { action: set, int: 2 }
+    penny_super_value: { action: set, int: current_player.penny_banked_total // 10 }
+    penny_scoop_held: { action: set, int: 0 }
+    penny_ll_held: { action: set, int: 0 }
+    penny_ll_lit: { action: set, int: 0 }      # 1st attempt: scoop first, then the left lane
+    penny_window_attempt: { action: set, int: 0 }
+  penny_scoop_locked:
+    penny_scoop_held: { action: set, int: 1 }
+  penny_ll_locked:
+    penny_ll_held: { action: set, int: 1 }
+  penny_ll_light_on:
+    penny_ll_lit: { action: set, int: 1 }
+  penny_window_reset_vars:
+    penny_scoop_held: { action: set, int: 0 }
+    penny_ll_held: { action: set, int: 0 }
+    penny_ll_lit: { action: set, int: 1 }      # re-attempts: either one first
+    penny_window_attempt: { action: add, int: 1 }
+    penny_window_timer_on: { action: set, int: 0 }
+  # penny_window slide: the countdown only shows while this is 1
+  penny_window_timer_start:
+    penny_window_timer_on: { action: set, int: 1 }
+
+  # ESCAPE - super jackpot + the WIN
+  penny_escape:
+    score: current_player.penny_super_value * current_player.total_scoring_multiplier
+    penny_super_jackpot_value: { action: set, int: current_player.penny_super_value * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: current_player.penny_super_value * current_player.total_scoring_multiplier }
+    penny_complete_flag: { action: set, int: 1 }
+    penny_window_timer_on: { action: set, int: 0 }
+    mode_hard_deck_penny_won: { action: set, int: 1 }
+    mode_hard_deck_penny_complete: { action: set, int: 1 }
+    hard_deck_missions_won: { action: add, int: 1 }
+  penny_escape_release:
+    penny_scoop_held: { action: set, int: 0 }
+    penny_ll_held: { action: set, int: 0 }
+    penny_phase: { action: set, int: 3 }
+    penny_vic_count: { action: set, int: 0 }
+
+  ##############################################
+  ## PART 3 - VICTORY JACKPOTS (20% of the shot's banked value)
+  ##############################################
+  penny_ll_victory:
+    score: current_player.penny_ll_banked // 5 * current_player.total_scoring_multiplier
+    penny_victory_jackpot_value: { action: set, int: current_player.penny_ll_banked // 5 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: current_player.penny_ll_banked // 5 * current_player.total_scoring_multiplier }
+    penny_ll_vic: { action: set, int: 1 }
+    penny_vic_count: { action: add, int: 1 }
+  penny_lo_victory:
+    score: current_player.penny_lo_banked // 5 * current_player.total_scoring_multiplier
+    penny_victory_jackpot_value: { action: set, int: current_player.penny_lo_banked // 5 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: current_player.penny_lo_banked // 5 * current_player.total_scoring_multiplier }
+    penny_lo_vic: { action: set, int: 1 }
+    penny_vic_count: { action: add, int: 1 }
+  penny_lr_victory:
+    score: current_player.penny_lr_banked // 5 * current_player.total_scoring_multiplier
+    penny_victory_jackpot_value: { action: set, int: current_player.penny_lr_banked // 5 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: current_player.penny_lr_banked // 5 * current_player.total_scoring_multiplier }
+    penny_lr_vic: { action: set, int: 1 }
+    penny_vic_count: { action: add, int: 1 }
+  penny_sp_victory:
+    score: current_player.penny_sp_banked // 5 * current_player.total_scoring_multiplier
+    penny_victory_jackpot_value: { action: set, int: current_player.penny_sp_banked // 5 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: current_player.penny_sp_banked // 5 * current_player.total_scoring_multiplier }
+    penny_sp_vic: { action: set, int: 1 }
+    penny_vic_count: { action: add, int: 1 }
+  penny_cnt_victory:
+    score: current_player.penny_cnt_banked // 5 * current_player.total_scoring_multiplier
+    penny_victory_jackpot_value: { action: set, int: current_player.penny_cnt_banked // 5 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: current_player.penny_cnt_banked // 5 * current_player.total_scoring_multiplier }
+    penny_cnt_vic: { action: set, int: 1 }
+    penny_vic_count: { action: add, int: 1 }
+  penny_twr_victory:
+    score: current_player.penny_twr_banked // 5 * current_player.total_scoring_multiplier
+    penny_victory_jackpot_value: { action: set, int: current_player.penny_twr_banked // 5 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: current_player.penny_twr_banked // 5 * current_player.total_scoring_multiplier }
+    penny_twr_vic: { action: set, int: 1 }
+    penny_vic_count: { action: add, int: 1 }
+  penny_tl_victory:
+    score: current_player.penny_tl_banked // 5 * current_player.total_scoring_multiplier
+    penny_victory_jackpot_value: { action: set, int: current_player.penny_tl_banked // 5 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: current_player.penny_tl_banked // 5 * current_player.total_scoring_multiplier }
+    penny_tl_vic: { action: set, int: 1 }
+    penny_vic_count: { action: add, int: 1 }
+  penny_tr_victory:
+    score: current_player.penny_tr_banked // 5 * current_player.total_scoring_multiplier
+    penny_victory_jackpot_value: { action: set, int: current_player.penny_tr_banked // 5 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: current_player.penny_tr_banked // 5 * current_player.total_scoring_multiplier }
+    penny_tr_vic: { action: set, int: 1 }
+    penny_vic_count: { action: add, int: 1 }
+  penny_rr_victory:
+    score: current_player.penny_rr_banked // 5 * current_player.total_scoring_multiplier
+    penny_victory_jackpot_value: { action: set, int: current_player.penny_rr_banked // 5 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: current_player.penny_rr_banked // 5 * current_player.total_scoring_multiplier }
+    penny_rr_vic: { action: set, int: 1 }
+    penny_vic_count: { action: add, int: 1 }
+  penny_i_victory:
+    score: current_player.penny_i_banked // 5 * current_player.total_scoring_multiplier
+    penny_victory_jackpot_value: { action: set, int: current_player.penny_i_banked // 5 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: current_player.penny_i_banked // 5 * current_player.total_scoring_multiplier }
+    penny_i_vic: { action: set, int: 1 }
+    penny_vic_count: { action: add, int: 1 }
+  penny_c_victory:
+    score: current_player.penny_c_banked // 5 * current_player.total_scoring_multiplier
+    penny_victory_jackpot_value: { action: set, int: current_player.penny_c_banked // 5 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: current_player.penny_c_banked // 5 * current_player.total_scoring_multiplier }
+    penny_c_vic: { action: set, int: 1 }
+    penny_vic_count: { action: add, int: 1 }
+  penny_e_victory:
+    score: current_player.penny_e_banked // 5 * current_player.total_scoring_multiplier
+    penny_victory_jackpot_value: { action: set, int: current_player.penny_e_banked // 5 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: current_player.penny_e_banked // 5 * current_player.total_scoring_multiplier }
+    penny_e_vic: { action: set, int: 1 }
+    penny_vic_count: { action: add, int: 1 }
+  penny_m_victory:
+    score: current_player.penny_m_banked // 5 * current_player.total_scoring_multiplier
+    penny_victory_jackpot_value: { action: set, int: current_player.penny_m_banked // 5 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: current_player.penny_m_banked // 5 * current_player.total_scoring_multiplier }
+    penny_m_vic: { action: set, int: 1 }
+    penny_vic_count: { action: add, int: 1 }
+  penny_a_victory:
+    score: current_player.penny_a_banked // 5 * current_player.total_scoring_multiplier
+    penny_victory_jackpot_value: { action: set, int: current_player.penny_a_banked // 5 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: current_player.penny_a_banked // 5 * current_player.total_scoring_multiplier }
+    penny_a_vic: { action: set, int: 1 }
+    penny_vic_count: { action: add, int: 1 }
+  penny_n_victory:
+    score: current_player.penny_n_banked // 5 * current_player.total_scoring_multiplier
+    penny_victory_jackpot_value: { action: set, int: current_player.penny_n_banked // 5 * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: current_player.penny_n_banked // 5 * current_player.total_scoring_multiplier }
+    penny_n_vic: { action: set, int: 1 }
+    penny_vic_count: { action: add, int: 1 }
+  # VICTORY LOCK (all 15 victory shots made) - scoop + left lane, no timer
+  penny_vlock_start:
+    penny_phase: { action: set, int: 4 }
+    penny_scoop_held: { action: set, int: 0 }
+    penny_ll_held: { action: set, int: 0 }
+    penny_ll_lit: { action: set, int: 1 }
+  penny_vsj:
+    score: current_player.penny_super_value * current_player.total_scoring_multiplier
+    penny_super_jackpot_value: { action: set, int: current_player.penny_super_value * current_player.total_scoring_multiplier }
+    mode_points_scored: { action: set, int: current_player.penny_super_value * current_player.total_scoring_multiplier }
+  penny_vsj_release:
+    penny_scoop_held: { action: set, int: 0 }
+    penny_ll_held: { action: set, int: 0 }
+    penny_ll_lit: { action: set, int: 0 }
+    penny_phase: { action: set, int: 3 }
+  penny_victory_relight:
+    penny_vic_count: { action: set, int: 0 }
+    penny_ll_vic: { action: set, int: 0 }
+    penny_lo_vic: { action: set, int: 0 }
+    penny_lr_vic: { action: set, int: 0 }
+    penny_sp_vic: { action: set, int: 0 }
+    penny_cnt_vic: { action: set, int: 0 }
+    penny_twr_vic: { action: set, int: 0 }
+    penny_tl_vic: { action: set, int: 0 }
+    penny_tr_vic: { action: set, int: 0 }
+    penny_rr_vic: { action: set, int: 0 }
+    penny_i_vic: { action: set, int: 0 }
+    penny_c_vic: { action: set, int: 0 }
+    penny_e_vic: { action: set, int: 0 }
+    penny_m_vic: { action: set, int: 0 }
+    penny_a_vic: { action: set, int: 0 }
+    penny_n_vic: { action: set, int: 0 }
+
+  # FAILED - lock every shot so nothing scores during the lost video
+  penny_failed:
+    penny_step_locked: { action: set, int: 1 }
+    penny_phase: { action: set, int: 9 }
+    penny_window_timer_on: { action: set, int: 0 }
+
+####################################################################################
+# EVENT PLAYER
+####################################################################################
+event_player:
+
+  ##############################################
+  ## INTRO - video requested 1s in (the penny_video slide must exist first)
+  ##############################################
+  mode_hard_deck_penny_started:
+    - penny_play_intro|1s
+    - penny_barrier_up|200ms   # hard deck start drops nothing, but make sure the barrier target is up
+  penny_play_intro{current_player.penny_phase==0}:
+    penny_video:
+      video: penny_intro
+      urgent: 1
+  penny_barrier_up:
+    - barrier_raise
+
+  s_flipper_left_active{current_player.penny_phase==0 and device.timers.penny_intro_delay.running}:
+    - penny_check_skip_intro
+  s_flipper_right_active{current_player.penny_phase==0 and device.timers.penny_intro_delay.running}:
+    - penny_check_skip_intro
+  penny_check_skip_intro{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - penny_skip_intro
+  penny_skip_intro:
+    - penny_video_clear
+    - penny_ball_released
+  timer_penny_intro_delay_complete:
+    - penny_ball_released
+
+  # Post drops (coil_player), 2nd ball 300ms later
+  penny_ball_released:
+    - ball_search_unblock
+    - penny_mb_start|300ms
+
+  ##############################################
+  ## PART 1 - shot routing
+  ## switch -> penny_<key>_hit -> first (state 0) or second (state 1, armed).
+  ## Routed through named events so a single switch hit can never run both
+  ## the first-hit and the collect blocks (variable_player sees live values).
+  ##############################################
+  # LEFT LANE
+  s_lane_left_active{current_player.penny_phase==1 and current_player.penny_step_locked==0}:
+    - penny_ll_hit
+  penny_ll_hit{current_player.penny_ll_state==0}:
+    - penny_ll_first
+    - penny_ll_arm|1000ms
+  penny_ll_hit{current_player.penny_ll_state==1 and current_player.penny_ll_armed==1}:
+    - penny_ll_second
+  penny_ll_first:
+    - penny_show_points
+  penny_ll_second:
+    - penny_show_points
+    - play_shot_made_callout
+  player_penny_ll_value{value<=500000 and current_player.penny_ll_state==1}:
+    - penny_ll_floor
+
+  # LEFT ORBIT
+  left_orbit_shot_hit{current_player.penny_phase==1 and current_player.penny_step_locked==0}:
+    - penny_lo_hit
+  penny_lo_hit{current_player.penny_lo_state==0}:
+    - penny_lo_first
+    - penny_lo_arm|1000ms
+  penny_lo_hit{current_player.penny_lo_state==1 and current_player.penny_lo_armed==1}:
+    - penny_lo_second
+  penny_lo_first:
+    - penny_show_points
+  penny_lo_second:
+    - penny_show_points
+    - play_shot_made_callout
+  player_penny_lo_value{value<=500000 and current_player.penny_lo_state==1}:
+    - penny_lo_floor
+
+  # LEFT RAMP
+  s_ramp_left_exit_active{current_player.penny_phase==1 and current_player.penny_step_locked==0}:
+    - penny_lr_hit
+  penny_lr_hit{current_player.penny_lr_state==0}:
+    - penny_lr_first
+    - penny_lr_arm|1000ms
+  penny_lr_hit{current_player.penny_lr_state==1 and current_player.penny_lr_armed==1}:
+    - penny_lr_second
+  penny_lr_first:
+    - penny_show_points
+  penny_lr_second:
+    - penny_show_points
+    - play_shot_made_callout
+  player_penny_lr_value{value<=500000 and current_player.penny_lr_state==1}:
+    - penny_lr_floor
+
+  # SPINNER
+  spinner_shot_made{current_player.penny_phase==1 and current_player.penny_step_locked==0}:
+    - penny_sp_hit
+  penny_sp_hit{current_player.penny_sp_state==0}:
+    - penny_sp_first
+    - penny_sp_arm|2000ms
+  penny_sp_hit{current_player.penny_sp_state==1 and current_player.penny_sp_armed==1}:
+    - penny_sp_second
+  penny_sp_first:
+    - penny_show_points
+  penny_sp_second:
+    - penny_show_points
+    - play_shot_made_callout
+  player_penny_sp_value{value<=500000 and current_player.penny_sp_state==1}:
+    - penny_sp_floor
+
+  # CENTER TARGET
+  s_barrier_target_active{current_player.penny_phase==1 and current_player.penny_step_locked==0}:
+    - penny_cnt_hit
+  penny_cnt_hit{current_player.penny_cnt_state==0}:
+    - penny_cnt_first
+    - penny_cnt_arm|1000ms
+  penny_cnt_hit{current_player.penny_cnt_state==1 and current_player.penny_cnt_armed==1}:
+    - penny_cnt_second
+  penny_cnt_first:
+    - penny_show_points
+  penny_cnt_second:
+    - penny_show_points
+    - play_shot_made_callout
+  player_penny_cnt_value{value<=500000 and current_player.penny_cnt_state==1}:
+    - penny_cnt_floor
+
+  # TOWER
+  s_ramp_tower_exit_active{current_player.penny_phase==1 and current_player.penny_step_locked==0}:
+    - penny_twr_hit
+  penny_twr_hit{current_player.penny_twr_state==0}:
+    - penny_twr_first
+    - penny_twr_arm|1000ms
+  penny_twr_hit{current_player.penny_twr_state==1 and current_player.penny_twr_armed==1}:
+    - penny_twr_second
+  penny_twr_first:
+    - penny_show_points
+  penny_twr_second:
+    - penny_show_points
+    - play_shot_made_callout
+  player_penny_twr_value{value<=500000 and current_player.penny_twr_state==1}:
+    - penny_twr_floor
+
+  # TOP LOOP
+  s_orbit_upper_active{current_player.penny_phase==1 and current_player.penny_step_locked==0}:
+    - penny_tl_hit
+  penny_tl_hit{current_player.penny_tl_state==0}:
+    - penny_tl_first
+    - penny_tl_arm|1000ms
+  penny_tl_hit{current_player.penny_tl_state==1 and current_player.penny_tl_armed==1}:
+    - penny_tl_second
+  penny_tl_first:
+    - penny_show_points
+  penny_tl_second:
+    - penny_show_points
+    - play_shot_made_callout
+  player_penny_tl_value{value<=500000 and current_player.penny_tl_state==1}:
+    - penny_tl_floor
+
+  # TOP RAMP
+  s_ramp_inner_exit_active{current_player.penny_phase==1 and current_player.penny_step_locked==0}:
+    - penny_tr_hit
+  penny_tr_hit{current_player.penny_tr_state==0}:
+    - penny_tr_first
+    - penny_tr_arm|1000ms
+  penny_tr_hit{current_player.penny_tr_state==1 and current_player.penny_tr_armed==1}:
+    - penny_tr_second
+  penny_tr_first:
+    - penny_show_points
+  penny_tr_second:
+    - penny_show_points
+    - play_shot_made_callout
+  player_penny_tr_value{value<=500000 and current_player.penny_tr_state==1}:
+    - penny_tr_floor
+
+  # RIGHT RAMP
+  s_ramp_right_exit_active{current_player.penny_phase==1 and current_player.penny_step_locked==0}:
+    - penny_rr_hit
+  penny_rr_hit{current_player.penny_rr_state==0}:
+    - penny_rr_first
+    - penny_rr_arm|1000ms
+  penny_rr_hit{current_player.penny_rr_state==1 and current_player.penny_rr_armed==1}:
+    - penny_rr_second
+  penny_rr_first:
+    - penny_show_points
+  penny_rr_second:
+    - penny_show_points
+    - play_shot_made_callout
+  player_penny_rr_value{value<=500000 and current_player.penny_rr_state==1}:
+    - penny_rr_floor
+
+  # ICEMAN - I
+  s_i_iceman_target_active{current_player.penny_phase==1 and current_player.penny_step_locked==0}:
+    - penny_i_hit
+  penny_i_hit{current_player.penny_i_state==0}:
+    - penny_i_first
+    - penny_i_arm|1000ms
+  penny_i_hit{current_player.penny_i_state==1 and current_player.penny_i_armed==1}:
+    - penny_i_second
+  penny_i_first:
+    - penny_show_points
+  penny_i_second:
+    - penny_show_points
+    - play_shot_made_callout
+  player_penny_i_value{value<=500000 and current_player.penny_i_state==1}:
+    - penny_i_floor
+
+  # ICEMAN - C
+  s_c_iceman_target_active{current_player.penny_phase==1 and current_player.penny_step_locked==0}:
+    - penny_c_hit
+  penny_c_hit{current_player.penny_c_state==0}:
+    - penny_c_first
+    - penny_c_arm|1000ms
+  penny_c_hit{current_player.penny_c_state==1 and current_player.penny_c_armed==1}:
+    - penny_c_second
+  penny_c_first:
+    - penny_show_points
+  penny_c_second:
+    - penny_show_points
+    - play_shot_made_callout
+  player_penny_c_value{value<=500000 and current_player.penny_c_state==1}:
+    - penny_c_floor
+
+  # ICEMAN - E
+  s_e_iceman_target_active{current_player.penny_phase==1 and current_player.penny_step_locked==0}:
+    - penny_e_hit
+  penny_e_hit{current_player.penny_e_state==0}:
+    - penny_e_first
+    - penny_e_arm|1000ms
+  penny_e_hit{current_player.penny_e_state==1 and current_player.penny_e_armed==1}:
+    - penny_e_second
+  penny_e_first:
+    - penny_show_points
+  penny_e_second:
+    - penny_show_points
+    - play_shot_made_callout
+  player_penny_e_value{value<=500000 and current_player.penny_e_state==1}:
+    - penny_e_floor
+
+  # ICEMAN - M
+  s_m_iceman_target_active{current_player.penny_phase==1 and current_player.penny_step_locked==0}:
+    - penny_m_hit
+  penny_m_hit{current_player.penny_m_state==0}:
+    - penny_m_first
+    - penny_m_arm|1000ms
+  penny_m_hit{current_player.penny_m_state==1 and current_player.penny_m_armed==1}:
+    - penny_m_second
+  penny_m_first:
+    - penny_show_points
+  penny_m_second:
+    - penny_show_points
+    - play_shot_made_callout
+  player_penny_m_value{value<=500000 and current_player.penny_m_state==1}:
+    - penny_m_floor
+
+  # ICEMAN - A
+  s_a_iceman_target_active{current_player.penny_phase==1 and current_player.penny_step_locked==0}:
+    - penny_a_hit
+  penny_a_hit{current_player.penny_a_state==0}:
+    - penny_a_first
+    - penny_a_arm|1000ms
+  penny_a_hit{current_player.penny_a_state==1 and current_player.penny_a_armed==1}:
+    - penny_a_second
+  penny_a_first:
+    - penny_show_points
+  penny_a_second:
+    - penny_show_points
+    - play_shot_made_callout
+  player_penny_a_value{value<=500000 and current_player.penny_a_state==1}:
+    - penny_a_floor
+
+  # ICEMAN - N
+  s_n_iceman_target_active{current_player.penny_phase==1 and current_player.penny_step_locked==0}:
+    - penny_n_hit
+  penny_n_hit{current_player.penny_n_state==0}:
+    - penny_n_first
+    - penny_n_arm|1000ms
+  penny_n_hit{current_player.penny_n_state==1 and current_player.penny_n_armed==1}:
+    - penny_n_second
+  penny_n_first:
+    - penny_show_points
+  penny_n_second:
+    - penny_show_points
+    - play_shot_made_callout
+  player_penny_n_value{value<=500000 and current_player.penny_n_state==1}:
+    - penny_n_floor
+
+  # All 15 collected -> Out the Window (1s so the last shot's video/points show)
+  player_penny_collected_count{value==15 and current_player.penny_step_locked==0}:
+    - penny_window_start|1s
+
+  ##############################################
+  ## PART 2 - OUT THE WINDOW
+  ##############################################
+  penny_window_start{current_player.penny_step_locked==0}:
+    - barrier_drop
+    - penny_scoop_arm
+    - penny_scoop_light_on
+
+  # Scoop lock (ball_holds) - raise the barrier so the other ball can't follow it in
+  ball_hold_penny_scoop_hold_held_ball{((current_player.penny_phase==2 and current_player.penny_complete_flag==0) or current_player.penny_phase==4) and current_player.penny_scoop_held==0 and current_player.penny_step_locked==0}:
+    - penny_scoop_locked
+  # Any other catch (a ball bouncing back in right after a release) -> kick it out
+  ball_hold_penny_scoop_hold_held_ball{not (((current_player.penny_phase==2 and current_player.penny_complete_flag==0) or current_player.penny_phase==4) and current_player.penny_scoop_held==0 and current_player.penny_step_locked==0)}:
+    - penny_scoop_kick
+  penny_scoop_kick:
+    - scoop_ball_release
+    - penny_scoop_release|400ms
+  penny_scoop_locked:
+    - barrier_raise
+    - penny_lock_eval|100ms
+
+  # Left Lane lock - post catches the ball (coil_player)
+  s_lane_left_active{((current_player.penny_phase==2 and current_player.penny_complete_flag==0) or current_player.penny_phase==4) and current_player.penny_ll_lit==1 and current_player.penny_ll_held==0 and current_player.penny_step_locked==0}:
+    - penny_ll_locked
+  penny_ll_locked:
+    - penny_lock_eval|100ms
+
+  penny_lock_eval{current_player.penny_phase==2 and current_player.penny_complete_flag==0 and current_player.penny_step_locked==0 and current_player.penny_scoop_held==1 and current_player.penny_ll_held==1}:
+    - penny_escape
+  penny_lock_eval{current_player.penny_phase==2 and current_player.penny_complete_flag==0 and current_player.penny_step_locked==0 and current_player.penny_scoop_held==1 and current_player.penny_ll_held==0}:
+    - penny_window_timer_start
+    - penny_ll_light_on
+  penny_lock_eval{current_player.penny_phase==2 and current_player.penny_complete_flag==0 and current_player.penny_step_locked==0 and current_player.penny_scoop_held==0 and current_player.penny_ll_held==1}:
+    - penny_window_timer_start
+  # Victory lock: no timer - just wait for the other one
+  penny_lock_eval{current_player.penny_phase==4 and current_player.penny_step_locked==0 and current_player.penny_scoop_held==1 and current_player.penny_ll_held==1}:
+    - penny_vsj
+
+  # Out of time -> release whatever is held, light BOTH (either one first)
+  timer_penny_window_timer_complete{current_player.penny_phase==2 and current_player.penny_complete_flag==0 and current_player.penny_step_locked==0 and current_player.penny_scoop_held==1}:
+    - penny_window_release_scoop
+  timer_penny_window_timer_complete{current_player.penny_phase==2 and current_player.penny_complete_flag==0 and current_player.penny_step_locked==0 and current_player.penny_ll_held==1}:
+    - penny_window_release_ll
+  timer_penny_window_timer_complete{current_player.penny_phase==2 and current_player.penny_complete_flag==0 and current_player.penny_step_locked==0}:
+    - penny_window_reset_vars
+    - penny_ll_light_on
+    - penny_play_retry_video
+  # Don't break her heart - plays over play (the balls are free). Not a
+  # cinematic duck: voice_penny_window_retry's duck owns the music (see
+  # no_duck_videos in penny_video_queue.gd) and the video's own sound dips
+  # under the callout.
+  penny_play_retry_video:
+    penny_video:
+      video: penny_dont_break_heart
+      urgent: 1
+  # Hold stays ARMED: a ball bouncing straight back in is simply re-locked
+  penny_window_release_scoop:
+    - scoop_ball_release              # drops the barrier (global scoop release)
+    - penny_scoop_release|400ms       # barrier is down before the kick
+    - penny_scoop_rearm|2500ms        # after the global handler re-raises the barrier
+  penny_scoop_rearm{current_player.penny_phase==2 and current_player.penny_complete_flag==0 and current_player.penny_step_locked==0 and current_player.penny_scoop_held==0}:
+    - barrier_drop
+    - penny_scoop_arm
+    - penny_scoop_light_on
+
+  # ESCAPE - both locked
+  penny_escape:
+    penny_video:
+      video: penny_super_jackpot
+      urgent: 1
+    penny_show_points: {}
+    ball_search_block: {}            # both balls parked for up to 33s
+  # Both balls stay locked while the 33s video plays; released when it's
+  # done or skipped (both flippers) - fallback timer if it never reports
+  penny_video_done{video=="penny_super_jackpot" and current_player.penny_phase==2 and current_player.penny_complete_flag==1 and current_player.penny_step_locked==0}:
+    - penny_escape_release
+  timer_penny_escape_fallback_complete{current_player.penny_phase==2 and current_player.penny_complete_flag==1 and current_player.penny_step_locked==0}:
+    - penny_escape_release
+  s_flipper_left_active{current_player.penny_phase==2 and current_player.penny_complete_flag==1 and current_player.penny_step_locked==0}:
+    - penny_check_skip_escape
+  s_flipper_right_active{current_player.penny_phase==2 and current_player.penny_complete_flag==1 and current_player.penny_step_locked==0}:
+    - penny_check_skip_escape
+  penny_check_skip_escape{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - penny_video_clear              # Godot answers penny_video_done -> release
+  penny_escape_release:
+    - ball_search_unblock
+    - penny_scoop_disarm|3s           # armed 3s longer: a bounce-back gets kicked out (above)
+    - scoop_ball_release
+    - penny_scoop_release|400ms
+    - penny_victory_start
+    - penny_victory_barrier|2500ms
+  # Barrier back UP for the Center Target victory shot (the global scoop
+  # handler leaves it down if a pilot mission happens to be lit)
+  penny_victory_barrier{current_player.penny_phase==3 and current_player.penny_step_locked==0}:
+    - barrier_raise
+
+  ##############################################
+  ## PART 3 - VICTORY JACKPOTS
+  ##############################################
+  s_lane_left_active{current_player.penny_phase==3 and current_player.penny_ll_vic==0 and current_player.penny_step_locked==0}:
+    - penny_ll_victory
+  penny_ll_victory:
+    - penny_show_victory_jackpot
+    - play_shot_made_callout
+    - penny_victory_check|100ms
+  left_orbit_shot_hit{current_player.penny_phase==3 and current_player.penny_lo_vic==0 and current_player.penny_step_locked==0}:
+    - penny_lo_victory
+  penny_lo_victory:
+    - penny_show_victory_jackpot
+    - play_shot_made_callout
+    - penny_victory_check|100ms
+  s_ramp_left_exit_active{current_player.penny_phase==3 and current_player.penny_lr_vic==0 and current_player.penny_step_locked==0}:
+    - penny_lr_victory
+  penny_lr_victory:
+    - penny_show_victory_jackpot
+    - play_shot_made_callout
+    - penny_victory_check|100ms
+  spinner_shot_made{current_player.penny_phase==3 and current_player.penny_sp_vic==0 and current_player.penny_step_locked==0}:
+    - penny_sp_victory
+  penny_sp_victory:
+    - penny_show_victory_jackpot
+    - play_shot_made_callout
+    - penny_victory_check|100ms
+  s_barrier_target_active{current_player.penny_phase==3 and current_player.penny_cnt_vic==0 and current_player.penny_step_locked==0}:
+    - penny_cnt_victory
+  penny_cnt_victory:
+    - penny_show_victory_jackpot
+    - play_shot_made_callout
+    - penny_victory_check|100ms
+  s_ramp_tower_exit_active{current_player.penny_phase==3 and current_player.penny_twr_vic==0 and current_player.penny_step_locked==0}:
+    - penny_twr_victory
+  penny_twr_victory:
+    - penny_show_victory_jackpot
+    - play_shot_made_callout
+    - penny_victory_check|100ms
+  s_orbit_upper_active{current_player.penny_phase==3 and current_player.penny_tl_vic==0 and current_player.penny_step_locked==0}:
+    - penny_tl_victory
+  penny_tl_victory:
+    - penny_show_victory_jackpot
+    - play_shot_made_callout
+    - penny_victory_check|100ms
+  s_ramp_inner_exit_active{current_player.penny_phase==3 and current_player.penny_tr_vic==0 and current_player.penny_step_locked==0}:
+    - penny_tr_victory
+  penny_tr_victory:
+    - penny_show_victory_jackpot
+    - play_shot_made_callout
+    - penny_victory_check|100ms
+  s_ramp_right_exit_active{current_player.penny_phase==3 and current_player.penny_rr_vic==0 and current_player.penny_step_locked==0}:
+    - penny_rr_victory
+  penny_rr_victory:
+    - penny_show_victory_jackpot
+    - play_shot_made_callout
+    - penny_victory_check|100ms
+  s_i_iceman_target_active{current_player.penny_phase==3 and current_player.penny_i_vic==0 and current_player.penny_step_locked==0}:
+    - penny_i_victory
+  penny_i_victory:
+    - penny_show_victory_jackpot
+    - play_shot_made_callout
+    - penny_victory_check|100ms
+  s_c_iceman_target_active{current_player.penny_phase==3 and current_player.penny_c_vic==0 and current_player.penny_step_locked==0}:
+    - penny_c_victory
+  penny_c_victory:
+    - penny_show_victory_jackpot
+    - play_shot_made_callout
+    - penny_victory_check|100ms
+  s_e_iceman_target_active{current_player.penny_phase==3 and current_player.penny_e_vic==0 and current_player.penny_step_locked==0}:
+    - penny_e_victory
+  penny_e_victory:
+    - penny_show_victory_jackpot
+    - play_shot_made_callout
+    - penny_victory_check|100ms
+  s_m_iceman_target_active{current_player.penny_phase==3 and current_player.penny_m_vic==0 and current_player.penny_step_locked==0}:
+    - penny_m_victory
+  penny_m_victory:
+    - penny_show_victory_jackpot
+    - play_shot_made_callout
+    - penny_victory_check|100ms
+  s_a_iceman_target_active{current_player.penny_phase==3 and current_player.penny_a_vic==0 and current_player.penny_step_locked==0}:
+    - penny_a_victory
+  penny_a_victory:
+    - penny_show_victory_jackpot
+    - play_shot_made_callout
+    - penny_victory_check|100ms
+  s_n_iceman_target_active{current_player.penny_phase==3 and current_player.penny_n_vic==0 and current_player.penny_step_locked==0}:
+    - penny_n_victory
+  penny_n_victory:
+    - penny_show_victory_jackpot
+    - play_shot_made_callout
+    - penny_victory_check|100ms
+  penny_victory_check{current_player.penny_vic_count>=15 and current_player.penny_phase==3 and current_player.penny_step_locked==0}:
+    - penny_vlock_start
+  penny_vlock_start:
+    - barrier_drop
+    - penny_scoop_arm
+    - penny_scoop_light_on
+    - penny_ll_light_on
+  # VICTORY SUPER JACKPOT - both locked; out 3s later, all 15 relit
+  penny_vsj:
+    - penny_show_vsj
+    - penny_show_points
+    - penny_vsj_release|3s
+  penny_vsj_release:
+    - penny_scoop_disarm|3s           # a bounce-back in the 3s gets kicked out
+    - scoop_ball_release
+    - penny_scoop_release|400ms
+    - penny_victory_relight
+    - penny_victory_barrier|2500ms
+
+  ##############################################
+  ## LEFT LANE GATE - Top Loop opens the left orbit diverter, ONLY while the
+  ## Left Lane is the last shot still needed. Top Loop insert pulses then.
+  ##############################################
+  # Re-checked whenever anything it depends on changes
+  player_penny_phase:
+    - penny_gate_eval|50ms
+  player_penny_collected_count:
+    - penny_gate_eval|50ms
+  player_penny_ll_state:
+    - penny_gate_eval|50ms
+  player_penny_ll_lit:
+    - penny_gate_eval|50ms
+  player_penny_ll_held:
+    - penny_gate_eval|50ms
+  player_penny_scoop_held:
+    - penny_gate_eval|50ms
+  player_penny_vic_count:
+    - penny_gate_eval|50ms
+  player_penny_ll_vic:
+    - penny_gate_eval|50ms
+  player_penny_step_locked:
+    - penny_gate_eval|50ms
+  penny_gate_eval{((current_player.penny_phase==1 and current_player.penny_collected_count==14 and current_player.penny_ll_state!=2) or (current_player.penny_phase==2 and current_player.penny_complete_flag==0 and current_player.penny_ll_lit==1 and current_player.penny_ll_held==0 and current_player.penny_scoop_held==1) or (current_player.penny_phase==3 and current_player.penny_vic_count==14 and current_player.penny_ll_vic==0) or (current_player.penny_phase==4 and current_player.penny_ll_held==0 and current_player.penny_scoop_held==1)) and current_player.penny_step_locked==0}:
+    - penny_gate_on
+  penny_gate_eval{not (((current_player.penny_phase==1 and current_player.penny_collected_count==14 and current_player.penny_ll_state!=2) or (current_player.penny_phase==2 and current_player.penny_complete_flag==0 and current_player.penny_ll_lit==1 and current_player.penny_ll_held==0 and current_player.penny_scoop_held==1) or (current_player.penny_phase==3 and current_player.penny_vic_count==14 and current_player.penny_ll_vic==0) or (current_player.penny_phase==4 and current_player.penny_ll_held==0 and current_player.penny_scoop_held==1)) and current_player.penny_step_locked==0)}:
+    - penny_gate_off
+  s_orbit_upper_active{((current_player.penny_phase==1 and current_player.penny_collected_count==14 and current_player.penny_ll_state!=2) or (current_player.penny_phase==2 and current_player.penny_complete_flag==0 and current_player.penny_ll_lit==1 and current_player.penny_ll_held==0 and current_player.penny_scoop_held==1) or (current_player.penny_phase==3 and current_player.penny_vic_count==14 and current_player.penny_ll_vic==0) or (current_player.penny_phase==4 and current_player.penny_ll_held==0 and current_player.penny_scoop_held==1)) and current_player.penny_step_locked==0}:
+    - penny_gate_open
+  penny_gate_open:
+    - left_orbit_diverter_open
+  # Closed after 3s, or as soon as the ball reaches the left lane
+  timer_penny_diverter_hold_complete:
+    - left_orbit_diverter_closed
+  s_lane_left_active{device.timers.penny_diverter_hold.running}:
+    - penny_gate_close
+  penny_gate_close:
+    - left_orbit_diverter_closed
+
+  ##############################################
+  ## END PATHS
+  ##############################################
+  # Multiball down to one ball
+  multiball_penny_multiball_ended{current_player.penny_complete_flag==1}:
+    - penny_mode_end
+  multiball_penny_multiball_ended{current_player.penny_complete_flag==0 and current_player.penny_step_locked==0}:
+    - penny_failed
+
+  # Last ball drained while the mode is still running
+  penny_ball_ending_hold{current_player.penny_complete_flag==1}:
+    - penny_drain_cleanup_complete
+    - penny_mode_end
+  penny_ball_ending_hold{current_player.penny_complete_flag==0 and current_player.penny_step_locked==0}:
+    - penny_failed
+  # (already failed -> the lost video is playing; penny_lost_done releases it)
+
+  # FAILED - lost video; release a ball still held for the window
+  penny_failed:
+    penny_video:
+      video: penny_lost
+      urgent: 1
+  penny_failed{current_player.penny_scoop_held==1}:
+    - penny_scoop_disarm|3s
+    - scoop_ball_release
+    - penny_scoop_release|400ms
+
+  # Lost video finished / skipped (both flippers) / fallback
+  penny_video_done{video=="penny_lost"}:
+    - penny_lost_done
+  timer_penny_lost_fallback_complete:
+    - penny_lost_done
+  s_flipper_left_active{current_player.penny_step_locked==1}:
+    - penny_check_skip_lost
+  s_flipper_right_active{current_player.penny_step_locked==1}:
+    - penny_check_skip_lost
+  penny_check_skip_lost{device.switches.s_flipper_left.state and device.switches.s_flipper_right.state}:
+    - penny_video_clear              # Godot answers penny_video_done -> penny_lost_done
+  penny_lost_done:
+    - penny_drain_cleanup_complete
+    - penny_mode_end
+
+  ##############################################
+  ## EXTRA BALL / LEFT LANE POST SAFETY
+  ## extra_ball.yaml drops c_left_lane_up_post on every ball_drain and when its
+  ## collect hold ends. Put it back up if Penny is holding a window ball, and
+  ## make sure an extra-ball hold never strands a ball at the post mid-mode.
+  ##############################################
+  ball_drain{current_player.penny_ll_held==1}:
+    - penny_ll_reassert|100ms
+  timer_extra_ball_hold_complete{current_player.penny_ll_held==1}:
+    - penny_ll_reassert|100ms
+  timer_extra_ball_hold_complete{current_player.penny_ll_held==0 and current_player.penny_phase>=1}:
+    - penny_ll_free|100ms
+
+  # Barrier on stop: leave it to the qualifier when a pilot mission is lit,
+  # otherwise make sure it is UP (it may have been down for the window)
+  mode_hard_deck_penny_will_stop{current_player.penny_phase==2 and current_player.penny_complete_flag==1}:
+    - ball_search_unblock
+  mode_hard_deck_penny_will_stop{device.timers.penny_diverter_hold.running}:
+    - left_orbit_diverter_closed
+  mode_hard_deck_penny_will_stop{current_player.qualified_mode_number==0 and current_player.scoop_release_pending==0}:
+    - barrier_raise
+
+####################################################################################
+# COIL PLAYER
+####################################################################################
+coil_player:
+  # Hold the ball at the left lane through the intro
+  mode_hard_deck_penny_started:
+    c_left_lane_up_post:
+      action: enable
+  penny_ball_released:
+    c_left_lane_up_post:
+      action: disable
+
+  # Window: left lane catch
+  penny_ll_locked:
+    c_left_lane_up_post:
+      action: enable
+  penny_ll_reassert{current_player.penny_ll_held==1}:
+    c_left_lane_up_post:
+      action: enable
+  penny_ll_free{current_player.penny_ll_held==0}:
+    c_left_lane_up_post:
+      action: disable
+  penny_window_release_ll:
+    c_left_lane_up_post:
+      action: disable
+  penny_escape_release:
+    c_left_lane_up_post:
+      action: disable
+  penny_vsj_release:
+    c_left_lane_up_post:
+      action: disable
+  penny_failed:
+    c_left_lane_up_post:
+      action: disable
+  mode_hard_deck_penny_will_stop:
+    c_left_lane_up_post:
+      action: disable
+
+  # Auto-plunge (any ball in the shooter lane during the mode)
+  timer_penny_plunge_delay_complete:
+    c_plunger:
+      action: pulse
+
+####################################################################################
+# SLIDE PLAYER  (mode priority 600 + value; base.yaml shows the points popup)
+####################################################################################
+slide_player:
+  mode_hard_deck_penny_started:
+    penny_video:
+      action: play
+      priority: 20
+
+  # 7-slot points countdown board (penny_points_board.gd reads the player vars)
+  # over the looping penny_background video (part 1 only)
+  penny_ball_released:
+    penny_background:
+      action: play
+      priority: 10
+    penny_points_board:
+      action: play
+      priority: 30
+  penny_window_start:
+    penny_background:
+      action: remove
+    penny_points_board:
+      action: remove
+    penny_window:
+      action: play
+      priority: 40
+
+  # Victory (parts 3 + 4): static background image
+  penny_escape_release:
+    penny_victory_background:
+      action: play
+      priority: 10
+  penny_show_vsj:
+    penny_victory_super_jackpot:
+      action: play
+      priority: 50
+      expire: 4s
+
+  penny_escape:
+    penny_window:
+      action: remove
+    penny_super_jackpot:
+      action: play
+      priority: 50
+      expire: 4s
+
+  penny_show_victory_jackpot:
+    penny_victory_jackpot:
+      action: play
+      priority: 50
+      expire: 2s
+
+  penny_failed:
+    penny_background:
+      action: remove
+    penny_points_board:
+      action: remove
+    penny_window:
+      action: remove
+
+####################################################################################
+# SOUND PLAYER - voice callouts (music lives in base.yaml)
+####################################################################################
+sound_player:
+  mode_hard_deck_penny_started:
+    voice_penny_instructions:
+      bus: voice
+      loops: 0
+  penny_skip_intro:
+    voice_penny_instructions:
+      action: stop
+  penny_window_start:
+    voice_penny_window:
+      bus: voice
+      loops: 0
+  # Retry callout plays with the penny_dont_break_heart video - its duck wins
+  penny_window_reset_vars:
+    voice_penny_window_retry:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+  penny_escape:
+    voice_penny_super_jackpot:
+      bus: voice
+      loops: 0
+  penny_vsj:
+    voice_penny_victory_super_jackpot:
+      bus: voice
+      loops: 0
+      ducking:
+        bus: music
+        attenuation: 0.8
+        attack: 150ms
+        release: 600ms
+        release_point: 0
+
+####################################################################################
+# LIGHT PLAYER - GI: alternating light pink / light purple
+####################################################################################
+light_player:
+  mode_hard_deck_penny_started:
+    l_gi_light_1: { color: FF8CC6, fade: 0ms }
+    l_gi_light_2: { color: B57EDC, fade: 0ms }
+    l_gi_light_3: { color: FF8CC6, fade: 0ms }
+    l_gi_light_4: { color: B57EDC, fade: 0ms }
+    l_gi_light_5: { color: FF8CC6, fade: 0ms }
+    l_gi_light_6: { color: B57EDC, fade: 0ms }
+    l_gi_light_7: { color: FF8CC6, fade: 0ms }
+    l_gi_light_8: { color: B57EDC, fade: 0ms }
+    l_gi_light_9: { color: FF8CC6, fade: 0ms }
+    l_gi_light_10: { color: B57EDC, fade: 0ms }
+    l_gi_light_11: { color: FF8CC6, fade: 0ms }
+    l_gi_light_12: { color: B57EDC, fade: 0ms }
+    l_gi_light_13: { color: FF8CC6, fade: 0ms }
+    l_gi_light_14: { color: B57EDC, fade: 0ms }
+    l_gi_light_15: { color: FF8CC6, fade: 0ms }
+    l_gi_light_16: { color: B57EDC, fade: 0ms }
+    l_gi_light_17: { color: FF8CC6, fade: 0ms }
+    l_gi_light_18: { color: B57EDC, fade: 0ms }
+    l_gi_light_19: { color: FF8CC6, fade: 0ms }
+    l_gi_light_20: { color: B57EDC, fade: 0ms }
+    l_gi_light_21: { color: FF8CC6, fade: 0ms }
+    l_gi_light_22: { color: B57EDC, fade: 0ms }
+    l_gi_light_23: { color: FF8CC6, fade: 0ms }
+    l_gi_light_24: { color: B57EDC, fade: 0ms }
+    l_gi_light_25: { color: FF8CC6, fade: 0ms }
+    l_gi_light_26: { color: B57EDC, fade: 0ms }
+    l_gi_light_27: { color: FF8CC6, fade: 0ms }
+    l_gi_light_pop_left: { color: FF8CC6, fade: 0ms }
+    l_gi_light_pop_bottom: { color: B57EDC, fade: 0ms }
+    l_gi_light_pop_right: { color: FF8CC6, fade: 0ms }
+    l_apron_light_1: { color: FF8CC6, fade: 0ms }
+    l_apron_light_2: { color: B57EDC, fade: 0ms }
+    l_apron_light_3: { color: FF8CC6, fade: 0ms }
+    l_apron_light_4: { color: B57EDC, fade: 0ms }
+
+####################################################################################
+# SHOW PLAYER - shot inserts (one key per shot: a new show replaces the old one)
+####################################################################################
+show_player:
+  # Part 1: all 15 lit SOLID light purple once the ball is released (not during the intro)
+  penny_ball_released:
+    penny_ll_solid:
+      show: penny_solid
+      key: penny_ins_ll
+      show_tokens: { led: l_shot_left_lane, color: B57EDC }
+    penny_lo_solid:
+      show: penny_solid
+      key: penny_ins_lo
+      show_tokens: { led: l_shot_left_orbit, color: B57EDC }
+    penny_lr_solid:
+      show: penny_solid
+      key: penny_ins_lr
+      show_tokens: { led: l_shot_left_ramp, color: B57EDC }
+    penny_sp_solid:
+      show: penny_solid
+      key: penny_ins_sp
+      show_tokens: { led: l_shot_spinner, color: B57EDC }
+    penny_cnt_solid:
+      show: penny_solid
+      key: penny_ins_cnt
+      show_tokens: { led: l_shot_barrier, color: B57EDC }
+    penny_twr_solid:
+      show: penny_solid
+      key: penny_ins_twr
+      show_tokens: { led: l_shot_tower_ramp, color: B57EDC }
+    penny_tl_solid:
+      show: penny_solid
+      key: penny_ins_tl
+      show_tokens: { led: l_shot_upper_orbit, color: B57EDC }
+    penny_tr_solid:
+      show: penny_solid
+      key: penny_ins_tr
+      show_tokens: { led: l_shot_middle_ramp, color: B57EDC }
+    penny_rr_solid:
+      show: penny_solid
+      key: penny_ins_rr
+      show_tokens: { led: l_shot_right_orbit, color: B57EDC }
+    penny_i_solid:
+      show: penny_solid
+      key: penny_ins_i
+      show_tokens: { led: l_iceman_i, color: B57EDC }
+    penny_c_solid:
+      show: penny_solid
+      key: penny_ins_c
+      show_tokens: { led: l_iceman_c, color: B57EDC }
+    penny_e_solid:
+      show: penny_solid
+      key: penny_ins_e
+      show_tokens: { led: l_iceman_e, color: B57EDC }
+    penny_m_solid:
+      show: penny_solid
+      key: penny_ins_m
+      show_tokens: { led: l_iceman_m, color: B57EDC }
+    penny_a_solid:
+      show: penny_solid
+      key: penny_ins_a
+      show_tokens: { led: l_iceman_a, color: B57EDC }
+    penny_n_solid:
+      show: penny_solid
+      key: penny_ins_n
+      show_tokens: { led: l_iceman_n, color: B57EDC }
+  penny_ll_first:
+    penny_ll_fast:
+      show: penny_flash_fast
+      key: penny_ins_ll
+      show_tokens: { led: l_shot_left_lane, color: B57EDC }
+  penny_ll_floor:
+    penny_ll_slow:
+      show: penny_flash_slow
+      key: penny_ins_ll
+      show_tokens: { led: l_shot_left_lane, color: B57EDC }
+  penny_ll_second:
+    penny_ll_off:
+      action: stop
+      key: penny_ins_ll
+  penny_lo_first:
+    penny_lo_fast:
+      show: penny_flash_fast
+      key: penny_ins_lo
+      show_tokens: { led: l_shot_left_orbit, color: B57EDC }
+  penny_lo_floor:
+    penny_lo_slow:
+      show: penny_flash_slow
+      key: penny_ins_lo
+      show_tokens: { led: l_shot_left_orbit, color: B57EDC }
+  penny_lo_second:
+    penny_lo_off:
+      action: stop
+      key: penny_ins_lo
+  penny_lr_first:
+    penny_lr_fast:
+      show: penny_flash_fast
+      key: penny_ins_lr
+      show_tokens: { led: l_shot_left_ramp, color: B57EDC }
+  penny_lr_floor:
+    penny_lr_slow:
+      show: penny_flash_slow
+      key: penny_ins_lr
+      show_tokens: { led: l_shot_left_ramp, color: B57EDC }
+  penny_lr_second:
+    penny_lr_off:
+      action: stop
+      key: penny_ins_lr
+  penny_sp_first:
+    penny_sp_fast:
+      show: penny_flash_fast
+      key: penny_ins_sp
+      show_tokens: { led: l_shot_spinner, color: B57EDC }
+  penny_sp_floor:
+    penny_sp_slow:
+      show: penny_flash_slow
+      key: penny_ins_sp
+      show_tokens: { led: l_shot_spinner, color: B57EDC }
+  penny_sp_second:
+    penny_sp_off:
+      action: stop
+      key: penny_ins_sp
+  penny_cnt_first:
+    penny_cnt_fast:
+      show: penny_flash_fast
+      key: penny_ins_cnt
+      show_tokens: { led: l_shot_barrier, color: B57EDC }
+  penny_cnt_floor:
+    penny_cnt_slow:
+      show: penny_flash_slow
+      key: penny_ins_cnt
+      show_tokens: { led: l_shot_barrier, color: B57EDC }
+  penny_cnt_second:
+    penny_cnt_off:
+      action: stop
+      key: penny_ins_cnt
+  penny_twr_first:
+    penny_twr_fast:
+      show: penny_flash_fast
+      key: penny_ins_twr
+      show_tokens: { led: l_shot_tower_ramp, color: B57EDC }
+  penny_twr_floor:
+    penny_twr_slow:
+      show: penny_flash_slow
+      key: penny_ins_twr
+      show_tokens: { led: l_shot_tower_ramp, color: B57EDC }
+  penny_twr_second:
+    penny_twr_off:
+      action: stop
+      key: penny_ins_twr
+  penny_tl_first:
+    penny_tl_fast:
+      show: penny_flash_fast
+      key: penny_ins_tl
+      show_tokens: { led: l_shot_upper_orbit, color: B57EDC }
+  penny_tl_floor:
+    penny_tl_slow:
+      show: penny_flash_slow
+      key: penny_ins_tl
+      show_tokens: { led: l_shot_upper_orbit, color: B57EDC }
+  penny_tl_second:
+    penny_tl_off:
+      action: stop
+      key: penny_ins_tl
+  penny_tr_first:
+    penny_tr_fast:
+      show: penny_flash_fast
+      key: penny_ins_tr
+      show_tokens: { led: l_shot_middle_ramp, color: B57EDC }
+  penny_tr_floor:
+    penny_tr_slow:
+      show: penny_flash_slow
+      key: penny_ins_tr
+      show_tokens: { led: l_shot_middle_ramp, color: B57EDC }
+  penny_tr_second:
+    penny_tr_off:
+      action: stop
+      key: penny_ins_tr
+  penny_rr_first:
+    penny_rr_fast:
+      show: penny_flash_fast
+      key: penny_ins_rr
+      show_tokens: { led: l_shot_right_orbit, color: B57EDC }
+  penny_rr_floor:
+    penny_rr_slow:
+      show: penny_flash_slow
+      key: penny_ins_rr
+      show_tokens: { led: l_shot_right_orbit, color: B57EDC }
+  penny_rr_second:
+    penny_rr_off:
+      action: stop
+      key: penny_ins_rr
+  penny_i_first:
+    penny_i_fast:
+      show: penny_flash_fast
+      key: penny_ins_i
+      show_tokens: { led: l_iceman_i, color: B57EDC }
+  penny_i_floor:
+    penny_i_slow:
+      show: penny_flash_slow
+      key: penny_ins_i
+      show_tokens: { led: l_iceman_i, color: B57EDC }
+  penny_i_second:
+    penny_i_off:
+      action: stop
+      key: penny_ins_i
+  penny_c_first:
+    penny_c_fast:
+      show: penny_flash_fast
+      key: penny_ins_c
+      show_tokens: { led: l_iceman_c, color: B57EDC }
+  penny_c_floor:
+    penny_c_slow:
+      show: penny_flash_slow
+      key: penny_ins_c
+      show_tokens: { led: l_iceman_c, color: B57EDC }
+  penny_c_second:
+    penny_c_off:
+      action: stop
+      key: penny_ins_c
+  penny_e_first:
+    penny_e_fast:
+      show: penny_flash_fast
+      key: penny_ins_e
+      show_tokens: { led: l_iceman_e, color: B57EDC }
+  penny_e_floor:
+    penny_e_slow:
+      show: penny_flash_slow
+      key: penny_ins_e
+      show_tokens: { led: l_iceman_e, color: B57EDC }
+  penny_e_second:
+    penny_e_off:
+      action: stop
+      key: penny_ins_e
+  penny_m_first:
+    penny_m_fast:
+      show: penny_flash_fast
+      key: penny_ins_m
+      show_tokens: { led: l_iceman_m, color: B57EDC }
+  penny_m_floor:
+    penny_m_slow:
+      show: penny_flash_slow
+      key: penny_ins_m
+      show_tokens: { led: l_iceman_m, color: B57EDC }
+  penny_m_second:
+    penny_m_off:
+      action: stop
+      key: penny_ins_m
+  penny_a_first:
+    penny_a_fast:
+      show: penny_flash_fast
+      key: penny_ins_a
+      show_tokens: { led: l_iceman_a, color: B57EDC }
+  penny_a_floor:
+    penny_a_slow:
+      show: penny_flash_slow
+      key: penny_ins_a
+      show_tokens: { led: l_iceman_a, color: B57EDC }
+  penny_a_second:
+    penny_a_off:
+      action: stop
+      key: penny_ins_a
+  penny_n_first:
+    penny_n_fast:
+      show: penny_flash_fast
+      key: penny_ins_n
+      show_tokens: { led: l_iceman_n, color: B57EDC }
+  penny_n_floor:
+    penny_n_slow:
+      show: penny_flash_slow
+      key: penny_ins_n
+      show_tokens: { led: l_iceman_n, color: B57EDC }
+  penny_n_second:
+    penny_n_off:
+      action: stop
+      key: penny_ins_n
+
+  # Part 2: window shots flash fast pink
+  penny_scoop_light_on:
+    penny_scoop_flash:
+      show: penny_flash_fast
+      key: penny_ins_cnt
+      show_tokens: { led: l_shot_barrier, color: FF8CC6 }
+  penny_scoop_locked:
+    penny_scoop_flash_off:
+      action: stop
+      key: penny_ins_cnt
+  penny_ll_light_on:
+    penny_ll_flash:
+      show: penny_flash_fast
+      key: penny_ins_ll
+      show_tokens: { led: l_shot_left_lane, color: FF8CC6 }
+  penny_ll_locked:
+    penny_ll_flash_off:
+      action: stop
+      key: penny_ins_ll
+
+  # Left Lane gate: Top Loop pulses (purple in part 1, pink after)
+  penny_gate_on{current_player.penny_phase==1}:
+    penny_gate_pulse_purple:
+      show: penny_pulse
+      key: penny_tl_gate
+      show_tokens: { led: l_shot_upper_orbit, color: B57EDC }
+  penny_gate_on{current_player.penny_phase>=2}:
+    penny_gate_pulse_pink:
+      show: penny_pulse
+      key: penny_tl_gate
+      show_tokens: { led: l_shot_upper_orbit, color: FF8CC6 }
+  penny_gate_off:
+    penny_gate_pulse_off:
+      action: stop
+      key: penny_tl_gate
+
+  # Part 3: victory - all 15 SOLID light pink, off when collected, relight
+  penny_victory_start:
+    penny_ll_pink_start:
+      show: penny_solid
+      key: penny_ins_ll
+      show_tokens: { led: l_shot_left_lane, color: FF8CC6 }
+    penny_lo_pink_start:
+      show: penny_solid
+      key: penny_ins_lo
+      show_tokens: { led: l_shot_left_orbit, color: FF8CC6 }
+    penny_lr_pink_start:
+      show: penny_solid
+      key: penny_ins_lr
+      show_tokens: { led: l_shot_left_ramp, color: FF8CC6 }
+    penny_sp_pink_start:
+      show: penny_solid
+      key: penny_ins_sp
+      show_tokens: { led: l_shot_spinner, color: FF8CC6 }
+    penny_cnt_pink_start:
+      show: penny_solid
+      key: penny_ins_cnt
+      show_tokens: { led: l_shot_barrier, color: FF8CC6 }
+    penny_twr_pink_start:
+      show: penny_solid
+      key: penny_ins_twr
+      show_tokens: { led: l_shot_tower_ramp, color: FF8CC6 }
+    penny_tl_pink_start:
+      show: penny_solid
+      key: penny_ins_tl
+      show_tokens: { led: l_shot_upper_orbit, color: FF8CC6 }
+    penny_tr_pink_start:
+      show: penny_solid
+      key: penny_ins_tr
+      show_tokens: { led: l_shot_middle_ramp, color: FF8CC6 }
+    penny_rr_pink_start:
+      show: penny_solid
+      key: penny_ins_rr
+      show_tokens: { led: l_shot_right_orbit, color: FF8CC6 }
+    penny_i_pink_start:
+      show: penny_solid
+      key: penny_ins_i
+      show_tokens: { led: l_iceman_i, color: FF8CC6 }
+    penny_c_pink_start:
+      show: penny_solid
+      key: penny_ins_c
+      show_tokens: { led: l_iceman_c, color: FF8CC6 }
+    penny_e_pink_start:
+      show: penny_solid
+      key: penny_ins_e
+      show_tokens: { led: l_iceman_e, color: FF8CC6 }
+    penny_m_pink_start:
+      show: penny_solid
+      key: penny_ins_m
+      show_tokens: { led: l_iceman_m, color: FF8CC6 }
+    penny_a_pink_start:
+      show: penny_solid
+      key: penny_ins_a
+      show_tokens: { led: l_iceman_a, color: FF8CC6 }
+    penny_n_pink_start:
+      show: penny_solid
+      key: penny_ins_n
+      show_tokens: { led: l_iceman_n, color: FF8CC6 }
+  penny_victory_relight:
+    penny_ll_pink_relight:
+      show: penny_solid
+      key: penny_ins_ll
+      show_tokens: { led: l_shot_left_lane, color: FF8CC6 }
+    penny_lo_pink_relight:
+      show: penny_solid
+      key: penny_ins_lo
+      show_tokens: { led: l_shot_left_orbit, color: FF8CC6 }
+    penny_lr_pink_relight:
+      show: penny_solid
+      key: penny_ins_lr
+      show_tokens: { led: l_shot_left_ramp, color: FF8CC6 }
+    penny_sp_pink_relight:
+      show: penny_solid
+      key: penny_ins_sp
+      show_tokens: { led: l_shot_spinner, color: FF8CC6 }
+    penny_cnt_pink_relight:
+      show: penny_solid
+      key: penny_ins_cnt
+      show_tokens: { led: l_shot_barrier, color: FF8CC6 }
+    penny_twr_pink_relight:
+      show: penny_solid
+      key: penny_ins_twr
+      show_tokens: { led: l_shot_tower_ramp, color: FF8CC6 }
+    penny_tl_pink_relight:
+      show: penny_solid
+      key: penny_ins_tl
+      show_tokens: { led: l_shot_upper_orbit, color: FF8CC6 }
+    penny_tr_pink_relight:
+      show: penny_solid
+      key: penny_ins_tr
+      show_tokens: { led: l_shot_middle_ramp, color: FF8CC6 }
+    penny_rr_pink_relight:
+      show: penny_solid
+      key: penny_ins_rr
+      show_tokens: { led: l_shot_right_orbit, color: FF8CC6 }
+    penny_i_pink_relight:
+      show: penny_solid
+      key: penny_ins_i
+      show_tokens: { led: l_iceman_i, color: FF8CC6 }
+    penny_c_pink_relight:
+      show: penny_solid
+      key: penny_ins_c
+      show_tokens: { led: l_iceman_c, color: FF8CC6 }
+    penny_e_pink_relight:
+      show: penny_solid
+      key: penny_ins_e
+      show_tokens: { led: l_iceman_e, color: FF8CC6 }
+    penny_m_pink_relight:
+      show: penny_solid
+      key: penny_ins_m
+      show_tokens: { led: l_iceman_m, color: FF8CC6 }
+    penny_a_pink_relight:
+      show: penny_solid
+      key: penny_ins_a
+      show_tokens: { led: l_iceman_a, color: FF8CC6 }
+    penny_n_pink_relight:
+      show: penny_solid
+      key: penny_ins_n
+      show_tokens: { led: l_iceman_n, color: FF8CC6 }
+  penny_ll_victory:
+    penny_ll_vic_off:
+      action: stop
+      key: penny_ins_ll
+  penny_lo_victory:
+    penny_lo_vic_off:
+      action: stop
+      key: penny_ins_lo
+  penny_lr_victory:
+    penny_lr_vic_off:
+      action: stop
+      key: penny_ins_lr
+  penny_sp_victory:
+    penny_sp_vic_off:
+      action: stop
+      key: penny_ins_sp
+  penny_cnt_victory:
+    penny_cnt_vic_off:
+      action: stop
+      key: penny_ins_cnt
+  penny_twr_victory:
+    penny_twr_vic_off:
+      action: stop
+      key: penny_ins_twr
+  penny_tl_victory:
+    penny_tl_vic_off:
+      action: stop
+      key: penny_ins_tl
+  penny_tr_victory:
+    penny_tr_vic_off:
+      action: stop
+      key: penny_ins_tr
+  penny_rr_victory:
+    penny_rr_vic_off:
+      action: stop
+      key: penny_ins_rr
+  penny_i_victory:
+    penny_i_vic_off:
+      action: stop
+      key: penny_ins_i
+  penny_c_victory:
+    penny_c_vic_off:
+      action: stop
+      key: penny_ins_c
+  penny_e_victory:
+    penny_e_vic_off:
+      action: stop
+      key: penny_ins_e
+  penny_m_victory:
+    penny_m_vic_off:
+      action: stop
+      key: penny_ins_m
+  penny_a_victory:
+    penny_a_vic_off:
+      action: stop
+      key: penny_ins_a
+  penny_n_victory:
+    penny_n_vic_off:
+      action: stop
+      key: penny_ins_n
+
+  # Failed: everything off
+  penny_failed:
+    penny_ll_fail_off:
+      action: stop
+      key: penny_ins_ll
+    penny_lo_fail_off:
+      action: stop
+      key: penny_ins_lo
+    penny_lr_fail_off:
+      action: stop
+      key: penny_ins_lr
+    penny_sp_fail_off:
+      action: stop
+      key: penny_ins_sp
+    penny_cnt_fail_off:
+      action: stop
+      key: penny_ins_cnt
+    penny_twr_fail_off:
+      action: stop
+      key: penny_ins_twr
+    penny_tl_fail_off:
+      action: stop
+      key: penny_ins_tl
+    penny_tr_fail_off:
+      action: stop
+      key: penny_ins_tr
+    penny_rr_fail_off:
+      action: stop
+      key: penny_ins_rr
+    penny_i_fail_off:
+      action: stop
+      key: penny_ins_i
+    penny_c_fail_off:
+      action: stop
+      key: penny_ins_c
+    penny_e_fail_off:
+      action: stop
+      key: penny_ins_e
+    penny_m_fail_off:
+      action: stop
+      key: penny_ins_m
+    penny_a_fail_off:
+      action: stop
+      key: penny_ins_a
+    penny_n_fail_off:
+      action: stop
+      key: penny_ins_n
+
+####################################################################################
+# SHOWS
+####################################################################################
+shows:
+  penny_solid:
+    - duration: -1
+      lights:
+        (led):
+          color: (color)
+          fade: 0ms
+
+  # Counting down (first 20s) - fast
+  penny_flash_fast:
+    - duration: 150ms
+      lights:
+        (led):
+          color: (color)
+          fade: 0ms
+    - duration: 150ms
+      lights:
+        (led):
+          color: off
+          fade: 0ms
+
+  # Left Lane gate hint on the Top Loop insert - stepped pulse (no fades)
+  penny_pulse:
+    - duration: 120ms
+      lights:
+        (led): { color: (color), fade: 0ms }
+    - duration: 120ms
+      lights:
+        (led): { color: (color)%60, fade: 0ms }
+    - duration: 120ms
+      lights:
+        (led): { color: (color)%25, fade: 0ms }
+    - duration: 240ms
+      lights:
+        (led): { color: off, fade: 0ms }
+    - duration: 120ms
+      lights:
+        (led): { color: (color)%25, fade: 0ms }
+    - duration: 120ms
+      lights:
+        (led): { color: (color)%60, fade: 0ms }
+
+  # At the 500K floor - slow
+  penny_flash_slow:
+    - duration: 600ms
+      lights:
+        (led):
+          color: (color)
+          fade: 0ms
+    - duration: 600ms
+      lights:
+        (led):
+          color: off
+          fade: 0ms

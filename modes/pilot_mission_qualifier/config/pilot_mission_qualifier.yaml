@@ -405,7 +405,9 @@ slide_player:
       priority: 300
   
   # Reset to no letters - only show topgun_0 if NOT qualified (still collecting)
-  topgun_letters_reset{current_player.qualified_mode_number==0}:
+  # and NOT during Final Battle: ball_will_end posts this reset when the last
+  # jet is lost, and topgun_0 would sit behind the lost video / tally.
+  topgun_letters_reset{current_player.qualified_mode_number==0 and mode.final_battle.active==False}:
     topgun_6:
       action: remove
     topgun_0:
@@ -1111,11 +1113,15 @@ variable_player:
       int: 0
 
   # Clear pause flags when hard deck maverick_and_penny stops
-  mode_hard_deck_maverick_and_penny_stopped:
+  mode_hard_deck_penny_stopped:
     letter_collection_paused:
       action: set
       int: 0
     hard_deck_active:
+      action: set
+      int: 0
+    # Clear multiball_active (set during the Penny 2-ball multiball)
+    multiball_active:
       action: set
       int: 0
 
@@ -2213,7 +2219,7 @@ coil_player:
   mode_hard_deck_playing_with_the_boys_started:
     c_mode_barrier:
       action: disable
-  mode_hard_deck_maverick_and_penny_started:
+  mode_hard_deck_penny_started:
     c_mode_barrier:
       action: disable
   mode_hard_deck_honoring_iceman_started:
@@ -2269,7 +2275,7 @@ coil_player:
   mode_hard_deck_playing_with_the_boys_stopped{current_player.qualified_mode_number>0}:
     c_mode_barrier:
       action: enable
-  mode_hard_deck_maverick_and_penny_stopped{current_player.qualified_mode_number>0}:
+  mode_hard_deck_penny_stopped{current_player.qualified_mode_number>0}:
     c_mode_barrier:
       action: enable
   mode_hard_deck_honoring_iceman_stopped{current_player.qualified_mode_number>0}:
@@ -3713,7 +3719,7 @@ event_player:
   mode_hard_deck_playing_with_the_boys_started:
     - ball_search_reset
     - ball_search_block
-  mode_hard_deck_maverick_and_penny_started:
+  mode_hard_deck_penny_started:
     - ball_search_reset
     - ball_search_block
   mode_hard_deck_honoring_iceman_started:

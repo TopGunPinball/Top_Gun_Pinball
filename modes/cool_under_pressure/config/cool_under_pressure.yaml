@@ -292,7 +292,7 @@ timers:
     control_events:
       - event: cup_drain_detected
         action: start
-      - event: cup_skip_drain_video
+      - event: cup_skip_drain_video{device.timers.cup_drain_delay.running}
         action: jump
         value: 20
 
@@ -305,7 +305,7 @@ timers:
     control_events:
       - event: cup_complete
         action: start
-      - event: cup_skip_won_video
+      - event: cup_skip_won_video{device.timers.cup_complete_delay.running}
         action: jump
         value: 25
 
@@ -318,7 +318,7 @@ timers:
     control_events:
       - event: cup_failed
         action: start
-      - event: cup_skip_failed_video
+      - event: cup_skip_failed_video{device.timers.cup_failed_delay.running}
         action: jump
         value: 20
 
@@ -1007,8 +1007,8 @@ event_player:
   # LO bad at 2,1,0
   left_orbit_shot_hit{current_player.cup_step==2 and current_player.cup_crystals<=2 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
-  # Spinner bad at 1,0
-  spinner_shot_made{current_player.cup_step==2 and current_player.cup_crystals<=1 and device.timers.cup_spinner_lockout.running==False and current_player.cup_step_locked==0}:
+  # Left Lane bad at 1,0 (replaced the spinner - spinner is never a penalty)
+  s_lane_left_active{current_player.cup_step==2 and current_player.cup_crystals<=1 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # Barrier bad at 0
   s_barrier_target_active{current_player.cup_step==2 and current_player.cup_crystals==0 and current_player.cup_step_locked==0}:
@@ -1032,8 +1032,8 @@ event_player:
   # LR always bad
   s_ramp_left_exit_active{current_player.cup_step==4 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
-  # Spinner bad at 2,1,0
-  spinner_shot_made{current_player.cup_step==4 and current_player.cup_crystals<=2 and device.timers.cup_spinner_lockout.running==False and current_player.cup_step_locked==0}:
+  # Left Orbit bad at 2,1,0 (replaced the spinner - spinner is never a penalty)
+  left_orbit_shot_hit{current_player.cup_step==4 and current_player.cup_crystals<=2 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # TWR bad at 1,0
   s_ramp_tower_exit_active{current_player.cup_step==4 and current_player.cup_crystals<=1 and current_player.cup_step_locked==0}:
@@ -1046,8 +1046,8 @@ event_player:
   # Barrier always bad
   s_barrier_target_active{current_player.cup_step==5 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
-  # Spinner bad at 2,1,0
-  spinner_shot_made{current_player.cup_step==5 and current_player.cup_crystals<=2 and device.timers.cup_spinner_lockout.running==False and current_player.cup_step_locked==0}:
+  # Left Orbit bad at 2,1,0 (replaced the spinner - spinner is never a penalty)
+  left_orbit_shot_hit{current_player.cup_step==5 and current_player.cup_crystals<=2 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # TWR bad at 1,0
   s_ramp_tower_exit_active{current_player.cup_step==5 and current_player.cup_crystals<=1 and current_player.cup_step_locked==0}:
@@ -1074,13 +1074,13 @@ event_player:
   # RR always bad
   s_ramp_right_exit_active{current_player.cup_step==7 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
-  # Spinner bad at 2,1,0
-  spinner_shot_made{current_player.cup_step==7 and current_player.cup_crystals<=2 and device.timers.cup_spinner_lockout.running==False and current_player.cup_step_locked==0}:
+  # Barrier target bad at 2,1,0 (replaced the spinner - spinner is never a penalty)
+  s_barrier_target_active{current_player.cup_step==7 and current_player.cup_crystals<=2 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # TWR bad at 1,0
   s_ramp_tower_exit_active{current_player.cup_step==7 and current_player.cup_crystals<=1 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
-  # LR bad at 0 (corrected per user: 0 crystals = RR, Spinner, LR, TWR)
+  # LR bad at 0 (0 crystals = RR, Barrier, TWR, LR)
   s_ramp_left_exit_active{current_player.cup_step==7 and current_player.cup_crystals==0 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
 
@@ -1091,8 +1091,8 @@ event_player:
   # RR bad at 2,1,0
   s_ramp_right_exit_active{current_player.cup_step==8 and current_player.cup_crystals<=2 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
-  # Spinner bad at 1,0
-  spinner_shot_made{current_player.cup_step==8 and current_player.cup_crystals<=1 and device.timers.cup_spinner_lockout.running==False and current_player.cup_step_locked==0}:
+  # Left Orbit bad at 1,0 (replaced the spinner - spinner is never a penalty)
+  left_orbit_shot_hit{current_player.cup_step==8 and current_player.cup_crystals<=1 and current_player.cup_step_locked==0}:
     - cup_bad_shot_hit
   # TWR bad at 0
   s_ramp_tower_exit_active{current_player.cup_step==8 and current_player.cup_crystals==0 and current_player.cup_step_locked==0}:
@@ -1685,13 +1685,15 @@ slide_player:
 ####################################################################################
 # Good shots: handled by show_player (sync_flash_mode, 00AAFF vivid ice blue)
 # Bad shots:  FF0000 solid red | Unlit shots: off
-# LL (l_shot_left_lane) and 2X (l_shot_pilot_gear) never used — left off.
+# LL (l_shot_left_lane) used only as a step 2 bad shot. 2X (l_shot_pilot_gear) never used.
+# The spinner is NEVER a bad shot (path to TL/TO/TR): replaced by LL (step 2), LO (steps 4,5,8), Barrier (step 7).
 # TO and TR share l_shot_middle_ramp. RO and RR share l_shot_right_orbit.
 
 light_player:
 
   # Clear all shot lights between steps and on cleanup
   cup_stop_step_lights:
+    l_shot_left_lane: off
     l_shot_left_orbit: off
     l_shot_left_ramp: off
     l_shot_spinner: off
@@ -1702,6 +1704,7 @@ light_player:
     l_shot_right_orbit: off
 
   mode_cool_under_pressure_started:
+    l_shot_left_lane: off
     l_shot_left_orbit: off
     l_shot_left_ramp: off
     l_shot_spinner: off
@@ -1741,12 +1744,13 @@ light_player:
     l_shot_right_orbit: FF0000
     l_shot_barrier: off
 
-  # ── STEP 2 ── Good: TWR, RR, TR | Bad: LR (+LO, +SP, +Barrier)
+  # ── STEP 2 ── Good: TWR, RR, TR | Bad: LR (+LO, +LL, +Barrier)
   # Step 2 — good shots (TWR/RR/TR) handled by show_player flash
   cup_setup_step_2{current_player.cup_crystals==3}:
     l_shot_left_ramp: FF0000
     l_shot_left_orbit: off
     l_shot_spinner: off
+    l_shot_left_lane: off
     l_shot_upper_orbit: off
     l_shot_barrier: off
 
@@ -1754,20 +1758,23 @@ light_player:
     l_shot_left_ramp: FF0000
     l_shot_left_orbit: FF0000
     l_shot_spinner: off
+    l_shot_left_lane: off
     l_shot_upper_orbit: off
     l_shot_barrier: off
 
   cup_setup_step_2{current_player.cup_crystals==1}:
     l_shot_left_ramp: FF0000
     l_shot_left_orbit: FF0000
-    l_shot_spinner: FF0000
+    l_shot_spinner: off
+    l_shot_left_lane: FF0000
     l_shot_upper_orbit: off
     l_shot_barrier: off
 
   cup_setup_step_2{current_player.cup_crystals==0}:
     l_shot_left_ramp: FF0000
     l_shot_left_orbit: FF0000
-    l_shot_spinner: FF0000
+    l_shot_spinner: off
+    l_shot_left_lane: FF0000
     l_shot_upper_orbit: off
     l_shot_barrier: FF0000
 
@@ -1817,25 +1824,25 @@ light_player:
 
   cup_setup_step_4{current_player.cup_crystals==2}:
     l_shot_left_ramp: FF0000
-    l_shot_spinner: FF0000
+    l_shot_spinner: off
     l_shot_tower_ramp: off
-    l_shot_left_orbit: off
+    l_shot_left_orbit: FF0000
     l_shot_right_orbit: off
     l_shot_barrier: off
 
   cup_setup_step_4{current_player.cup_crystals==1}:
     l_shot_left_ramp: FF0000
-    l_shot_spinner: FF0000
+    l_shot_spinner: off
     l_shot_tower_ramp: FF0000
-    l_shot_left_orbit: off
+    l_shot_left_orbit: FF0000
     l_shot_right_orbit: off
     l_shot_barrier: off
 
   cup_setup_step_4{current_player.cup_crystals==0}:
     l_shot_left_ramp: FF0000
-    l_shot_spinner: FF0000
+    l_shot_spinner: off
     l_shot_tower_ramp: FF0000
-    l_shot_left_orbit: off
+    l_shot_left_orbit: FF0000
     l_shot_right_orbit: off
     l_shot_barrier: FF0000
 
@@ -1852,28 +1859,28 @@ light_player:
 
   cup_setup_step_5{current_player.cup_crystals==2}:
     l_shot_barrier: FF0000
-    l_shot_spinner: FF0000
+    l_shot_spinner: off
     l_shot_tower_ramp: off
     l_shot_left_ramp: off
-    l_shot_left_orbit: off
+    l_shot_left_orbit: FF0000
     l_shot_upper_orbit: off
     l_shot_middle_ramp: off
 
   cup_setup_step_5{current_player.cup_crystals==1}:
     l_shot_barrier: FF0000
-    l_shot_spinner: FF0000
+    l_shot_spinner: off
     l_shot_tower_ramp: FF0000
     l_shot_left_ramp: off
-    l_shot_left_orbit: off
+    l_shot_left_orbit: FF0000
     l_shot_upper_orbit: off
     l_shot_middle_ramp: off
 
   cup_setup_step_5{current_player.cup_crystals==0}:
     l_shot_barrier: FF0000
-    l_shot_spinner: FF0000
+    l_shot_spinner: off
     l_shot_tower_ramp: FF0000
     l_shot_left_ramp: FF0000
-    l_shot_left_orbit: off
+    l_shot_left_orbit: FF0000
     l_shot_upper_orbit: off
     l_shot_middle_ramp: off
 
@@ -1915,7 +1922,7 @@ light_player:
     l_shot_tower_ramp: off
     l_shot_right_orbit: off
 
-  # ── STEP 7 ── Good: LO | Bad: RR (+SP, +TWR, +LR) [top ramp DOWN]
+  # ── STEP 7 ── Good: LO | Bad: RR (+Barrier, +TWR, +LR) [top ramp DOWN]
   # Step 7 — good shot (LO) handled by show_player flash
   cup_setup_step_7{current_player.cup_crystals==3}:
     l_shot_right_orbit: FF0000
@@ -1928,32 +1935,32 @@ light_player:
 
   cup_setup_step_7{current_player.cup_crystals==2}:
     l_shot_right_orbit: FF0000
-    l_shot_spinner: FF0000
+    l_shot_spinner: off
     l_shot_tower_ramp: off
     l_shot_left_ramp: off
     l_shot_upper_orbit: off
     l_shot_middle_ramp: off
-    l_shot_barrier: off
+    l_shot_barrier: FF0000
 
   cup_setup_step_7{current_player.cup_crystals==1}:
     l_shot_right_orbit: FF0000
-    l_shot_spinner: FF0000
+    l_shot_spinner: off
     l_shot_tower_ramp: FF0000
     l_shot_left_ramp: off
     l_shot_upper_orbit: off
     l_shot_middle_ramp: off
-    l_shot_barrier: off
+    l_shot_barrier: FF0000
 
   cup_setup_step_7{current_player.cup_crystals==0}:
     l_shot_right_orbit: FF0000
-    l_shot_spinner: FF0000
+    l_shot_spinner: off
     l_shot_tower_ramp: FF0000
     l_shot_left_ramp: FF0000
     l_shot_upper_orbit: off
     l_shot_middle_ramp: off
-    l_shot_barrier: off
+    l_shot_barrier: FF0000
 
-  # ── STEP 8 ── Good: Scoop (barrier=ice blue) | Bad: LR (+RR, +SP, +TWR) [barrier DOWN]
+  # ── STEP 8 ── Good: Scoop (barrier=ice blue) | Bad: LR (+RR, +LO, +TWR) [barrier DOWN]
   # Step 8 — good shot (Barrier/Scoop) handled by show_player flash
   cup_setup_step_8{current_player.cup_crystals==3}:
     l_shot_left_ramp: FF0000
@@ -1976,18 +1983,18 @@ light_player:
   cup_setup_step_8{current_player.cup_crystals==1}:
     l_shot_left_ramp: FF0000
     l_shot_right_orbit: FF0000
-    l_shot_spinner: FF0000
+    l_shot_spinner: off
     l_shot_tower_ramp: off
-    l_shot_left_orbit: off
+    l_shot_left_orbit: FF0000
     l_shot_upper_orbit: off
     l_shot_middle_ramp: off
 
   cup_setup_step_8{current_player.cup_crystals==0}:
     l_shot_left_ramp: FF0000
     l_shot_right_orbit: FF0000
-    l_shot_spinner: FF0000
+    l_shot_spinner: off
     l_shot_tower_ramp: FF0000
-    l_shot_left_orbit: off
+    l_shot_left_orbit: FF0000
     l_shot_upper_orbit: off
     l_shot_middle_ramp: off
 

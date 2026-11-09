@@ -19,7 +19,11 @@ const VIDEO_PATH := "res://addons/artwork/videos/final_battle/%s.ogv"
 @export var placeholder_seconds: float = 2.5
 ## DUCKING
 ## Music is lowered while a video plays (GMC ducking, 0 = none, 1 = mute)
-@export var music_duck_under_video: float = 0.6
+@export var music_duck_under_video: float = 0.3
+## Only CINEMATIC videos duck the music: urgent videos, or any video whose name
+## contains one of these. Per-shot / step videos play over full-volume music.
+## (They played on almost every shot, so the music sat ducked most of the time.)
+@export var duck_video_keywords: Array[String] = ["intro", "_won", "_lost", "victory", "explosion"]
 ## Video sound is lowered while a voice callout plays (dB)
 @export var video_duck_db: float = -18.0
 @export var voice_bus: String = "voice"
@@ -42,10 +46,12 @@ func _ready() -> void:
 	_card.visible = false
 	MPF.server.add_event_handler("fb_video", _on_fb_video)
 	MPF.server.add_event_handler("fb_video_clear", _on_fb_video_clear)
+	MPF.server.add_event_handler("fb_tally_start", _on_music_unduck)
 
 func _exit_tree() -> void:
 	MPF.server.remove_event_handler("fb_video", _on_fb_video)
 	MPF.server.remove_event_handler("fb_video_clear", _on_fb_video_clear)
+	MPF.server.remove_event_handler("fb_tally_start", _on_music_unduck)
 
 func _on_fb_video(kwargs: Dictionary) -> void:
 	var vname := str(kwargs.get("video", ""))
@@ -55,7 +61,7 @@ func _on_fb_video(kwargs: Dictionary) -> void:
 	if urgent:
 		_pending = ""
 		_interrupt_current()
-		_play(vname)
+		_play(vname, true)
 	elif _current != "":
 		_pending = vname
 	else:
@@ -78,7 +84,7 @@ func _interrupt_current() -> void:
 	_current = ""
 	_send_done(was)
 
-func _play(vname: String) -> void:
+func _play(vname: String, urgent: bool = false) -> void:
 	_release_video_duck()
 	_current = vname
 	var path := VIDEO_PATH % vname
@@ -88,7 +94,8 @@ func _play(vname: String) -> void:
 		_player.visible = true
 		_player.volume_db = video_duck_db if _voice_active else 0.0
 		_player.play()
-		_duck_music(_player.get_stream_length())
+		if _is_cinematic(vname, urgent):
+			_duck_music(_player.get_stream_length())
 		_send_started(vname)
 	else:
 		_player.stop()
@@ -141,6 +148,14 @@ func _duck_music(seconds: float) -> void:
 	_video_duck = d
 	bus.duck(d)
 
+func _is_cinematic(vname: String, urgent: bool) -> bool:
+	if urgent:
+		return true
+	for kw in duck_video_keywords:
+		if kw != "" and vname.contains(kw):
+			return true
+	return false
+
 func _release_video_duck() -> void:
 	if _video_duck == null:
 		return
@@ -158,6 +173,27 @@ func _release_video_duck() -> void:
 	else:
 		# Not the one being timed: just drop it from the stack
 		bus.duckings.erase(d)
+
+## Points tally: the tally music must play at FULL volume. A callout duck
+## from the loss (voice_final_battle_failed etc.) could still be sitting in
+## GMC's duck stack after the lost video's own duck is released - the log
+## showed the music bus still ducked right through the tally. So on
+## fb_tally_start every duck on the music bus is dropped and the bus goes
+## straight back to its full volume.
+func _on_music_unduck(_kwargs: Dictionary = {}) -> void:
+	_video_duck = null
+	var bus = _music_bus()
+	if bus == null:
+		return
+	var timer: Timer = bus._duck_release_timer
+	if timer:
+		timer.stop()
+		if timer.has_meta("ducking"):
+			timer.remove_meta("ducking")
+	bus.duckings.clear()
+	if bus._active_duck:
+		bus._active_duck.kill()
+	bus.set_bus_volume(bus._full_volume_db)
 
 func _music_bus():
 	if not MPF or not MPF.media or not MPF.media.sound:
