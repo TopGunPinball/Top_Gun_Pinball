@@ -35,6 +35,15 @@
 ##   hs_tgmb_jackpots          best single Top Gun Multiball: MIG jackpots +
 ##                             super jackpots, exactly as scored (multipliers
 ##                             included). Run total: hs_tgmb_jp_run
+##   hs_ramps                  ramps made this game: s_ramp_left_exit,
+##                             s_ramp_tower_exit, s_ramp_inner_exit,
+##                             s_ramp_right_exit (any mode, multiball too)
+##   hs_ball_saves             balls saved this game: every ball_saves device
+##                             (ball_save_<name>_saving_ball, 'balls' arg)
+##                             + every multiball shoot-again
+##                             (multiball_<name>_shoot_again, 'balls' arg)
+##                             >>> NEW ball_saves / multiballs device? add its
+##                             >>> event to the BALL SAVES list below.
 ##
 ## CLOCKS
 ##   hs_play_seconds  - this player's ball time (1s ticks while their ball is
@@ -342,3 +351,90 @@ variable_player:
     hs_final_battle_practice: { action: set, int: current_player.fb_mission_points * current_player.fb_jets }
   player_fb_points_awarded{value==1 and machine.practice_fb_game==1 and current_player.fb_jets<1}:
     hs_final_battle_practice: { action: set, int: current_player.fb_mission_points }
+
+  # ---------------------------------------------------------------- RAMPS
+  # One count per ramp exit switch (the 4 ramps)
+  s_ramp_left_exit_active:
+    hs_ramps: { action: add, int: 1 }
+  s_ramp_tower_exit_active:
+    hs_ramps: { action: add, int: 1 }
+  s_ramp_inner_exit_active:
+    hs_ramps: { action: add, int: 1 }
+  s_ramp_right_exit_active:
+    hs_ramps: { action: add, int: 1 }
+
+  # ---------------------------------------------------------------- BALL SAVES
+  # Ball save devices (machine-wide + mode devices). 'balls' = balls saved.
+  ball_save_new_ball_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_mode_ball_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_scoop_eject_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_orbit_left_safe_return_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_ejection_seat_ball_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_fb_last_ball_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_fb_grace_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_fb_jet_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_gbof_launch_ball_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_gbof_multiball_ball_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_gbof_phase1_forge_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_hoi_ball_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_penny_victory_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_ptb_dogfight_ball_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_ptb_dogfight_drain_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_inverted_multiball_ball_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_wingman_multiball_ball_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_wingman_drain_ball_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_practice_fb_intro_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_mb_add_a_ball_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  ball_save_mb_extender_callout_save_saving_ball:
+    hs_ball_saves: { action: add, int: balls }
+  # Multiball shoot-again (MPF's built-in multiball ball save)
+  multiball_fb_clear_locks_1_shoot_again:
+    hs_ball_saves: { action: add, int: balls }
+  multiball_fb_clear_locks_2_shoot_again:
+    hs_ball_saves: { action: add, int: balls }
+  multiball_fb_p2_multiball_shoot_again:
+    hs_ball_saves: { action: add, int: balls }
+  multiball_fb_p2_adder_shoot_again:
+    hs_ball_saves: { action: add, int: balls }
+  multiball_fb_p2_relaunch_shoot_again:
+    hs_ball_saves: { action: add, int: balls }
+  multiball_fb_p4_multiball_shoot_again:
+    hs_ball_saves: { action: add, int: balls }
+  multiball_fb_p4_adder_shoot_again:
+    hs_ball_saves: { action: add, int: balls }
+  multiball_fb_p4_relaunch_shoot_again:
+    hs_ball_saves: { action: add, int: balls }
+  multiball_gbof_multiball_shoot_again:
+    hs_ball_saves: { action: add, int: balls }
+  multiball_penny_multiball_shoot_again:
+    hs_ball_saves: { action: add, int: balls }
+  multiball_ptb_dogfight_multiball_shoot_again:
+    hs_ball_saves: { action: add, int: balls }
+  multiball_inverted_multiball_shoot_again:
+    hs_ball_saves: { action: add, int: balls }
+  multiball_wingman_multiball_shoot_again:
+    hs_ball_saves: { action: add, int: balls }
+  multiball_top_gun_multiball_shoot_again:
+    hs_ball_saves: { action: add, int: balls }
+  multiball_top_gun_multiball_extender_shoot_again:
+    hs_ball_saves: { action: add, int: balls }

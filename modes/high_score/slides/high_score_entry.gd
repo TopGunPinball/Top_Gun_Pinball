@@ -33,29 +33,29 @@ const CHAR_VALUES := [
 ]
 
 var _letter_index    : int    = 0
-var _select_trigger  : int    = -1   # -1 so first real value of 0 triggers
+# Last hs_select_trigger value handled. MPF sets the var to 0 at the start of
+# EVERY entry and adds 1 per Start press, so presses are always 1, 2, 3...
+var _select_trigger  : int    = 0
+var _player_num      : int    = 0
 var _typed_name      : String = ""
 var _timer_remaining : float  = TIMER_SECONDS
 var _active          : bool   = false
 var _submitted       : bool   = false
 
 func _ready() -> void:
-    # Read initial machine var values (may already be set if slide was pre-loaded)
+    # The slide is created ONCE and reused for every player who qualifies
+    # (GMC keeps the existing slide on a repeat "play"), so _ready only
+    # covers the first entry. Later entries are reset in _reset_for_new_entry.
+    _player_num = int(MPF.game.machine_vars.get("hs_player_num", 0))
+    _reset_for_new_entry()
     _letter_index   = int(MPF.game.machine_vars.get("hs_letter_index", 0))
-    _select_trigger = int(MPF.game.machine_vars.get("hs_select_trigger", 0)) - 1
-    _typed_name     = ""
-    _timer_remaining = TIMER_SECONDS
-    _active   = true
-    _submitted = false
+    _select_trigger = int(MPF.game.machine_vars.get("hs_select_trigger", 0))
+    _update_carousel()
 
     MPF.game.connect("machine_update", _on_machine_update)
 
     # Listen for each new entry prompt (fires each time a new player needs to enter)
     MPF.server.add_event_handler("high_score_enter_initials", _on_entry_start)
-
-    _update_carousel()
-    _update_name_display()
-    _update_timer_display()
 
 func _exit_tree() -> void:
     if MPF.game.is_connected("machine_update", _on_machine_update):
@@ -72,11 +72,19 @@ func _process(delta: float) -> void:
     else:
         _update_timer_display()
 
-# Called each time a new player's entry starts
-func _on_entry_start(_settings: Dictionary, _kwargs: Dictionary) -> void:
+# Called each time a new player's entry starts.
+# GMC calls event handlers with ONE argument (the event kwargs). The old
+# two-argument signature made every call fail, so player 2 inherited
+# player 1's finished entry (name "RAB", already submitted = locked).
+func _on_entry_start(_kwargs: Dictionary = {}) -> void:
+    _reset_for_new_entry()
+
+# Clean slate for the next player. Safe to run more than once per entry
+# (event handler + hs_player_num change both call it at prompt start).
+func _reset_for_new_entry() -> void:
     _typed_name      = ""
     _letter_index    = 0
-    _select_trigger  = int(MPF.game.machine_vars.get("hs_select_trigger", 0)) - 1
+    _select_trigger  = 0
     _timer_remaining = TIMER_SECONDS
     _submitted = false
     _active    = true
@@ -86,6 +94,13 @@ func _on_entry_start(_settings: Dictionary, _kwargs: Dictionary) -> void:
 
 func _on_machine_update(var_name: String, value: Variant) -> void:
     match var_name:
+        "hs_player_num":
+            # Backup reset: a different player is now entering a name
+            var pnum = int(value)
+            if pnum != _player_num:
+                _player_num = pnum
+                _reset_for_new_entry()
+
         "hs_letter_index":
             _letter_index = int(value)
             _timer_remaining = TIMER_SECONDS  # reset timer on navigation
@@ -93,7 +108,11 @@ func _on_machine_update(var_name: String, value: Variant) -> void:
 
         "hs_select_trigger":
             var new_trigger = int(value)
-            if new_trigger != _select_trigger and _active and not _submitted:
+            # 0 = MPF reset the counter for a new entry - not a button press
+            if new_trigger <= 0:
+                _select_trigger = 0
+                return
+            if new_trigger > _select_trigger and _active and not _submitted:
                 _select_trigger = new_trigger
                 _timer_remaining = TIMER_SECONDS
                 _handle_select()
